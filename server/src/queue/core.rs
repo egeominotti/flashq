@@ -1,11 +1,12 @@
 use std::collections::BinaryHeap;
 use std::sync::atomic::Ordering;
+use std::sync::Arc;
 
 use serde_json::Value;
 use tokio::time::Duration;
 
 use crate::protocol::{next_id, Job, JobInput};
-use super::types::WalEvent;
+use super::types::{intern, now_ms, WalEvent};
 use super::manager::QueueManager;
 
 impl QueueManager {
@@ -23,7 +24,7 @@ impl QueueManager {
         unique_key: Option<String>,
         depends_on: Option<Vec<u64>>,
     ) -> Job {
-        let now = Self::now_ms();
+        let now = now_ms();
         Job {
             id: next_id(),
             queue,
@@ -63,13 +64,14 @@ impl QueueManager {
         );
 
         let idx = Self::shard_index(&queue);
+        let queue_name = intern(&queue);
 
         {
             let mut shard = self.shards[idx].write();
 
             // Check unique key
             if let Some(ref key) = unique_key {
-                let keys = shard.unique_keys.entry(queue.clone()).or_default();
+                let keys = shard.unique_keys.entry(Arc::clone(&queue_name)).or_default();
                 if keys.contains(key) {
                     return Err(format!("Duplicate job with key: {}", key));
                 }
@@ -89,11 +91,11 @@ impl QueueManager {
                 }
             }
 
-            shard.queues.entry(queue).or_insert_with(BinaryHeap::new).push(job.clone());
+            shard.queues.entry(queue_name).or_insert_with(BinaryHeap::new).push(job.clone());
         }
 
         self.metrics.record_push(1);
-        self.notify.notify_waiters();
+        self.notify_shard(idx);
         Ok(job)
     }
 
@@ -103,6 +105,7 @@ impl QueueManager {
         let mut waiting_jobs = Vec::new();
 
         let idx = Self::shard_index(&queue);
+        let queue_name = intern(&queue);
         let completed = self.completed_jobs.read().clone();
 
         for input in jobs {
@@ -126,7 +129,7 @@ impl QueueManager {
 
         {
             let mut shard = self.shards[idx].write();
-            let heap = shard.queues.entry(queue).or_insert_with(BinaryHeap::new);
+            let heap = shard.queues.entry(queue_name).or_insert_with(BinaryHeap::new);
             for job in created_jobs {
                 heap.push(job);
             }
@@ -136,137 +139,193 @@ impl QueueManager {
         }
 
         self.metrics.record_push(ids.len() as u64);
-        self.notify.notify_waiters();
+        self.notify_shard(idx);
         ids
     }
 
+    /// Optimized pull with combined state check and lazy TTL deletion
     pub async fn pull(&self, queue_name: &str) -> Job {
         let idx = Self::shard_index(queue_name);
+        let queue_arc = intern(queue_name);
+
+        // Result of lock acquisition: Job found, need to wait, or need to sleep
+        enum PullResult {
+            Job(Job),
+            Wait,
+            SleepPaused,
+            SleepRateLimit,
+            SleepConcurrency,
+        }
 
         loop {
-            // Check if queue is paused
-            let is_paused = self.paused_queues.read().contains(queue_name);
-            if is_paused {
-                tokio::time::sleep(Duration::from_millis(100)).await;
-                continue;
-            }
+            let now = now_ms();
 
-            // Check rate limit
-            let rate_ok = {
-                let mut limiters = self.rate_limiters.write();
-                limiters.get_mut(queue_name).map_or(true, |l| l.try_acquire())
-            };
-            if !rate_ok {
-                tokio::time::sleep(Duration::from_millis(10)).await;
-                continue;
-            }
-
-            // Check concurrency limit
-            let conc_ok = {
-                let mut conc = self.concurrency_limiters.write();
-                conc.get_mut(queue_name).map_or(true, |l| l.try_acquire())
-            };
-            if !conc_ok {
-                tokio::time::sleep(Duration::from_millis(10)).await;
-                continue;
-            }
-
-            let now = Self::now_ms();
-            let maybe_job = {
+            // Single lock acquisition for all checks + job retrieval
+            let pull_result = {
                 let mut shard = self.shards[idx].write();
-                let mut result = None;
-                if let Some(heap) = shard.queues.get_mut(queue_name) {
-                    while let Some(job) = heap.peek() {
-                        if job.is_expired(now) {
-                            heap.pop();
-                            continue;
+                let state = shard.get_state(&queue_arc);
+
+                // Check paused
+                if state.paused {
+                    PullResult::SleepPaused
+                }
+                // Check rate limit
+                else if state.rate_limiter.as_mut().map_or(false, |l| !l.try_acquire()) {
+                    PullResult::SleepRateLimit
+                }
+                // Check concurrency limit
+                else if state.concurrency.as_mut().map_or(false, |c| !c.try_acquire()) {
+                    PullResult::SleepConcurrency
+                }
+                else {
+                    // Try to get a job (with lazy TTL deletion)
+                    let mut result = None;
+                    if let Some(heap) = shard.queues.get_mut(&queue_arc) {
+                        while let Some(job) = heap.peek() {
+                            if job.is_expired(now) {
+                                heap.pop();
+                                continue;
+                            }
+                            if job.is_ready(now) {
+                                let mut job = heap.pop().unwrap();
+                                job.started_at = now;
+                                result = Some(job);
+                                break;
+                            }
+                            break; // Job not ready yet (delayed)
                         }
-                        if job.is_ready(now) {
-                            let mut job = heap.pop().unwrap();
-                            job.started_at = now;
-                            result = Some(job);
-                            break;
+                    }
+
+                    // If no job found, release concurrency slot
+                    if result.is_none() {
+                        let state = shard.get_state(&queue_arc);
+                        if let Some(ref mut conc) = state.concurrency {
+                            conc.release();
                         }
-                        break;
+                        PullResult::Wait
+                    } else {
+                        PullResult::Job(result.unwrap())
                     }
                 }
-                result
             };
 
-            if let Some(job) = maybe_job {
-                self.processing.write().insert(job.id, job.clone());
-                return job;
-            }
-
-            // Release concurrency if we didn't get a job
-            {
-                let mut conc = self.concurrency_limiters.write();
-                if let Some(limiter) = conc.get_mut(queue_name) {
-                    limiter.release();
+            match pull_result {
+                PullResult::Job(job) => {
+                    self.processing.write().insert(job.id, job.clone());
+                    return job;
+                }
+                PullResult::SleepPaused => {
+                    tokio::time::sleep(Duration::from_millis(100)).await;
+                }
+                PullResult::SleepRateLimit | PullResult::SleepConcurrency => {
+                    tokio::time::sleep(Duration::from_millis(10)).await;
+                }
+                PullResult::Wait => {
+                    // Wait for notification on this shard
+                    let notify = {
+                        let shard = self.shards[idx].read();
+                        Arc::clone(&shard.notify)
+                    };
+                    notify.notified().await;
                 }
             }
-
-            self.notify.notified().await;
         }
     }
 
     pub async fn pull_batch(&self, queue_name: &str, count: usize) -> Vec<Job> {
         let idx = Self::shard_index(queue_name);
+        let queue_arc = intern(queue_name);
         let mut result = Vec::with_capacity(count);
 
+        enum BatchResult {
+            Jobs(Vec<Job>),
+            Paused,
+            Wait,
+        }
+
         loop {
-            // Check if queue is paused
-            let is_paused = self.paused_queues.read().contains(queue_name);
-            if is_paused {
-                tokio::time::sleep(Duration::from_millis(100)).await;
-                continue;
-            }
+            let now = now_ms();
 
-            let now = Self::now_ms();
-            let jobs_to_process = {
+            let batch_result = {
                 let mut shard = self.shards[idx].write();
-                let mut jobs = Vec::new();
+                let state = shard.get_state(&queue_arc);
 
-                if let Some(heap) = shard.queues.get_mut(queue_name) {
-                    while jobs.len() < count {
-                        // Check concurrency for each job
-                        let conc_ok = {
-                            let mut conc = self.concurrency_limiters.write();
-                            conc.get_mut(queue_name).map_or(true, |l| l.try_acquire())
-                        };
-                        if !conc_ok { break; }
+                // Check paused
+                if state.paused {
+                    BatchResult::Paused
+                } else {
+                    let has_concurrency = state.concurrency.is_some();
+                    let mut jobs = Vec::new();
+                    let mut slots_acquired = 0usize;
 
-                        match heap.peek() {
-                            Some(job) if job.is_expired(now) => { heap.pop(); }
-                            Some(job) if job.is_ready(now) => {
-                                let mut job = heap.pop().unwrap();
-                                job.started_at = now;
-                                jobs.push(job);
+                    // Try to acquire concurrency slots upfront
+                    if has_concurrency {
+                        let state = shard.get_state(&queue_arc);
+                        if let Some(ref mut conc) = state.concurrency {
+                            while slots_acquired < count && conc.try_acquire() {
+                                slots_acquired += 1;
                             }
-                            _ => {
-                                // Release the concurrency we just acquired
-                                let mut conc = self.concurrency_limiters.write();
-                                if let Some(limiter) = conc.get_mut(queue_name) {
-                                    limiter.release();
+                        }
+                    } else {
+                        slots_acquired = count; // No limit
+                    }
+
+                    if slots_acquired > 0 {
+                        if let Some(heap) = shard.queues.get_mut(&queue_arc) {
+                            while jobs.len() < slots_acquired {
+                                match heap.peek() {
+                                    Some(job) if job.is_expired(now) => {
+                                        heap.pop();
+                                    }
+                                    Some(job) if job.is_ready(now) => {
+                                        let mut job = heap.pop().unwrap();
+                                        job.started_at = now;
+                                        jobs.push(job);
+                                    }
+                                    _ => break,
                                 }
-                                break;
+                            }
+                        }
+
+                        // Release unused slots
+                        if has_concurrency && jobs.len() < slots_acquired {
+                            let state = shard.get_state(&queue_arc);
+                            if let Some(ref mut conc) = state.concurrency {
+                                for _ in 0..(slots_acquired - jobs.len()) {
+                                    conc.release();
+                                }
                             }
                         }
                     }
+
+                    if jobs.is_empty() {
+                        BatchResult::Wait
+                    } else {
+                        BatchResult::Jobs(jobs)
+                    }
                 }
-                jobs
             };
 
-            if !jobs_to_process.is_empty() {
-                let mut proc = self.processing.write();
-                for job in jobs_to_process {
-                    proc.insert(job.id, job.clone());
-                    result.push(job);
+            match batch_result {
+                BatchResult::Jobs(jobs) => {
+                    let mut proc = self.processing.write();
+                    for job in jobs {
+                        proc.insert(job.id, job.clone());
+                        result.push(job);
+                    }
+                    return result;
+                }
+                BatchResult::Paused => {
+                    tokio::time::sleep(Duration::from_millis(100)).await;
+                }
+                BatchResult::Wait => {
+                    let notify = {
+                        let shard = self.shards[idx].read();
+                        Arc::clone(&shard.notify)
+                    };
+                    notify.notified().await;
                 }
             }
-
-            if !result.is_empty() { return result; }
-            self.notify.notified().await;
         }
     }
 
@@ -274,18 +333,20 @@ impl QueueManager {
         let job = self.processing.write().remove(&job_id);
         if let Some(job) = job {
             // Release concurrency
+            let idx = Self::shard_index(&job.queue);
+            let queue_arc = intern(&job.queue);
             {
-                let mut conc = self.concurrency_limiters.write();
-                if let Some(limiter) = conc.get_mut(&job.queue) {
-                    limiter.release();
+                let mut shard = self.shards[idx].write();
+                let state = shard.get_state(&queue_arc);
+                if let Some(ref mut conc) = state.concurrency {
+                    conc.release();
                 }
-            }
 
-            // Remove unique key
-            if let Some(ref key) = job.unique_key {
-                let idx = Self::shard_index(&job.queue);
-                if let Some(keys) = self.shards[idx].write().unique_keys.get_mut(&job.queue) {
-                    keys.remove(key);
+                // Remove unique key
+                if let Some(ref key) = job.unique_key {
+                    if let Some(keys) = shard.unique_keys.get_mut(&queue_arc) {
+                        keys.remove(key);
+                    }
                 }
             }
 
@@ -298,7 +359,7 @@ impl QueueManager {
             }
 
             self.completed_jobs.write().insert(job_id);
-            self.metrics.record_complete(Self::now_ms() - job.created_at);
+            self.metrics.record_complete(now_ms() - job.created_at);
             self.notify_subscribers("completed", &job.queue, &job);
             return Ok(());
         }
@@ -312,17 +373,19 @@ impl QueueManager {
         for &id in ids {
             if let Some(job) = proc.remove(&id) {
                 // Release concurrency
+                let idx = Self::shard_index(&job.queue);
+                let queue_arc = intern(&job.queue);
                 {
-                    let mut conc = self.concurrency_limiters.write();
-                    if let Some(limiter) = conc.get_mut(&job.queue) {
-                        limiter.release();
+                    let mut shard = self.shards[idx].write();
+                    let state = shard.get_state(&queue_arc);
+                    if let Some(ref mut conc) = state.concurrency {
+                        conc.release();
                     }
-                }
 
-                if let Some(ref key) = job.unique_key {
-                    let idx = Self::shard_index(&job.queue);
-                    if let Some(keys) = self.shards[idx].write().unique_keys.get_mut(&job.queue) {
-                        keys.remove(key);
+                    if let Some(ref key) = job.unique_key {
+                        if let Some(keys) = shard.unique_keys.get_mut(&queue_arc) {
+                            keys.remove(key);
+                        }
                     }
                 }
                 self.completed_jobs.write().insert(id);
@@ -342,28 +405,31 @@ impl QueueManager {
     pub async fn fail(&self, job_id: u64, error: Option<String>) -> Result<(), String> {
         let job = self.processing.write().remove(&job_id);
         if let Some(mut job) = job {
+            let idx = Self::shard_index(&job.queue);
+            let queue_arc = intern(&job.queue);
+
             // Release concurrency
             {
-                let mut conc = self.concurrency_limiters.write();
-                if let Some(limiter) = conc.get_mut(&job.queue) {
-                    limiter.release();
+                let mut shard = self.shards[idx].write();
+                let state = shard.get_state(&queue_arc);
+                if let Some(ref mut conc) = state.concurrency {
+                    conc.release();
                 }
             }
 
             job.attempts += 1;
-            let idx = Self::shard_index(&job.queue);
 
             if job.should_go_to_dlq() {
                 self.write_wal(&WalEvent::Dlq(job.clone()));
                 self.notify_subscribers("failed", &job.queue, &job);
-                self.shards[idx].write().dlq.entry(job.queue.clone()).or_default().push_back(job);
+                self.shards[idx].write().dlq.entry(queue_arc).or_default().push_back(job);
                 self.metrics.record_fail();
                 return Ok(());
             }
 
             let backoff = job.next_backoff();
             if backoff > 0 {
-                job.run_at = Self::now_ms() + backoff;
+                job.run_at = now_ms() + backoff;
             }
             job.started_at = 0;
 
@@ -372,8 +438,8 @@ impl QueueManager {
             }
 
             self.write_wal(&WalEvent::Fail(job_id));
-            self.shards[idx].write().queues.entry(job.queue.clone()).or_insert_with(BinaryHeap::new).push(job);
-            self.notify.notify_waiters();
+            self.shards[idx].write().queues.entry(queue_arc).or_insert_with(BinaryHeap::new).push(job);
+            self.notify_shard(idx);
             return Ok(());
         }
         Err(format!("Job {} not found", job_id))

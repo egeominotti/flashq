@@ -1,10 +1,11 @@
 use std::collections::BinaryHeap;
+use std::sync::Arc;
 
 use serde_json::Value;
 use std::sync::atomic::Ordering;
 
 use crate::protocol::{CronJob, Job, MetricsData, QueueInfo, QueueMetrics};
-use super::types::{ConcurrencyLimiter, RateLimiter, Subscriber, WalEvent};
+use super::types::{intern, ConcurrencyLimiter, RateLimiter, Subscriber, WalEvent};
 use super::manager::QueueManager;
 
 impl QueueManager {
@@ -12,17 +13,19 @@ impl QueueManager {
         // Try global processing map first
         if let Some(job) = self.processing.write().remove(&job_id) {
             // Release concurrency
+            let idx = Self::shard_index(&job.queue);
+            let queue_arc = intern(&job.queue);
             {
-                let mut conc = self.concurrency_limiters.write();
-                if let Some(limiter) = conc.get_mut(&job.queue) {
-                    limiter.release();
+                let mut shard = self.shards[idx].write();
+                let state = shard.get_state(&queue_arc);
+                if let Some(ref mut conc) = state.concurrency {
+                    conc.release();
                 }
-            }
 
-            if let Some(ref key) = job.unique_key {
-                let idx = Self::shard_index(&job.queue);
-                if let Some(keys) = self.shards[idx].write().unique_keys.get_mut(&job.queue) {
-                    keys.remove(key);
+                if let Some(ref key) = job.unique_key {
+                    if let Some(keys) = shard.unique_keys.get_mut(&queue_arc) {
+                        keys.remove(key);
+                    }
                 }
             }
             self.write_wal(&WalEvent::Cancel(job_id));
@@ -40,13 +43,13 @@ impl QueueManager {
         // Search in queues (expensive)
         for shard in &self.shards {
             let mut shard_w = shard.write();
-            let mut found_job: Option<(String, Option<String>)> = None;
+            let mut found_job: Option<(Arc<str>, Option<String>)> = None;
 
             for (queue_name, heap) in shard_w.queues.iter_mut() {
                 let jobs: Vec<_> = std::mem::take(heap).into_vec();
                 for job in jobs {
                     if job.id == job_id {
-                        found_job = Some((queue_name.clone(), job.unique_key.clone()));
+                        found_job = Some((Arc::clone(queue_name), job.unique_key.clone()));
                     } else {
                         heap.push(job);
                     }
@@ -89,19 +92,21 @@ impl QueueManager {
 
     pub async fn get_dlq(&self, queue_name: &str, count: Option<usize>) -> Vec<Job> {
         let idx = Self::shard_index(queue_name);
+        let queue_arc = intern(queue_name);
         let shard = self.shards[idx].read();
-        shard.dlq.get(queue_name).map_or(Vec::new(), |dlq| {
+        shard.dlq.get(&queue_arc).map_or(Vec::new(), |dlq| {
             dlq.iter().take(count.unwrap_or(100)).cloned().collect()
         })
     }
 
     pub async fn retry_dlq(&self, queue_name: &str, job_id: Option<u64>) -> usize {
         let idx = Self::shard_index(queue_name);
+        let queue_arc = intern(queue_name);
         let mut shard = self.shards[idx].write();
         let now = Self::now_ms();
         let mut jobs_to_retry = Vec::new();
 
-        if let Some(dlq) = shard.dlq.get_mut(queue_name) {
+        if let Some(dlq) = shard.dlq.get_mut(&queue_arc) {
             if let Some(id) = job_id {
                 if let Some(pos) = dlq.iter().position(|j| j.id == id) {
                     let mut job = dlq.remove(pos).unwrap();
@@ -120,65 +125,94 @@ impl QueueManager {
 
         let retried = jobs_to_retry.len();
         if retried > 0 {
-            let heap = shard.queues.entry(queue_name.to_string()).or_insert_with(BinaryHeap::new);
+            let heap = shard.queues.entry(Arc::clone(&queue_arc)).or_insert_with(BinaryHeap::new);
             for job in jobs_to_retry {
                 heap.push(job);
             }
-            self.notify.notify_waiters();
+            drop(shard);
+            self.notify_shard(idx);
         }
         retried
     }
 
     // === Rate Limiting ===
     pub async fn set_rate_limit(&self, queue: String, limit: u32) {
-        self.rate_limiters.write().insert(queue, RateLimiter::new(limit));
+        let idx = Self::shard_index(&queue);
+        let queue_arc = intern(&queue);
+        let mut shard = self.shards[idx].write();
+        let state = shard.get_state(&queue_arc);
+        state.rate_limiter = Some(RateLimiter::new(limit));
     }
 
     pub async fn clear_rate_limit(&self, queue: &str) {
-        self.rate_limiters.write().remove(queue);
+        let idx = Self::shard_index(queue);
+        let queue_arc = intern(queue);
+        let mut shard = self.shards[idx].write();
+        let state = shard.get_state(&queue_arc);
+        state.rate_limiter = None;
     }
 
     // === Concurrency Limiting ===
     pub async fn set_concurrency(&self, queue: String, limit: u32) {
-        self.concurrency_limiters.write().insert(queue, ConcurrencyLimiter::new(limit));
+        let idx = Self::shard_index(&queue);
+        let queue_arc = intern(&queue);
+        let mut shard = self.shards[idx].write();
+        let state = shard.get_state(&queue_arc);
+        state.concurrency = Some(ConcurrencyLimiter::new(limit));
     }
 
     pub async fn clear_concurrency(&self, queue: &str) {
-        self.concurrency_limiters.write().remove(queue);
+        let idx = Self::shard_index(queue);
+        let queue_arc = intern(queue);
+        let mut shard = self.shards[idx].write();
+        let state = shard.get_state(&queue_arc);
+        state.concurrency = None;
     }
 
     // === Queue Control ===
     pub async fn pause(&self, queue: &str) {
-        self.paused_queues.write().insert(queue.to_string());
+        let idx = Self::shard_index(queue);
+        let queue_arc = intern(queue);
+        let mut shard = self.shards[idx].write();
+        let state = shard.get_state(&queue_arc);
+        state.paused = true;
     }
 
     pub async fn resume(&self, queue: &str) {
-        self.paused_queues.write().remove(queue);
-        self.notify.notify_waiters();
+        let idx = Self::shard_index(queue);
+        let queue_arc = intern(queue);
+        {
+            let mut shard = self.shards[idx].write();
+            let state = shard.get_state(&queue_arc);
+            state.paused = false;
+        }
+        self.notify_shard(idx);
     }
 
     pub async fn is_paused(&self, queue: &str) -> bool {
-        self.paused_queues.read().contains(queue)
+        let idx = Self::shard_index(queue);
+        let queue_arc = intern(queue);
+        let mut shard = self.shards[idx].write();
+        let state = shard.get_state(&queue_arc);
+        state.paused
     }
 
     pub async fn list_queues(&self) -> Vec<QueueInfo> {
         let mut queues = Vec::new();
-        let rate_limiters = self.rate_limiters.read();
-        let conc_limiters = self.concurrency_limiters.read();
-        let paused = self.paused_queues.read();
         let proc = self.processing.read();
 
         for shard in &self.shards {
-            let s = shard.read();
+            let s = shard.write();
             for (name, heap) in &s.queues {
+                let state = s.queue_state.get(name);
                 queues.push(QueueInfo {
-                    name: name.clone(),
+                    name: name.to_string(),
                     pending: heap.len(),
-                    processing: proc.values().filter(|j| &j.queue == name).count(),
+                    processing: proc.values().filter(|j| j.queue.as_str() == name.as_ref()).count(),
                     dlq: s.dlq.get(name).map_or(0, |d| d.len()),
-                    paused: paused.contains(name),
-                    rate_limit: rate_limiters.get(name).map(|r| r.limit),
-                    concurrency_limit: conc_limiters.get(name).map(|c| c.limit),
+                    paused: state.map_or(false, |s| s.paused),
+                    rate_limit: state.and_then(|s| s.rate_limiter.as_ref().map(|r| r.limit)),
+                    concurrency_limit: state.and_then(|s| s.concurrency.as_ref().map(|c| c.limit)),
                 });
             }
         }
@@ -187,11 +221,13 @@ impl QueueManager {
 
     // === Pub/Sub ===
     pub fn subscribe(&self, queue: String, events: Vec<String>, tx: tokio::sync::mpsc::UnboundedSender<String>) {
-        self.subscribers.write().push(Subscriber { queue, events, tx });
+        let queue_arc = intern(&queue);
+        self.subscribers.write().push(Subscriber { queue: queue_arc, events, tx });
     }
 
     pub fn unsubscribe(&self, queue: &str) {
-        self.subscribers.write().retain(|s| s.queue != queue);
+        let queue_arc = intern(queue);
+        self.subscribers.write().retain(|s| s.queue != queue_arc);
     }
 
     // === Cron Jobs ===
@@ -219,18 +255,18 @@ impl QueueManager {
         } else { 0.0 };
 
         let mut queues = Vec::new();
-        let rate_limiters = self.rate_limiters.read();
         let proc = self.processing.read();
 
         for shard in &self.shards {
-            let s = shard.read();
+            let s = shard.write();
             for (name, heap) in &s.queues {
+                let state = s.queue_state.get(name);
                 queues.push(QueueMetrics {
-                    name: name.clone(),
+                    name: name.to_string(),
                     pending: heap.len(),
-                    processing: proc.values().filter(|j| &j.queue == name).count(),
+                    processing: proc.values().filter(|j| j.queue.as_str() == name.as_ref()).count(),
                     dlq: s.dlq.get(name).map_or(0, |d| d.len()),
-                    rate_limit: rate_limiters.get(name).map(|r| r.limit),
+                    rate_limit: state.and_then(|s| s.rate_limiter.as_ref().map(|r| r.limit)),
                 });
             }
         }

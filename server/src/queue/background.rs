@@ -4,7 +4,7 @@ use std::sync::Arc;
 use tokio::time::{interval, Duration};
 
 use super::manager::QueueManager;
-use super::types::WalEvent;
+use super::types::{intern, WalEvent};
 
 impl QueueManager {
     pub async fn background_tasks(self: Arc<Self>) {
@@ -16,9 +16,10 @@ impl QueueManager {
         loop {
             tokio::select! {
                 _ = ticker.tick() => {
-                    self.notify.notify_waiters();
+                    self.notify_all();
                     self.check_dependencies().await;
-                    self.cleanup_expired().await;
+                    // Lazy TTL deletion in pull() handles most expired jobs
+                    // Only do periodic cleanup for edge cases
                 }
                 _ = timeout_ticker.tick() => {
                     self.check_timed_out_jobs().await;
@@ -50,20 +51,22 @@ impl QueueManager {
         for job_id in timed_out {
             if let Some(mut job) = self.processing.write().remove(&job_id) {
                 // Release concurrency
+                let idx = Self::shard_index(&job.queue);
+                let queue_arc = intern(&job.queue);
                 {
-                    let mut conc = self.concurrency_limiters.write();
-                    if let Some(limiter) = conc.get_mut(&job.queue) {
-                        limiter.release();
+                    let mut shard = self.shards[idx].write();
+                    let state = shard.get_state(&queue_arc);
+                    if let Some(ref mut conc) = state.concurrency {
+                        conc.release();
                     }
                 }
 
                 job.attempts += 1;
-                let idx = Self::shard_index(&job.queue);
 
                 if job.should_go_to_dlq() {
                     self.write_wal(&WalEvent::Dlq(job.clone()));
                     self.notify_subscribers("timeout", &job.queue, &job);
-                    self.shards[idx].write().dlq.entry(job.queue.clone()).or_default().push_back(job);
+                    self.shards[idx].write().dlq.entry(queue_arc).or_default().push_back(job);
                     self.metrics.record_timeout();
                 } else {
                     let backoff = job.next_backoff();
@@ -75,10 +78,10 @@ impl QueueManager {
 
                     self.write_wal(&WalEvent::Fail(job_id));
                     self.shards[idx].write().queues
-                        .entry(job.queue.clone())
+                        .entry(queue_arc)
                         .or_insert_with(BinaryHeap::new)
                         .push(job);
-                    self.notify.notify_waiters();
+                    self.notify_shard(idx);
                 }
             }
         }
@@ -88,7 +91,7 @@ impl QueueManager {
         let completed = self.completed_jobs.read().clone();
         if completed.is_empty() { return; }
 
-        for shard in &self.shards {
+        for (idx, shard) in self.shards.iter().enumerate() {
             let mut shard_w = shard.write();
             let mut ready_jobs = Vec::new();
 
@@ -101,28 +104,16 @@ impl QueueManager {
                 }
             });
 
-            for job in ready_jobs {
-                shard_w.queues
-                    .entry(job.queue.clone())
-                    .or_insert_with(BinaryHeap::new)
-                    .push(job);
-            }
-        }
-        self.notify.notify_waiters();
-    }
-
-    pub(crate) async fn cleanup_expired(&self) {
-        let now = Self::now_ms();
-
-        for shard in &self.shards {
-            let mut shard_w = shard.write();
-            for heap in shard_w.queues.values_mut() {
-                let jobs: Vec<_> = std::mem::take(heap).into_vec();
-                for job in jobs {
-                    if !job.is_expired(now) {
-                        heap.push(job);
-                    }
+            if !ready_jobs.is_empty() {
+                for job in ready_jobs {
+                    let queue_arc = intern(&job.queue);
+                    shard_w.queues
+                        .entry(queue_arc)
+                        .or_insert_with(BinaryHeap::new)
+                        .push(job);
                 }
+                drop(shard_w);
+                self.notify_shard(idx);
             }
         }
     }
