@@ -4,22 +4,21 @@ use std::sync::Arc;
 use tokio::time::{interval, Duration};
 
 use super::manager::QueueManager;
-use super::types::{intern, WalEvent};
+use super::types::{intern, cleanup_interned_strings, WalEvent};
 
 impl QueueManager {
     pub async fn background_tasks(self: Arc<Self>) {
-        let mut ticker = interval(Duration::from_millis(50));
+        let mut dep_ticker = interval(Duration::from_millis(100)); // Check dependencies
         let mut cron_ticker = interval(Duration::from_secs(1));
         let mut cleanup_ticker = interval(Duration::from_secs(60));
         let mut timeout_ticker = interval(Duration::from_millis(500));
+        let mut wal_ticker = interval(Duration::from_secs(300)); // WAL compaction check every 5 min
 
         loop {
             tokio::select! {
-                _ = ticker.tick() => {
-                    self.notify_all();
+                _ = dep_ticker.tick() => {
+                    // Only check dependencies, no wasteful notify_all
                     self.check_dependencies().await;
-                    // Lazy TTL deletion in pull() handles most expired jobs
-                    // Only do periodic cleanup for edge cases
                 }
                 _ = timeout_ticker.tick() => {
                     self.check_timed_out_jobs().await;
@@ -30,6 +29,10 @@ impl QueueManager {
                 _ = cleanup_ticker.tick() => {
                     self.cleanup_completed_jobs();
                     self.cleanup_job_results();
+                    cleanup_interned_strings();
+                }
+                _ = wal_ticker.tick() => {
+                    self.compact_wal();
                 }
             }
         }

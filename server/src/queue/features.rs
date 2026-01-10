@@ -189,14 +189,6 @@ impl QueueManager {
         self.notify_shard(idx);
     }
 
-    pub async fn is_paused(&self, queue: &str) -> bool {
-        let idx = Self::shard_index(queue);
-        let queue_arc = intern(queue);
-        let mut shard = self.shards[idx].write();
-        let state = shard.get_state(&queue_arc);
-        state.paused
-    }
-
     pub async fn list_queues(&self) -> Vec<QueueInfo> {
         let mut queues = Vec::new();
         let proc = self.processing.read();

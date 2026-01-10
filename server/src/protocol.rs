@@ -322,11 +322,6 @@ pub enum Response {
         ok: bool,
         crons: Vec<CronJob>,
     },
-    Event {
-        event: String,
-        queue: String,
-        job: Job,
-    },
     Result {
         ok: bool,
         id: u64,
@@ -406,15 +401,6 @@ impl Response {
     #[inline(always)]
     pub fn cron_list(crons: Vec<CronJob>) -> Self {
         Response::CronList { ok: true, crons }
-    }
-
-    #[inline(always)]
-    pub fn event(event: &str, queue: &str, job: Job) -> Self {
-        Response::Event {
-            event: event.to_string(),
-            queue: queue.to_string(),
-            job,
-        }
     }
 
     #[inline(always)]

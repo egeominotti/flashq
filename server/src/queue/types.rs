@@ -35,7 +35,7 @@ pub fn init_coarse_time() {
 fn actual_now_ms() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .unwrap()
+        .unwrap_or_default()
         .as_millis() as u64
 }
 
@@ -78,6 +78,17 @@ pub fn intern(s: &str) -> Arc<str> {
     let arc: Arc<str> = s.into();
     set.insert(Arc::clone(&arc));
     arc
+}
+
+/// Cleanup unused interned strings (strong_count == 1 means only in the set)
+pub fn cleanup_interned_strings() {
+    let mut set = INTERNED_STRINGS.write();
+    let before = set.len();
+    set.retain(|arc| Arc::strong_count(arc) > 1);
+    let removed = before - set.len();
+    if removed > 0 {
+        println!("Cleaned up {} unused interned strings", removed);
+    }
 }
 
 // ============== WAL Events ==============

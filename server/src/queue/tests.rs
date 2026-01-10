@@ -607,11 +607,24 @@ mod tests {
     async fn test_pause_resume() {
         let qm = setup();
 
+        // Need to push a job first so the queue appears in list_queues
+        qm.push("test".to_string(), json!({"x": 1}), 0, None, None, None, None, None, None, None)
+            .await.unwrap();
+
         qm.pause("test").await;
-        assert!(qm.is_paused("test").await);
+
+        // Verify paused via list_queues
+        let queues = qm.list_queues().await;
+        let test_queue = queues.iter().find(|q| q.name == "test");
+        assert!(test_queue.is_some());
+        assert!(test_queue.unwrap().paused);
 
         qm.resume("test").await;
-        assert!(!qm.is_paused("test").await);
+
+        // Verify resumed via list_queues
+        let queues = qm.list_queues().await;
+        let test_queue = queues.iter().find(|q| q.name == "test");
+        assert!(!test_queue.unwrap().paused);
     }
 
     // ==================== RATE LIMITING ====================

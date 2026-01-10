@@ -1,9 +1,10 @@
 use std::collections::BinaryHeap;
 use std::fs::{File, OpenOptions};
 use std::hash::{Hash, Hasher};
-use std::io::{BufRead, BufReader, Write};
+use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::path::Path;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use parking_lot::{Mutex, RwLock};
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -13,12 +14,14 @@ use crate::protocol::{CronJob, Job};
 use super::types::{init_coarse_time, intern, now_ms, GlobalMetrics, Shard, Subscriber, WalEvent};
 
 const WAL_PATH: &str = "magic-queue.wal";
+const WAL_MAX_SIZE: u64 = 100 * 1024 * 1024; // 100MB max before compaction
 pub const NUM_SHARDS: usize = 32;
 
 pub struct QueueManager {
     pub(crate) shards: Vec<RwLock<Shard>>,
     pub(crate) processing: RwLock<FxHashMap<u64, Job>>,
-    pub(crate) wal: Mutex<Option<File>>,
+    pub(crate) wal: Mutex<Option<BufWriter<File>>>,
+    pub(crate) wal_size: AtomicU64,
     pub(crate) persistence: bool,
     pub(crate) cron_jobs: RwLock<FxHashMap<String, CronJob>>,
     pub(crate) completed_jobs: RwLock<FxHashSet<u64>>,
@@ -34,12 +37,18 @@ impl QueueManager {
         init_coarse_time();
 
         let shards = (0..NUM_SHARDS).map(|_| RwLock::new(Shard::new())).collect();
-        let wal = if persistence { Self::open_wal() } else { None };
+        let (wal, wal_size) = if persistence {
+            let (file, size) = Self::open_wal();
+            (file.map(|f| BufWriter::new(f)), size)
+        } else {
+            (None, 0)
+        };
 
         let manager = Arc::new(Self {
             shards,
             processing: RwLock::new(FxHashMap::with_capacity_and_hasher(4096, Default::default())),
             wal: Mutex::new(wal),
+            wal_size: AtomicU64::new(wal_size),
             persistence,
             cron_jobs: RwLock::new(FxHashMap::default()),
             completed_jobs: RwLock::new(FxHashSet::default()),
@@ -88,8 +97,14 @@ impl QueueManager {
         now_ms()
     }
 
-    fn open_wal() -> Option<File> {
-        OpenOptions::new().create(true).append(true).open(WAL_PATH).ok()
+    fn open_wal() -> (Option<File>, u64) {
+        match OpenOptions::new().create(true).append(true).open(WAL_PATH) {
+            Ok(file) => {
+                let size = file.metadata().map(|m| m.len()).unwrap_or(0);
+                (Some(file), size)
+            }
+            Err(_) => (None, 0)
+        }
     }
 
     pub(crate) fn replay_wal_sync(&self) {
@@ -147,9 +162,13 @@ impl QueueManager {
     pub(crate) fn write_wal(&self, event: &WalEvent) {
         if !self.persistence { return; }
         let mut wal = self.wal.lock();
-        if let Some(ref mut file) = *wal {
+        if let Some(ref mut writer) = *wal {
             if let Ok(json) = serde_json::to_string(event) {
-                let _ = writeln!(file, "{}", json);
+                let bytes = json.len() as u64 + 1; // +1 for newline
+                if writeln!(writer, "{}", json).is_ok() {
+                    let _ = writer.flush();
+                    self.wal_size.fetch_add(bytes, Ordering::Relaxed);
+                }
             }
         }
     }
@@ -157,23 +176,79 @@ impl QueueManager {
     pub(crate) fn write_wal_batch(&self, jobs: &[Job]) {
         if !self.persistence || jobs.is_empty() { return; }
         let mut wal = self.wal.lock();
-        if let Some(ref mut file) = *wal {
+        if let Some(ref mut writer) = *wal {
+            let mut bytes_written = 0u64;
             for job in jobs {
                 if let Ok(json) = serde_json::to_string(&WalEvent::Push(job.clone())) {
-                    let _ = writeln!(file, "{}", json);
+                    bytes_written += json.len() as u64 + 1;
+                    let _ = writeln!(writer, "{}", json);
                 }
             }
-            let _ = file.flush();
+            let _ = writer.flush();
+            self.wal_size.fetch_add(bytes_written, Ordering::Relaxed);
         }
     }
 
     pub(crate) fn write_wal_acks(&self, ids: &[u64]) {
         if !self.persistence { return; }
         let mut wal = self.wal.lock();
-        if let Some(ref mut file) = *wal {
+        if let Some(ref mut writer) = *wal {
+            let mut bytes_written = 0u64;
             for &id in ids {
                 if let Ok(json) = serde_json::to_string(&WalEvent::Ack(id)) {
-                    let _ = writeln!(file, "{}", json);
+                    bytes_written += json.len() as u64 + 1;
+                    let _ = writeln!(writer, "{}", json);
+                }
+            }
+            let _ = writer.flush();
+            self.wal_size.fetch_add(bytes_written, Ordering::Relaxed);
+        }
+    }
+
+    /// Compact WAL by writing only current state
+    pub(crate) fn compact_wal(&self) {
+        if !self.persistence { return; }
+
+        let current_size = self.wal_size.load(Ordering::Relaxed);
+        if current_size < WAL_MAX_SIZE { return; }
+
+        let temp_path = format!("{}.tmp", WAL_PATH);
+
+        // Collect all current jobs from queues
+        let mut all_jobs = Vec::new();
+        for shard in &self.shards {
+            let s = shard.read();
+            for heap in s.queues.values() {
+                all_jobs.extend(heap.iter().cloned());
+            }
+            for dlq in s.dlq.values() {
+                all_jobs.extend(dlq.iter().cloned());
+            }
+        }
+
+        // Write compacted WAL
+        if let Ok(file) = File::create(&temp_path) {
+            let mut writer = BufWriter::new(file);
+            let mut new_size = 0u64;
+
+            for job in &all_jobs {
+                if let Ok(json) = serde_json::to_string(&WalEvent::Push(job.clone())) {
+                    new_size += json.len() as u64 + 1;
+                    let _ = writeln!(writer, "{}", json);
+                }
+            }
+            let _ = writer.flush();
+            drop(writer);
+
+            // Swap files
+            let mut wal = self.wal.lock();
+            *wal = None;
+
+            if std::fs::rename(&temp_path, WAL_PATH).is_ok() {
+                if let Ok(file) = OpenOptions::new().append(true).open(WAL_PATH) {
+                    *wal = Some(BufWriter::new(file));
+                    self.wal_size.store(new_size, Ordering::Relaxed);
+                    println!("WAL compacted: {} -> {} bytes", current_size, new_size);
                 }
             }
         }
@@ -197,13 +272,5 @@ impl QueueManager {
     #[inline]
     pub(crate) fn notify_shard(&self, idx: usize) {
         self.shards[idx].read().notify.notify_waiters();
-    }
-
-    /// Notify all shards
-    #[inline]
-    pub(crate) fn notify_all(&self) {
-        for shard in &self.shards {
-            shard.read().notify.notify_waiters();
-        }
     }
 }
