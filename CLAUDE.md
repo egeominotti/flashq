@@ -138,6 +138,43 @@ server/src/
 | failed | dlq (VecDeque) | In dead letter queue |
 | waiting-children | waiting_deps (HashMap) | Waiting for dependencies |
 
+## Job Lifecycle Flow
+
+```
+PUSH --> [WAITING/DELAYED/WAITING_CHILDREN]
+              |
+              v (time/deps ready)
+           [WAITING]
+              |
+              v (PULL)
+           [ACTIVE]
+              |
+     +--------+--------+
+     |                 |
+   ACK               FAIL
+     |                 |
+     v                 v
+[COMPLETED]    attempts < max?
+                  |        |
+                 YES       NO
+                  |        |
+                  v        v
+              [RETRY]   [DLQ]
+                  |
+                  v
+              [WAITING]
+```
+
+## Background Task Intervals
+
+| Task | Interval | Description |
+|------|----------|-------------|
+| Wakeup | 100ms | Notify workers, check dependencies |
+| Timeout | 500ms | Check and fail timed-out jobs |
+| Cron | 1s | Execute scheduled cron jobs |
+| Metrics | 5s | Collect metrics history |
+| Cleanup | 60s | Clean completed jobs, results, index |
+
 ## Features
 
 ### Core

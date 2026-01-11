@@ -305,11 +305,11 @@ When pushing a job, you can specify:
 +--------------------------------------------------------------+
 |                                                              |
 |   +-----------+    +-----------+    +-----------+           |
-|   | TCP Server|    | HTTP Server|    |  Dashboard |           |
-|   |  :6789    |    |   :6790   |    |    (Web)   |           |
-|   +-----+-----+    +-----+-----+    +-----------+           |
-|         |                |                                   |
-|         +-------+--------+                                   |
+|   | TCP Server|    | HTTP Server|    |gRPC Server|           |
+|   |  :6789    |    |   :6790   |    |   :6791   |           |
+|   +-----+-----+    +-----+-----+    +-----+-----+           |
+|         |                |                |                  |
+|         +-------+--------+--------+-------+                  |
 |                 v                                            |
 |   +---------------------------------------------------+     |
 |   |              Queue Manager                         |     |
@@ -328,6 +328,7 @@ When pushing a job, you can specify:
 |   |              Background Tasks                      |     |
 |   |  * Delayed Job Processor   * Timeout Checker      |     |
 |   |  * Dependency Resolver     * Cron Executor        |     |
+|   |  * Memory Cleanup          * Metrics Collector    |     |
 |   +---------------------------------------------------+     |
 |                                                              |
 |   +---------------------------------------------------+     |
@@ -336,6 +337,236 @@ When pushing a job, you can specify:
 |   +---------------------------------------------------+     |
 |                                                              |
 +--------------------------------------------------------------+
+```
+
+### Job Lifecycle Flow
+
+```
+                              +------------------+
+                              |      PUSH        |
+                              +--------+---------+
+                                       |
+                    +------------------+------------------+
+                    |                  |                  |
+                    v                  v                  v
+            +-------+------+   +------+-------+   +------+-------+
+            |   WAITING    |   |   DELAYED    |   |  WAITING     |
+            | (ready now)  |   | (future time)|   |  CHILDREN    |
+            +-------+------+   +------+-------+   +------+-------+
+                    |                  |                  |
+                    |      (time passes)      (deps complete)
+                    |                  |                  |
+                    +--------+---------+------------------+
+                             |
+                             v
+                    +--------+---------+
+                    |      PULL        |
+                    | (worker fetches) |
+                    +--------+---------+
+                             |
+                             v
+                    +--------+---------+
+                    |     ACTIVE       |
+                    | (processing...)  |
+                    +--------+---------+
+                             |
+              +--------------+--------------+
+              |                             |
+              v                             v
+      +-------+-------+            +--------+--------+
+      |      ACK      |            |      FAIL       |
+      | (success)     |            | (error)         |
+      +-------+-------+            +--------+--------+
+              |                             |
+              v                    +--------+--------+
+      +-------+-------+            |  attempts <     |
+      |   COMPLETED   |            |  max_attempts?  |
+      | (result saved)|            +--------+--------+
+      +---------------+                     |
+                                +-----------+-----------+
+                                |                       |
+                                v                       v
+                        +-------+-------+       +-------+-------+
+                        |    RETRY      |       |     DLQ       |
+                        | (with backoff)|       | (dead letter) |
+                        +-------+-------+       +---------------+
+                                |
+                                v
+                        +-------+-------+
+                        |   WAITING     |
+                        | (queued again)|
+                        +---------------+
+```
+
+### Processing Flow
+
+```
+Producer                    MagicQueue                     Worker
+   |                            |                            |
+   |  PUSH {queue, data}        |                            |
+   |--------------------------->|                            |
+   |                            |                            |
+   |  {ok: true, id: 123}       |                            |
+   |<---------------------------|                            |
+   |                            |                            |
+   |                            |         PULL {queue}       |
+   |                            |<---------------------------|
+   |                            |                            |
+   |                            |    {ok: true, job: {...}}  |
+   |                            |--------------------------->|
+   |                            |                            |
+   |                            |                     [process job]
+   |                            |                            |
+   |                            |  PROGRESS {id, 50, "..."}  |
+   |                            |<---------------------------|
+   |                            |                            |
+   |                            |         ACK {id, result}   |
+   |                            |<---------------------------|
+   |                            |                            |
+   |                            |        {ok: true}          |
+   |                            |--------------------------->|
+```
+
+### Retry & DLQ Flow
+
+```
+                    Job Failed
+                         |
+                         v
+              +----------+----------+
+              |  attempts < max?    |
+              +----------+----------+
+                    |          |
+                   YES         NO
+                    |          |
+                    v          v
+           +--------+---+  +---+--------+
+           |   RETRY    |  |    DLQ     |
+           +--------+---+  +---+--------+
+                    |          |
+                    v          v
+           +--------+---+  +---+--------+
+           | Wait for   |  | Store in   |
+           | backoff    |  | dead letter|
+           | (exp.)     |  | queue      |
+           +--------+---+  +---+--------+
+                    |          |
+                    v          |
+           +--------+---+      |
+           | Re-queue   |      |
+           | with new   |      |
+           | run_at     |      |
+           +------------+      |
+                               v
+                    +----------+----------+
+                    |    RETRYDLQ cmd     |
+                    | (manual intervention)|
+                    +----------+----------+
+                               |
+                               v
+                    +----------+----------+
+                    |  Re-queue all jobs  |
+                    |  from DLQ           |
+                    +---------------------+
+
+Backoff Formula: delay = backoff * 2^(attempts-1)
+Example (backoff=1000ms): 1s -> 2s -> 4s -> 8s -> 16s
+```
+
+### Background Tasks Flow
+
+```
++------------------------------------------------------------------+
+|                    Background Task Loop                           |
++------------------------------------------------------------------+
+|                                                                   |
+|  Every 100ms: WAKEUP                                             |
+|  +----------------------------------------------------------+    |
+|  | - Notify all waiting workers                              |    |
+|  | - Check job dependencies                                  |    |
+|  | - Move ready jobs from waiting_deps to queue             |    |
+|  +----------------------------------------------------------+    |
+|                                                                   |
+|  Every 500ms: TIMEOUT CHECK                                      |
+|  +----------------------------------------------------------+    |
+|  | - Scan processing jobs                                    |    |
+|  | - If job.started_at + timeout < now:                     |    |
+|  |   - Release concurrency slot                             |    |
+|  |   - Retry or move to DLQ                                 |    |
+|  +----------------------------------------------------------+    |
+|                                                                   |
+|  Every 1s: CRON EXECUTOR                                         |
+|  +----------------------------------------------------------+    |
+|  | - Check all cron jobs                                     |    |
+|  | - If next_run <= now:                                    |    |
+|  |   - Push new job to queue                                |    |
+|  |   - Calculate next_run from schedule                     |    |
+|  +----------------------------------------------------------+    |
+|                                                                   |
+|  Every 5s: METRICS COLLECTION                                    |
+|  +----------------------------------------------------------+    |
+|  | - Collect queue depths                                    |    |
+|  | - Calculate throughput rates                             |    |
+|  | - Update Prometheus metrics                              |    |
+|  +----------------------------------------------------------+    |
+|                                                                   |
+|  Every 60s: CLEANUP                                              |
+|  +----------------------------------------------------------+    |
+|  | - Remove old completed job IDs (>50K)                    |    |
+|  | - Remove old job results (>5K)                           |    |
+|  | - Clean stale index entries (>100K)                      |    |
+|  | - Cleanup unused interned strings (>10K)                 |    |
+|  +----------------------------------------------------------+    |
+|                                                                   |
++------------------------------------------------------------------+
+```
+
+### Rate Limiting & Concurrency Flow
+
+```
+                        PULL Request
+                              |
+                              v
+                    +---------+---------+
+                    |   Queue Paused?   |
+                    +---------+---------+
+                         |         |
+                        YES        NO
+                         |         |
+                         v         v
+                    +----+----+   +----+----+
+                    | Block   |   | Check   |
+                    | waiting |   | Rate    |
+                    +---------+   | Limit   |
+                                  +----+----+
+                                       |
+                              +--------+--------+
+                              |  Tokens > 0?   |
+                              +--------+--------+
+                                  |         |
+                                 YES        NO
+                                  |         |
+                                  v         v
+                             +----+----+   +----+----+
+                             | Check   |   | Wait    |
+                             | Concurr.|   | for     |
+                             +----+----+   | token   |
+                                  |        +---------+
+                         +--------+--------+
+                         | slots available?|
+                         +--------+--------+
+                              |         |
+                             YES        NO
+                              |         |
+                              v         v
+                         +----+----+   +----+----+
+                         | Return  |   | Block   |
+                         | Job     |   | until   |
+                         +---------+   | slot    |
+                                       +---------+
+
+Token Bucket: refills at `limit` tokens/second
+Concurrency: max `limit` jobs processing simultaneously
 ```
 
 ### Performance Optimizations
