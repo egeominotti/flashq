@@ -127,7 +127,7 @@ export interface CronOptions {
   queue: string;
   /** Job data payload */
   data: unknown;
-  /** Cron schedule (6-field: "sec min hour day month weekday" or "*/N" shorthand) */
+  /** Cron schedule (6-field: "sec min hour day month weekday" or interval shorthand like every N seconds) */
   schedule: string;
   /** Job priority (default: 0) */
   priority?: number;

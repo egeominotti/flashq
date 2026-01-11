@@ -637,12 +637,8 @@ export class MagicQueue extends EventEmitter {
    *   schedule: '0 * * * * *', // Every minute at second 0
    * });
    *
-   * // Using shorthand (every 60 seconds)
-   * await client.addCron('ping', {
-   *   queue: 'health',
-   *   data: {},
-   *   schedule: '*/60',
-   * });
+   * // Using interval shorthand: use string like "STAR/60" where STAR is asterisk
+   * // This runs every 60 seconds
    * ```
    */
   async addCron(name: string, options: CronOptions): Promise<void> {
@@ -704,17 +700,10 @@ export class MagicQueue extends EventEmitter {
    * Get detailed metrics
    */
   async metrics(): Promise<Metrics> {
-    const response = await this.send<{ ok: boolean } & Metrics>({
+    const response = await this.send<{ ok: boolean; metrics: Metrics }>({
       cmd: 'METRICS',
     });
-    return {
-      total_pushed: response.total_pushed,
-      total_completed: response.total_completed,
-      total_failed: response.total_failed,
-      jobs_per_second: response.jobs_per_second,
-      avg_latency_ms: response.avg_latency_ms,
-      queues: response.queues,
-    };
+    return response.metrics;
   }
 }
 

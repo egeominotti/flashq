@@ -186,8 +186,8 @@ impl QueueManager {
             }
         }
 
-        // Full cron expression parsing with croner
-        match Cron::new(schedule).parse() {
+        // Full cron expression parsing with croner (supports both 5-field and 6-field with seconds)
+        match Cron::new(schedule).with_seconds_optional().parse() {
             Ok(cron) => {
                 let now_secs = (now / 1000) as i64;
                 if let Some(now_dt) = DateTime::<Utc>::from_timestamp(now_secs, 0) {
@@ -213,8 +213,8 @@ impl QueueManager {
                 .map_err(|_| format!("Invalid interval format: {}", schedule));
         }
 
-        // Validate full cron expression
-        Cron::new(schedule).parse()
+        // Validate full cron expression (supports both 5-field and 6-field with seconds)
+        Cron::new(schedule).with_seconds_optional().parse()
             .map(|_| ())
             .map_err(|e| format!("Invalid cron expression '{}': {}", schedule, e))
     }

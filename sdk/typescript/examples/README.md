@@ -43,6 +43,8 @@ bun run examples/02-worker.ts
 | 10 | `10-authentication.ts` | Token-based authentication |
 | 11 | `11-job-state-tracking.ts` | Monitoring job lifecycle |
 | 12 | `12-real-world-email-queue.ts` | Complete email queue system |
+| 13 | `13-websocket-events.ts` | Real-time events via WebSocket |
+| 14 | `14-grpc-client.ts` | High-performance gRPC client |
 
 ## Features Covered
 
@@ -112,6 +114,18 @@ bun run examples/02-worker.ts
 - ✅ Token on connect
 - ✅ Late authentication
 - ✅ Invalid token handling
+
+### Real-Time Events
+- ✅ WebSocket connection
+- ✅ Event subscription (all queues)
+- ✅ Queue-specific events
+- ✅ WebSocket authentication
+
+### gRPC (High Performance)
+- ✅ Unary RPCs (push, pull, ack)
+- ✅ Batch operations
+- ✅ Server-side streaming
+- ✅ Job state via gRPC
 
 ## Quick Reference
 
