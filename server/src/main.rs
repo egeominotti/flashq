@@ -1,4 +1,5 @@
 mod dashboard;
+mod grpc;
 mod http;
 mod protocol;
 mod queue;
@@ -20,6 +21,7 @@ use queue::QueueManager;
 
 const DEFAULT_TCP_PORT: u16 = 6789;
 const DEFAULT_HTTP_PORT: u16 = 6790;
+const DEFAULT_GRPC_PORT: u16 = 6791;
 const UNIX_SOCKET_PATH: &str = "/tmp/magic-queue.sock";
 
 struct ConnectionState {
@@ -31,6 +33,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let use_unix = std::env::var("UNIX_SOCKET").is_ok();
     let persistence = std::env::var("PERSIST").is_ok();
     let enable_http = std::env::var("HTTP").is_ok();
+    let enable_grpc = std::env::var("GRPC").is_ok();
 
     // Parse auth tokens from environment
     let auth_tokens: Vec<String> = std::env::var("AUTH_TOKENS")
@@ -66,6 +69,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .expect("Failed to bind HTTP listener");
             println!("HTTP API listening on port {}", http_port);
             axum::serve(listener, router).await.expect("HTTP server error");
+        });
+    }
+
+    // Start gRPC server if enabled
+    if enable_grpc {
+        let grpc_port = std::env::var("GRPC_PORT")
+            .ok()
+            .and_then(|p| p.parse().ok())
+            .unwrap_or(DEFAULT_GRPC_PORT);
+
+        let qm_grpc = Arc::clone(&queue_manager);
+        tokio::spawn(async move {
+            let addr = format!("0.0.0.0:{}", grpc_port).parse().unwrap();
+            if let Err(e) = grpc::run_grpc_server(addr, qm_grpc).await {
+                eprintln!("gRPC server error: {}", e);
+            }
         });
     }
 
@@ -125,25 +144,41 @@ where
             break;
         }
 
-        let response = process_command(&line, &queue_manager, &state).await;
+        let response = process_command(&mut line, &queue_manager, &state).await;
         let response_json = serde_json::to_string(&response)?;
         writer.write_all(response_json.as_bytes()).await?;
         writer.write_all(b"\n").await?;
-        writer.flush().await?;
+
+        // Pipelining: only flush if no more commands waiting in buffer
+        // This allows batching multiple commands without syscall overhead
+        if reader.buffer().is_empty() {
+            writer.flush().await?;
+        }
     }
 
     Ok(())
 }
 
 #[inline(always)]
+fn parse_command(line: &mut String) -> Result<Command, String> {
+    // Trim newline in-place for simd-json
+    while line.ends_with('\n') || line.ends_with('\r') {
+        line.pop();
+    }
+    // simd-json requires mutable buffer for in-place parsing (2-4x faster)
+    unsafe { simd_json::from_str(line) }
+        .map_err(|e| format!("Invalid: {}", e))
+}
+
+#[inline(always)]
 async fn process_command(
-    line: &str,
+    line: &mut String,
     queue_manager: &Arc<QueueManager>,
     state: &Arc<RwLock<ConnectionState>>,
 ) -> Response {
-    let command: Command = match serde_json::from_str(line.trim()) {
+    let command: Command = match parse_command(line) {
         Ok(cmd) => cmd,
-        Err(e) => return Response::error(format!("Invalid: {}", e)),
+        Err(e) => return Response::error(e),
     };
 
     // Handle Auth command first (doesn't require authentication)
@@ -174,9 +209,10 @@ async fn process_command(
             backoff,
             unique_key,
             depends_on,
+            tags,
         } => {
             match queue_manager
-                .push(queue, data, priority, delay, ttl, timeout, max_attempts, backoff, unique_key, depends_on)
+                .push(queue, data, priority, delay, ttl, timeout, max_attempts, backoff, unique_key, depends_on, tags)
                 .await
             {
                 Ok(job) => Response::ok_with_id(job.id),

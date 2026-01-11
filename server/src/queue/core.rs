@@ -5,7 +5,7 @@ use std::sync::Arc;
 use serde_json::Value;
 use tokio::time::Duration;
 
-use crate::protocol::{next_id, Job, JobInput};
+use crate::protocol::{next_id, Job, JobEvent, JobInput};
 use super::types::{intern, now_ms, JobLocation, WalEvent};
 use super::manager::QueueManager;
 
@@ -23,6 +23,7 @@ impl QueueManager {
         backoff: Option<u64>,
         unique_key: Option<String>,
         depends_on: Option<Vec<u64>>,
+        tags: Option<Vec<String>>,
     ) -> Job {
         let now = now_ms();
         Job {
@@ -42,6 +43,7 @@ impl QueueManager {
             depends_on: depends_on.unwrap_or_default(),
             progress: 0,
             progress_msg: None,
+            tags: tags.unwrap_or_default(),
         }
     }
 
@@ -57,10 +59,11 @@ impl QueueManager {
         backoff: Option<u64>,
         unique_key: Option<String>,
         depends_on: Option<Vec<u64>>,
+        tags: Option<Vec<String>>,
     ) -> Result<Job, String> {
         let job = self.create_job(
             queue.clone(), data, priority, delay, ttl, timeout, max_attempts, backoff,
-            unique_key.clone(), depends_on.clone()
+            unique_key.clone(), depends_on.clone(), tags
         );
 
         let idx = Self::shard_index(&queue);
@@ -98,6 +101,18 @@ impl QueueManager {
 
         self.metrics.record_push(1);
         self.notify_shard(idx);
+
+        // Broadcast pushed event
+        self.broadcast_event(JobEvent {
+            event_type: "pushed".to_string(),
+            queue: job.queue.clone(),
+            job_id: job.id,
+            timestamp: now_ms(),
+            data: Some(job.data.clone()),
+            error: None,
+            progress: None,
+        });
+
         Ok(job)
     }
 
@@ -114,7 +129,7 @@ impl QueueManager {
             let job = self.create_job(
                 queue.clone(), input.data, input.priority, input.delay,
                 input.ttl, input.timeout, input.max_attempts, input.backoff,
-                input.unique_key, input.depends_on,
+                input.unique_key, input.depends_on, input.tags,
             );
             ids.push(job.id);
 
@@ -368,6 +383,18 @@ impl QueueManager {
             self.index_job(job_id, JobLocation::Completed);
             self.metrics.record_complete(now_ms() - job.created_at);
             self.notify_subscribers("completed", &job.queue, &job);
+
+            // Broadcast completed event
+            self.broadcast_event(JobEvent {
+                event_type: "completed".to_string(),
+                queue: job.queue.clone(),
+                job_id: job.id,
+                timestamp: now_ms(),
+                data: result,
+                error: None,
+                progress: None,
+            });
+
             return Ok(());
         }
         Err(format!("Job {} not found", job_id))
@@ -431,8 +458,20 @@ impl QueueManager {
                 self.write_wal(&WalEvent::Dlq(job.clone()));
                 self.notify_subscribers("failed", &job.queue, &job);
                 self.index_job(job_id, JobLocation::Dlq { shard_idx: idx });
-                self.shards[idx].write().dlq.entry(queue_arc).or_default().push_back(job);
+                self.shards[idx].write().dlq.entry(queue_arc).or_default().push_back(job.clone());
                 self.metrics.record_fail();
+
+                // Broadcast failed event
+                self.broadcast_event(JobEvent {
+                    event_type: "failed".to_string(),
+                    queue: job.queue.clone(),
+                    job_id: job.id,
+                    timestamp: now_ms(),
+                    data: None,
+                    error: error.clone(),
+                    progress: None,
+                });
+
                 return Ok(());
             }
 

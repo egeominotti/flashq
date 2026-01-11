@@ -1,0 +1,188 @@
+syntax = "proto3";
+
+package magicqueue;
+
+// QueueService provides high-performance job queue operations
+service QueueService {
+  // === Unary RPCs ===
+
+  // Push a single job to queue
+  rpc Push(PushRequest) returns (PushResponse);
+
+  // Push multiple jobs in batch
+  rpc PushBatch(PushBatchRequest) returns (PushBatchResponse);
+
+  // Pull a single job (blocking)
+  rpc Pull(PullRequest) returns (Job);
+
+  // Pull multiple jobs in batch
+  rpc PullBatch(PullBatchRequest) returns (PullBatchResponse);
+
+  // Acknowledge job completion
+  rpc Ack(AckRequest) returns (AckResponse);
+
+  // Acknowledge multiple jobs
+  rpc AckBatch(AckBatchRequest) returns (AckBatchResponse);
+
+  // Mark job as failed
+  rpc Fail(FailRequest) returns (FailResponse);
+
+  // Get job state
+  rpc GetState(GetStateRequest) returns (GetStateResponse);
+
+  // Get queue stats
+  rpc Stats(StatsRequest) returns (StatsResponse);
+
+  // === Streaming RPCs ===
+
+  // Server-side streaming: continuously receive jobs from queue
+  rpc StreamJobs(StreamJobsRequest) returns (stream Job);
+
+  // Bidirectional streaming: process jobs in real-time
+  // Client sends job results, server sends new jobs
+  rpc ProcessJobs(stream JobResult) returns (stream Job);
+}
+
+// === Messages ===
+
+message PushRequest {
+  string queue = 1;
+  bytes data = 2;              // JSON payload as bytes
+  int32 priority = 3;
+  uint64 delay_ms = 4;         // Delay before job becomes available
+  uint64 ttl_ms = 5;           // Time-to-live
+  uint64 timeout_ms = 6;       // Processing timeout
+  uint32 max_attempts = 7;     // Max retry attempts
+  uint64 backoff_ms = 8;       // Base backoff for retries
+  optional string unique_key = 9;
+  repeated uint64 depends_on = 10;
+}
+
+message PushResponse {
+  bool ok = 1;
+  uint64 id = 2;
+}
+
+message PushBatchRequest {
+  string queue = 1;
+  repeated JobInput jobs = 2;
+}
+
+message JobInput {
+  bytes data = 1;
+  int32 priority = 2;
+  uint64 delay_ms = 3;
+  uint64 ttl_ms = 4;
+  uint64 timeout_ms = 5;
+  uint32 max_attempts = 6;
+  uint64 backoff_ms = 7;
+  optional string unique_key = 8;
+  repeated uint64 depends_on = 9;
+}
+
+message PushBatchResponse {
+  bool ok = 1;
+  repeated uint64 ids = 2;
+}
+
+message PullRequest {
+  string queue = 1;
+}
+
+message PullBatchRequest {
+  string queue = 1;
+  uint32 count = 2;
+}
+
+message PullBatchResponse {
+  repeated Job jobs = 1;
+}
+
+message Job {
+  uint64 id = 1;
+  string queue = 2;
+  bytes data = 3;              // JSON payload as bytes
+  int32 priority = 4;
+  uint64 created_at = 5;
+  uint64 run_at = 6;
+  uint64 started_at = 7;
+  uint32 attempts = 8;
+  uint32 max_attempts = 9;
+  uint64 backoff = 10;
+  uint64 ttl = 11;
+  uint64 timeout = 12;
+  optional string unique_key = 13;
+  repeated uint64 depends_on = 14;
+  uint32 progress = 15;
+  optional string progress_msg = 16;
+}
+
+message AckRequest {
+  uint64 id = 1;
+  optional bytes result = 2;   // Optional result data
+}
+
+message AckResponse {
+  bool ok = 1;
+}
+
+message AckBatchRequest {
+  repeated uint64 ids = 1;
+}
+
+message AckBatchResponse {
+  bool ok = 1;
+  uint32 acked = 2;
+}
+
+message FailRequest {
+  uint64 id = 1;
+  optional string error = 2;
+}
+
+message FailResponse {
+  bool ok = 1;
+}
+
+message GetStateRequest {
+  uint64 id = 1;
+}
+
+message GetStateResponse {
+  uint64 id = 1;
+  JobState state = 2;
+}
+
+enum JobState {
+  JOB_STATE_UNKNOWN = 0;
+  JOB_STATE_WAITING = 1;
+  JOB_STATE_DELAYED = 2;
+  JOB_STATE_ACTIVE = 3;
+  JOB_STATE_COMPLETED = 4;
+  JOB_STATE_FAILED = 5;
+  JOB_STATE_WAITING_CHILDREN = 6;
+}
+
+message StatsRequest {}
+
+message StatsResponse {
+  uint64 queued = 1;
+  uint64 processing = 2;
+  uint64 delayed = 3;
+  uint64 dlq = 4;
+}
+
+// === Streaming Messages ===
+
+message StreamJobsRequest {
+  string queue = 1;
+  uint32 batch_size = 2;       // Jobs per batch (default: 1)
+  uint32 prefetch = 3;         // Buffer size for prefetching
+}
+
+message JobResult {
+  uint64 id = 1;
+  bool success = 2;
+  optional bytes result = 3;   // Result data if success
+  optional string error = 4;   // Error message if failed
+}

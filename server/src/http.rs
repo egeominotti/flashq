@@ -1,11 +1,14 @@
 use std::sync::Arc;
+use std::convert::Infallible;
 
 use axum::{
     extract::{Path, Query, State},
-    response::Json,
+    response::{Json, IntoResponse, Sse},
     routing::{delete, get, post},
     Router,
 };
+use axum::response::sse::{Event, KeepAlive};
+use futures::stream::{Stream, StreamExt};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tower_http::cors::{Any, CorsLayer};
@@ -35,6 +38,8 @@ pub struct PushRequest {
     pub unique_key: Option<String>,
     #[serde(default)]
     pub depends_on: Option<Vec<u64>>,
+    #[serde(default)]
+    pub tags: Option<Vec<String>>,
 }
 
 #[derive(Deserialize)]
@@ -135,6 +140,18 @@ pub fn create_router(state: AppState) -> Router {
         // Stats & Metrics
         .route("/stats", get(get_stats))
         .route("/metrics", get(get_metrics))
+        .route("/metrics/prometheus", get(get_prometheus_metrics))
+        // SSE Events
+        .route("/events", get(sse_events))
+        .route("/events/{queue}", get(sse_queue_events))
+        // Workers
+        .route("/workers", get(list_workers))
+        .route("/workers/{id}/heartbeat", post(worker_heartbeat))
+        // Webhooks
+        .route("/webhooks", get(list_webhooks))
+        .route("/webhooks", post(create_webhook))
+        .route("/webhooks/{id}", delete(delete_webhook))
+        .route("/webhooks/incoming/{queue}", post(incoming_webhook))
         .with_state(state);
 
     Router::new()
@@ -157,7 +174,7 @@ async fn push_job(
 ) -> Json<ApiResponse<Job>> {
     match qm.push(
         queue, req.data, req.priority, req.delay, req.ttl, req.timeout,
-        req.max_attempts, req.backoff, req.unique_key, req.depends_on,
+        req.max_attempts, req.backoff, req.unique_key, req.depends_on, req.tags,
     ).await {
         Ok(job) => ApiResponse::success(job),
         Err(e) => ApiResponse::error(e),
@@ -350,4 +367,166 @@ async fn get_stats(State(qm): State<AppState>) -> Json<ApiResponse<StatsResponse
 async fn get_metrics(State(qm): State<AppState>) -> Json<ApiResponse<MetricsData>> {
     let metrics = qm.get_metrics().await;
     ApiResponse::success(metrics)
+}
+
+// === Prometheus Metrics ===
+
+async fn get_prometheus_metrics(State(qm): State<AppState>) -> impl IntoResponse {
+    let metrics = qm.get_metrics().await;
+    let (queued, processing, delayed, dlq) = qm.stats().await;
+
+    let mut output = String::with_capacity(2048);
+
+    // Global metrics
+    output.push_str("# HELP magicqueue_jobs_total Total number of jobs\n");
+    output.push_str("# TYPE magicqueue_jobs_total counter\n");
+    output.push_str(&format!("magicqueue_jobs_pushed_total {}\n", metrics.total_pushed));
+    output.push_str(&format!("magicqueue_jobs_completed_total {}\n", metrics.total_completed));
+    output.push_str(&format!("magicqueue_jobs_failed_total {}\n", metrics.total_failed));
+
+    output.push_str("# HELP magicqueue_jobs_current Current number of jobs by state\n");
+    output.push_str("# TYPE magicqueue_jobs_current gauge\n");
+    output.push_str(&format!("magicqueue_jobs_current{{state=\"queued\"}} {}\n", queued));
+    output.push_str(&format!("magicqueue_jobs_current{{state=\"processing\"}} {}\n", processing));
+    output.push_str(&format!("magicqueue_jobs_current{{state=\"delayed\"}} {}\n", delayed));
+    output.push_str(&format!("magicqueue_jobs_current{{state=\"dlq\"}} {}\n", dlq));
+
+    output.push_str("# HELP magicqueue_throughput_per_second Jobs processed per second\n");
+    output.push_str("# TYPE magicqueue_throughput_per_second gauge\n");
+    output.push_str(&format!("magicqueue_throughput_per_second {:.2}\n", metrics.jobs_per_second));
+
+    output.push_str("# HELP magicqueue_latency_ms Average job latency in milliseconds\n");
+    output.push_str("# TYPE magicqueue_latency_ms gauge\n");
+    output.push_str(&format!("magicqueue_latency_ms {:.2}\n", metrics.avg_latency_ms));
+
+    // Per-queue metrics
+    output.push_str("# HELP magicqueue_queue_jobs Queue job counts\n");
+    output.push_str("# TYPE magicqueue_queue_jobs gauge\n");
+    for q in &metrics.queues {
+        output.push_str(&format!("magicqueue_queue_jobs{{queue=\"{}\",state=\"pending\"}} {}\n", q.name, q.pending));
+        output.push_str(&format!("magicqueue_queue_jobs{{queue=\"{}\",state=\"processing\"}} {}\n", q.name, q.processing));
+        output.push_str(&format!("magicqueue_queue_jobs{{queue=\"{}\",state=\"dlq\"}} {}\n", q.name, q.dlq));
+    }
+
+    // Workers
+    let workers = qm.list_workers().await;
+    output.push_str("# HELP magicqueue_workers_active Number of active workers\n");
+    output.push_str("# TYPE magicqueue_workers_active gauge\n");
+    output.push_str(&format!("magicqueue_workers_active {}\n", workers.len()));
+
+    (
+        [(axum::http::header::CONTENT_TYPE, "text/plain; version=0.0.4; charset=utf-8")],
+        output
+    )
+}
+
+// === SSE Events ===
+
+async fn sse_events(
+    State(qm): State<AppState>,
+) -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
+    let rx = qm.subscribe_events(None);
+    let stream = tokio_stream::wrappers::BroadcastStream::new(rx)
+        .filter_map(|result: Result<crate::protocol::JobEvent, _>| async move {
+            result.ok().map(|event| {
+                Ok(Event::default()
+                    .event(&event.event_type)
+                    .json_data(&event).unwrap_or_default())
+            })
+        });
+
+    Sse::new(stream).keep_alive(KeepAlive::default())
+}
+
+async fn sse_queue_events(
+    State(qm): State<AppState>,
+    Path(queue): Path<String>,
+) -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
+    let rx = qm.subscribe_events(Some(queue.clone()));
+    let stream = tokio_stream::wrappers::BroadcastStream::new(rx)
+        .filter_map(move |result: Result<crate::protocol::JobEvent, _>| {
+            let queue = queue.clone();
+            async move {
+                result.ok().and_then(|event| {
+                    if event.queue == queue {
+                        Some(Ok(Event::default()
+                            .event(&event.event_type)
+                            .json_data(&event).unwrap_or_default()))
+                    } else {
+                        None
+                    }
+                })
+            }
+        });
+
+    Sse::new(stream).keep_alive(KeepAlive::default())
+}
+
+// === Workers ===
+
+#[derive(Deserialize)]
+pub struct WorkerHeartbeatRequest {
+    pub queues: Vec<String>,
+    #[serde(default)]
+    pub concurrency: u32,
+}
+
+async fn list_workers(State(qm): State<AppState>) -> Json<ApiResponse<Vec<crate::protocol::WorkerInfo>>> {
+    let workers = qm.list_workers().await;
+    ApiResponse::success(workers)
+}
+
+async fn worker_heartbeat(
+    State(qm): State<AppState>,
+    Path(id): Path<String>,
+    Json(req): Json<WorkerHeartbeatRequest>,
+) -> Json<ApiResponse<()>> {
+    qm.worker_heartbeat(id, req.queues, req.concurrency).await;
+    ApiResponse::success(())
+}
+
+// === Webhooks ===
+
+#[derive(Deserialize)]
+pub struct CreateWebhookRequest {
+    pub url: String,
+    pub events: Vec<String>,
+    #[serde(default)]
+    pub queue: Option<String>,
+    #[serde(default)]
+    pub secret: Option<String>,
+}
+
+async fn list_webhooks(State(qm): State<AppState>) -> Json<ApiResponse<Vec<crate::protocol::WebhookConfig>>> {
+    let webhooks = qm.list_webhooks().await;
+    ApiResponse::success(webhooks)
+}
+
+async fn create_webhook(
+    State(qm): State<AppState>,
+    Json(req): Json<CreateWebhookRequest>,
+) -> Json<ApiResponse<String>> {
+    let id = qm.add_webhook(req.url, req.events, req.queue, req.secret).await;
+    ApiResponse::success(id)
+}
+
+async fn delete_webhook(
+    State(qm): State<AppState>,
+    Path(id): Path<String>,
+) -> Json<ApiResponse<bool>> {
+    let deleted = qm.delete_webhook(&id).await;
+    ApiResponse::success(deleted)
+}
+
+// === Incoming Webhooks ===
+
+async fn incoming_webhook(
+    State(qm): State<AppState>,
+    Path(queue): Path<String>,
+    Json(data): Json<Value>,
+) -> Json<ApiResponse<Job>> {
+    match qm.push(queue, data, 0, None, None, None, None, None, None, None, None).await {
+        Ok(job) => ApiResponse::success(job),
+        Err(e) => ApiResponse::error(e),
+    }
 }

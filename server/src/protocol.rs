@@ -46,6 +46,8 @@ pub enum Command {
         unique_key: Option<String>, // Deduplication key
         #[serde(default)]
         depends_on: Option<Vec<u64>>, // Job dependencies
+        #[serde(default)]
+        tags: Option<Vec<String>>,  // Job tags for filtering
     },
     Pushb {
         queue: String,
@@ -176,6 +178,8 @@ pub struct JobInput {
     pub unique_key: Option<String>,
     #[serde(default)]
     pub depends_on: Option<Vec<u64>>,
+    #[serde(default)]
+    pub tags: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -206,6 +210,8 @@ pub struct Job {
     pub progress: u8,
     #[serde(default)]
     pub progress_msg: Option<String>,
+    #[serde(default)]
+    pub tags: Vec<String>,      // Job tags for filtering
 }
 
 impl Job {
@@ -375,6 +381,45 @@ pub struct QueueInfo {
     pub paused: bool,
     pub rate_limit: Option<u32>,
     pub concurrency_limit: Option<u32>,
+}
+
+// === Worker Registration ===
+
+#[derive(Debug, Clone, Serialize)]
+pub struct WorkerInfo {
+    pub id: String,
+    pub queues: Vec<String>,
+    pub concurrency: u32,
+    pub last_heartbeat: u64,
+    pub jobs_processed: u64,
+}
+
+// === Webhooks ===
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WebhookConfig {
+    pub id: String,
+    pub url: String,
+    pub events: Vec<String>,  // "job.completed", "job.failed", "job.progress"
+    pub queue: Option<String>, // Filter by queue, None = all queues
+    pub secret: Option<String>, // HMAC signing secret
+    pub created_at: u64,
+}
+
+// === Events (for SSE/WebSocket) ===
+
+#[derive(Debug, Clone, Serialize)]
+pub struct JobEvent {
+    pub event_type: String,  // "completed", "failed", "progress", "pushed"
+    pub queue: String,
+    pub job_id: u64,
+    pub timestamp: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub data: Option<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub progress: Option<u8>,
 }
 
 impl Response {

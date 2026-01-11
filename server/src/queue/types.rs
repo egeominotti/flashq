@@ -325,3 +325,49 @@ pub struct Subscriber {
     pub events: Vec<String>,
     pub tx: tokio::sync::mpsc::UnboundedSender<String>,
 }
+
+// ============== Worker ==============
+
+pub struct Worker {
+    pub id: String,
+    pub queues: Vec<String>,
+    pub concurrency: u32,
+    pub last_heartbeat: u64,
+    pub jobs_processed: u64,
+}
+
+impl Worker {
+    pub fn new(id: String, queues: Vec<String>, concurrency: u32) -> Self {
+        Self {
+            id,
+            queues,
+            concurrency,
+            last_heartbeat: now_ms(),
+            jobs_processed: 0,
+        }
+    }
+}
+
+// ============== Webhook ==============
+
+pub struct Webhook {
+    pub id: String,
+    pub url: String,
+    pub events: Vec<String>,
+    pub queue: Option<String>,
+    pub secret: Option<String>,
+    pub created_at: u64,
+}
+
+impl Webhook {
+    pub fn new(id: String, url: String, events: Vec<String>, queue: Option<String>, secret: Option<String>) -> Self {
+        Self {
+            id,
+            url,
+            events,
+            queue,
+            secret,
+            created_at: now_ms(),
+        }
+    }
+}
