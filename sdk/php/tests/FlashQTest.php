@@ -149,7 +149,9 @@ class FlashQTest extends TestCase
     {
         $job = $this->client->push('cancel-test', ['will' => 'cancel']);
         $this->client->cancel($job->id);
-        // Job should be cancelled
+        // Verify job was cancelled by checking it's no longer in waiting state
+        $state = $this->client->getState($job->id);
+        $this->assertNotEquals(JobState::WAITING, $state);
     }
 
     public function testGetState(): void
