@@ -69,6 +69,7 @@ Real benchmarks on Apple M1 Max. No synthetic tests. No asterisks.
 
 <br>
 <br>
+<br>
 
 | Metric | flashQ | BullMQ (Redis) | Improvement |
 |--------|--------|----------------|-------------|
