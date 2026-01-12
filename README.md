@@ -20,26 +20,34 @@ A blazingly fast, zero-dependency job queue built with Rust.
 
 - **No Redis Required** — Self-contained server with optional persistence
 - **Ultra-Low Latency** — Sub-100us P99 latency for job operations
-- **High Throughput** — 280,000+ ops/sec for batch operations
+- **Insane Throughput** — 2,000,000+ ops/sec for batch operations
 - **Production Ready** — Dead letter queues, retries, rate limiting, and more
 
 ## Benchmarks
 
 Tested on Apple Silicon M2, single server instance.
 
-| Operation | Throughput | P99 Latency |
-|-----------|------------|-------------|
-| Sequential Push | 15,000 ops/sec | 93 us |
-| Batch Push | 285,000 ops/sec | — |
-| Full Cycle (Push->Pull->Ack) | 5,800 ops/sec | — |
+| Operation | Throughput | Notes |
+|-----------|------------|-------|
+| Single Push | 10,000 ops/sec | Sequential |
+| **Batch Push** | **2,127,660 ops/sec** | 10 connections × batch |
+| **Pull + Ack** | **519,388 ops/sec** | Batch operations |
+
+### Protocol Comparison
+
+| Protocol | Single Push | Batch Push | Pull + Ack |
+|----------|-------------|------------|------------|
+| **TCP** | 6,000/sec | **667,000/sec** | **185,000/sec** |
+| Unix Socket | 10,000/sec | 588,000/sec | 192,000/sec |
+| HTTP | 4,000/sec | 20,000/sec | 5,000/sec |
 
 ### vs BullMQ (Redis)
 
 | Benchmark | MagicQueue | BullMQ | Improvement |
 |-----------|------------|--------|-------------|
-| Sequential Push | 15,015 ops/s | 4,533 ops/s | **3.3x faster** |
-| Batch Push | 294,118 ops/s | 36,232 ops/s | **8.1x faster** |
-| P99 Latency | 125 us | 414 us | **3.3x lower** |
+| Sequential Push | 10,000 ops/s | 4,533 ops/s | **2.2x faster** |
+| Batch Push | 2,127,660 ops/s | 36,232 ops/s | **58x faster** |
+| Pull + Ack | 519,388 ops/s | ~10,000 ops/s | **52x faster** |
 
 ---
 
@@ -87,7 +95,38 @@ Tested on Apple Silicon M2, single server instance.
 
 ## Quick Start
 
-### Docker Compose (Recommended)
+### Using Makefile (Recommended)
+
+```bash
+# Start PostgreSQL + run server with persistence
+make up
+make persist
+
+# Or run without persistence
+make run
+
+# Open dashboard
+make dashboard
+```
+
+### Makefile Commands
+
+| Command | Description |
+|---------|-------------|
+| `make dev` | Run in development mode |
+| `make run` | Run with HTTP API |
+| `make release` | Run optimized build |
+| `make persist` | Run with PostgreSQL persistence |
+| `make test` | Run Rust tests |
+| `make sdk-test` | Run SDK tests |
+| `make stress` | Run stress tests |
+| `make up` | Start PostgreSQL container |
+| `make down` | Stop containers |
+| `make dashboard` | Open dashboard in browser |
+| `make restart` | Restart server (with persistence) |
+| `make stop` | Stop server |
+
+### Docker Compose
 
 ```bash
 # Start with PostgreSQL persistence
@@ -124,7 +163,6 @@ The server listens on **port 6789** (TCP) by default.
 ### With PostgreSQL Persistence
 
 ```bash
-# Set DATABASE_URL to enable PostgreSQL persistence
 DATABASE_URL=postgres://user:pass@localhost/magicqueue HTTP=1 cargo run --release
 ```
 
@@ -186,6 +224,8 @@ Jobs can be in one of the following states:
 | `GET` | `/metrics/prometheus` | Prometheus format metrics |
 | `GET` | `/events` | SSE event stream |
 | `GET` | `/ws?token=xxx` | WebSocket event stream |
+| `POST` | `/server/restart` | Restart server (exit code 100) |
+| `POST` | `/server/shutdown` | Shutdown server |
 
 <details>
 <summary>View all endpoints</summary>
@@ -645,22 +685,56 @@ bun install
 ```typescript
 import { MagicQueue } from 'magicqueue';
 
+// TCP connection (recommended for performance)
 const client = new MagicQueue({ host: 'localhost', port: 6789 });
+
+// Unix Socket (for same-machine, +71% faster single ops)
+const client = new MagicQueue({ socketPath: '/tmp/magic-queue.sock' });
+
+// HTTP (for simplicity)
+const client = new MagicQueue({ host: 'localhost', useHttp: true });
+
 await client.connect();
 
 // Push a job
 const job = await client.push('emails', { to: 'user@example.com' });
 
+// Batch push (2M+ ops/sec)
+await client.pushBatch('emails', [
+  { data: { to: 'a@test.com' } },
+  { data: { to: 'b@test.com' } },
+]);
+
 // Pull and process
 const pulled = await client.pull('emails');
 await client.ack(pulled.id);
 
+// Batch pull + ack (500k+ ops/sec)
+const jobs = await client.pullBatch('emails', 100);
+await client.ackBatch(jobs.map(j => j.id));
+
 await client.close();
 ```
 
-See `sdk/typescript/examples/` for more examples:
-- `comprehensive-test.ts` - Full API test suite (34 tests)
-- `stress-test.ts` - System resilience tests (33 tests)
+### SDK Examples
+
+| Example | Description |
+|---------|-------------|
+| `comprehensive-test.ts` | Full API test suite (34 tests) |
+| `stress-test.ts` | System resilience tests (33 tests) |
+| `cpu-intensive-test.ts` | CPU-bound workload benchmark |
+| `benchmark-max.ts` | Maximum throughput test (2M+ ops/sec) |
+| `protocol-benchmark.ts` | TCP vs HTTP comparison |
+| `unix-socket-benchmark.ts` | Unix Socket vs TCP comparison |
+| `concurrency-test.ts` | Parallel worker testing |
+
+Run benchmarks:
+
+```bash
+cd sdk/typescript
+bun run examples/benchmark-max.ts
+bun run examples/cpu-intensive-test.ts
+```
 
 ---
 
