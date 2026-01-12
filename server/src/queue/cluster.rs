@@ -283,9 +283,9 @@ impl ClusterManager {
     }
 }
 
-/// Generate a unique node ID
+/// Generate a unique node ID using ULID (sortable, faster than UUID)
 pub fn generate_node_id() -> String {
     std::env::var("NODE_ID").unwrap_or_else(|_| {
-        format!("node-{}", uuid::Uuid::new_v4().to_string()[..8].to_string())
+        format!("node-{}", &ulid::Ulid::new().to_string()[..8])
     })
 }

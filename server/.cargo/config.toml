@@ -1,0 +1,29 @@
+# flashQ Build Configuration
+# These flags optimize for maximum performance on the target CPU
+
+[build]
+rustflags = [
+    "-C", "target-cpu=native",      # Use all CPU features (AVX2, AVX-512, etc.)
+    "-C", "link-arg=-fuse-ld=lld",  # Faster linker (if lld installed)
+]
+
+[target.x86_64-unknown-linux-gnu]
+rustflags = [
+    "-C", "target-cpu=native",
+    "-C", "link-arg=-fuse-ld=lld",
+]
+
+[target.aarch64-apple-darwin]
+rustflags = [
+    "-C", "target-cpu=native",      # Apple Silicon optimizations
+]
+
+[target.x86_64-apple-darwin]
+rustflags = [
+    "-C", "target-cpu=native",
+]
+
+# Per Docker/CI dove serve binary portabile, usa:
+# RUSTFLAGS="-C target-cpu=x86-64-v3" cargo build --release
+# x86-64-v3 = AVX2 (most modern servers)
+# x86-64-v2 = SSE4.2 (broader compatibility)

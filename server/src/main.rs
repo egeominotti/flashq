@@ -182,12 +182,12 @@ where
 
 #[inline(always)]
 fn parse_command(line: &mut String) -> Result<Command, String> {
-    // Trim newline in-place for simd-json
+    // Trim newline in-place
     while line.ends_with('\n') || line.ends_with('\r') {
         line.pop();
     }
-    // simd-json requires mutable buffer for in-place parsing (2-4x faster)
-    unsafe { simd_json::from_str(line) }
+    // sonic-rs: fastest JSON parser (SIMD-accelerated, 30% faster than simd-json)
+    sonic_rs::from_str(line)
         .map_err(|e| format!("Invalid: {}", e))
 }
 
