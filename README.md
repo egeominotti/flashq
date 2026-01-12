@@ -65,8 +65,35 @@ Real benchmarks on Apple Silicon M2. No synthetic tests. No asterisks.
 |--------|--------|----------------|-------------|
 | **Batch Throughput** | 2,127,660 ops/sec | 36,232 ops/sec | **58x faster** |
 | **Pull + Ack** | 519,388 ops/sec | ~10,000 ops/sec | **52x faster** |
-| **P99 Latency** | <100 μs | ~5 ms | **50x lower** |
+| **P99 Latency** | 127-196 μs | 606-647 μs | **3-5x lower** |
 | **Memory per 1M jobs** | ~200 MB | ~2 GB | **10x less** |
+
+### Latency Benchmark (Validated)
+
+Real P99 latency comparison with statistical analysis:
+
+| Test | flashQ P99 | BullMQ P99 | Improvement |
+|------|------------|------------|-------------|
+| Single Push | 192μs | 645μs | **3.4x faster** |
+| Priority Push | 128μs | 606μs | **4.8x faster** |
+| 100B Payload | 141μs | 627μs | **4.4x faster** |
+| 1KB Payload | 127μs | 643μs | **5.0x faster** |
+| 10KB Payload | 196μs | 647μs | **3.3x faster** |
+
+<details>
+<summary><b>View Mean Latency Results</b></summary>
+
+| Test | flashQ Mean | BullMQ Mean | Improvement |
+|------|-------------|-------------|-------------|
+| Single Push | 81μs | 237μs | 2.9x faster |
+| Priority Push | 62μs | 197μs | 3.2x faster |
+| 100B Payload | 64μs | 228μs | 3.5x faster |
+| 1KB Payload | 69μs | 224μs | 3.2x faster |
+| 10KB Payload | 88μs | 266μs | 3.0x faster |
+
+*Benchmark: 1000 operations with 100 warmup ops, measured with `performance.now()` at microsecond precision.*
+
+</details>
 
 <details>
 <summary><b>View Protocol Benchmarks</b></summary>

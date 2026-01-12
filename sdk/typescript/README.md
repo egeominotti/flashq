@@ -218,6 +218,23 @@ emails.process(async (job) => {
 | Batch throughput | 2M+ ops/sec | ~36K ops/sec |
 | Setup | `new Queue('x')` | Redis + Queue + Worker |
 
+### Latency Benchmark (P99)
+
+Real benchmarks comparing flashQ vs BullMQ:
+
+| Test | flashQ | BullMQ | Improvement |
+|------|--------|--------|-------------|
+| Single Push | 192μs | 645μs | **3.4x faster** |
+| Priority Push | 128μs | 606μs | **4.8x faster** |
+| 1KB Payload | 127μs | 643μs | **5.0x faster** |
+| 10KB Payload | 196μs | 647μs | **3.3x faster** |
+
+Run benchmarks yourself:
+```bash
+bun run examples/latency-benchmark.ts
+bun run examples/bullmq-comparison.ts
+```
+
 ## License
 
 MIT
