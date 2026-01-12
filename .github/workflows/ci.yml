@@ -1,0 +1,136 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  # Run Rust unit tests
+  test-server:
+    name: Test Server
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            server/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('server/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Check formatting
+        working-directory: server
+        run: cargo fmt --check
+
+      - name: Run clippy
+        working-directory: server
+        run: cargo clippy -- -D warnings
+
+      - name: Run tests
+        working-directory: server
+        run: cargo test
+
+  # Build release binary
+  build-server:
+    name: Build Server
+    runs-on: ubuntu-latest
+    needs: test-server
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            server/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('server/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Build release
+        working-directory: server
+        run: cargo build --release
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: flashq-server
+          path: server/target/release/flashq-server
+
+  # Test TypeScript SDK against running server
+  test-sdk-typescript:
+    name: Test TypeScript SDK
+    runs-on: ubuntu-latest
+    needs: build-server
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download server binary
+        uses: actions/download-artifact@v4
+        with:
+          name: flashq-server
+          path: ./bin
+
+      - name: Make binary executable
+        run: chmod +x ./bin/flashq-server
+
+      - name: Start server
+        run: |
+          ./bin/flashq-server &
+          sleep 2
+        env:
+          RUST_LOG: info
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install SDK dependencies
+        working-directory: sdk/typescript
+        run: bun install
+
+      - name: Run SDK tests
+        working-directory: sdk/typescript
+        run: bun run examples/comprehensive-test.ts
+
+  # Build Docker image
+  build-docker:
+    name: Build Docker Image
+    runs-on: ubuntu-latest
+    needs: test-server
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          tags: flashq:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
