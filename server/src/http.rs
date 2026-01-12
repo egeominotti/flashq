@@ -45,6 +45,8 @@ pub struct PushRequest {
     pub depends_on: Option<Vec<u64>>,
     #[serde(default)]
     pub tags: Option<Vec<String>>,
+    #[serde(default)]
+    pub lifo: bool,
 }
 
 #[derive(Deserialize)]
@@ -198,7 +200,7 @@ async fn push_job(
 ) -> Json<ApiResponse<Job>> {
     match qm.push(
         queue, req.data, req.priority, req.delay, req.ttl, req.timeout,
-        req.max_attempts, req.backoff, req.unique_key, req.depends_on, req.tags,
+        req.max_attempts, req.backoff, req.unique_key, req.depends_on, req.tags, req.lifo,
     ).await {
         Ok(job) => ApiResponse::success(job),
         Err(e) => ApiResponse::error(e),
@@ -705,7 +707,7 @@ async fn incoming_webhook(
     Path(queue): Path<String>,
     Json(data): Json<Value>,
 ) -> Json<ApiResponse<Job>> {
-    match qm.push(queue, data, 0, None, None, None, None, None, None, None, None).await {
+    match qm.push(queue, data, 0, None, None, None, None, None, None, None, None, false).await {
         Ok(job) => ApiResponse::success(job),
         Err(e) => ApiResponse::error(e),
     }

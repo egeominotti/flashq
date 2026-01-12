@@ -48,6 +48,8 @@ pub enum Command {
         depends_on: Option<Vec<u64>>, // Job dependencies
         #[serde(default)]
         tags: Option<Vec<String>>,  // Job tags for filtering
+        #[serde(default)]
+        lifo: bool,                 // LIFO mode: last in, first out
     },
     Pushb {
         queue: String,
@@ -180,6 +182,8 @@ pub struct JobInput {
     pub depends_on: Option<Vec<u64>>,
     #[serde(default)]
     pub tags: Option<Vec<String>>,
+    #[serde(default)]
+    pub lifo: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -212,6 +216,8 @@ pub struct Job {
     pub progress_msg: Option<String>,
     #[serde(default)]
     pub tags: Vec<String>,      // Job tags for filtering
+    #[serde(default)]
+    pub lifo: bool,             // LIFO mode: last in, first out
 }
 
 /// Job with its current state (for browser/API)
@@ -278,10 +284,21 @@ impl Ord for Job {
     #[inline(always)]
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         // Higher priority = greater (popped first from max-heap)
-        // Earlier run_at = greater (popped first)
+        // Earlier run_at = greater (popped first for delayed jobs)
+        // LIFO: higher ID = greater (newer jobs first)
+        // FIFO: lower ID = greater (older jobs first)
         self.priority
             .cmp(&other.priority)
             .then_with(|| other.run_at.cmp(&self.run_at))
+            .then_with(|| {
+                if self.lifo || other.lifo {
+                    // LIFO: prefer higher ID (newer)
+                    self.id.cmp(&other.id)
+                } else {
+                    // FIFO: prefer lower ID (older)
+                    other.id.cmp(&self.id)
+                }
+            })
     }
 }
 

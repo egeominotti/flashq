@@ -49,9 +49,15 @@ impl PostgresStorage {
                 progress SMALLINT NOT NULL DEFAULT 0,
                 progress_msg TEXT,
                 tags TEXT[] NOT NULL DEFAULT '{}',
-                state VARCHAR(32) NOT NULL DEFAULT 'waiting'
+                state VARCHAR(32) NOT NULL DEFAULT 'waiting',
+                lifo BOOLEAN NOT NULL DEFAULT FALSE
             )
         "#).execute(&self.pool).await?;
+
+        // Add lifo column for existing databases
+        sqlx::query(r#"
+            ALTER TABLE jobs ADD COLUMN IF NOT EXISTS lifo BOOLEAN NOT NULL DEFAULT FALSE
+        "#).execute(&self.pool).await.ok();
 
         sqlx::query(r#"
             CREATE INDEX IF NOT EXISTS idx_jobs_queue_state ON jobs(queue, state)
@@ -128,8 +134,8 @@ impl PostgresStorage {
         sqlx::query(r#"
             INSERT INTO jobs (id, queue, data, priority, created_at, run_at, started_at,
                 attempts, max_attempts, backoff, ttl, timeout, unique_key, depends_on,
-                progress, progress_msg, tags, state)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+                progress, progress_msg, tags, state, lifo)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
             ON CONFLICT (id) DO UPDATE SET
                 state = EXCLUDED.state,
                 started_at = EXCLUDED.started_at,
@@ -156,6 +162,7 @@ impl PostgresStorage {
         .bind(&job.progress_msg)
         .bind(&job.tags)
         .bind(state)
+        .bind(job.lifo)
         .execute(&self.pool)
         .await?;
 
@@ -251,7 +258,7 @@ impl PostgresStorage {
         let rows = sqlx::query(r#"
             SELECT id, queue, data, priority, created_at, run_at, started_at, attempts,
                    max_attempts, backoff, ttl, timeout, unique_key, depends_on, progress,
-                   progress_msg, tags, state
+                   progress_msg, tags, state, lifo
             FROM jobs
             WHERE state IN ('waiting', 'delayed', 'active', 'waiting_children')
         "#)
@@ -279,6 +286,7 @@ impl PostgresStorage {
                 progress: row.get::<i16, _>("progress") as u8,
                 progress_msg: row.get("progress_msg"),
                 tags: row.get("tags"),
+                lifo: row.get("lifo"),
             };
             let state: String = row.get("state");
             jobs.push((job, state));
@@ -292,7 +300,7 @@ impl PostgresStorage {
         let rows = sqlx::query(r#"
             SELECT j.id, j.queue, j.data, j.priority, j.created_at, j.run_at, j.started_at,
                    j.attempts, j.max_attempts, j.backoff, j.ttl, j.timeout, j.unique_key,
-                   j.depends_on, j.progress, j.progress_msg, j.tags
+                   j.depends_on, j.progress, j.progress_msg, j.tags, j.lifo
             FROM jobs j
             INNER JOIN dlq_jobs d ON j.id = d.job_id
         "#)
@@ -320,6 +328,7 @@ impl PostgresStorage {
                 progress: row.get::<i16, _>("progress") as u8,
                 progress_msg: row.get("progress_msg"),
                 tags: row.get("tags"),
+                lifo: row.get("lifo"),
             });
         }
 
@@ -457,8 +466,8 @@ impl PostgresStorage {
             sqlx::query(r#"
                 INSERT INTO jobs (id, queue, data, priority, created_at, run_at, started_at,
                     attempts, max_attempts, backoff, ttl, timeout, unique_key, depends_on,
-                    progress, progress_msg, tags, state)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+                    progress, progress_msg, tags, state, lifo)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
                 ON CONFLICT (id) DO NOTHING
             "#)
             .bind(job.id as i64)
@@ -479,6 +488,7 @@ impl PostgresStorage {
             .bind(&job.progress_msg)
             .bind(&job.tags)
             .bind(state)
+            .bind(job.lifo)
             .execute(&mut *tx)
             .await?;
         }

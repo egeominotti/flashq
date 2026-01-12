@@ -264,7 +264,7 @@ impl QueueManager {
         }
 
         for (queue, data, priority) in to_run {
-            let _ = self.push(queue, data, priority, None, None, None, None, None, None, None, None).await;
+            let _ = self.push(queue, data, priority, None, None, None, None, None, None, None, None, false).await;
         }
     }
 

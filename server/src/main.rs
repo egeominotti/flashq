@@ -231,9 +231,10 @@ async fn process_command(
             unique_key,
             depends_on,
             tags,
+            lifo,
         } => {
             match queue_manager
-                .push(queue, data, priority, delay, ttl, timeout, max_attempts, backoff, unique_key, depends_on, tags)
+                .push(queue, data, priority, delay, ttl, timeout, max_attempts, backoff, unique_key, depends_on, tags, lifo)
                 .await
             {
                 Ok(job) => Response::ok_with_id(job.id),

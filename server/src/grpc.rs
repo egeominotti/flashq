@@ -55,6 +55,7 @@ impl From<InternalJob> for Job {
             depends_on: job.depends_on,
             progress: job.progress as u32,
             progress_msg: job.progress_msg,
+            lifo: job.lifo,
         }
     }
 }
@@ -95,6 +96,7 @@ impl QueueService for QueueServiceImpl {
             req.unique_key,
             if req.depends_on.is_empty() { None } else { Some(req.depends_on) },
             None, // tags not supported in gRPC yet
+            req.lifo,
         ).await {
             Ok(job) => Ok(Response::new(PushResponse { ok: true, id: job.id })),
             Err(e) => Err(Status::internal(e)),
@@ -120,6 +122,7 @@ impl QueueService for QueueServiceImpl {
                 unique_key: j.unique_key,
                 depends_on: if j.depends_on.is_empty() { None } else { Some(j.depends_on) },
                 tags: None,
+                lifo: j.lifo,
             });
         }
 

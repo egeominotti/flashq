@@ -55,6 +55,7 @@ impl QueueManager {
         unique_key: Option<String>,
         depends_on: Option<Vec<u64>>,
         tags: Option<Vec<String>>,
+        lifo: bool,
     ) -> Job {
         let now = now_ms();
         Job {
@@ -75,6 +76,7 @@ impl QueueManager {
             progress: 0,
             progress_msg: None,
             tags: tags.unwrap_or_default(),
+            lifo,
         }
     }
 
@@ -91,6 +93,7 @@ impl QueueManager {
         unique_key: Option<String>,
         depends_on: Option<Vec<u64>>,
         tags: Option<Vec<String>>,
+        lifo: bool,
     ) -> Result<Job, String> {
         // Validate inputs to prevent DoS attacks
         validate_queue_name(&queue)?;
@@ -98,7 +101,7 @@ impl QueueManager {
 
         let job = self.create_job(
             queue.clone(), data, priority, delay, ttl, timeout, max_attempts, backoff,
-            unique_key.clone(), depends_on.clone(), tags
+            unique_key.clone(), depends_on.clone(), tags, lifo
         );
 
         let idx = Self::shard_index(&queue);
@@ -173,7 +176,7 @@ impl QueueManager {
             let job = self.create_job(
                 queue.clone(), input.data, input.priority, input.delay,
                 input.ttl, input.timeout, input.max_attempts, input.backoff,
-                input.unique_key, input.depends_on, input.tags,
+                input.unique_key, input.depends_on, input.tags, input.lifo,
             );
             ids.push(job.id);
 
