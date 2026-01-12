@@ -16,5 +16,5 @@
   <text x="140" y="62" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="52" font-weight="700" fill="#FFFFFF">Flash</text>
 
   <!-- Wordmark: Q -->
-  <text x="305" y="62" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="52" font-weight="700" fill="#FFD700">Q</text>
+  <text x="280" y="62" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="52" font-weight="700" fill="#FFD700">Q</text>
 </svg>
