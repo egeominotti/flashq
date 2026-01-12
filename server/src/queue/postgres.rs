@@ -22,6 +22,11 @@ impl PostgresStorage {
         Ok(Self { pool })
     }
 
+    /// Get a reference to the connection pool.
+    pub fn pool(&self) -> &PgPool {
+        &self.pool
+    }
+
     /// Run database migrations.
     pub async fn migrate(&self) -> Result<(), sqlx::Error> {
         // Create tables if they don't exist

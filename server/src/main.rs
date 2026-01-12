@@ -17,7 +17,7 @@ use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, BufWriter};
 use tokio::net::{TcpListener, UnixListener};
 
 use protocol::{Command, Response};
-use queue::QueueManager;
+use queue::{QueueManager, generate_node_id};
 
 const DEFAULT_TCP_PORT: u16 = 6789;
 const DEFAULT_HTTP_PORT: u16 = 6790;
@@ -34,6 +34,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let database_url = std::env::var("DATABASE_URL").ok();
     let enable_http = std::env::var("HTTP").is_ok();
     let enable_grpc = std::env::var("GRPC").is_ok();
+    let enable_cluster = std::env::var("CLUSTER_MODE").is_ok();
 
     // Parse auth tokens from environment
     let auth_tokens: Vec<String> = std::env::var("AUTH_TOKENS")
@@ -43,14 +44,33 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .map(|s| s.to_string())
         .collect();
 
-    // Create QueueManager with optional PostgreSQL persistence
-    let queue_manager = match (&database_url, auth_tokens.is_empty()) {
-        (Some(url), true) => QueueManager::with_postgres(url).await,
-        (Some(url), false) => QueueManager::with_postgres_and_auth(url, auth_tokens).await,
-        (None, true) => QueueManager::new(false),
-        (None, false) => {
-            println!("Authentication enabled with {} token(s)", auth_tokens.len());
-            QueueManager::with_auth_tokens(false, auth_tokens)
+    // Get HTTP port for cluster registration
+    let http_port: i32 = std::env::var("HTTP_PORT")
+        .ok()
+        .and_then(|p| p.parse().ok())
+        .unwrap_or(DEFAULT_HTTP_PORT as i32);
+
+    // Create QueueManager with optional PostgreSQL persistence and clustering
+    let queue_manager = if enable_cluster {
+        // Cluster mode requires PostgreSQL
+        if let Some(url) = &database_url {
+            let node_id = generate_node_id();
+            let host = std::env::var("NODE_HOST").unwrap_or_else(|_| "localhost".to_string());
+            println!("Starting node {} in cluster mode", node_id);
+            QueueManager::with_cluster(url, node_id, host, http_port).await
+        } else {
+            eprintln!("CLUSTER_MODE requires DATABASE_URL to be set");
+            std::process::exit(1);
+        }
+    } else {
+        match (&database_url, auth_tokens.is_empty()) {
+            (Some(url), true) => QueueManager::with_postgres(url).await,
+            (Some(url), false) => QueueManager::with_postgres_and_auth(url, auth_tokens).await,
+            (None, true) => QueueManager::new(false),
+            (None, false) => {
+                println!("Authentication enabled with {} token(s)", auth_tokens.len());
+                QueueManager::with_auth_tokens(false, auth_tokens)
+            }
         }
     };
 

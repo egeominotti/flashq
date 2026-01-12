@@ -22,6 +22,7 @@ sha2 = "0.10"                     # SHA-256 for webhook signatures
 croner = "2.0"                     # Full 6-field cron expression parsing
 chrono = { version = "0.4", default-features = false, features = ["std", "clock"] }  # DateTime for cron
 sqlx = { version = "0.8", features = ["runtime-tokio", "postgres", "json"] }  # PostgreSQL persistence
+uuid = { version = "1.11", features = ["v4"] }  # Node ID generation for clustering
 
 # gRPC
 tonic = "0.12"                  # gRPC framework

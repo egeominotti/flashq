@@ -15,28 +15,66 @@ impl QueueManager {
         let mut cleanup_ticker = interval(Duration::from_secs(60));
         let mut timeout_ticker = interval(Duration::from_millis(500));
         let mut metrics_ticker = interval(Duration::from_secs(5)); // Collect metrics every 5s
+        let mut cluster_ticker = interval(Duration::from_secs(5)); // Cluster heartbeat every 5s
 
         loop {
             tokio::select! {
                 _ = wakeup_ticker.tick() => {
                     // Wake up workers that may have missed push notifications
+                    // This runs on all nodes
                     self.notify_all();
                     self.check_dependencies().await;
                 }
                 _ = timeout_ticker.tick() => {
-                    self.check_timed_out_jobs().await;
+                    // Only leader checks timeouts
+                    if self.is_leader() {
+                        self.check_timed_out_jobs().await;
+                    }
                 }
                 _ = cron_ticker.tick() => {
-                    self.run_cron_jobs().await;
+                    // Only leader runs cron jobs
+                    if self.is_leader() {
+                        self.run_cron_jobs().await;
+                    }
                 }
                 _ = cleanup_ticker.tick() => {
-                    self.cleanup_completed_jobs();
-                    self.cleanup_job_results();
-                    self.cleanup_stale_index_entries();
-                    cleanup_interned_strings();
+                    // Only leader runs cleanup
+                    if self.is_leader() {
+                        self.cleanup_completed_jobs();
+                        self.cleanup_job_results();
+                        self.cleanup_stale_index_entries();
+                        cleanup_interned_strings();
+                    }
                 }
                 _ = metrics_ticker.tick() => {
+                    // Metrics collection runs on all nodes
                     self.collect_metrics_history();
+                }
+                _ = cluster_ticker.tick() => {
+                    // Cluster heartbeat and leader election
+                    self.cluster_heartbeat().await;
+                }
+            }
+        }
+    }
+
+    /// Perform cluster heartbeat and try to become leader
+    async fn cluster_heartbeat(&self) {
+        if let Some(cluster) = &self.cluster {
+            // Send heartbeat
+            if let Err(e) = cluster.heartbeat().await {
+                eprintln!("Cluster heartbeat failed: {}", e);
+            }
+
+            // Try to become leader if not already
+            if let Err(e) = cluster.try_become_leader().await {
+                eprintln!("Leader election check failed: {}", e);
+            }
+
+            // Leader cleans up stale nodes
+            if cluster.is_leader() {
+                if let Err(e) = cluster.cleanup_stale_nodes().await {
+                    eprintln!("Stale node cleanup failed: {}", e);
                 }
             }
         }

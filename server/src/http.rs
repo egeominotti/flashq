@@ -20,7 +20,7 @@ use tower_http::cors::{Any, CorsLayer};
 
 use crate::dashboard;
 use crate::protocol::{CronJob, Job, JobBrowserItem, JobState, MetricsData, MetricsHistoryPoint, QueueInfo};
-use crate::queue::QueueManager;
+use crate::queue::{QueueManager, NodeInfo};
 
 type AppState = Arc<QueueManager>;
 
@@ -173,6 +173,9 @@ pub fn create_router(state: AppState) -> Router {
         .route("/settings", get(get_settings))
         .route("/server/shutdown", post(shutdown_server))
         .route("/server/restart", post(restart_server))
+        // Health & Cluster
+        .route("/health", get(health_check))
+        .route("/cluster/nodes", get(cluster_nodes))
         .with_state(state);
 
     Router::new()
@@ -769,4 +772,53 @@ async fn restart_server() -> Json<ApiResponse<&'static str>> {
         std::process::exit(100);
     });
     ApiResponse::success("Server restarting...")
+}
+
+// === Health & Cluster ===
+
+#[derive(Serialize)]
+pub struct HealthResponse {
+    pub status: &'static str,
+    pub node_id: Option<String>,
+    pub is_leader: bool,
+    pub cluster_enabled: bool,
+    pub postgres_connected: bool,
+}
+
+async fn health_check(State(qm): State<AppState>) -> Json<ApiResponse<HealthResponse>> {
+    let health = HealthResponse {
+        status: "healthy",
+        node_id: qm.node_id(),
+        is_leader: qm.is_leader(),
+        cluster_enabled: qm.is_cluster_enabled(),
+        postgres_connected: qm.is_postgres_connected(),
+    };
+    ApiResponse::success(health)
+}
+
+async fn cluster_nodes(State(qm): State<AppState>) -> Json<ApiResponse<Vec<NodeInfo>>> {
+    if let Some(cluster) = qm.cluster() {
+        match cluster.list_nodes().await {
+            Ok(nodes) => ApiResponse::success(nodes),
+            Err(e) => ApiResponse::error(format!("Failed to list nodes: {}", e)),
+        }
+    } else {
+        // Not in cluster mode, return self as only node
+        ApiResponse::success(vec![NodeInfo {
+            node_id: "standalone".to_string(),
+            host: "localhost".to_string(),
+            port: std::env::var("HTTP_PORT").ok().and_then(|p| p.parse().ok()).unwrap_or(6790),
+            is_leader: true,
+            last_heartbeat: std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_millis() as i64)
+                .unwrap_or(0),
+            started_at: START_TIME.get()
+                .map(|t| std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| d.as_millis() as i64 - t.elapsed().as_millis() as i64)
+                    .unwrap_or(0))
+                .unwrap_or(0),
+        }])
+    }
 }

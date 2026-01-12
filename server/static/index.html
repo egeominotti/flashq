@@ -210,6 +210,27 @@
                         </div>
                     </div>
 
+                    <!-- Cluster Status (shown only in cluster mode) -->
+                    <div id="cluster-panel" class="hidden">
+                        <div class="card">
+                            <div class="card-header flex items-center justify-between">
+                                <div class="flex items-center gap-3">
+                                    <h3 class="text-lg font-semibold text-white">Cluster Status</h3>
+                                    <span id="cluster-mode-badge" class="px-2.5 py-1 bg-violet-500/20 text-violet-400 rounded-full text-xs font-medium">HA Mode</span>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <span id="current-node-role" class="px-2.5 py-1 bg-emerald-500/20 text-emerald-400 rounded-full text-xs font-medium">Leader</span>
+                                    <span id="current-node-id" class="text-sm text-slate-400">node-1</span>
+                                </div>
+                            </div>
+                            <div class="p-4">
+                                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" id="cluster-nodes-grid">
+                                    <!-- Nodes will be rendered here -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Metrics Row -->
                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                         <div class="card p-5">

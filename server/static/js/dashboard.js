@@ -27,7 +27,12 @@
         connected: false,
         selectedJobs: new Set(),
         jobPage: 0,
-        chartRange: '5m'
+        chartRange: '5m',
+        // Cluster state
+        clusterEnabled: false,
+        currentNodeId: null,
+        isLeader: false,
+        clusterNodes: []
     };
 
     let eventSource = null;
@@ -92,6 +97,19 @@
     async function fetchSettings() {
         const data = await API.fetchSettings();
         Settings.updateUI(data);
+    }
+
+    async function fetchClusterStatus() {
+        const health = await API.fetchHealth();
+        if (health) {
+            state.clusterEnabled = health.cluster_enabled;
+            state.currentNodeId = health.node_id;
+            state.isLeader = health.is_leader;
+        }
+        if (state.clusterEnabled) {
+            state.clusterNodes = await API.fetchClusterNodes();
+        }
+        updateClusterUI();
     }
 
     // ========================================================================
@@ -314,6 +332,63 @@
                 text.className = 'text-xs text-rose-400';
                 text.textContent = 'Disconnected';
             }
+        }
+    }
+
+    function updateClusterUI() {
+        const panel = document.getElementById('cluster-panel');
+        if (!panel) return;
+
+        if (!state.clusterEnabled) {
+            panel.classList.add('hidden');
+            return;
+        }
+
+        panel.classList.remove('hidden');
+
+        // Update current node info
+        const roleEl = document.getElementById('current-node-role');
+        const nodeIdEl = document.getElementById('current-node-id');
+        if (roleEl) {
+            roleEl.textContent = state.isLeader ? 'Leader' : 'Follower';
+            roleEl.className = state.isLeader
+                ? 'px-2.5 py-1 bg-emerald-500/20 text-emerald-400 rounded-full text-xs font-medium'
+                : 'px-2.5 py-1 bg-slate-500/20 text-slate-400 rounded-full text-xs font-medium';
+        }
+        if (nodeIdEl) nodeIdEl.textContent = state.currentNodeId || 'unknown';
+
+        // Render nodes grid
+        const grid = document.getElementById('cluster-nodes-grid');
+        if (grid) {
+            grid.innerHTML = state.clusterNodes.map(node => {
+                const isCurrentNode = node.node_id === state.currentNodeId;
+                const lastHeartbeatAge = Date.now() - node.last_heartbeat;
+                const isOnline = lastHeartbeatAge < 15000;
+                return `
+                    <div class="glass-light rounded-lg p-4 ${isCurrentNode ? 'ring-2 ring-primary-500/50' : ''}">
+                        <div class="flex items-center justify-between mb-3">
+                            <div class="flex items-center gap-2">
+                                <span class="w-2 h-2 rounded-full ${isOnline ? 'bg-emerald-500' : 'bg-rose-500'}"></span>
+                                <span class="font-medium text-white">${escapeHtml(node.node_id)}</span>
+                            </div>
+                            <span class="px-2 py-0.5 rounded text-xs ${node.is_leader ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-500/20 text-slate-400'}">
+                                ${node.is_leader ? 'Leader' : 'Follower'}
+                            </span>
+                        </div>
+                        <div class="space-y-1 text-sm">
+                            <div class="flex justify-between">
+                                <span class="text-slate-500">Host</span>
+                                <span class="text-slate-300">${escapeHtml(node.host)}:${node.port}</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-slate-500">Last Heartbeat</span>
+                                <span class="text-slate-300">${Math.round(lastHeartbeatAge / 1000)}s ago</span>
+                            </div>
+                        </div>
+                        ${isCurrentNode ? '<div class="mt-2 text-xs text-primary-400">← This node</div>' : ''}
+                    </div>
+                `;
+            }).join('') || '<div class="text-slate-500">No nodes found</div>';
         }
     }
 
@@ -560,13 +635,13 @@
 
     function init() {
         connectSSE();
-        fetchStats(); fetchMetrics(); fetchQueues(); fetchMetricsHistory();
+        fetchStats(); fetchMetrics(); fetchQueues(); fetchMetricsHistory(); fetchClusterStatus();
         Charts.init();
 
         setInterval(() => {
             document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
             const section = state.currentSection;
-            if (section === 'overview') { fetchStats(); fetchMetrics(); fetchQueues(); fetchMetricsHistory(); }
+            if (section === 'overview') { fetchStats(); fetchMetrics(); fetchQueues(); fetchMetricsHistory(); fetchClusterStatus(); }
             else if (section === 'queues') fetchQueues();
             else if (section === 'workers') fetchWorkers();
             else if (section === 'analytics') fetchMetricsHistory();

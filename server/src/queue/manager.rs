@@ -8,6 +8,7 @@ use serde_json::Value;
 
 use crate::protocol::{CronJob, Job, JobBrowserItem, JobEvent, JobState, MetricsHistoryPoint, WebhookConfig, WorkerInfo};
 use super::postgres::PostgresStorage;
+use super::cluster::ClusterManager;
 use super::types::{init_coarse_time, intern, now_ms, GlobalMetrics, JobLocation, Shard, Subscriber, Webhook, Worker};
 use tokio::sync::broadcast;
 
@@ -34,6 +35,8 @@ pub struct QueueManager {
     pub(crate) event_tx: broadcast::Sender<JobEvent>,
     // Metrics history for charts (last 60 points = 5 minutes at 5s intervals)
     pub(crate) metrics_history: RwLock<Vec<MetricsHistoryPoint>>,
+    // Cluster manager for HA
+    pub(crate) cluster: Option<Arc<ClusterManager>>,
 }
 
 impl QueueManager {
@@ -41,7 +44,7 @@ impl QueueManager {
     pub fn new(_persistence: bool) -> Arc<Self> {
         // For backwards compatibility, this creates a manager without PostgreSQL
         // Use `with_postgres` for PostgreSQL persistence
-        Self::create(None)
+        Self::create(None, None)
     }
 
     /// Create a new QueueManager with PostgreSQL persistence.
@@ -54,7 +57,7 @@ impl QueueManager {
                 }
 
                 let storage = Arc::new(storage);
-                let manager = Self::create(Some(storage.clone()));
+                let manager = Self::create(Some(storage.clone()), None);
 
                 // Recover from PostgreSQL
                 manager.recover_from_postgres(&storage).await;
@@ -63,19 +66,68 @@ impl QueueManager {
             }
             Err(e) => {
                 eprintln!("Failed to connect to PostgreSQL: {}, running without persistence", e);
-                Self::create(None)
+                Self::create(None, None)
+            }
+        }
+    }
+
+    /// Create a new QueueManager with PostgreSQL and clustering support.
+    pub async fn with_cluster(database_url: &str, node_id: String, host: String, port: i32) -> Arc<Self> {
+        match PostgresStorage::new(database_url).await {
+            Ok(storage) => {
+                // Run migrations
+                if let Err(e) = storage.migrate().await {
+                    eprintln!("Failed to run migrations: {}", e);
+                }
+
+                let storage = Arc::new(storage);
+
+                // Create cluster manager
+                let cluster = Arc::new(ClusterManager::new(
+                    node_id,
+                    host,
+                    port,
+                    Some(storage.pool().clone()),
+                ));
+
+                // Initialize cluster tables
+                if let Err(e) = cluster.init_tables().await {
+                    eprintln!("Failed to init cluster tables: {}", e);
+                }
+
+                // Register this node
+                if let Err(e) = cluster.register_node().await {
+                    eprintln!("Failed to register node: {}", e);
+                }
+
+                // Try to become leader
+                if let Err(e) = cluster.try_become_leader().await {
+                    eprintln!("Failed to try leadership: {}", e);
+                }
+
+                let manager = Self::create(Some(storage.clone()), Some(cluster));
+
+                // Recover from PostgreSQL
+                manager.recover_from_postgres(&storage).await;
+
+                manager
+            }
+            Err(e) => {
+                eprintln!("Failed to connect to PostgreSQL: {}, running without persistence or cluster", e);
+                Self::create(None, None)
             }
         }
     }
 
     /// Internal constructor.
-    fn create(storage: Option<Arc<PostgresStorage>>) -> Arc<Self> {
+    fn create(storage: Option<Arc<PostgresStorage>>, cluster: Option<Arc<ClusterManager>>) -> Arc<Self> {
         // Initialize coarse timestamp
         init_coarse_time();
 
         let shards = (0..NUM_SHARDS).map(|_| RwLock::new(Shard::new())).collect();
         let (event_tx, _) = broadcast::channel(1024);
         let has_storage = storage.is_some();
+        let cluster_enabled = cluster.as_ref().map(|c| c.is_enabled()).unwrap_or(false);
 
         let manager = Arc::new(Self {
             shards,
@@ -92,6 +144,7 @@ impl QueueManager {
             webhooks: RwLock::new(FxHashMap::default()),
             event_tx,
             metrics_history: RwLock::new(Vec::with_capacity(60)),
+            cluster,
         });
 
         let mgr = Arc::clone(&manager);
@@ -99,6 +152,9 @@ impl QueueManager {
 
         if has_storage {
             println!("PostgreSQL persistence enabled");
+        }
+        if cluster_enabled {
+            println!("Cluster mode enabled");
         }
 
         manager
@@ -143,6 +199,30 @@ impl QueueManager {
     #[inline]
     pub fn auth_token_count(&self) -> usize {
         self.auth_tokens.read().len()
+    }
+
+    /// Check if this node is the cluster leader (or if clustering is disabled)
+    #[inline]
+    pub fn is_leader(&self) -> bool {
+        self.cluster.as_ref().map(|c| c.is_leader()).unwrap_or(true)
+    }
+
+    /// Check if cluster mode is enabled
+    #[inline]
+    pub fn is_cluster_enabled(&self) -> bool {
+        self.cluster.as_ref().map(|c| c.is_enabled()).unwrap_or(false)
+    }
+
+    /// Get the node ID
+    #[inline]
+    pub fn node_id(&self) -> Option<String> {
+        self.cluster.as_ref().map(|c| c.node_id.clone())
+    }
+
+    /// Get cluster manager reference
+    #[inline]
+    pub fn cluster(&self) -> Option<&Arc<ClusterManager>> {
+        self.cluster.as_ref()
     }
 
     #[inline(always)]

@@ -264,6 +264,29 @@ window.DashboardAPI = (function() {
         async restartServer() {
             const res = await fetch(`${API}/server/restart`, { method: 'POST' });
             return res.json();
+        },
+
+        // Cluster APIs
+        async fetchHealth() {
+            try {
+                const res = await fetch(`${API}/health`);
+                const data = await res.json();
+                return data.ok ? data.data : null;
+            } catch (e) {
+                console.error('Health error:', e);
+                return null;
+            }
+        },
+
+        async fetchClusterNodes() {
+            try {
+                const res = await fetch(`${API}/cluster/nodes`);
+                const data = await res.json();
+                return data.ok ? (data.data || []) : [];
+            } catch (e) {
+                console.error('Cluster nodes error:', e);
+                return [];
+            }
         }
     };
 })();
