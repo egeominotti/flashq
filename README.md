@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="https://raw.githubusercontent.com/egeominotti/flashq/main/docs/logo.svg" alt="FlashQ Logo" width="120">
+<img src="https://raw.githubusercontent.com/egeominotti/flashq/main/docs/logo.svg" alt="FlashQ Logo" width="300">
 
 # FlashQ
 
