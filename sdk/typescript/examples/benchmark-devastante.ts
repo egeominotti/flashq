@@ -137,7 +137,8 @@ async function benchmarkLatency(client: FlashQ, queue: string, samples: number):
 
   for (let i = 0; i < samples; i++) {
     const start = Bun.nanoseconds();
-    const job = await client.push(queue, { i });
+    await client.push(queue, { i });
+    const job = await client.pull(queue);
     await client.ack(job.id);
     const end = Bun.nanoseconds();
     latencies.push((end - start) / 1000); // Convert to microseconds
@@ -214,11 +215,14 @@ async function benchmarkPayloadSize(
 
   for (let i = 0; i < samples; i++) {
     const start = Bun.nanoseconds();
-    const job = await client.push(queue, payload);
+    await client.push(queue, payload);
     const end = Bun.nanoseconds();
     latencies.push((end - start) / 1000);
+  }
 
-    // Cleanup
+  // Cleanup: pull and ack all jobs
+  for (let i = 0; i < samples; i++) {
+    const job = await client.pull(queue);
     await client.ack(job.id);
   }
 
@@ -250,7 +254,8 @@ async function runBenchmarks() {
   console.log(c('dim', `  Running ${CONFIG.WARMUP_OPS} warmup operations...`));
 
   for (let i = 0; i < CONFIG.WARMUP_OPS; i++) {
-    const job = await mainClient.push('warmup', { i });
+    await mainClient.push('warmup', { i });
+    const job = await mainClient.pull('warmup');
     await mainClient.ack(job.id);
   }
   console.log(c('green', '  ✓ Warmup complete\n'));
@@ -269,7 +274,7 @@ async function runBenchmarks() {
   const max = Math.max(...latencies);
   const avg = latencies.reduce((a, b) => a + b, 0) / latencies.length;
 
-  console.log(c('bright', '  Push + Ack Round Trip:\n'));
+  console.log(c('bright', '  Push + Pull + Ack Round Trip:\n'));
   printResult('Minimum', formatLatency(min), '', true);
   printResult('Average', formatLatency(avg));
   printResult('P50 (Median)', formatLatency(p50), '', true);
