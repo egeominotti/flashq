@@ -11,7 +11,7 @@ tokio-stream = { version = "0.1", features = ["sync"] }
 # Serialization - OPTIMIZED
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"                # Fallback for compatibility
-sonic-rs = "0.3"                # Fastest JSON parser (SIMD, 30% faster than simd-json)
+sonic-rs = "0.5"                # Fastest JSON parser (SIMD, 30% faster than simd-json)
 
 # Concurrency - OPTIMIZED
 parking_lot = "0.12"            # Faster locks than std (2x)
@@ -35,7 +35,7 @@ chrono = { version = "0.4", default-features = false, features = ["std", "clock"
 sqlx = { version = "0.8", features = ["runtime-tokio", "postgres", "json"] }
 
 # HTTP Client
-reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+reqwest = { version = "0.13", default-features = false, features = ["json", "rustls"] }
 
 # Crypto
 hmac = "0.12"
