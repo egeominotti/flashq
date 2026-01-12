@@ -67,6 +67,9 @@ Real benchmarks on Apple M1 Max. No synthetic tests. No asterisks.
 
 </div>
 
+<br>
+<br>
+
 | Metric | flashQ | BullMQ (Redis) | Improvement |
 |--------|--------|----------------|-------------|
 | **Batch Throughput** | 2,127,660 ops/sec | 36,232 ops/sec | **58x faster** |
