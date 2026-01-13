@@ -268,6 +268,7 @@ impl QueueManager {
     }
 
     /// Get current change count
+    #[allow(dead_code)]
     #[inline]
     pub fn snapshot_change_count(&self) -> u64 {
         self.snapshot_changes
@@ -489,10 +490,8 @@ impl QueueManager {
 
         // In snapshot mode, just record the changes
         if self.is_snapshot_mode() {
-            self.snapshot_changes.fetch_add(
-                jobs.len() as u64,
-                std::sync::atomic::Ordering::Relaxed,
-            );
+            self.snapshot_changes
+                .fetch_add(jobs.len() as u64, std::sync::atomic::Ordering::Relaxed);
             return;
         }
 
@@ -553,10 +552,8 @@ impl QueueManager {
         }
 
         if self.is_snapshot_mode() {
-            self.snapshot_changes.fetch_add(
-                ids.len() as u64,
-                std::sync::atomic::Ordering::Relaxed,
-            );
+            self.snapshot_changes
+                .fetch_add(ids.len() as u64, std::sync::atomic::Ordering::Relaxed);
             return;
         }
 

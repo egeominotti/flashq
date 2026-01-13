@@ -36,7 +36,10 @@ impl PostgresStorage {
             .connect(database_url)
             .await?;
 
-        Ok(Self { pool, sync_tx: None })
+        Ok(Self {
+            pool,
+            sync_tx: None,
+        })
     }
 
     /// Create storage with cluster sync channel
@@ -721,12 +724,10 @@ impl PostgresStorage {
     /// Get the next N IDs from the PostgreSQL sequence (for batch operations)
     pub async fn next_sequence_ids(&self, count: i64) -> Result<Vec<u64>, sqlx::Error> {
         // Use generate_series to get multiple sequence values efficiently
-        let rows = sqlx::query(
-            "SELECT nextval('job_id_seq') as id FROM generate_series(1, $1)",
-        )
-        .bind(count)
-        .fetch_all(&self.pool)
-        .await?;
+        let rows = sqlx::query("SELECT nextval('job_id_seq') as id FROM generate_series(1, $1)")
+            .bind(count)
+            .fetch_all(&self.pool)
+            .await?;
 
         Ok(rows.iter().map(|r| r.get::<i64, _>("id") as u64).collect())
     }
@@ -748,9 +749,7 @@ impl PostgresStorage {
         let mut tx = self.pool.begin().await?;
 
         // Truncate jobs table (fast, minimal logging)
-        sqlx::query("TRUNCATE TABLE jobs")
-            .execute(&mut *tx)
-            .await?;
+        sqlx::query("TRUNCATE TABLE jobs").execute(&mut *tx).await?;
 
         // Batch insert all jobs
         for job_chunk in jobs.chunks(1000) {
@@ -792,7 +791,10 @@ impl PostgresStorage {
     }
 
     /// Snapshot DLQ jobs to PostgreSQL.
-    pub async fn snapshot_dlq(&self, dlq_jobs: &[(Job, Option<String>)]) -> Result<(), sqlx::Error> {
+    pub async fn snapshot_dlq(
+        &self,
+        dlq_jobs: &[(Job, Option<String>)],
+    ) -> Result<(), sqlx::Error> {
         let mut tx = self.pool.begin().await?;
 
         // Truncate DLQ table
