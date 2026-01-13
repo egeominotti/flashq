@@ -1,12 +1,30 @@
 use serde_json::Value;
 use sqlx::{postgres::PgPoolOptions, PgPool, Row};
+use tokio::sync::mpsc;
 
 use crate::protocol::{CronJob, Job, WebhookConfig};
+
+/// Channel name for cluster sync notifications
+pub const CLUSTER_SYNC_CHANNEL: &str = "flashq_cluster_sync";
+
+/// Cluster sync event types
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub enum ClusterSyncEvent {
+    /// Job was pushed to a queue
+    JobPushed { job_id: u64, queue: String },
+    /// Batch of jobs pushed
+    JobsPushed { job_ids: Vec<u64>, queue: String },
+    /// Job state changed (ack, fail, etc.)
+    JobStateChanged { job_id: u64, state: String },
+}
 
 /// PostgreSQL storage layer for flashQ persistence.
 /// Replaces WAL with durable PostgreSQL storage.
 pub struct PostgresStorage {
     pool: PgPool,
+    /// Sender for cluster sync events (for future use)
+    #[allow(dead_code)]
+    sync_tx: Option<mpsc::UnboundedSender<ClusterSyncEvent>>,
 }
 
 impl PostgresStorage {
@@ -18,7 +36,25 @@ impl PostgresStorage {
             .connect(database_url)
             .await?;
 
-        Ok(Self { pool })
+        Ok(Self { pool, sync_tx: None })
+    }
+
+    /// Create storage with cluster sync channel
+    #[allow(dead_code)]
+    pub async fn with_sync(
+        database_url: &str,
+        sync_tx: mpsc::UnboundedSender<ClusterSyncEvent>,
+    ) -> Result<Self, sqlx::Error> {
+        let pool = PgPoolOptions::new()
+            .max_connections(50)
+            .min_connections(5)
+            .connect(database_url)
+            .await?;
+
+        Ok(Self {
+            pool,
+            sync_tx: Some(sync_tx),
+        })
     }
 
     /// Get a reference to the connection pool.
@@ -26,8 +62,22 @@ impl PostgresStorage {
         &self.pool
     }
 
+    /// Get the database URL for creating a listener connection
+    #[allow(dead_code)]
+    pub fn database_url(&self) -> Option<String> {
+        // The pool doesn't expose the URL, so we'll need to store it separately
+        // For now, this is handled at the manager level
+        None
+    }
+
     /// Run database migrations.
     pub async fn migrate(&self) -> Result<(), sqlx::Error> {
+        // Create job_id sequence for globally unique IDs across cluster
+        sqlx::query("CREATE SEQUENCE IF NOT EXISTS job_id_seq")
+            .execute(&self.pool)
+            .await
+            .ok();
+
         // Create tables if they don't exist
         sqlx::query(
             r#"
@@ -564,5 +614,183 @@ impl PostgresStorage {
             .execute(&self.pool)
             .await?;
         Ok(())
+    }
+
+    // ============== Cluster Sync (LISTEN/NOTIFY) ==============
+
+    /// Send a notification to other nodes about a new job
+    pub async fn notify_job_pushed(&self, job_id: u64, queue: &str, node_id: &str) {
+        let payload = format!("{}:{}:{}", node_id, job_id, queue);
+        if let Err(e) = sqlx::query("SELECT pg_notify($1, $2)")
+            .bind(CLUSTER_SYNC_CHANNEL)
+            .bind(&payload)
+            .execute(&self.pool)
+            .await
+        {
+            eprintln!("Failed to send cluster sync notification: {}", e);
+        }
+    }
+
+    /// Send a notification about multiple jobs pushed
+    pub async fn notify_jobs_pushed(&self, job_ids: &[u64], queue: &str, node_id: &str) {
+        if job_ids.is_empty() {
+            return;
+        }
+        // For batch, we just notify with the first and last ID + count
+        // Other nodes will sync the range
+        let payload = format!(
+            "{}:batch:{}:{}:{}",
+            node_id,
+            queue,
+            job_ids.first().unwrap_or(&0),
+            job_ids.len()
+        );
+        if let Err(e) = sqlx::query("SELECT pg_notify($1, $2)")
+            .bind(CLUSTER_SYNC_CHANNEL)
+            .bind(&payload)
+            .execute(&self.pool)
+            .await
+        {
+            eprintln!("Failed to send batch cluster sync notification: {}", e);
+        }
+    }
+
+    /// Load a specific job by ID (for sync)
+    pub async fn load_job_by_id(&self, job_id: u64) -> Result<Option<(Job, String)>, sqlx::Error> {
+        let row = sqlx::query(
+            r#"
+            SELECT id, queue, data, priority, created_at, run_at, started_at, attempts,
+                   max_attempts, backoff, ttl, timeout, unique_key, depends_on, progress,
+                   progress_msg, tags, state, lifo
+            FROM jobs
+            WHERE id = $1
+        "#,
+        )
+        .bind(job_id as i64)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        match row {
+            Some(row) => {
+                let depends_on: Vec<i64> = row.get("depends_on");
+                let job = Job {
+                    id: row.get::<i64, _>("id") as u64,
+                    queue: row.get("queue"),
+                    data: row.get("data"),
+                    priority: row.get("priority"),
+                    created_at: row.get::<i64, _>("created_at") as u64,
+                    run_at: row.get::<i64, _>("run_at") as u64,
+                    started_at: row.get::<i64, _>("started_at") as u64,
+                    attempts: row.get::<i32, _>("attempts") as u32,
+                    max_attempts: row.get::<i32, _>("max_attempts") as u32,
+                    backoff: row.get::<i64, _>("backoff") as u64,
+                    ttl: row.get::<i64, _>("ttl") as u64,
+                    timeout: row.get::<i64, _>("timeout") as u64,
+                    unique_key: row.get("unique_key"),
+                    depends_on: depends_on.into_iter().map(|x| x as u64).collect(),
+                    progress: row.get::<i16, _>("progress") as u8,
+                    progress_msg: row.get("progress_msg"),
+                    tags: row.get("tags"),
+                    lifo: row.get("lifo"),
+                };
+                let state: String = row.get("state");
+                Ok(Some((job, state)))
+            }
+            None => Ok(None),
+        }
+    }
+
+    /// Get the maximum job ID from the database (for ID recovery on startup)
+    pub async fn get_max_job_id(&self) -> Result<u64, sqlx::Error> {
+        let row = sqlx::query("SELECT COALESCE(MAX(id), 0) as max_id FROM jobs")
+            .fetch_one(&self.pool)
+            .await?;
+        let max_id: i64 = row.get("max_id");
+        Ok(max_id as u64)
+    }
+
+    /// Get the next ID from the PostgreSQL sequence (for cluster-unique IDs)
+    pub async fn next_sequence_id(&self) -> Result<u64, sqlx::Error> {
+        let row = sqlx::query("SELECT nextval('job_id_seq') as id")
+            .fetch_one(&self.pool)
+            .await?;
+        let id: i64 = row.get("id");
+        Ok(id as u64)
+    }
+
+    /// Get the next N IDs from the PostgreSQL sequence (for batch operations)
+    pub async fn next_sequence_ids(&self, count: i64) -> Result<Vec<u64>, sqlx::Error> {
+        // Use generate_series to get multiple sequence values efficiently
+        let rows = sqlx::query(
+            "SELECT nextval('job_id_seq') as id FROM generate_series(1, $1)",
+        )
+        .bind(count)
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(rows.iter().map(|r| r.get::<i64, _>("id") as u64).collect())
+    }
+
+    /// Set the sequence to a specific value (for recovery)
+    pub async fn set_sequence_value(&self, value: u64) -> Result<(), sqlx::Error> {
+        sqlx::query("SELECT setval('job_id_seq', $1, true)")
+            .bind(value as i64)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
+    /// Load jobs in a range by IDs (for batch sync)
+    pub async fn load_jobs_by_queue_since(
+        &self,
+        queue: &str,
+        min_id: u64,
+        limit: i64,
+    ) -> Result<Vec<(Job, String)>, sqlx::Error> {
+        let rows = sqlx::query(
+            r#"
+            SELECT id, queue, data, priority, created_at, run_at, started_at, attempts,
+                   max_attempts, backoff, ttl, timeout, unique_key, depends_on, progress,
+                   progress_msg, tags, state, lifo
+            FROM jobs
+            WHERE queue = $1 AND id >= $2 AND state IN ('waiting', 'delayed')
+            ORDER BY id ASC
+            LIMIT $3
+        "#,
+        )
+        .bind(queue)
+        .bind(min_id as i64)
+        .bind(limit)
+        .fetch_all(&self.pool)
+        .await?;
+
+        let mut jobs = Vec::with_capacity(rows.len());
+        for row in rows {
+            let depends_on: Vec<i64> = row.get("depends_on");
+            let job = Job {
+                id: row.get::<i64, _>("id") as u64,
+                queue: row.get("queue"),
+                data: row.get("data"),
+                priority: row.get("priority"),
+                created_at: row.get::<i64, _>("created_at") as u64,
+                run_at: row.get::<i64, _>("run_at") as u64,
+                started_at: row.get::<i64, _>("started_at") as u64,
+                attempts: row.get::<i32, _>("attempts") as u32,
+                max_attempts: row.get::<i32, _>("max_attempts") as u32,
+                backoff: row.get::<i64, _>("backoff") as u64,
+                ttl: row.get::<i64, _>("ttl") as u64,
+                timeout: row.get::<i64, _>("timeout") as u64,
+                unique_key: row.get("unique_key"),
+                depends_on: depends_on.into_iter().map(|x| x as u64).collect(),
+                progress: row.get::<i16, _>("progress") as u8,
+                progress_msg: row.get("progress_msg"),
+                tags: row.get("tags"),
+                lifo: row.get("lifo"),
+            };
+            let state: String = row.get("state");
+            jobs.push((job, state));
+        }
+
+        Ok(jobs)
     }
 }

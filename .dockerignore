@@ -1,0 +1,11 @@
+target/
+server/target/
+.git/
+*.md
+sdk/
+docs/
+.github/
+.vscode/
+*.log
+.env*
+fly.toml.bak

@@ -12,8 +12,8 @@ use super::types::{
     Subscriber, Webhook, Worker,
 };
 use crate::protocol::{
-    CronJob, Job, JobBrowserItem, JobEvent, JobState, MetricsHistoryPoint, WebhookConfig,
-    WorkerInfo,
+    set_id_counter, CronJob, Job, JobBrowserItem, JobEvent, JobState, MetricsHistoryPoint,
+    WebhookConfig, WorkerInfo,
 };
 use tokio::sync::broadcast;
 
@@ -123,6 +123,13 @@ impl QueueManager {
                 // Recover from PostgreSQL
                 manager.recover_from_postgres(&storage).await;
 
+                // Start cluster sync listener for real-time job synchronization
+                let db_url = database_url.to_string();
+                let mgr = Arc::clone(&manager);
+                tokio::spawn(async move {
+                    mgr.start_cluster_sync_listener(&db_url).await;
+                });
+
                 manager
             }
             Err(e) => {
@@ -226,6 +233,29 @@ impl QueueManager {
         self.storage.is_some()
     }
 
+    /// Get next job ID from PostgreSQL sequence (cluster-wide unique)
+    /// Falls back to local atomic counter if database unavailable
+    pub async fn next_job_id(&self) -> u64 {
+        if let Some(ref storage) = self.storage {
+            if let Ok(id) = storage.next_sequence_id().await {
+                return id;
+            }
+        }
+        // Fallback to local counter
+        crate::protocol::next_id()
+    }
+
+    /// Get next N job IDs from PostgreSQL sequence (cluster-wide unique)
+    pub async fn next_job_ids(&self, count: usize) -> Vec<u64> {
+        if let Some(ref storage) = self.storage {
+            if let Ok(ids) = storage.next_sequence_ids(count as i64).await {
+                return ids;
+            }
+        }
+        // Fallback to local counter
+        (0..count).map(|_| crate::protocol::next_id()).collect()
+    }
+
     #[inline]
     pub fn auth_token_count(&self) -> usize {
         self.auth_tokens.read().len()
@@ -272,6 +302,25 @@ impl QueueManager {
 
     /// Recover state from PostgreSQL on startup.
     async fn recover_from_postgres(&self, storage: &PostgresStorage) {
+        // CRITICAL: Sync PostgreSQL sequence with max job ID to avoid ID conflicts
+        match storage.get_max_job_id().await {
+            Ok(max_id) => {
+                if max_id > 0 {
+                    // Set PostgreSQL sequence to max_id so next call returns max_id + 1
+                    if let Err(e) = storage.set_sequence_value(max_id).await {
+                        eprintln!("Failed to set sequence value: {}", e);
+                    } else {
+                        println!("Synced job ID sequence: next ID will be {}", max_id + 1);
+                    }
+                    // Also set local counter as fallback
+                    set_id_counter(max_id + 1);
+                }
+            }
+            Err(e) => {
+                eprintln!("Failed to recover max job ID: {}", e);
+            }
+        }
+
         let mut job_count = 0;
 
         // Load pending jobs
@@ -357,22 +406,32 @@ impl QueueManager {
 
     // ============== Persistence Methods (PostgreSQL) ==============
 
-    /// Persist a pushed job to PostgreSQL.
+    /// Persist a pushed job to PostgreSQL and notify cluster.
     #[inline]
     pub(crate) fn persist_push(&self, job: &Job, state: &str) {
         if let Some(ref storage) = self.storage {
             let storage = Arc::clone(storage);
             let job = job.clone();
             let state = state.to_string();
+            let node_id = self.node_id();
+            let is_cluster = self.is_cluster_enabled();
             tokio::spawn(async move {
+                // First persist to PostgreSQL
                 if let Err(e) = storage.insert_job(&job, &state).await {
                     eprintln!("Failed to persist job {}: {}", job.id, e);
+                    return;
+                }
+                // Then notify cluster (only after INSERT succeeds)
+                if is_cluster {
+                    storage
+                        .notify_job_pushed(job.id, &job.queue, &node_id.unwrap_or_default())
+                        .await;
                 }
             });
         }
     }
 
-    /// Persist a batch of jobs to PostgreSQL.
+    /// Persist a batch of jobs to PostgreSQL and notify cluster.
     #[inline]
     pub(crate) fn persist_push_batch(&self, jobs: &[Job], state: &str) {
         if jobs.is_empty() {
@@ -382,9 +441,22 @@ impl QueueManager {
             let storage = Arc::clone(storage);
             let jobs = jobs.to_vec();
             let state = state.to_string();
+            let node_id = self.node_id();
+            let is_cluster = self.is_cluster_enabled();
+            // Capture queue name before moving jobs
+            let queue = jobs.first().map(|j| j.queue.clone()).unwrap_or_default();
+            let job_ids: Vec<u64> = jobs.iter().map(|j| j.id).collect();
             tokio::spawn(async move {
+                // First persist to PostgreSQL
                 if let Err(e) = storage.insert_jobs_batch(&jobs, &state).await {
                     eprintln!("Failed to persist batch: {}", e);
+                    return;
+                }
+                // Then notify cluster (only after INSERT succeeds)
+                if is_cluster {
+                    storage
+                        .notify_jobs_pushed(&job_ids, &queue, &node_id.unwrap_or_default())
+                        .await;
                 }
             });
         }

@@ -1,0 +1,30 @@
+app = 'flashq-test'
+primary_region = 'cdg'
+
+[build]
+
+[env]
+  HTTP = "1"
+  HTTP_PORT = "8080"
+  PORT = "6789"
+  RUST_LOG = "info"
+  CLUSTER_MODE = "1"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ['app']
+
+[[services]]
+  protocol = "tcp"
+  internal_port = 6789
+  [[services.ports]]
+    port = 6789
+
+[[vm]]
+  memory = '512mb'
+  cpu_kind = 'shared'
+  cpus = 1

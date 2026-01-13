@@ -5,6 +5,17 @@ use std::sync::atomic::{AtomicU64, Ordering};
 /// Fast atomic ID generator
 static ID_COUNTER: AtomicU64 = AtomicU64::new(1);
 
+/// Set the ID counter to a specific value (for recovery from database)
+pub fn set_id_counter(value: u64) {
+    ID_COUNTER.store(value, Ordering::Relaxed);
+}
+
+/// Get the current ID counter value (for debugging)
+#[allow(dead_code)]
+pub fn get_id_counter() -> u64 {
+    ID_COUNTER.load(Ordering::Relaxed)
+}
+
 /// Job state enum - similar to BullMQ states
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]

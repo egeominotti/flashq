@@ -2,10 +2,12 @@ use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
 use croner::Cron;
+use sqlx::postgres::PgListener;
 use tokio::time::{interval, Duration};
 
 use super::manager::QueueManager;
-use super::types::{cleanup_interned_strings, intern};
+use super::postgres::CLUSTER_SYNC_CHANNEL;
+use super::types::{cleanup_interned_strings, intern, JobLocation};
 
 impl QueueManager {
     pub async fn background_tasks(self: Arc<Self>) {
@@ -54,6 +56,116 @@ impl QueueManager {
                     self.cluster_heartbeat().await;
                 }
             }
+        }
+    }
+
+    /// Start the cluster sync listener (runs in separate task)
+    pub async fn start_cluster_sync_listener(self: Arc<Self>, database_url: &str) {
+        let node_id = self.node_id().unwrap_or_default();
+
+        loop {
+            match PgListener::connect(database_url).await {
+                Ok(mut listener) => {
+                    if let Err(e) = listener.listen(CLUSTER_SYNC_CHANNEL).await {
+                        eprintln!("Failed to listen on cluster sync channel: {}", e);
+                        tokio::time::sleep(Duration::from_secs(5)).await;
+                        continue;
+                    }
+
+                    println!("Cluster sync listener started for node {}", node_id);
+
+                    loop {
+                        match listener.recv().await {
+                            Ok(notification) => {
+                                let payload = notification.payload();
+                                self.handle_cluster_sync(payload, &node_id).await;
+                            }
+                            Err(e) => {
+                                eprintln!("Cluster sync listener error: {}", e);
+                                break;
+                            }
+                        }
+                    }
+                }
+                Err(e) => {
+                    eprintln!("Failed to connect cluster sync listener: {}", e);
+                    tokio::time::sleep(Duration::from_secs(5)).await;
+                }
+            }
+        }
+    }
+
+    /// Handle a cluster sync notification
+    async fn handle_cluster_sync(&self, payload: &str, my_node_id: &str) {
+        let parts: Vec<&str> = payload.split(':').collect();
+        if parts.is_empty() {
+            return;
+        }
+
+        let source_node = parts[0];
+
+        // Ignore notifications from ourselves
+        if source_node == my_node_id {
+            return;
+        }
+
+        // Handle batch sync: node_id:batch:queue:min_id:count
+        if parts.len() >= 5 && parts[1] == "batch" {
+            let queue = parts[2];
+            let min_id: u64 = parts[3].parse().unwrap_or(0);
+            let count: i64 = parts[4].parse().unwrap_or(0);
+
+            if let Some(storage) = &self.storage {
+                if let Ok(jobs) = storage.load_jobs_by_queue_since(queue, min_id, count).await {
+                    for (job, state) in jobs {
+                        self.sync_job_from_cluster(job, &state);
+                    }
+                }
+            }
+            return;
+        }
+
+        // Handle single job sync: node_id:job_id:queue
+        if parts.len() >= 3 {
+            let job_id: u64 = parts[1].parse().unwrap_or(0);
+            if job_id == 0 {
+                return;
+            }
+
+            if let Some(storage) = &self.storage {
+                if let Ok(Some((job, state))) = storage.load_job_by_id(job_id).await {
+                    self.sync_job_from_cluster(job, &state);
+                }
+            }
+        }
+    }
+
+    /// Add a job received from cluster sync to local queues
+    fn sync_job_from_cluster(&self, job: crate::protocol::Job, state: &str) {
+        let job_id = job.id;
+        let idx = Self::shard_index(&job.queue);
+        let queue_name = intern(&job.queue);
+
+        // Check if we already have this job
+        if self.job_index.read().contains_key(&job_id) {
+            return;
+        }
+
+        match state {
+            "waiting" | "delayed" => {
+                let mut shard = self.shards[idx].write();
+                shard.queues.entry(queue_name).or_default().push(job);
+                drop(shard);
+                self.index_job(job_id, JobLocation::Queue { shard_idx: idx });
+                self.notify_shard(idx);
+            }
+            "waiting_children" => {
+                let mut shard = self.shards[idx].write();
+                shard.waiting_deps.insert(job_id, job);
+                drop(shard);
+                self.index_job(job_id, JobLocation::WaitingDeps { shard_idx: idx });
+            }
+            _ => {}
         }
     }
 

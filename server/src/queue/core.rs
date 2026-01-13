@@ -6,7 +6,7 @@ use tokio::time::Duration;
 
 use super::manager::QueueManager;
 use super::types::{intern, now_ms, JobLocation};
-use crate::protocol::{next_id, Job, JobEvent, JobInput};
+use crate::protocol::{Job, JobEvent, JobInput};
 
 /// Maximum job data size in bytes (1MB) to prevent DoS attacks
 const MAX_JOB_DATA_SIZE: usize = 1_048_576;
@@ -54,8 +54,9 @@ fn validate_job_data(data: &Value) -> Result<(), String> {
 impl QueueManager {
     #[allow(clippy::too_many_arguments)]
     #[inline(always)]
-    pub fn create_job(
+    pub fn create_job_with_id(
         &self,
+        id: u64,
         queue: String,
         data: Value,
         priority: i32,
@@ -71,7 +72,7 @@ impl QueueManager {
     ) -> Job {
         let now = now_ms();
         Job {
-            id: next_id(),
+            id,
             queue,
             data,
             priority,
@@ -112,7 +113,11 @@ impl QueueManager {
         validate_queue_name(&queue)?;
         validate_job_data(&data)?;
 
-        let job = self.create_job(
+        // Get cluster-wide unique ID from PostgreSQL sequence
+        let job_id = self.next_job_id().await;
+
+        let job = self.create_job_with_id(
+            job_id,
             queue.clone(),
             data,
             priority,
@@ -190,20 +195,30 @@ impl QueueManager {
             return Vec::new();
         }
 
-        let mut ids = Vec::with_capacity(jobs.len());
-        let mut created_jobs = Vec::with_capacity(jobs.len());
+        // Filter valid jobs first
+        let valid_jobs: Vec<_> = jobs
+            .into_iter()
+            .filter(|input| validate_job_data(&input.data).is_ok())
+            .collect();
+
+        if valid_jobs.is_empty() {
+            return Vec::new();
+        }
+
+        // Get cluster-wide unique IDs for all jobs at once
+        let job_ids = self.next_job_ids(valid_jobs.len()).await;
+
+        let mut ids = Vec::with_capacity(valid_jobs.len());
+        let mut created_jobs = Vec::with_capacity(valid_jobs.len());
         let mut waiting_jobs = Vec::new();
 
         let idx = Self::shard_index(&queue);
         let queue_name = intern(&queue);
         let completed = self.completed_jobs.read().clone();
 
-        for input in jobs {
-            // Skip jobs with data too large
-            if validate_job_data(&input.data).is_err() {
-                continue;
-            }
-            let job = self.create_job(
+        for (input, job_id) in valid_jobs.into_iter().zip(job_ids.into_iter()) {
+            let job = self.create_job_with_id(
+                job_id,
                 queue.clone(),
                 input.data,
                 input.priority,
@@ -241,7 +256,7 @@ impl QueueManager {
             }
         }
 
-        // Persist to PostgreSQL
+        // Persist to PostgreSQL (includes cluster notification)
         self.persist_push_batch(&created_jobs, "waiting");
         self.persist_push_batch(&waiting_jobs, "waiting_children");
 
