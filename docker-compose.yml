@@ -18,72 +18,24 @@ services:
       timeout: 5s
       retries: 5
 
-  flashq-node1:
+  flashq:
     build: .
-    container_name: flashq-node1
+    container_name: flashq
     environment:
       - DATABASE_URL=postgres://flashq:flashq@postgres:5432/flashq
-      - CLUSTER_MODE=1
-      - NODE_ID=node-1
       - HTTP=1
       - HTTP_PORT=6790
       - PORT=6789
+      - GRPC=1
+      - GRPC_PORT=6791
       - RUST_LOG=info
     ports:
       - "6789:6789"   # TCP
-      - "6790:6790"   # HTTP
+      - "6790:6790"   # HTTP + Dashboard
+      - "6791:6791"   # gRPC
     depends_on:
       postgres:
         condition: service_healthy
-
-  flashq-node2:
-    build: .
-    container_name: flashq-node2
-    environment:
-      - DATABASE_URL=postgres://flashq:flashq@postgres:5432/flashq
-      - CLUSTER_MODE=1
-      - NODE_ID=node-2
-      - HTTP=1
-      - HTTP_PORT=6790
-      - PORT=6789
-      - RUST_LOG=info
-    ports:
-      - "6791:6789"   # TCP
-      - "6792:6790"   # HTTP
-    depends_on:
-      postgres:
-        condition: service_healthy
-
-  flashq-node3:
-    build: .
-    container_name: flashq-node3
-    environment:
-      - DATABASE_URL=postgres://flashq:flashq@postgres:5432/flashq
-      - CLUSTER_MODE=1
-      - NODE_ID=node-3
-      - HTTP=1
-      - HTTP_PORT=6790
-      - PORT=6789
-      - RUST_LOG=info
-    ports:
-      - "6793:6789"   # TCP
-      - "6794:6790"   # HTTP
-    depends_on:
-      postgres:
-        condition: service_healthy
-
-  # Load balancer (Caddy)
-  caddy:
-    image: caddy:2-alpine
-    container_name: flashq-lb
-    ports:
-      - "8080:8080"   # HTTP load balanced
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-    depends_on:
-      - flashq-node1
-      - flashq-node2
-      - flashq-node3
 
 volumes:
   postgres_data:

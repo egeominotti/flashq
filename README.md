@@ -243,7 +243,7 @@ flashQ excels when you need:
 
 Get up and running in under 60 seconds.
 
-### Option 1: Docker Compose (Recommended)
+### Option 1: Docker Compose - Single Node (Recommended)
 
 ```bash
 # Clone the repository
@@ -259,7 +259,22 @@ docker-compose up -d
 # ✅ gRPC API:  localhost:6791
 ```
 
-### Option 2: Docker (Standalone)
+### Option 2: Docker Compose - HA Cluster (3 Nodes)
+
+```bash
+# Start 3-node cluster with load balancer
+docker-compose -f docker-compose.cluster.yml up -d
+
+# ✅ Load Balancer: http://localhost:8080
+# ✅ Node 1: http://localhost:6790 (TCP: 6789)
+# ✅ Node 2: http://localhost:6792 (TCP: 6791)
+# ✅ Node 3: http://localhost:6794 (TCP: 6793)
+
+# Check cluster status
+curl http://localhost:8080/cluster/nodes
+```
+
+### Option 3: Docker (Standalone)
 
 ```bash
 # Run flashQ in-memory (no persistence)
@@ -274,7 +289,7 @@ docker run -d -p 6789:6789 -p 6790:6790 \
   flashq/flashq:latest
 ```
 
-### Option 3: Build from Source
+### Option 4: Build from Source
 
 ```bash
 # Requirements: Rust 1.75+
@@ -295,7 +310,7 @@ DATABASE_URL=postgres://user:pass@localhost/flashq \
 HTTP=1 ./target/release/flashq-server
 ```
 
-### Option 4: Makefile
+### Option 5: Makefile
 
 ```bash
 make up        # Start PostgreSQL via Docker
