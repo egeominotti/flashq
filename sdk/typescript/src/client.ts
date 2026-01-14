@@ -53,11 +53,24 @@ import type {
  * });
  * ```
  */
+// Ultra-fast request ID generator (no crypto overhead)
+let requestIdCounter = 0;
+const generateReqId = (): string => `r${++requestIdCounter}`;
+
+interface PendingRequest {
+  resolve: (value: unknown) => void;
+  reject: (error: Error) => void;
+  timer: ReturnType<typeof setTimeout>;
+}
+
 export class FlashQ extends EventEmitter {
   private options: Required<ClientOptions>;
   private socket: net.Socket | null = null;
   private connected = false;
   private authenticated = false;
+  // Map for O(1) lookup by request ID (multiplexing support)
+  private pendingRequests: Map<string, PendingRequest> = new Map();
+  // Fallback queue for servers without reqId support
   private responseQueue: Array<{
     resolve: (value: unknown) => void;
     reject: (error: Error) => void;
@@ -156,12 +169,28 @@ export class FlashQ extends EventEmitter {
       if (!line.trim()) continue;
       try {
         const response = JSON.parse(line);
-        const pending = this.responseQueue.shift();
-        if (pending) {
-          if (response.ok === false && response.error) {
-            pending.reject(new Error(response.error));
-          } else {
-            pending.resolve(response);
+
+        // Check for request ID (multiplexing)
+        if (response.reqId) {
+          const pending = this.pendingRequests.get(response.reqId);
+          if (pending) {
+            this.pendingRequests.delete(response.reqId);
+            clearTimeout(pending.timer);
+            if (response.ok === false && response.error) {
+              pending.reject(new Error(response.error));
+            } else {
+              pending.resolve(response);
+            }
+          }
+        } else {
+          // Fallback: FIFO queue for servers without reqId support
+          const pending = this.responseQueue.shift();
+          if (pending) {
+            if (response.ok === false && response.error) {
+              pending.reject(new Error(response.error));
+            } else {
+              pending.resolve(response);
+            }
           }
         }
       } catch {
@@ -175,6 +204,20 @@ export class FlashQ extends EventEmitter {
    */
   async close(): Promise<void> {
     this.connected = false;
+
+    // Clear all pending requests
+    for (const [reqId, pending] of this.pendingRequests) {
+      clearTimeout(pending.timer);
+      pending.reject(new Error('Connection closed'));
+    }
+    this.pendingRequests.clear();
+
+    // Clear fallback queue
+    for (const pending of this.responseQueue) {
+      pending.reject(new Error('Connection closed'));
+    }
+    this.responseQueue.length = 0;
+
     if (this.socket) {
       this.socket.destroy();
       this.socket = null;
@@ -208,22 +251,25 @@ export class FlashQ extends EventEmitter {
     }
 
     return new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        reject(new Error('Request timeout'));
-      }, customTimeout ?? this.options.timeout);
+      // Generate unique request ID for multiplexing
+      const reqId = generateReqId();
+      const timeoutMs = customTimeout ?? this.options.timeout;
 
-      this.responseQueue.push({
-        resolve: (value) => {
-          clearTimeout(timeout);
-          resolve(value as T);
-        },
-        reject: (err) => {
-          clearTimeout(timeout);
-          reject(err);
-        },
+      const timer = setTimeout(() => {
+        // Cleanup on timeout
+        this.pendingRequests.delete(reqId);
+        reject(new Error('Request timeout'));
+      }, timeoutMs);
+
+      // Store in Map for O(1) lookup when response arrives
+      this.pendingRequests.set(reqId, {
+        resolve: (value) => resolve(value as T),
+        reject,
+        timer,
       });
 
-      this.socket!.write(JSON.stringify(command) + '\n');
+      // Send command with reqId for response matching
+      this.socket!.write(JSON.stringify({ ...command, reqId }) + '\n');
     });
   }
 

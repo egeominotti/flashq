@@ -2,6 +2,35 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::sync::atomic::{AtomicU64, Ordering};
 
+/// Request wrapper with optional request ID for multiplexing
+#[derive(Debug, Deserialize)]
+pub struct Request {
+    /// Optional request ID for response matching (multiplexing)
+    #[serde(default, rename = "reqId")]
+    pub req_id: Option<String>,
+    /// The actual command
+    #[serde(flatten)]
+    pub command: Command,
+}
+
+/// Response wrapper that includes the request ID if provided
+#[derive(Debug, Serialize)]
+pub struct ResponseWithId {
+    /// Echo back the request ID for client matching
+    #[serde(rename = "reqId", skip_serializing_if = "Option::is_none")]
+    pub req_id: Option<String>,
+    /// The actual response
+    #[serde(flatten)]
+    pub response: Response,
+}
+
+impl ResponseWithId {
+    #[inline(always)]
+    pub fn new(response: Response, req_id: Option<String>) -> Self {
+        Self { req_id, response }
+    }
+}
+
 /// Fast atomic ID generator
 static ID_COUNTER: AtomicU64 = AtomicU64::new(1);
 

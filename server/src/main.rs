@@ -15,7 +15,7 @@ use parking_lot::RwLock;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, BufWriter};
 use tokio::net::{TcpListener, UnixListener};
 
-use protocol::{Command, JobState, Response};
+use protocol::{Command, JobState, Request, Response, ResponseWithId};
 use queue::{generate_node_id, QueueManager};
 
 const DEFAULT_TCP_PORT: u16 = 6789;
@@ -184,7 +184,7 @@ where
 }
 
 #[inline(always)]
-fn parse_command(line: &mut String) -> Result<Command, String> {
+fn parse_request(line: &mut String) -> Result<Request, String> {
     // Trim newline in-place
     while line.ends_with('\n') || line.ends_with('\r') {
         line.pop();
@@ -198,28 +198,31 @@ async fn process_command(
     line: &mut String,
     queue_manager: &Arc<QueueManager>,
     state: &Arc<RwLock<ConnectionState>>,
-) -> Response {
-    let command: Command = match parse_command(line) {
-        Ok(cmd) => cmd,
-        Err(e) => return Response::error(e),
+) -> ResponseWithId {
+    let request: Request = match parse_request(line) {
+        Ok(req) => req,
+        Err(e) => return ResponseWithId::new(Response::error(e), None),
     };
+
+    let req_id = request.req_id;
+    let command = request.command;
 
     // Handle Auth command first (doesn't require authentication)
     if let Command::Auth { token } = &command {
         if queue_manager.verify_token(token) {
             state.write().authenticated = true;
-            return Response::ok();
+            return ResponseWithId::new(Response::ok(), req_id);
         } else {
-            return Response::error("Invalid token");
+            return ResponseWithId::new(Response::error("Invalid token"), req_id);
         }
     }
 
     // Check if authentication is required
     if !queue_manager.verify_token("") && !state.read().authenticated {
-        return Response::error("Authentication required");
+        return ResponseWithId::new(Response::error("Authentication required"), req_id);
     }
 
-    match command {
+    let response = match command {
         // === Core Commands ===
         Command::Push {
             queue,
@@ -542,8 +545,9 @@ async fn process_command(
                 "completed" => protocol::JobState::Completed,
                 "failed" => protocol::JobState::Failed,
                 _ => {
-                    return Response::error(
-                        "Invalid state. Use: waiting, delayed, completed, failed",
+                    return ResponseWithId::new(
+                        Response::error("Invalid state. Use: waiting, delayed, completed, failed"),
+                        req_id,
                     )
                 }
             };
@@ -598,5 +602,7 @@ async fn process_command(
 
         // Already handled above
         Command::Auth { .. } => Response::ok(),
-    }
+    };
+
+    ResponseWithId::new(response, req_id)
 }
