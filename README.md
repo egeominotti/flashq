@@ -400,6 +400,20 @@ flashQ powers mission-critical workloads at companies processing billions of job
 | **Cron Scheduling** | Full 6-field cron expressions |
 | **Multi-Protocol** | TCP, HTTP/REST, gRPC, WebSocket, Unix Socket |
 
+### BullMQ-Compatible Features
+
+| Feature | Description |
+|---------|-------------|
+| **Custom Job ID** | Idempotent job creation with `jobId` option |
+| **finished()** | Wait for job completion (synchronous workflows) |
+| **Retention Policies** | Control result storage with age/count limits |
+| **drain()** | Remove all waiting jobs from a queue |
+| **obliterate()** | Remove ALL queue data (jobs, DLQ, state) |
+| **clean()** | Cleanup jobs by age and state |
+| **changePriority()** | Modify job priority at runtime |
+| **promote()** | Move delayed jobs to waiting immediately |
+| **getJobs()** | List jobs with filtering and pagination |
+
 ### Observability
 
 | Feature | Description |
@@ -505,19 +519,35 @@ PUSH ──→ WAITING ──→ PULL ──→ ACTIVE ──→ ACK ──→ C
 <summary><b>TCP Protocol</b></summary>
 
 ```json
-// Push job
-{"cmd": "PUSH", "queue": "emails", "data": {"to": "user@example.com"}, "priority": 10}
+// Push job with custom ID (idempotent)
+{"cmd": "PUSH", "queue": "orders", "data": {"orderId": "123"}, "job_id": "order-123", "priority": 10}
 
 // Pull job (blocking)
-{"cmd": "PULL", "queue": "emails"}
+{"cmd": "PULL", "queue": "orders"}
 
 // Acknowledge with result
-{"cmd": "ACK", "id": 123, "result": {"sent": true}}
+{"cmd": "ACK", "id": 123, "result": {"processed": true}}
+
+// Wait for job completion
+{"cmd": "WAITJOB", "id": 123, "timeout": 30000}
+
+// Lookup by custom ID
+{"cmd": "GETJOBBYCUSTOMID", "job_id": "order-123"}
 
 // Batch operations
 {"cmd": "PUSHB", "queue": "jobs", "jobs": [{"data": {...}}, {"data": {...}}]}
 {"cmd": "PULLB", "queue": "jobs", "count": 100}
 {"cmd": "ACKB", "ids": [1, 2, 3, 4, 5]}
+
+// Queue management
+{"cmd": "DRAIN", "queue": "old-queue"}
+{"cmd": "OBLITERATE", "queue": "temp-queue"}
+{"cmd": "CLEAN", "queue": "logs", "grace": 3600000, "state": "completed"}
+
+// Job management
+{"cmd": "CHANGEPRIORITY", "id": 123, "priority": 100}
+{"cmd": "PROMOTE", "id": 123}
+{"cmd": "GETJOBS", "queue": "orders", "state": "waiting", "limit": 10}
 ```
 
 </details>
@@ -533,10 +563,10 @@ bun add flashq
 ```
 
 ```typescript
-import { flashQ, Worker } from 'flashq';
+import { FlashQ, Worker } from 'flashq';
 
 // Initialize client
-const client = new flashQ({
+const client = new FlashQ({
   host: 'localhost',
   port: 6789,
   token: 'your-secret-token'
@@ -544,24 +574,42 @@ const client = new flashQ({
 
 await client.connect();
 
-// Push jobs
-const job = await client.push('emails', {
-  to: 'user@example.com',
-  subject: 'Welcome!',
-  template: 'onboarding'
+// Push jobs with idempotency
+const job = await client.push('orders', {
+  orderId: 'ORD-12345',
+  customer: 'user@example.com',
+  items: ['item1', 'item2']
 }, {
+  jobId: 'order-ORD-12345',  // Custom ID for idempotency
   priority: 10,
   max_attempts: 3,
-  backoff: 5000
+  backoff: 5000,
+  keepCompletedAge: 86400000  // Keep result for 24h
 });
 
+// Idempotent: same jobId returns existing job
+const sameJob = await client.push('orders', {...}, { jobId: 'order-ORD-12345' });
+console.log(job.id === sameJob.id); // true
+
+// Wait for job completion (synchronous workflow)
+const result = await client.finished(job.id, 30000); // 30s timeout
+
+// Lookup by custom ID
+const found = await client.getJobByCustomId('order-ORD-12345');
+console.log(found?.state); // 'completed'
+
 // Process jobs with Worker
-const worker = new Worker('emails', async (job) => {
-  await sendEmail(job.data);
-  return { sent: true, timestamp: Date.now() };
+const worker = new Worker('orders', async (job) => {
+  await processOrder(job.data);
+  return { processed: true, timestamp: Date.now() };
 }, { concurrency: 10 });
 
 await worker.start();
+
+// Queue management
+await client.drain('old-queue');      // Remove all waiting jobs
+await client.obliterate('temp-queue'); // Remove ALL queue data
+await client.clean('logs', 3600000, 'completed'); // Clean old completed
 ```
 
 ### Other Languages
@@ -627,8 +675,9 @@ await worker.start();
 
 | Suite | Tests | Coverage |
 |-------|-------|----------|
-| Unit Tests (Rust) | 81 | Core operations, edge cases |
-| Integration Tests | 34 | Full API coverage |
+| Unit Tests (Rust) | 104 | Core operations, BullMQ features, edge cases |
+| Integration Tests | 53 | Full API coverage |
+| Advanced Features Tests | 42 | BullMQ-like operations |
 | Stress Tests | 33 | Load, concurrency, resilience |
 
 ### Stress Test Results

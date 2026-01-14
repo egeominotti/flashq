@@ -86,9 +86,9 @@ server/src/
     ├── postgres.rs   # PostgreSQL storage layer
     ├── cluster.rs    # Clustering and leader election
     ├── core.rs       # Core ops: push, pull, ack, fail
-    ├── features.rs   # Advanced: cancel, progress, DLQ, cron, metrics
+    ├── features.rs   # Advanced: cancel, progress, DLQ, cron, metrics, BullMQ-like ops
     ├── background.rs # Background tasks: cleanup, cron runner
-    └── tests.rs      # Unit tests (81 tests)
+    └── tests.rs      # Unit tests (104 tests)
 ```
 
 ### Key Design Decisions
@@ -101,33 +101,76 @@ server/src/
 
 ## Protocol Commands
 
+### Core Operations
 | Command | Description |
 |---------|-------------|
-| PUSH | Push job with options (priority, delay, ttl, etc.) |
+| PUSH | Push job with options (priority, delay, ttl, jobId, etc.) |
 | PUSHB | Batch push |
 | PULL | Pull single job (blocking) |
 | PULLB | Batch pull |
 | ACK | Acknowledge job completion |
 | ACKB | Batch acknowledge |
 | FAIL | Fail job (retry or DLQ) |
+
+### Job Query
+| Command | Description |
+|---------|-------------|
 | GETJOB | Get job with its current state |
 | GETSTATE | Get job state only |
 | GETRESULT | Get job result |
+| GETJOBBYCUSTOMID | Get job by custom ID (idempotency lookup) |
+| GETJOBS | List jobs with filtering and pagination |
+| GETJOBCOUNTS | Get job counts grouped by state |
+| COUNT | Count waiting + delayed jobs in queue |
+
+### Job Management
+| Command | Description |
+|---------|-------------|
 | CANCEL | Cancel pending job |
 | PROGRESS | Update job progress |
 | GETPROGRESS | Get job progress |
+| WAITJOB | Wait for job completion (finished() promise) |
+| UPDATE | Update job data while waiting/processing |
+| CHANGEPRIORITY | Change job priority at runtime |
+| MOVETODELAYED | Move active job back to delayed |
+| PROMOTE | Move delayed job to waiting immediately |
+| DISCARD | Move job directly to DLQ |
+
+### Queue Management
+| Command | Description |
+|---------|-------------|
+| PAUSE | Pause queue |
+| RESUME | Resume queue |
+| ISPAUSED | Check if queue is paused |
+| DRAIN | Remove all waiting jobs from queue |
+| OBLITERATE | Remove ALL queue data (jobs, DLQ, cron, state) |
+| CLEAN | Cleanup jobs by age and state |
+| LISTQUEUES | List all queues |
+
+### DLQ & Retry
+| Command | Description |
+|---------|-------------|
 | DLQ | Get dead letter queue jobs |
 | RETRYDLQ | Retry DLQ jobs |
+
+### Rate & Concurrency Control
+| Command | Description |
+|---------|-------------|
 | RATELIMIT | Set queue rate limit |
 | RATELIMITCLEAR | Clear rate limit |
 | SETCONCURRENCY | Set concurrency limit |
 | CLEARCONCURRENCY | Clear concurrency limit |
-| PAUSE | Pause queue |
-| RESUME | Resume queue |
-| LISTQUEUES | List all queues |
+
+### Cron & Scheduling
+| Command | Description |
+|---------|-------------|
 | CRON | Add cron job |
 | CRONDELETE | Delete cron job |
 | CRONLIST | List cron jobs |
+
+### Monitoring
+| Command | Description |
+|---------|-------------|
 | STATS | Get queue stats |
 | METRICS | Get detailed metrics |
 
@@ -204,6 +247,24 @@ PUSH --> [WAITING/DELAYED/WAITING_CHILDREN]
 - **Webhooks**: HTTP callbacks on job events
 - **Prometheus Metrics**: `/metrics/prometheus` endpoint
 - **Clustering/HA**: Multi-node support with automatic leader election
+
+### BullMQ-like Features (NEW)
+- **Custom Job ID**: Idempotent job creation with `jobId` option
+- **getJobByCustomId**: Lookup jobs by user-provided ID
+- **finished()**: Wait for job completion (synchronous workflows)
+- **Retention Policies**: `keepCompletedAge`, `keepCompletedCount`
+- **drain()**: Remove all waiting jobs from queue
+- **obliterate()**: Remove ALL queue data
+- **clean()**: Cleanup jobs by age and state
+- **changePriority()**: Change job priority at runtime
+- **moveToDelayed()**: Move active job back to delayed
+- **promote()**: Move delayed job to waiting immediately
+- **update()**: Update job data while waiting/processing
+- **discard()**: Move job directly to DLQ
+- **getJobs()**: List jobs with filtering and pagination
+- **getJobCounts()**: Get job counts grouped by state
+- **count()**: Count waiting + delayed jobs
+- **isPaused()**: Check if queue is paused
 
 ## Clustering (High Availability)
 
@@ -396,42 +457,103 @@ sdk/typescript/
 │   ├── index.ts    # Main exports
 │   ├── client.ts   # flashQ client (TCP/HTTP)
 │   ├── worker.ts   # Worker class for job processing
+│   ├── sandbox.ts  # Sandboxed processors (isolated workers)
 │   └── types.ts    # TypeScript type definitions
 └── examples/
-    ├── comprehensive-test.ts  # 34 API tests
-    └── stress-test.ts         # 33 stress tests
+    ├── comprehensive-test.ts           # 53 API tests
+    ├── test-advanced-features.ts       # 42 BullMQ-like feature tests
+    ├── 15-idempotency-and-sync-workflow.ts  # Idempotency demo
+    └── stress-test.ts                  # 33 stress tests
 ```
 
 ### SDK Client Methods
 
+#### Core Operations
 | Method | Description |
 |--------|-------------|
 | `connect()` | Connect to server |
 | `close()` | Close connection |
-| `push(queue, data, options?)` | Push a job |
+| `push(queue, data, options?)` | Push a job (supports `jobId` for idempotency) |
 | `pushBatch(queue, jobs)` | Push multiple jobs |
 | `pull(queue)` | Pull a job (blocking) |
 | `pullBatch(queue, count)` | Pull multiple jobs |
 | `ack(jobId, result?)` | Acknowledge job |
 | `ackBatch(jobIds)` | Acknowledge multiple jobs |
 | `fail(jobId, error?)` | Fail a job |
-| `cancel(jobId)` | Cancel a pending job |
-| `progress(jobId, progress, message?)` | Update progress |
-| `getProgress(jobId)` | Get job progress |
+
+#### Job Query
+| Method | Description |
+|--------|-------------|
 | `getJob(jobId)` | Get job with state |
 | `getState(jobId)` | Get job state only |
 | `getResult(jobId)` | Get job result |
-| `getDlq(queue, count?)` | Get DLQ jobs |
-| `retryDlq(queue, jobId?)` | Retry DLQ jobs |
+| `getJobByCustomId(customId)` | Lookup job by custom ID |
+| `getJobs(queue, state?, limit?, offset?)` | List jobs with filtering |
+| `getJobCounts(queue)` | Get counts by state |
+| `count(queue)` | Count waiting + delayed jobs |
+
+#### Job Management
+| Method | Description |
+|--------|-------------|
+| `cancel(jobId)` | Cancel a pending job |
+| `progress(jobId, progress, message?)` | Update progress |
+| `getProgress(jobId)` | Get job progress |
+| `finished(jobId, timeout?)` | Wait for job completion |
+| `update(jobId, data)` | Update job data |
+| `changePriority(jobId, priority)` | Change job priority |
+| `moveToDelayed(jobId, delay)` | Move to delayed |
+| `promote(jobId)` | Move delayed to waiting |
+| `discard(jobId)` | Move to DLQ |
+
+#### Queue Management
+| Method | Description |
+|--------|-------------|
 | `pause(queue)` | Pause a queue |
 | `resume(queue)` | Resume a queue |
+| `isPaused(queue)` | Check if paused |
+| `drain(queue)` | Remove all waiting jobs |
+| `obliterate(queue)` | Remove ALL queue data |
+| `clean(queue, grace, state, limit?)` | Cleanup by age/state |
+| `listQueues()` | List all queues |
+
+#### DLQ & Rate Limiting
+| Method | Description |
+|--------|-------------|
+| `getDlq(queue, count?)` | Get DLQ jobs |
+| `retryDlq(queue, jobId?)` | Retry DLQ jobs |
 | `setRateLimit(queue, limit)` | Set rate limit |
 | `clearRateLimit(queue)` | Clear rate limit |
 | `setConcurrency(queue, limit)` | Set concurrency limit |
 | `clearConcurrency(queue)` | Clear concurrency limit |
-| `listQueues()` | List all queues |
+
+#### Cron & Monitoring
+| Method | Description |
+|--------|-------------|
 | `addCron(name, options)` | Add cron job |
 | `deleteCron(name)` | Delete cron job |
 | `listCrons()` | List cron jobs |
 | `stats()` | Get queue statistics |
 | `metrics()` | Get detailed metrics |
+
+### Push Options
+
+```typescript
+await client.push('queue', data, {
+  priority: 10,           // Higher = processed first
+  delay: 5000,            // Delay in ms
+  ttl: 60000,             // Time-to-live in ms
+  timeout: 30000,         // Processing timeout
+  max_attempts: 3,        // Retry attempts
+  backoff: 1000,          // Exponential backoff base
+  unique_key: 'key',      // Deduplication key
+  depends_on: [1, 2],     // Job dependencies
+  tags: ['tag1'],         // Job tags
+  lifo: false,            // LIFO mode
+  stall_timeout: 30000,   // Stall detection
+  debounce_id: 'event',   // Debounce ID
+  debounce_ttl: 5000,     // Debounce window
+  // NEW: Idempotency & Retention
+  jobId: 'order-123',           // Custom job ID for idempotency
+  keepCompletedAge: 86400000,   // Keep result for 24h
+  keepCompletedCount: 100,      // Keep in last 100 completed
+});
