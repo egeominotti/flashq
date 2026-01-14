@@ -26,12 +26,14 @@ import type {
  * ```
  */
 export class Worker<T = unknown, R = unknown> extends EventEmitter {
-  private client: FlashQ;
+  private clients: FlashQ[] = [];
+  private clientOptions: ClientOptions;
   private queues: string[];
   private processor: JobProcessor<T, R>;
   private options: Required<WorkerOptions>;
   private running = false;
   private processing = 0;
+  private jobsProcessed = 0;
   private workers: Promise<void>[] = [];
   private heartbeatTimer?: NodeJS.Timeout;
 
@@ -46,18 +48,18 @@ export class Worker<T = unknown, R = unknown> extends EventEmitter {
     this.options = {
       id: options.id ?? `worker-${Date.now()}-${Math.random().toString(36).slice(2)}`,
       concurrency: options.concurrency ?? 1,
-      heartbeatInterval: options.heartbeatInterval ?? 30000,
+      heartbeatInterval: options.heartbeatInterval ?? 5000, // 5 seconds default
       autoAck: options.autoAck ?? true,
     };
 
-    this.client = new FlashQ({
+    this.clientOptions = {
       host: options.host,
       port: options.port,
       httpPort: options.httpPort,
       token: options.token,
       timeout: options.timeout,
       useHttp: options.useHttp,
-    });
+    };
   }
 
   /**
@@ -66,16 +68,22 @@ export class Worker<T = unknown, R = unknown> extends EventEmitter {
   async start(): Promise<void> {
     if (this.running) return;
 
-    await this.client.connect();
+    // Create a separate client for each worker (TCP pull is blocking)
+    for (let i = 0; i < this.options.concurrency; i++) {
+      const client = new FlashQ(this.clientOptions);
+      await client.connect();
+      this.clients.push(client);
+    }
+
     this.running = true;
     this.emit('ready');
 
     // Start heartbeat
     this.startHeartbeat();
 
-    // Start worker loops
+    // Start worker loops (each with its own client)
     for (let i = 0; i < this.options.concurrency; i++) {
-      this.workers.push(this.workerLoop(i));
+      this.workers.push(this.workerLoop(i, this.clients[i]));
     }
   }
 
@@ -97,7 +105,9 @@ export class Worker<T = unknown, R = unknown> extends EventEmitter {
     await Promise.all(this.workers);
     this.workers = [];
 
-    await this.client.close();
+    // Close all clients
+    await Promise.all(this.clients.map((c) => c.close()));
+    this.clients = [];
     this.emit('stopped');
   }
 
@@ -115,13 +125,21 @@ export class Worker<T = unknown, R = unknown> extends EventEmitter {
     return this.processing;
   }
 
-  private async workerLoop(workerId: number): Promise<void> {
+  /**
+   * Get total number of jobs processed by this worker
+   */
+  getJobsProcessed(): number {
+    return this.jobsProcessed;
+  }
+
+  private async workerLoop(workerId: number, client: FlashQ): Promise<void> {
     while (this.running) {
       for (const queue of this.queues) {
         if (!this.running) break;
 
         try {
-          const job = await this.pullWithTimeout(queue, 1000);
+          // Each worker has its own client, so blocking pull is OK
+          const job = await client.pull<T>(queue);
           if (!job) continue;
 
           this.processing++;
@@ -131,16 +149,17 @@ export class Worker<T = unknown, R = unknown> extends EventEmitter {
             const result = await this.processJob(job);
 
             if (this.options.autoAck) {
-              await this.client.ack(job.id, result);
+              await client.ack(job.id, result);
             }
 
+            this.jobsProcessed++;
             this.emit('completed', job, result, workerId);
           } catch (error) {
             const errorMessage = error instanceof Error ? error.message : String(error);
             this.emit('failed', job, error, workerId);
 
             if (this.options.autoAck) {
-              await this.client.fail(job.id, errorMessage);
+              await client.fail(job.id, errorMessage);
             }
           } finally {
             this.processing--;
@@ -156,28 +175,6 @@ export class Worker<T = unknown, R = unknown> extends EventEmitter {
     }
   }
 
-  private async pullWithTimeout(
-    queue: string,
-    timeoutMs: number
-  ): Promise<(Job & { data: T }) | null> {
-    // TCP pull is blocking, so we use a race with timeout
-    const timeoutPromise = new Promise<null>((resolve) => {
-      setTimeout(() => resolve(null), timeoutMs);
-    });
-
-    try {
-      // Note: In real implementation, you might want to use non-blocking pull
-      // or implement proper timeout handling at the protocol level
-      const job = await Promise.race([
-        this.client.pull<T>(queue),
-        timeoutPromise,
-      ]);
-      return job;
-    } catch {
-      return null;
-    }
-  }
-
   private async processJob(job: Job & { data: T }): Promise<R> {
     return this.processor(job);
   }
@@ -186,10 +183,18 @@ export class Worker<T = unknown, R = unknown> extends EventEmitter {
     const sendHeartbeat = async () => {
       if (!this.running) return;
       try {
-        // Heartbeat is sent via HTTP if available
-        // For TCP-only, this is a no-op
+        const url = `http://${this.clientOptions.host ?? 'localhost'}:${this.clientOptions.httpPort ?? 6790}/workers/${this.options.id}/heartbeat`;
+        await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            queues: this.queues,
+            concurrency: this.options.concurrency,
+            jobs_processed: this.jobsProcessed,
+          }),
+        });
       } catch {
-        // Ignore heartbeat errors
+        // Ignore heartbeat errors (HTTP may not be available)
       }
     };
 
@@ -206,7 +211,9 @@ export class Worker<T = unknown, R = unknown> extends EventEmitter {
    * (Use this within your processor function)
    */
   async updateProgress(jobId: number, progress: number, message?: string): Promise<void> {
-    await this.client.progress(jobId, progress, message);
+    if (this.clients.length > 0) {
+      await this.clients[0].progress(jobId, progress, message);
+    }
   }
 }
 

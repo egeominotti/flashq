@@ -516,11 +516,15 @@ export class FlashQ extends EventEmitter {
   /**
    * Pull a job from a queue (blocking)
    */
-  async pull<T = unknown>(queue: string): Promise<Job & { data: T }> {
-    const response = await this.send<{ ok: boolean; job: Job }>({
-      cmd: 'PULL',
-      queue,
-    });
+  async pull<T = unknown>(queue: string, timeout?: number): Promise<Job & { data: T }> {
+    // Pull is blocking - use long timeout (default 60s)
+    const response = await this.send<{ ok: boolean; job: Job }>(
+      {
+        cmd: 'PULL',
+        queue,
+      },
+      timeout ?? 60000
+    );
     return response.job as Job & { data: T };
   }
 

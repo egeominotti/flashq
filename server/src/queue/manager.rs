@@ -1141,13 +1141,20 @@ impl QueueManager {
             .collect()
     }
 
-    pub async fn worker_heartbeat(&self, id: String, queues: Vec<String>, concurrency: u32) {
+    pub async fn worker_heartbeat(
+        &self,
+        id: String,
+        queues: Vec<String>,
+        concurrency: u32,
+        jobs_processed: u64,
+    ) {
         let mut workers = self.workers.write();
         let worker = workers
             .entry(id.clone())
             .or_insert_with(|| Worker::new(id, queues.clone(), concurrency));
         worker.queues = queues;
         worker.concurrency = concurrency;
+        worker.jobs_processed = jobs_processed;
         worker.last_heartbeat = now_ms();
     }
 
@@ -1156,6 +1163,122 @@ impl QueueManager {
         if let Some(worker) = self.workers.write().get_mut(worker_id) {
             worker.jobs_processed += 1;
         }
+    }
+
+    // ============== Server Management ==============
+
+    /// Reset all server memory - clears all queues, jobs, DLQ, metrics, etc.
+    pub async fn reset(&self) {
+        // Clear all shards
+        for shard in self.shards.iter() {
+            let mut shard = shard.write();
+            shard.queues.clear();
+            shard.dlq.clear();
+            shard.unique_keys.clear();
+            shard.waiting_deps.clear();
+            shard.waiting_children.clear();
+            shard.queue_state.clear();
+        }
+
+        // Clear global structures
+        self.processing.write().clear();
+        self.cron_jobs.write().clear();
+        self.completed_jobs.write().clear();
+        self.job_results.write().clear();
+
+        // Clear job index
+        self.job_index.write().clear();
+
+        // Clear workers
+        self.workers.write().clear();
+
+        // Clear metrics history
+        self.metrics_history.write().clear();
+
+        // Clear job logs
+        self.job_logs.write().clear();
+
+        // Clear stalled count
+        self.stalled_count.write().clear();
+
+        // Clear debounce cache
+        self.debounce_cache.write().clear();
+
+        // Clear custom ID map
+        self.custom_id_map.write().clear();
+
+        // Clear job waiters
+        self.job_waiters.write().clear();
+
+        // Clear completed retention
+        self.completed_retention.write().clear();
+
+        // Reset metrics counters
+        self.metrics
+            .total_pushed
+            .store(0, std::sync::atomic::Ordering::Relaxed);
+        self.metrics
+            .total_completed
+            .store(0, std::sync::atomic::Ordering::Relaxed);
+        self.metrics
+            .total_failed
+            .store(0, std::sync::atomic::Ordering::Relaxed);
+        self.metrics
+            .total_timed_out
+            .store(0, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    /// Clear all queues (waiting jobs only)
+    pub async fn clear_all_queues(&self) -> u64 {
+        let mut total = 0u64;
+        for shard in self.shards.iter() {
+            let mut shard = shard.write();
+            for queue in shard.queues.values_mut() {
+                total += queue.len() as u64;
+                queue.clear();
+            }
+        }
+        self.job_index.write().clear();
+        total
+    }
+
+    /// Clear all DLQ
+    pub async fn clear_all_dlq(&self) -> u64 {
+        let mut total = 0u64;
+        for shard in self.shards.iter() {
+            let mut shard = shard.write();
+            for dlq in shard.dlq.values_mut() {
+                total += dlq.len() as u64;
+                dlq.clear();
+            }
+        }
+        total
+    }
+
+    /// Clear completed jobs
+    pub async fn clear_completed_jobs(&self) -> u64 {
+        let total = self.completed_jobs.read().len() as u64;
+        self.completed_jobs.write().clear();
+        self.job_results.write().clear();
+        self.completed_retention.write().clear();
+        total
+    }
+
+    /// Reset metrics
+    pub async fn reset_metrics(&self) {
+        self.metrics
+            .total_pushed
+            .store(0, std::sync::atomic::Ordering::Relaxed);
+        self.metrics
+            .total_completed
+            .store(0, std::sync::atomic::Ordering::Relaxed);
+        self.metrics
+            .total_failed
+            .store(0, std::sync::atomic::Ordering::Relaxed);
+        self.metrics
+            .total_timed_out
+            .store(0, std::sync::atomic::Ordering::Relaxed);
+        self.metrics_history.write().clear();
     }
 
     // ============== Webhooks ==============

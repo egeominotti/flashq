@@ -210,6 +210,11 @@ pub fn create_router(state: AppState) -> Router {
         .route("/settings", get(get_settings))
         .route("/server/shutdown", post(shutdown_server))
         .route("/server/restart", post(restart_server))
+        .route("/server/reset", post(reset_server))
+        .route("/server/clear-queues", post(clear_all_queues))
+        .route("/server/clear-dlq", post(clear_all_dlq))
+        .route("/server/clear-completed", post(clear_completed_jobs))
+        .route("/server/reset-metrics", post(reset_metrics))
         // Health & Cluster
         .route("/health", get(health_check))
         .route("/cluster/nodes", get(cluster_nodes))
@@ -848,6 +853,8 @@ pub struct WorkerHeartbeatRequest {
     pub queues: Vec<String>,
     #[serde(default)]
     pub concurrency: u32,
+    #[serde(default)]
+    pub jobs_processed: u64,
 }
 
 async fn list_workers(
@@ -862,7 +869,8 @@ async fn worker_heartbeat(
     Path(id): Path<String>,
     Json(req): Json<WorkerHeartbeatRequest>,
 ) -> Json<ApiResponse<()>> {
-    qm.worker_heartbeat(id, req.queues, req.concurrency).await;
+    qm.worker_heartbeat(id, req.queues, req.concurrency, req.jobs_processed)
+        .await;
     ApiResponse::success(())
 }
 
@@ -989,6 +997,31 @@ async fn restart_server() -> Json<ApiResponse<&'static str>> {
         std::process::exit(100);
     });
     ApiResponse::success("Server restarting...")
+}
+
+async fn reset_server(State(qm): State<AppState>) -> Json<ApiResponse<&'static str>> {
+    qm.reset().await;
+    ApiResponse::success("Server memory cleared")
+}
+
+async fn clear_all_queues(State(qm): State<AppState>) -> Json<ApiResponse<u64>> {
+    let count = qm.clear_all_queues().await;
+    ApiResponse::success(count)
+}
+
+async fn clear_all_dlq(State(qm): State<AppState>) -> Json<ApiResponse<u64>> {
+    let count = qm.clear_all_dlq().await;
+    ApiResponse::success(count)
+}
+
+async fn clear_completed_jobs(State(qm): State<AppState>) -> Json<ApiResponse<u64>> {
+    let count = qm.clear_completed_jobs().await;
+    ApiResponse::success(count)
+}
+
+async fn reset_metrics(State(qm): State<AppState>) -> Json<ApiResponse<&'static str>> {
+    qm.reset_metrics().await;
+    ApiResponse::success("Metrics reset")
 }
 
 // === Health & Cluster ===
