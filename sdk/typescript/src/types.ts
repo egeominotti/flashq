@@ -195,9 +195,11 @@ export interface WorkerInfo {
 export interface WorkerOptions {
   /** Unique worker ID (auto-generated if not provided) */
   id?: string;
-  /** Number of concurrent jobs to process (default: 1) */
+  /** Number of parallel worker connections (default: 10) */
   concurrency?: number;
-  /** Heartbeat interval in milliseconds (default: 30000) */
+  /** Jobs to pull per batch (default: 100) - higher = more throughput */
+  batchSize?: number;
+  /** Heartbeat interval in milliseconds (default: 1000) */
   heartbeatInterval?: number;
   /** Whether to auto-acknowledge jobs on success (default: true) */
   autoAck?: boolean;

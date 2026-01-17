@@ -85,6 +85,10 @@ pub struct QueueManager {
     // Distributed pull mode: use SELECT FOR UPDATE SKIP LOCKED
     // Prevents duplicate job processing in cluster mode (slower but consistent)
     pub(crate) distributed_pull: bool,
+    // Sync persistence mode: wait for PostgreSQL before returning to client
+    // Prevents job loss on crash but reduces throughput (~10x slower)
+    // Enable with SYNC_PERSISTENCE=1 for maximum durability
+    pub(crate) sync_persistence: bool,
     // Debounce cache: maps "queue:debounce_id" -> expiry_timestamp
     // Used to prevent duplicate jobs within a time window
     pub(crate) debounce_cache: RwLock<GxHashMap<String, u64>>,
@@ -269,6 +273,13 @@ impl QueueManager {
                 .unwrap_or(false)
         };
 
+        // Check for sync persistence mode (wait for PostgreSQL before returning)
+        // This prevents job loss on crash but reduces throughput significantly
+        // Enable with SYNC_PERSISTENCE=1 for maximum durability
+        let sync_persistence = std::env::var("SYNC_PERSISTENCE")
+            .map(|v| v == "1" || v.to_lowercase() == "true")
+            .unwrap_or(false);
+
         // Create sharded processing map (32 shards for parallel ack/fail)
         let processing_shards: Vec<ProcessingShard> = (0..NUM_SHARDS)
             .map(|_| RwLock::new(GxHashMap::with_capacity_and_hasher(128, Default::default())))
@@ -300,6 +311,7 @@ impl QueueManager {
             job_logs: RwLock::new(GxHashMap::default()),
             stalled_count: RwLock::new(GxHashMap::default()),
             distributed_pull,
+            sync_persistence,
             debounce_cache: RwLock::new(GxHashMap::default()),
             // Custom job ID and finished() promise support
             custom_id_map: RwLock::new(GxHashMap::default()),
@@ -333,8 +345,18 @@ impl QueueManager {
         if distributed_pull {
             info!("Distributed pull enabled (SELECT FOR UPDATE SKIP LOCKED)");
         }
+        if sync_persistence {
+            info!("Sync persistence enabled (DURABLE MODE - waits for PostgreSQL)");
+        }
 
         manager
+    }
+
+    /// Check if sync persistence mode is enabled.
+    /// When enabled, push operations wait for PostgreSQL confirmation before returning.
+    #[inline]
+    pub fn is_sync_persistence(&self) -> bool {
+        self.sync_persistence
     }
 
     pub fn with_auth_tokens(_persistence: bool, tokens: Vec<String>) -> Arc<Self> {

@@ -184,6 +184,9 @@ impl QueueManager {
         let idx = Self::shard_index(&queue);
         let queue_name = intern(&queue);
 
+        // Track if this job has unsatisfied dependencies
+        let needs_waiting_deps: bool;
+
         {
             let mut shard = self.shards[idx].write();
 
@@ -200,21 +203,57 @@ impl QueueManager {
             if !job.depends_on.is_empty() {
                 let completed = self.completed_jobs.read();
                 let deps_satisfied = job.depends_on.iter().all(|dep| completed.contains(dep));
+                needs_waiting_deps = !deps_satisfied;
 
-                if !deps_satisfied {
+                if needs_waiting_deps {
                     shard.waiting_deps.insert(job.id, job.clone());
                     self.index_job(job.id, JobLocation::WaitingDeps { shard_idx: idx });
-                    self.persist_push(&job, "waiting_children");
-                    return Ok(job);
                 }
+            } else {
+                needs_waiting_deps = false;
             }
 
-            shard
-                .queues
-                .entry(queue_name)
-                .or_default()
-                .push(job.clone());
-            self.index_job(job.id, JobLocation::Queue { shard_idx: idx });
+            // Add to queue if deps are satisfied or no deps
+            if !needs_waiting_deps {
+                shard
+                    .queues
+                    .entry(queue_name)
+                    .or_default()
+                    .push(job.clone());
+                self.index_job(job.id, JobLocation::Queue { shard_idx: idx });
+            }
+        } // Lock released here before any await
+
+        // Handle jobs waiting for dependencies
+        if needs_waiting_deps {
+            // Use sync persistence if enabled for durability guarantee
+            if self.is_sync_persistence() {
+                if let Err(e) = self.persist_push_sync(&job, "waiting_children").await {
+                    // Rollback: remove from waiting_deps and index
+                    let mut shard = self.shards[idx].write();
+                    shard.waiting_deps.remove(&job.id);
+                    self.unindex_job(job.id);
+                    return Err(e);
+                }
+            } else {
+                self.persist_push(&job, "waiting_children");
+            }
+            return Ok(job);
+        }
+
+        // Persist to PostgreSQL - use sync mode if enabled
+        if self.is_sync_persistence() {
+            if let Err(e) = self.persist_push_sync(&job, "waiting").await {
+                // Rollback: remove from queue and index
+                let rollback_queue = intern(&queue);
+                let mut shard = self.shards[idx].write();
+                if let Some(heap) = shard.queues.get_mut(&rollback_queue) {
+                    heap.retain(|j| j.id != job.id);
+                }
+                self.unindex_job(job.id);
+                return Err(e);
+            }
+        } else {
             self.persist_push(&job, "waiting");
         }
 
@@ -605,8 +644,16 @@ impl QueueManager {
                 self.index_job(job_id, JobLocation::Completed);
             }
 
-            // Persist to PostgreSQL
-            self.persist_ack(job_id, result.clone());
+            // Persist to PostgreSQL - use sync mode if enabled for durability
+            if self.is_sync_persistence() {
+                // Note: If sync persist fails, the job is already removed from processing
+                // but we still return success because the in-memory state is correct.
+                // On restart, PostgreSQL will show the job as "active" and timeout logic
+                // will handle re-queueing it.
+                let _ = self.persist_ack_sync(job_id, result.clone()).await;
+            } else {
+                self.persist_ack(job_id, result.clone());
+            }
             self.metrics.record_complete(now_ms() - job.created_at);
             self.notify_subscribers("completed", &job.queue, &job);
 
@@ -764,8 +811,14 @@ impl QueueManager {
             }
 
             self.index_job(job_id, JobLocation::Queue { shard_idx: idx });
-            // Persist first (uses primitive values, no job reference needed)
-            self.persist_fail(job_id, new_run_at, job.attempts);
+
+            // Persist first - use sync mode if enabled for durability
+            if self.is_sync_persistence() {
+                let _ = self.persist_fail_sync(job_id, new_run_at, job.attempts).await;
+            } else {
+                self.persist_fail(job_id, new_run_at, job.attempts);
+            }
+
             // Then move job into queue (no clone)
             self.shards[idx]
                 .write()

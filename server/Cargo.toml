@@ -45,7 +45,7 @@ hmac = "0.12"
 sha2 = "0.10"
 
 # gRPC
-tonic = "0.12"
+tonic = "0.13"
 prost = "0.13"
 
 # Utils
@@ -57,7 +57,7 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 
 [build-dependencies]
-tonic-build = "0.12"
+tonic-build = "0.13"
 
 [profile.release]
 lto = "fat"                     # Link-time optimization

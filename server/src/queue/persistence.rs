@@ -13,8 +13,9 @@ use crate::protocol::{CronJob, Job, WebhookConfig};
 impl QueueManager {
     // ============== Persistence Methods (PostgreSQL) ==============
 
-    /// Persist a pushed job to PostgreSQL and notify cluster.
+    /// Persist a pushed job to PostgreSQL and notify cluster (async fire-and-forget).
     /// In snapshot mode, only records the change (actual persistence happens in background snapshot).
+    /// WARNING: This does NOT wait for PostgreSQL - use persist_push_sync for durability.
     #[inline]
     pub(crate) fn persist_push(&self, job: &Job, state: &str) {
         // In snapshot mode, just record the change
@@ -43,6 +44,33 @@ impl QueueManager {
                 }
             });
         }
+    }
+
+    /// Persist a pushed job to PostgreSQL synchronously (waits for confirmation).
+    /// Use this when SYNC_PERSISTENCE=1 for maximum durability.
+    /// Returns error if PostgreSQL fails, allowing caller to handle appropriately.
+    #[inline]
+    pub(crate) async fn persist_push_sync(&self, job: &Job, state: &str) -> Result<(), String> {
+        // In snapshot mode, just record the change
+        if self.is_snapshot_mode() {
+            self.record_change();
+            return Ok(());
+        }
+
+        if let Some(ref storage) = self.storage {
+            // Persist to PostgreSQL and WAIT for result
+            if let Err(e) = storage.insert_job(job, state).await {
+                error!(job_id = job.id, error = %e, "Failed to persist job (sync)");
+                return Err(format!("Failed to persist job: {}", e));
+            }
+            // Notify cluster (only after INSERT succeeds)
+            if self.is_cluster_enabled() {
+                storage
+                    .notify_job_pushed(job.id, &job.queue, &self.node_id().unwrap_or_default())
+                    .await;
+            }
+        }
+        Ok(())
     }
 
     /// Persist a batch of jobs to PostgreSQL and notify cluster.
@@ -85,8 +113,9 @@ impl QueueManager {
         }
     }
 
-    /// Persist job acknowledgment to PostgreSQL.
+    /// Persist job acknowledgment to PostgreSQL (async fire-and-forget).
     /// In snapshot mode, only records the change.
+    /// WARNING: This does NOT wait for PostgreSQL - use persist_ack_sync for durability.
     #[inline]
     pub(crate) fn persist_ack(&self, job_id: u64, result: Option<Value>) {
         if self.is_snapshot_mode() {
@@ -106,6 +135,32 @@ impl QueueManager {
                 }
             });
         }
+    }
+
+    /// Persist job acknowledgment to PostgreSQL synchronously (waits for confirmation).
+    /// Use this when SYNC_PERSISTENCE=1 for maximum durability.
+    /// Returns error if PostgreSQL fails.
+    #[inline]
+    pub(crate) async fn persist_ack_sync(
+        &self,
+        job_id: u64,
+        result: Option<Value>,
+    ) -> Result<(), String> {
+        if self.is_snapshot_mode() {
+            self.record_change();
+            if let Some(res) = result {
+                self.job_results.write().insert(job_id, res);
+            }
+            return Ok(());
+        }
+
+        if let Some(ref storage) = self.storage {
+            if let Err(e) = storage.ack_job(job_id, result).await {
+                error!(job_id = job_id, error = %e, "Failed to persist ack (sync)");
+                return Err(format!("Failed to persist ack: {}", e));
+            }
+        }
+        Ok(())
     }
 
     /// Persist batch acknowledgments to PostgreSQL.
@@ -133,10 +188,11 @@ impl QueueManager {
         }
     }
 
-    /// Persist job failure (retry) to PostgreSQL.
+    /// Persist job failure (retry) to PostgreSQL (async fire-and-forget).
     /// In snapshot mode, only records the change.
+    /// WARNING: This does NOT wait for PostgreSQL - use persist_fail_sync for durability.
     #[inline]
-    pub(crate) fn persist_fail(&self, job_id: u64, _new_run_at: u64, _attempts: u32) {
+    pub(crate) fn persist_fail(&self, job_id: u64, new_run_at: u64, attempts: u32) {
         if self.is_snapshot_mode() {
             self.record_change();
             return;
@@ -145,11 +201,35 @@ impl QueueManager {
         if let Some(ref storage) = self.storage {
             let storage = Arc::clone(storage);
             tokio::spawn(async move {
-                if let Err(e) = storage.fail_job(job_id, _new_run_at, _attempts).await {
+                if let Err(e) = storage.fail_job(job_id, new_run_at, attempts).await {
                     error!(job_id = job_id, error = %e, "Failed to persist fail");
                 }
             });
         }
+    }
+
+    /// Persist job failure (retry) to PostgreSQL synchronously (waits for confirmation).
+    /// Use this when SYNC_PERSISTENCE=1 for maximum durability.
+    /// Returns error if PostgreSQL fails.
+    #[inline]
+    pub(crate) async fn persist_fail_sync(
+        &self,
+        job_id: u64,
+        new_run_at: u64,
+        attempts: u32,
+    ) -> Result<(), String> {
+        if self.is_snapshot_mode() {
+            self.record_change();
+            return Ok(());
+        }
+
+        if let Some(ref storage) = self.storage {
+            if let Err(e) = storage.fail_job(job_id, new_run_at, attempts).await {
+                error!(job_id = job_id, error = %e, "Failed to persist fail (sync)");
+                return Err(format!("Failed to persist fail: {}", e));
+            }
+        }
+        Ok(())
     }
 
     /// Persist job moved to DLQ.

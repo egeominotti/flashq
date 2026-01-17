@@ -409,8 +409,9 @@ impl QueueManager {
         }
     }
 
-    /// Clean up completed jobs and their associated index entries
-    /// Uses a more aggressive cleanup strategy to prevent unbounded memory growth
+    /// Clean up completed jobs and their associated index entries.
+    /// Also cleans up custom_id_map to prevent memory leaks and idempotency bugs.
+    /// Uses a more aggressive cleanup strategy to prevent unbounded memory growth.
     pub(crate) fn cleanup_completed_jobs(&self) {
         const MAX_COMPLETED: usize = 50_000;
         const CLEANUP_BATCH: usize = 25_000;
@@ -422,6 +423,14 @@ impl QueueManager {
             // Also clean up job_index for these completed jobs (lock-free DashMap)
             for &id in &to_remove {
                 self.job_index.remove(&id);
+            }
+
+            // Clean up custom_id_map to prevent memory leak and idempotency bugs
+            // This is critical: if we don't clean up, old custom IDs will point to
+            // non-existent jobs, breaking idempotency guarantees
+            {
+                let mut custom_id_map = self.custom_id_map.write();
+                custom_id_map.retain(|_, &mut internal_id| !to_remove.contains(&internal_id));
             }
 
             for id in to_remove {
