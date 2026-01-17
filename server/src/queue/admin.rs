@@ -126,7 +126,7 @@ impl QueueManager {
 
     /// Get metrics history for charts.
     pub fn get_metrics_history(&self) -> Vec<MetricsHistoryPoint> {
-        self.metrics_history.read().clone()
+        self.metrics_history.read().iter().cloned().collect()
     }
 
     /// Collect and store a metrics history point.
@@ -172,11 +172,11 @@ impl QueueManager {
         };
 
         let mut history = self.metrics_history.write();
-        history.push(point);
+        history.push_back(point);
 
         // Keep only last 60 points (5 minutes at 5s intervals)
         if history.len() > 60 {
-            history.remove(0);
+            history.pop_front(); // O(1) with VecDeque
         }
     }
 
@@ -440,14 +440,10 @@ impl QueueManager {
                 "error": error,
             });
 
-            // Fire webhook in background (non-blocking)
+            // Fire webhook in background using shared client (non-blocking)
+            let client = self.http_client.clone();
             let webhook_url = url.clone();
             tokio::spawn(async move {
-                let client = reqwest::Client::builder()
-                    .timeout(std::time::Duration::from_secs(10))
-                    .build()
-                    .unwrap_or_else(|_| reqwest::Client::new());
-
                 let mut req = client.post(&url).json(&payload);
 
                 if let Some(secret) = secret {

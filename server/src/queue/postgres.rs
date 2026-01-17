@@ -1228,4 +1228,13 @@ impl PostgresStorage {
             .await?;
         Ok(())
     }
+
+    /// Purge all jobs from DLQ for a queue
+    pub async fn purge_dlq(&self, queue: &str) -> Result<u64, sqlx::Error> {
+        let result = sqlx::query("DELETE FROM jobs WHERE queue = $1 AND state = 'failed'")
+            .bind(queue)
+            .execute(&self.pool)
+            .await?;
+        Ok(result.rows_affected())
+    }
 }

@@ -23,11 +23,11 @@ impl QueueManager {
 
         let mut logs = self.job_logs.write();
         let job_logs = logs.entry(job_id).or_default();
-        job_logs.push(entry);
+        job_logs.push_back(entry);
 
-        // Limit logs per job (max 100)
+        // Limit logs per job (max 100) - O(1) with VecDeque
         if job_logs.len() > 100 {
-            job_logs.remove(0);
+            job_logs.pop_front();
         }
 
         Ok(())
@@ -38,7 +38,7 @@ impl QueueManager {
         self.job_logs
             .read()
             .get(&job_id)
-            .cloned()
+            .map(|logs| logs.iter().cloned().collect())
             .unwrap_or_default()
     }
 

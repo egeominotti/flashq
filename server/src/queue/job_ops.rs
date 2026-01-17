@@ -493,7 +493,14 @@ impl QueueManager {
 
                 {
                     let mut shard = self.shards[idx].write();
-                    let dlq = shard.dlq.entry(queue_arc.clone()).or_default();
+
+                    // Release concurrency slot if any
+                    let state = shard.get_state(&queue_arc);
+                    if let Some(ref mut conc) = state.concurrency {
+                        conc.release();
+                    }
+
+                    let dlq = shard.dlq.entry(queue_arc).or_default();
                     dlq.push_back(job);
                 }
 

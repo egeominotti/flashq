@@ -5,6 +5,7 @@
 //! - query.rs - Job query operations (get_job, get_state, wait_for_job)
 //! - admin.rs - Admin operations (workers, webhooks, settings, reset)
 
+use std::collections::VecDeque;
 use std::hash::{BuildHasherDefault, Hash, Hasher};
 use std::sync::Arc;
 
@@ -51,7 +52,7 @@ pub struct QueueManager {
     // Event broadcast for SSE/WebSocket
     pub(crate) event_tx: broadcast::Sender<JobEvent>,
     // Metrics history for charts (last 60 points = 5 minutes at 5s intervals)
-    pub(crate) metrics_history: RwLock<Vec<MetricsHistoryPoint>>,
+    pub(crate) metrics_history: RwLock<VecDeque<MetricsHistoryPoint>>,
     // Cluster manager for HA
     pub(crate) cluster: Option<Arc<ClusterManager>>,
     // Snapshot mode (Redis-style persistence)
@@ -59,8 +60,8 @@ pub struct QueueManager {
     pub(crate) snapshot_changes: std::sync::atomic::AtomicU64,
     pub(crate) last_snapshot: std::sync::atomic::AtomicU64,
     // === New BullMQ-like features ===
-    // Job logs storage (job_id -> logs)
-    pub(crate) job_logs: RwLock<GxHashMap<u64, Vec<JobLogEntry>>>,
+    // Job logs storage (job_id -> logs) - VecDeque for O(1) pop_front
+    pub(crate) job_logs: RwLock<GxHashMap<u64, VecDeque<JobLogEntry>>>,
     // Stalled job tracking (job_id -> stall_count)
     pub(crate) stalled_count: RwLock<GxHashMap<u64, u32>>,
     // Distributed pull mode: use SELECT FOR UPDATE SKIP LOCKED
@@ -84,6 +85,8 @@ pub struct QueueManager {
     pub(crate) cleanup_settings: RwLock<CleanupSettings>,
     // TCP connection counter
     pub(crate) tcp_connection_count: std::sync::atomic::AtomicUsize,
+    // Shared HTTP client for webhooks (reuse connections)
+    pub(crate) http_client: reqwest::Client,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -268,7 +271,7 @@ impl QueueManager {
             workers: RwLock::new(GxHashMap::default()),
             webhooks: RwLock::new(GxHashMap::default()),
             event_tx,
-            metrics_history: RwLock::new(Vec::with_capacity(60)),
+            metrics_history: RwLock::new(VecDeque::with_capacity(60)),
             cluster,
             snapshot_config,
             snapshot_changes: AtomicU64::new(0),
@@ -285,6 +288,11 @@ impl QueueManager {
             queue_defaults: RwLock::new(QueueDefaults::default()),
             cleanup_settings: RwLock::new(CleanupSettings::default()),
             tcp_connection_count: std::sync::atomic::AtomicUsize::new(0),
+            http_client: reqwest::Client::builder()
+                .timeout(std::time::Duration::from_secs(10))
+                .pool_max_idle_per_host(10)
+                .build()
+                .unwrap_or_else(|_| reqwest::Client::new()),
         });
 
         let mgr = Arc::clone(&manager);

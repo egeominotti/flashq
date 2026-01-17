@@ -70,9 +70,21 @@ impl QueueManager {
             drop(shard); // Release shard lock
 
             // Remove job index entries (lock-free DashMap)
-            for id in job_ids {
-                self.job_index.remove(&id);
+            for id in &job_ids {
+                self.job_index.remove(id);
             }
+
+            // Persist to PostgreSQL
+            if let Some(ref storage) = self.storage {
+                let storage = std::sync::Arc::clone(storage);
+                let queue = queue_name.to_string();
+                tokio::spawn(async move {
+                    if let Err(e) = storage.purge_dlq(&queue).await {
+                        eprintln!("Failed to persist purge_dlq for {}: {}", queue, e);
+                    }
+                });
+            }
+
             count
         } else {
             0
