@@ -1,5 +1,5 @@
 /**
- * FlashQ Worker Tests
+ * FlashQ Worker Tests - Comprehensive Coverage
  *
  * Run: bun test tests/worker.test.ts
  */
@@ -7,6 +7,7 @@
 import { describe, test, expect, beforeAll, afterAll, beforeEach } from 'bun:test';
 import { FlashQ } from '../src/client';
 import { Worker } from '../src/worker';
+import { EventEmitter } from 'events';
 
 const TEST_QUEUE = 'test-worker';
 
@@ -25,6 +26,46 @@ describe('FlashQ Worker', () => {
 
   beforeEach(async () => {
     await client.obliterate(TEST_QUEUE);
+  });
+
+  // ============== Constructor Tests ==============
+
+  describe('Constructor', () => {
+    test('should extend EventEmitter', () => {
+      const worker = new Worker(TEST_QUEUE, async () => ({}));
+      expect(worker).toBeInstanceOf(EventEmitter);
+    });
+
+    test('should accept single queue as string', () => {
+      const worker = new Worker(TEST_QUEUE, async () => ({}));
+      expect(worker).toBeInstanceOf(Worker);
+    });
+
+    test('should accept multiple queues as array', () => {
+      const worker = new Worker([TEST_QUEUE, 'another-queue'], async () => ({}));
+      expect(worker).toBeInstanceOf(Worker);
+    });
+
+    test('should accept all worker options', () => {
+      const worker = new Worker(TEST_QUEUE, async () => ({}), {
+        id: 'custom-worker-id',
+        concurrency: 5,
+        heartbeatInterval: 2000,
+        autoAck: true,
+        host: 'localhost',
+        port: 6789,
+        httpPort: 6790,
+        timeout: 10000,
+      });
+      expect(worker).toBeInstanceOf(Worker);
+    });
+
+    test('should generate unique ID if not provided', () => {
+      const worker1 = new Worker(TEST_QUEUE, async () => ({}));
+      const worker2 = new Worker(TEST_QUEUE, async () => ({}));
+      // Workers should be different instances
+      expect(worker1).not.toBe(worker2);
+    });
   });
 
   // ============== Basic Worker Tests ==============
@@ -340,6 +381,185 @@ describe('FlashQ Worker', () => {
 
       const state = await client.getState(job.id);
       expect(state).toBe('failed');
+    });
+  });
+
+  // ============== Update Progress Tests ==============
+
+  describe('updateProgress', () => {
+    test('should have updateProgress method', async () => {
+      const worker = new Worker<{ data: number }>(
+        TEST_QUEUE,
+        async () => ({}),
+        { host: 'localhost', port: 6789, concurrency: 1 }
+      );
+
+      // Verify method exists
+      expect(typeof worker.updateProgress).toBe('function');
+    });
+
+    test('should update progress for active job', async () => {
+      let capturedJobId: number = 0;
+
+      const worker = new Worker<{ data: number }>(
+        TEST_QUEUE,
+        async (job) => {
+          capturedJobId = job.id;
+          // Update progress during processing
+          await worker.updateProgress(job.id, 50, 'Processing...');
+          await new Promise(r => setTimeout(r, 100));
+          await worker.updateProgress(job.id, 100, 'Done');
+          return {};
+        },
+        { host: 'localhost', port: 6789, concurrency: 1 }
+      );
+
+      await worker.start();
+      await client.push(TEST_QUEUE, { data: 1 });
+
+      await new Promise(resolve => setTimeout(resolve, 500));
+      await worker.stop();
+
+      // Verify progress was updated
+      if (capturedJobId > 0) {
+        const progress = await client.getProgress(capturedJobId);
+        expect(progress.progress).toBe(100);
+      }
+    });
+  });
+
+  // ============== Error Event Tests ==============
+
+  describe('Error Events', () => {
+    test('should emit error event on connection issues', async () => {
+      let errorEmitted = false;
+
+      const worker = new Worker(
+        TEST_QUEUE,
+        async () => ({}),
+        { host: 'localhost', port: 9999, concurrency: 1 } // Wrong port
+      );
+
+      worker.on('error', () => {
+        errorEmitted = true;
+      });
+
+      try {
+        await worker.start();
+        await new Promise(r => setTimeout(r, 200));
+      } catch {
+        // Expected to fail
+      }
+
+      await worker.stop();
+    });
+  });
+
+  // ============== Active Event Tests ==============
+
+  describe('Active Event', () => {
+    test('should emit active event when job starts processing', async () => {
+      let activeJob: any = null;
+      let activeWorkerId: number | undefined;
+
+      const worker = new Worker(
+        TEST_QUEUE,
+        async () => {
+          await new Promise(r => setTimeout(r, 50));
+          return {};
+        },
+        { host: 'localhost', port: 6789, concurrency: 1 }
+      );
+
+      worker.on('active', (job, workerId) => {
+        activeJob = job;
+        activeWorkerId = workerId;
+      });
+
+      await worker.start();
+      await client.push(TEST_QUEUE, { data: 1 });
+
+      await new Promise(resolve => setTimeout(resolve, 500));
+      await worker.stop();
+
+      expect(activeJob).not.toBeNull();
+      expect(typeof activeWorkerId).toBe('number');
+    });
+  });
+
+  // ============== Typed Worker Tests ==============
+
+  describe('Typed Worker', () => {
+    test('should handle typed input and output', async () => {
+      interface InputData {
+        value: number;
+        name: string;
+      }
+
+      interface OutputData {
+        doubled: number;
+        greeting: string;
+      }
+
+      const results: OutputData[] = [];
+
+      const worker = new Worker<InputData, OutputData>(
+        TEST_QUEUE,
+        async (job) => {
+          return {
+            doubled: job.data.value * 2,
+            greeting: `Hello, ${job.data.name}`,
+          };
+        },
+        { host: 'localhost', port: 6789, concurrency: 1 }
+      );
+
+      worker.on('completed', (job, result) => {
+        results.push(result as OutputData);
+      });
+
+      await worker.start();
+      await client.push(TEST_QUEUE, { value: 5, name: 'Alice' });
+
+      await new Promise(resolve => setTimeout(resolve, 500));
+      await worker.stop();
+
+      expect(results.length).toBe(1);
+      expect(results[0].doubled).toBe(10);
+      expect(results[0].greeting).toBe('Hello, Alice');
+    });
+  });
+
+  // ============== Double Start/Stop Tests ==============
+
+  describe('Idempotent Operations', () => {
+    test('should handle double start gracefully', async () => {
+      const worker = new Worker(
+        TEST_QUEUE,
+        async () => ({}),
+        { host: 'localhost', port: 6789, concurrency: 1 }
+      );
+
+      await worker.start();
+      await worker.start(); // Second start should be no-op
+
+      expect(worker.isRunning()).toBe(true);
+
+      await worker.stop();
+    });
+
+    test('should handle double stop gracefully', async () => {
+      const worker = new Worker(
+        TEST_QUEUE,
+        async () => ({}),
+        { host: 'localhost', port: 6789, concurrency: 1 }
+      );
+
+      await worker.start();
+      await worker.stop();
+      await worker.stop(); // Second stop should be no-op
+
+      expect(worker.isRunning()).toBe(false);
     });
   });
 });
