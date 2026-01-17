@@ -464,7 +464,7 @@ class DefinedWorker extends EventEmitter implements WorkerInstance {
       jobId: job.id,
       payload: job.data,
       queueName: job.queue,
-      retryCount: job.attempts - 1, // 0-indexed like Spooled
+      retryCount: job.attempts, // 0-indexed: first attempt = 0 retries
       maxRetries: job.max_attempts,
       priority: job.priority,
       tags: job.tags,

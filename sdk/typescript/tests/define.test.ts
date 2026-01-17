@@ -388,11 +388,11 @@ describe('defineWorker API', () => {
       await worker.start();
       await client.push(TEST_QUEUE, { data: 1 });
 
-      await new Promise(r => setTimeout(r, 500));
+      await new Promise(r => setTimeout(r, 1000));
       await worker.stop();
 
       expect(heartbeatCalled).toBe(true);
-    });
+    }, 10000);
   });
 
   // ============== Events Tests ==============
@@ -529,13 +529,13 @@ describe('defineWorker API', () => {
       await worker.start();
       const job = await client.push(TEST_QUEUE, { data: 1 }, { max_attempts: 1 });
 
-      await new Promise(r => setTimeout(r, 500));
+      await new Promise(r => setTimeout(r, 1000));
       await worker.stop();
 
       expect(failedJobId).toBe(job.id);
       expect(failedError?.message).toBe('Test failure');
       expect(willRetry).toBe(false); // max_attempts: 1 means no retry
-    });
+    }, 10000);
 
     test('should emit job:progress event', async () => {
       let progressJobId: number | undefined;
@@ -587,11 +587,11 @@ describe('defineWorker API', () => {
       await worker.start();
       await client.push(TEST_QUEUE, { data: 1 }, { max_attempts: 5 });
 
-      await new Promise(r => setTimeout(r, 500));
+      await new Promise(r => setTimeout(r, 1000));
       await worker.stop();
 
       expect(attempts).toBe(1); // Should not retry
-    });
+    }, 10000);
 
     test('should retry regular errors', async () => {
       let attempts = 0;

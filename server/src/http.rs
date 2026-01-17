@@ -183,6 +183,8 @@ pub fn create_router(state: AppState) -> Router {
         // BullMQ Advanced job operations
         .route("/jobs/{id}/priority", post(change_priority))
         .route("/jobs/{id}/move-to-delayed", post(move_to_delayed))
+        .route("/jobs/{id}/promote", post(promote_job))
+        .route("/jobs/{id}/discard", post(discard_job))
         // Cron jobs
         .route("/crons", get(list_crons))
         .route("/crons/{name}", post(create_cron))
@@ -560,6 +562,20 @@ async fn move_to_delayed(
     Json(req): Json<MoveToDelayedRequest>,
 ) -> Json<ApiResponse<()>> {
     match qm.move_to_delayed(id, req.delay).await {
+        Ok(()) => ApiResponse::success(()),
+        Err(e) => ApiResponse::error(e),
+    }
+}
+
+async fn promote_job(State(qm): State<AppState>, Path(id): Path<u64>) -> Json<ApiResponse<()>> {
+    match qm.promote(id).await {
+        Ok(()) => ApiResponse::success(()),
+        Err(e) => ApiResponse::error(e),
+    }
+}
+
+async fn discard_job(State(qm): State<AppState>, Path(id): Path<u64>) -> Json<ApiResponse<()>> {
+    match qm.discard(id).await {
         Ok(()) => ApiResponse::success(()),
         Err(e) => ApiResponse::error(e),
     }

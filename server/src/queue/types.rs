@@ -78,7 +78,10 @@ impl IndexedPriorityQueue {
         self.generation += 1;
 
         self.index.insert(id, (job.clone(), gen));
-        self.heap.push(HeapEntry { job, generation: gen });
+        self.heap.push(HeapEntry {
+            job,
+            generation: gen,
+        });
     }
 
     /// Pop highest priority job - O(log n) amortized
@@ -182,7 +185,8 @@ impl IndexedPriorityQueue {
     where
         F: FnMut(&Job) -> bool,
     {
-        let removed: Vec<u64> = self.index
+        let removed: Vec<u64> = self
+            .index
             .iter()
             .filter(|(_, (job, _))| !f(job))
             .map(|(id, _)| *id)

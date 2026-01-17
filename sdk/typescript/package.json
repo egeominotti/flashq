@@ -17,7 +17,8 @@
     "test:worker": "bun test tests/worker.test.ts",
     "test:queue": "bun test tests/queue.test.ts",
     "test:integration": "bun test tests/integration.test.ts",
-    "example": "bun run examples/01-basic-usage.ts"
+    "example": "bun run examples/01-basic-usage.ts",
+    "simulator": "bun run simulator/serve.ts"
   },
   "keywords": [
     "queue",
