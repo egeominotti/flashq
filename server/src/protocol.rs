@@ -531,14 +531,16 @@ impl Job {
         self.run_at <= now
     }
 
+    /// Check if job has expired (TTL). Uses saturating_sub to prevent overflow.
     #[inline(always)]
     pub fn is_expired(&self, now: u64) -> bool {
-        self.ttl > 0 && now > self.created_at + self.ttl
+        self.ttl > 0 && now.saturating_sub(self.created_at) > self.ttl
     }
 
+    /// Check if job has timed out. Uses saturating_sub to prevent overflow.
     #[inline(always)]
     pub fn is_timed_out(&self, now: u64) -> bool {
-        self.timeout > 0 && self.started_at > 0 && now > self.started_at + self.timeout
+        self.timeout > 0 && self.started_at > 0 && now.saturating_sub(self.started_at) > self.timeout
     }
 
     #[inline(always)]

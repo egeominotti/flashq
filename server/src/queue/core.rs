@@ -789,11 +789,13 @@ impl QueueManager {
     /// Pull a job using PostgreSQL's SELECT FOR UPDATE SKIP LOCKED.
     /// This prevents duplicate job processing across cluster nodes.
     /// Use this in cluster mode for consistency at the cost of performance.
+    /// Uses exponential backoff on errors to avoid hammering a failed database.
     pub async fn pull_distributed(&self, queue_name: &str, timeout_ms: u64) -> Option<Job> {
         let storage = self.storage.as_ref()?;
         let deadline = now_ms() + timeout_ms;
         let idx = Self::shard_index(queue_name);
         let queue_arc = intern(queue_name);
+        let mut backoff_ms = 50u64; // Initial backoff
 
         loop {
             let now = now_ms();
@@ -830,7 +832,8 @@ impl QueueManager {
                     return Some(job);
                 }
                 Ok(None) => {
-                    // No jobs available
+                    // No jobs available - reset backoff
+                    backoff_ms = 50;
                     if now >= deadline {
                         return None;
                     }
@@ -842,7 +845,9 @@ impl QueueManager {
                     if now >= deadline {
                         return None;
                     }
-                    tokio::time::sleep(Duration::from_millis(100)).await;
+                    // Exponential backoff on errors (max 5 seconds)
+                    tokio::time::sleep(Duration::from_millis(backoff_ms)).await;
+                    backoff_ms = (backoff_ms * 2).min(5000);
                 }
             }
         }
@@ -850,6 +855,7 @@ impl QueueManager {
 
     /// Pull multiple jobs using PostgreSQL's SELECT FOR UPDATE SKIP LOCKED.
     /// Batch version of pull_distributed for better performance.
+    /// Uses exponential backoff on errors to avoid hammering a failed database.
     pub async fn pull_distributed_batch(
         &self,
         queue_name: &str,
@@ -863,6 +869,7 @@ impl QueueManager {
         let deadline = now_ms() + timeout_ms;
         let idx = Self::shard_index(queue_name);
         let queue_arc = intern(queue_name);
+        let mut backoff_ms = 50u64; // Initial backoff
 
         loop {
             let now = now_ms();
@@ -882,8 +889,10 @@ impl QueueManager {
             }
 
             // Try to claim jobs atomically from PostgreSQL
+            // Clamp count to i32::MAX to prevent overflow
+            let count_i32 = count.min(i32::MAX as usize) as i32;
             match storage
-                .pull_jobs_distributed_batch(queue_name, count as i32, now as i64)
+                .pull_jobs_distributed_batch(queue_name, count_i32, now as i64)
                 .await
             {
                 Ok(jobs) if !jobs.is_empty() => {
@@ -906,7 +915,8 @@ impl QueueManager {
                     return jobs;
                 }
                 Ok(_) => {
-                    // No jobs available
+                    // No jobs available - reset backoff
+                    backoff_ms = 50;
                     if now >= deadline {
                         return Vec::new();
                     }
@@ -917,7 +927,9 @@ impl QueueManager {
                     if now >= deadline {
                         return Vec::new();
                     }
-                    tokio::time::sleep(Duration::from_millis(100)).await;
+                    // Exponential backoff on errors (max 5 seconds)
+                    tokio::time::sleep(Duration::from_millis(backoff_ms)).await;
+                    backoff_ms = (backoff_ms * 2).min(5000);
                 }
             }
         }

@@ -19,7 +19,7 @@ use sqlx::{postgres::PgPoolOptions, PgPool};
 
 use crate::protocol::{CronJob, Job, WebhookConfig};
 
-pub use types::{ClusterSyncEvent, ClusterSyncSender, CLUSTER_SYNC_CHANNEL};
+pub use types::{ClusterSyncSender, CLUSTER_SYNC_CHANNEL};
 
 /// PostgreSQL storage layer for flashQ persistence.
 pub struct PostgresStorage {

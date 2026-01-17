@@ -16,21 +16,60 @@ mod websocket;
 mod workers;
 
 use axum::{
+    http::{header, Method},
     routing::{delete, get, post},
     Router,
 };
-use tower_http::cors::{Any, CorsLayer};
+use tower_http::cors::{AllowOrigin, CorsLayer};
 
 use crate::dashboard;
 
 pub use types::AppState;
 
+/// Create CORS layer based on environment configuration.
+/// Set CORS_ALLOW_ORIGIN env var for production (comma-separated list of origins).
+/// If not set, allows all origins (development mode).
+fn create_cors_layer() -> CorsLayer {
+    let allowed_origins = std::env::var("CORS_ALLOW_ORIGIN").ok();
+
+    let cors = match allowed_origins {
+        Some(origins) if !origins.is_empty() && origins != "*" => {
+            // Production: specific origins
+            let origins: Vec<_> = origins
+                .split(',')
+                .filter_map(|s| s.trim().parse().ok())
+                .collect();
+            CorsLayer::new()
+                .allow_origin(AllowOrigin::list(origins))
+                .allow_methods([
+                    Method::GET,
+                    Method::POST,
+                    Method::DELETE,
+                    Method::OPTIONS,
+                ])
+                .allow_headers([
+                    header::CONTENT_TYPE,
+                    header::AUTHORIZATION,
+                    header::ACCEPT,
+                ])
+        }
+        _ => {
+            // Development: allow all (with warning)
+            if std::env::var("CORS_ALLOW_ORIGIN").is_err() {
+                tracing::warn!(
+                    "CORS_ALLOW_ORIGIN not set - allowing all origins. Set this in production!"
+                );
+            }
+            CorsLayer::permissive()
+        }
+    };
+
+    cors
+}
+
 /// Create the HTTP router with all API routes.
 pub fn create_router(state: AppState) -> Router {
-    let cors = CorsLayer::new()
-        .allow_origin(Any)
-        .allow_methods(Any)
-        .allow_headers(Any);
+    let cors = create_cors_layer();
 
     // Initialize start time for uptime tracking
     settings::init_start_time();

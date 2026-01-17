@@ -32,6 +32,20 @@ use tracing::{error, info};
 
 pub const NUM_SHARDS: usize = 32;
 
+/// Constant-time byte slice comparison to prevent timing attacks.
+/// Returns true if slices are equal, false otherwise.
+#[inline]
+fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
+    if a.len() != b.len() {
+        return false;
+    }
+    let mut result = 0u8;
+    for (x, y) in a.iter().zip(b.iter()) {
+        result |= x ^ y;
+    }
+    result == 0
+}
+
 pub struct QueueManager {
     pub(crate) shards: Vec<RwLock<Shard>>,
     /// Sharded processing map - 32 shards for parallel ack/fail (6x less contention)
@@ -351,10 +365,20 @@ impl QueueManager {
         manager
     }
 
+    /// Verify authentication token using constant-time comparison to prevent timing attacks.
     #[inline]
     pub fn verify_token(&self, token: &str) -> bool {
         let tokens = self.auth_tokens.read();
-        tokens.is_empty() || tokens.contains(token)
+        if tokens.is_empty() {
+            return true;
+        }
+
+        // Use constant-time comparison to prevent timing attacks
+        let mut found = false;
+        for valid_token in tokens.iter() {
+            found |= constant_time_eq(token.as_bytes(), valid_token.as_bytes());
+        }
+        found
     }
 
     #[inline]

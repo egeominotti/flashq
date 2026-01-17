@@ -114,6 +114,7 @@ impl QueueManager {
     }
 
     /// Wait for job to complete and return result (finished() promise).
+    /// Cleans up waiter entries on timeout to prevent memory leaks.
     pub async fn wait_for_job(
         &self,
         id: u64,
@@ -143,10 +144,22 @@ impl QueueManager {
         match tokio::time::timeout(std::time::Duration::from_millis(timeout), rx).await {
             Ok(Ok(result)) => Ok(result),
             Ok(Err(_)) => Err("Waiter channel closed".to_string()),
-            Err(_) => Err(format!(
-                "Timeout waiting for job {} after {}ms",
-                id, timeout
-            )),
+            Err(_) => {
+                // Clean up on timeout to prevent memory leak
+                let mut waiters = self.job_waiters.write();
+                if let Some(list) = waiters.get_mut(&id) {
+                    // Remove closed channels (including ours)
+                    list.retain(|w| !w.is_closed());
+                    // Remove the entry entirely if empty
+                    if list.is_empty() {
+                        waiters.remove(&id);
+                    }
+                }
+                Err(format!(
+                    "Timeout waiting for job {} after {}ms",
+                    id, timeout
+                ))
+            }
         }
     }
 

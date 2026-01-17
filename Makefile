@@ -1,123 +1,190 @@
 # FlashQ Makefile
+# ===============
 
-.PHONY: dev run server release test postgres up down logs clean dashboard stress restart stop
+.PHONY: dev run server release test postgres up down logs clean dashboard stress restart stop fmt lint check help
 
+# Configuration (override with environment variables)
+DATABASE_URL ?= postgres://flashq:flashq@localhost:5432/flashq
+HTTP_PORT ?= 6790
+TCP_PORT ?= 6789
+PIDFILE := /tmp/flashq.pid
+
+# =============
 # Development
+# =============
+
 dev:
 	cd server && cargo run
 
-# Run server with HTTP API (in-memory)
-server:
-	cd server && HTTP=1 GRPC=1 cargo run --release
-
-# Run with HTTP API and Dashboard
 run:
 	cd server && HTTP=1 cargo run
 
-# Release build with HTTP
+server:
+	cd server && HTTP=1 GRPC=1 cargo run --release
+
 release:
 	cd server && HTTP=1 cargo run --release
 
-# Run tests
+# =============
+# Code Quality
+# =============
+
+fmt:
+	cd server && cargo fmt
+
+lint:
+	cd server && cargo clippy -- -D warnings
+
+check:
+	cd server && cargo fmt --check && cargo clippy -- -D warnings
+	@echo "Code quality checks passed"
+
 test:
 	cd server && cargo test
 
-# Start PostgreSQL only
+# =============
+# Docker
+# =============
+
 postgres:
 	docker-compose up -d postgres
 
-# Start everything (PostgreSQL + wait)
 up:
 	docker-compose up -d postgres
 	@echo "Waiting for PostgreSQL..."
-	@sleep 3
+	@until docker-compose exec -T postgres pg_isready -U flashq > /dev/null 2>&1; do \
+		sleep 1; \
+	done
 	@echo "PostgreSQL ready!"
 
-# Stop all containers
 down:
 	docker-compose down
 
-# View logs
 logs:
 	docker-compose logs -f
 
-# Run with PostgreSQL persistence
-persist:
-	docker-compose up -d postgres
-	@sleep 3
-	cd server && DATABASE_URL=postgres://flashq:flashq@localhost:5432/flashq HTTP=1 cargo run --release
-
-# Open dashboard in browser (macOS)
-dashboard:
-	open http://localhost:6790
-
-# Run SDK comprehensive tests
-sdk-test:
-	cd sdk/typescript && bun run examples/comprehensive-test.ts
-
-# Run stress tests
-stress:
-	cd sdk/typescript && bun run examples/stress-test.ts
-
-# Clean build artifacts
-clean:
-	cd server && cargo clean
-	docker-compose down -v
-
-# Build Docker image
 docker-build:
 	docker build -t flashq .
 
-# Full test: start postgres, run server, run tests
-full-test: up
-	@echo "Starting server with persistence..."
-	cd server && DATABASE_URL=postgres://flashq:flashq@localhost:5432/flashq HTTP=1 cargo run --release &
-	@sleep 5
-	@echo "Running SDK tests..."
-	cd sdk/typescript && bun run examples/comprehensive-test.ts
+# =============
+# Server Management
+# =============
 
-# Stop server
+persist: up
+	cd server && DATABASE_URL=$(DATABASE_URL) HTTP=1 cargo run --release
+
 stop:
-	@pkill -f flashq-server 2>/dev/null || echo "Server not running"
-	@echo "Server stopped"
+	@if [ -f $(PIDFILE) ]; then \
+		kill $$(cat $(PIDFILE)) 2>/dev/null || true; \
+		rm -f $(PIDFILE); \
+		echo "Server stopped"; \
+	else \
+		pkill -f "target/release/flashq-server" 2>/dev/null || echo "Server not running"; \
+	fi
 
-# Restart server (with persistence)
-restart: stop
+restart: stop up
 	@sleep 1
-	@cd server && DATABASE_URL=postgres://flashq:flashq@localhost:5432/flashq HTTP=1 cargo run --release --bin flashq-server &
-	@sleep 3
-	@echo "Server restarted with PostgreSQL persistence"
-	@echo "Dashboard: http://localhost:6790"
+	@cd server && DATABASE_URL=$(DATABASE_URL) HTTP=1 \
+		nohup cargo run --release > /tmp/flashq.log 2>&1 & echo $$! > $(PIDFILE)
+	@echo "Waiting for server..."
+	@for i in $$(seq 1 30); do \
+		curl -s http://localhost:$(HTTP_PORT)/health > /dev/null 2>&1 && break; \
+		sleep 1; \
+	done
+	@curl -s http://localhost:$(HTTP_PORT)/health > /dev/null 2>&1 || \
+		(echo "Server failed to start" && cat /tmp/flashq.log && exit 1)
+	@echo "Server ready at http://localhost:$(HTTP_PORT)"
 
-# Restart server (memory only)
 restart-mem: stop
 	@sleep 1
-	@cd server && HTTP=1 cargo run --release --bin flashq-server &
-	@sleep 3
+	@cd server && HTTP=1 \
+		nohup cargo run --release > /tmp/flashq.log 2>&1 & echo $$! > $(PIDFILE)
+	@echo "Waiting for server..."
+	@for i in $$(seq 1 15); do \
+		curl -s http://localhost:$(HTTP_PORT)/health > /dev/null 2>&1 && break; \
+		sleep 1; \
+	done
 	@echo "Server restarted (memory only)"
-	@echo "Dashboard: http://localhost:6790"
+	@echo "Dashboard: http://localhost:$(HTTP_PORT)"
 
+# =============
+# Testing
+# =============
+
+sdk-test:
+	cd sdk/typescript && bun run examples/comprehensive-test.ts
+
+stress:
+	cd sdk/typescript && bun run examples/stress-test.ts
+
+full-test: up
+	@echo "Starting server..."
+	@cd server && DATABASE_URL=$(DATABASE_URL) HTTP=1 \
+		nohup cargo run --release > /tmp/flashq.log 2>&1 & echo $$! > $(PIDFILE)
+	@echo "Waiting for server..."
+	@for i in $$(seq 1 60); do \
+		curl -s http://localhost:$(HTTP_PORT)/health > /dev/null 2>&1 && break; \
+		sleep 1; \
+	done
+	@curl -s http://localhost:$(HTTP_PORT)/health > /dev/null 2>&1 || \
+		(echo "Server failed to start" && cat /tmp/flashq.log && exit 1)
+	@echo "Server ready, running tests..."
+	cd sdk/typescript && bun run examples/comprehensive-test.ts
+	@$(MAKE) stop
+	@echo "Full test completed"
+
+# =============
+# Utilities
+# =============
+
+dashboard:
+ifeq ($(shell uname),Darwin)
+	open http://localhost:$(HTTP_PORT)
+else ifeq ($(shell uname),Linux)
+	xdg-open http://localhost:$(HTTP_PORT) 2>/dev/null || echo "Open http://localhost:$(HTTP_PORT)"
+else
+	@echo "Open http://localhost:$(HTTP_PORT) in your browser"
+endif
+
+clean:
+	cd server && cargo clean
+	docker-compose down -v
+	rm -f $(PIDFILE) /tmp/flashq.log
+
+# =============
 # Help
+# =============
+
 help:
-	@echo "FlashQ Commands:"
+	@echo "FlashQ Commands"
 	@echo ""
-	@echo "  Server:"
-	@echo "    make server     - Run release server (HTTP + gRPC, in-memory)"
-	@echo "    make persist    - Run with PostgreSQL persistence"
-	@echo "    make dev        - Run server in dev mode"
-	@echo "    make stop       - Stop running server"
-	@echo "    make restart    - Restart server with PostgreSQL"
+	@echo "Server:"
+	@echo "  make server      Run release server (HTTP + gRPC, in-memory)"
+	@echo "  make persist     Run with PostgreSQL persistence"
+	@echo "  make dev         Run server in dev mode"
+	@echo "  make stop        Stop running server"
+	@echo "  make restart     Restart server with PostgreSQL"
+	@echo "  make restart-mem Restart server (memory only)"
 	@echo ""
-	@echo "  Docker:"
-	@echo "    make up         - Start PostgreSQL container"
-	@echo "    make down       - Stop all containers"
-	@echo "    make logs       - View container logs"
+	@echo "Code Quality:"
+	@echo "  make fmt         Format code"
+	@echo "  make lint        Run clippy"
+	@echo "  make check       Run fmt --check + clippy"
 	@echo ""
-	@echo "  Testing:"
-	@echo "    make test       - Run Rust unit tests"
-	@echo "    make sdk-test   - Run SDK comprehensive tests"
-	@echo "    make stress     - Run stress tests"
+	@echo "Docker:"
+	@echo "  make up          Start PostgreSQL container"
+	@echo "  make down        Stop all containers"
+	@echo "  make logs        View container logs"
+	@echo "  make docker-build Build Docker image"
 	@echo ""
-	@echo "  Other:"
-	@echo "    make dashboard  - Open dashboard in browser"
-	@echo "    make clean      - Clean build artifacts"
+	@echo "Testing:"
+	@echo "  make test        Run Rust unit tests"
+	@echo "  make sdk-test    Run SDK comprehensive tests"
+	@echo "  make stress      Run stress tests"
+	@echo "  make full-test   Full integration test"
+	@echo ""
+	@echo "Other:"
+	@echo "  make dashboard   Open dashboard in browser"
+	@echo "  make clean       Clean build artifacts"
+
+.DEFAULT_GOAL := help
