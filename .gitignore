@@ -132,3 +132,6 @@ flamegraph.svg
 *.temp
 *.orig
 *.rej
+
+# ============== Test Project ==============
+/test-project/
