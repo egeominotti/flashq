@@ -7,30 +7,31 @@ import type {
   ClientOptions,
 } from './types';
 
+export interface BullMQWorkerOptions extends WorkerOptions, ClientOptions {
+  /** Auto-start worker (BullMQ-compatible, default: true) */
+  autorun?: boolean;
+}
+
 /**
- * FlashQ Worker
- *
- * High-performance job processor using batch operations by default.
- * Processes jobs from one or more queues with configurable concurrency.
+ * FlashQ Worker (BullMQ-compatible)
  *
  * @example
  * ```typescript
- * // Simple usage - uses batch mode by default (15x faster)
+ * // BullMQ-style: auto-starts by default
  * const worker = new Worker('emails', async (job) => {
- *   await sendEmail(job.data.to, job.data.subject, job.data.body);
+ *   await sendEmail(job.data.to);
  *   return { sent: true };
  * });
  *
+ * // With options
+ * const worker = new Worker('tasks', processor, {
+ *   concurrency: 10,
+ *   autorun: false,  // disable auto-start
+ * });
  * await worker.start();
  *
- * // High-performance configuration
- * const worker = new Worker('tasks', processor, {
- *   concurrency: 20,    // 20 parallel workers
- *   batchSize: 100,     // 100 jobs per batch (default)
- * });
- *
  * // Graceful shutdown
- * process.on('SIGTERM', () => worker.stop());
+ * process.on('SIGTERM', () => worker.close());
  * ```
  */
 export class Worker<T = unknown, R = unknown> extends EventEmitter {
@@ -38,7 +39,7 @@ export class Worker<T = unknown, R = unknown> extends EventEmitter {
   private clientOptions: ClientOptions;
   private queues: string[];
   private processor: JobProcessor<T, R>;
-  private options: Required<WorkerOptions>;
+  private options: Required<WorkerOptions> & { autorun: boolean };
   private running = false;
   private processing = 0;
   private jobsProcessed = 0;
@@ -48,17 +49,18 @@ export class Worker<T = unknown, R = unknown> extends EventEmitter {
   constructor(
     queues: string | string[],
     processor: JobProcessor<T, R>,
-    options: WorkerOptions & ClientOptions = {}
+    options: BullMQWorkerOptions = {}
   ) {
     super();
     this.queues = Array.isArray(queues) ? queues : [queues];
     this.processor = processor;
     this.options = {
       id: options.id ?? `worker-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-      concurrency: options.concurrency ?? 10,      // Default 10 workers
-      batchSize: options.batchSize ?? 100,         // Default 100 jobs per batch
+      concurrency: options.concurrency ?? 10,
+      batchSize: options.batchSize ?? 100,
       heartbeatInterval: options.heartbeatInterval ?? 1000,
       autoAck: options.autoAck ?? true,
+      autorun: options.autorun ?? true,  // BullMQ-compatible: auto-start
     };
 
     this.clientOptions = {
@@ -67,8 +69,12 @@ export class Worker<T = unknown, R = unknown> extends EventEmitter {
       httpPort: options.httpPort,
       token: options.token,
       timeout: options.timeout,
-      useHttp: options.useHttp,
     };
+
+    // Auto-start if enabled (BullMQ-compatible)
+    if (this.options.autorun) {
+      this.start();
+    }
   }
 
   /**
@@ -94,6 +100,13 @@ export class Worker<T = unknown, R = unknown> extends EventEmitter {
     for (let i = 0; i < this.options.concurrency; i++) {
       this.workers.push(this.batchWorkerLoop(i, this.clients[i]));
     }
+  }
+
+  /**
+   * Close the worker (BullMQ-compatible alias for stop)
+   */
+  async close(): Promise<void> {
+    return this.stop();
   }
 
   /**

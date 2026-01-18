@@ -1,28 +1,33 @@
 /**
- * flashQ - High-performance Job Queue
+ * flashQ - High-performance Job Queue (BullMQ-compatible)
  *
  * @example
  * ```typescript
- * import { FlashQ, Worker } from 'flashq';
+ * import { Queue, Worker } from 'flashq';
  *
- * // Add a job
- * const client = new FlashQ();
- * await client.add('emails', { to: 'user@example.com' });
+ * // Add jobs
+ * const queue = new Queue('emails');
+ * await queue.add('send', { to: 'user@example.com' });
  *
- * // Process jobs
+ * // Process jobs (auto-starts)
  * const worker = new Worker('emails', async (job) => {
  *   await sendEmail(job.data);
  *   return { sent: true };
  * });
- * await worker.start();
  * ```
  *
  * @packageDocumentation
  */
 
-// Main exports
-export { FlashQ, FlashQ as default } from './client';
+// BullMQ-compatible API
+export { Queue } from './queue';
+export type { QueueOptions, JobOptions } from './queue';
+
 export { Worker } from './worker';
+export type { BullMQWorkerOptions } from './worker';
+
+// Low-level API
+export { FlashQ, FlashQ as default } from './client';
 
 // Optional: Real-time events
 export { EventSubscriber } from './events';

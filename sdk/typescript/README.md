@@ -1,145 +1,112 @@
 # flashQ TypeScript SDK
 
-High-performance job queue client for [flashQ](https://github.com/egeominotti/flashq).
+BullMQ-compatible API for [flashQ](https://github.com/egeominotti/flashq).
 
 ## Installation
 
 ```bash
 bun add flashq
-# or
-npm install flashq
 ```
 
 ## Quick Start
 
 ```typescript
-import { FlashQ, Worker } from 'flashq';
+import { Queue, Worker } from 'flashq';
 
-// Create client
-const client = new FlashQ();
+// Create queue
+const queue = new Queue('emails');
 
-// Add a job
-await client.add('emails', { to: 'user@example.com' });
+// Add job
+await queue.add('send', { to: 'user@example.com' });
 
-// Process jobs
+// Process jobs (auto-starts)
 const worker = new Worker('emails', async (job) => {
-  console.log('Sending email to:', job.data.to);
+  console.log('Processing:', job.data);
   return { sent: true };
 });
-
-await worker.start();
 ```
 
-## API
-
-### FlashQ Client
+## Queue
 
 ```typescript
-const client = new FlashQ({
-  host: 'localhost',  // default
-  port: 6789,         // default
-  token: 'secret',    // optional auth
-});
-```
-
-#### Add Jobs
-
-```typescript
-// Simple
-await client.add('queue', { data: 'here' });
-
-// With options
-await client.add('queue', data, {
-  priority: 10,      // higher = first
-  delay: 5000,       // run in 5s
-  max_attempts: 3,   // retry on failure
-  backoff: 1000,     // exponential backoff
-  timeout: 30000,    // processing timeout
-  unique_key: 'id',  // deduplication
+const queue = new Queue('emails', {
+  host: 'localhost',
+  port: 6789,
 });
 
-// Batch (up to 1000)
-await client.addBulk('queue', [
-  { data: { id: 1 } },
-  { data: { id: 2 }, priority: 10 },
+// Add single job
+await queue.add('send', data, {
+  priority: 10,
+  delay: 5000,
+  attempts: 3,
+  backoff: { type: 'exponential', delay: 1000 },
+});
+
+// Add bulk
+await queue.addBulk([
+  { name: 'send', data: { to: 'a@test.com' } },
+  { name: 'send', data: { to: 'b@test.com' }, opts: { priority: 10 } },
 ]);
+
+// Control
+await queue.pause();
+await queue.resume();
+await queue.drain();      // remove waiting
+await queue.obliterate(); // remove all
 ```
 
-#### Query Jobs
+## Worker
 
 ```typescript
-const job = await client.getJob(jobId);
-const state = await client.getState(jobId);
-const result = await client.getResult(jobId);
-```
-
-#### Queue Control
-
-```typescript
-await client.pause('queue');
-await client.resume('queue');
-await client.drain('queue');      // remove waiting jobs
-await client.obliterate('queue'); // remove everything
-```
-
-### Worker
-
-```typescript
-const worker = new Worker('queue', async (job) => {
-  // Process job
-  return { result: 'data' };
+// Auto-starts by default (like BullMQ)
+const worker = new Worker('emails', async (job) => {
+  return { done: true };
 }, {
-  concurrency: 10,  // parallel jobs
+  concurrency: 10,
 });
 
-await worker.start();
-await worker.stop();
-```
-
-#### Worker Events
-
-```typescript
+// Events
 worker.on('completed', (job, result) => {});
 worker.on('failed', (job, error) => {});
-worker.on('error', (error) => {});
+
+// Shutdown
+await worker.close();
 ```
 
+## Job Options
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `priority` | number | Higher = first (default: 0) |
+| `delay` | number | Delay in ms |
+| `attempts` | number | Retry count |
+| `backoff` | number \| object | Backoff config |
+| `timeout` | number | Processing timeout |
+| `jobId` | string | Custom ID |
+
 ## Examples
-
-See [`examples/`](./examples/) for complete examples:
-
-| File | Description |
-|------|-------------|
-| 01-basic.ts | Push, pull, ack |
-| 02-worker.ts | Automatic processing |
-| 03-delayed.ts | Scheduled jobs |
-| 04-priority.ts | Job priority |
-| 05-batch.ts | Batch operations |
-| 06-retry.ts | Retry & DLQ |
-| 07-progress.ts | Progress tracking |
-| 08-cron.ts | Cron jobs |
-| 09-stats.ts | Metrics |
-| 10-benchmark.ts | Performance test |
-| 11-flow.ts | Job dependencies |
-| 12-unique.ts | Deduplication |
-| 13-rate-limit.ts | Rate limiting |
-| 14-concurrency.ts | Concurrency control |
-| 15-pause-resume.ts | Queue control |
-| 16-cancel.ts | Job cancellation |
-| 17-idempotency.ts | Custom job IDs |
-| 18-events.ts | Lifecycle events |
-
-Run examples:
 
 ```bash
 bun run examples/01-basic.ts
 ```
 
+| File | Description |
+|------|-------------|
+| 01-basic.ts | Queue + Worker basics |
+| 02-job-options.ts | Priority, delay, retry |
+| 03-bulk-jobs.ts | Add multiple jobs |
+| 04-events.ts | Worker events |
+| 05-queue-control.ts | Pause, resume, drain |
+| 06-delayed.ts | Scheduled jobs |
+| 07-retry.ts | Retry with backoff |
+| 08-priority.ts | Priority ordering |
+| 09-concurrency.ts | Parallel processing |
+| 10-benchmark.ts | Performance test |
+
 ## Performance
 
-- **Push**: 600,000+ jobs/sec
-- **Process**: 200,000+ jobs/sec
-- **Latency**: < 1ms
+- **Push**: 600K+ jobs/sec
+- **Process**: 200K+ jobs/sec
 
 ## License
 

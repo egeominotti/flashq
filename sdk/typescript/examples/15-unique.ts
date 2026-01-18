@@ -7,15 +7,15 @@ const client = new FlashQ();
 
 await client.obliterate('orders');
 
-// Push job with unique key
-const job1 = await client.push('orders', { orderId: 123 }, {
+// Push with unique key
+const job1 = await client.add('orders', { orderId: 123 }, {
   unique_key: 'order-123'
 });
 console.log('First push:', job1.id);
 
-// Try to push duplicate - server rejects it
+// Duplicate is rejected
 try {
-  await client.push('orders', { orderId: 123 }, {
+  await client.add('orders', { orderId: 123 }, {
     unique_key: 'order-123'
   });
 } catch (e: any) {
@@ -23,14 +23,14 @@ try {
 }
 
 // Different key = new job
-const job3 = await client.push('orders', { orderId: 456 }, {
+const job2 = await client.add('orders', { orderId: 456 }, {
   unique_key: 'order-456'
 });
-console.log('Different key:', job3.id);
+console.log('Different key:', job2.id);
 
-// Check queue count
+// Check count
 const count = await client.count('orders');
-console.log(`\nQueue has ${count} unique jobs (duplicates rejected)`);
+console.log(`\nQueue has ${count} unique jobs`);
 
 await client.obliterate('orders');
 await client.close();

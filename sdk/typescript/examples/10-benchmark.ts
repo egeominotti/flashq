@@ -1,40 +1,47 @@
 /**
  * Benchmark - Measure throughput
  */
-import { FlashQ } from '../src';
+import { Queue, Worker } from '../src';
 
 const JOBS = 10_000;
-const BATCH_SIZE = 1000; // Server limit
-const client = new FlashQ();
+const BATCH = 1000;
 
-// Cleanup
-await client.obliterate('bench');
+const queue = new Queue('benchmark');
+await queue.obliterate();
 
-// Push in batches (server has 1000 job batch limit)
+// Push in batches
 console.log(`Pushing ${JOBS.toLocaleString()} jobs...`);
 const pushStart = Date.now();
-for (let i = 0; i < JOBS; i += BATCH_SIZE) {
-  const batch = Array.from({ length: Math.min(BATCH_SIZE, JOBS - i) }, (_, j) => ({ data: { i: i + j } }));
-  await client.pushBatch('bench', batch);
+
+for (let i = 0; i < JOBS; i += BATCH) {
+  const jobs = Array.from({ length: Math.min(BATCH, JOBS - i) }, (_, j) => ({
+    name: 'task',
+    data: { i: i + j }
+  }));
+  await queue.addBulk(jobs);
 }
+
 const pushTime = Date.now() - pushStart;
 console.log(`Push: ${Math.round(JOBS / pushTime * 1000).toLocaleString()} jobs/sec`);
 
-// Pull and ack
-console.log('Processing...');
-const processStart = Date.now();
+// Process
 let processed = 0;
+const processStart = Date.now();
 
+const worker = new Worker('benchmark', async () => {
+  processed++;
+  return { ok: true };
+}, { concurrency: 20 });
+
+// Wait for all jobs
 while (processed < JOBS) {
-  const batch = await client.pullBatch('bench', 100, 1000);
-  if (batch.length === 0) break;
-  await client.ackBatch(batch.map(j => j.id));
-  processed += batch.length;
+  await new Promise(r => setTimeout(r, 100));
 }
 
 const processTime = Date.now() - processStart;
 console.log(`Process: ${Math.round(processed / processTime * 1000).toLocaleString()} jobs/sec`);
-console.log(`Total: ${processed}/${JOBS}`);
+console.log(`Total: ${processed.toLocaleString()} jobs`);
 
-await client.obliterate('bench');
-await client.close();
+await worker.close();
+await queue.obliterate();
+await queue.close();

@@ -1,5 +1,5 @@
 /**
- * Flows - Parent/Child Job Dependencies
+ * Job Flow - Parent/Child Dependencies
  */
 import { FlashQ, Worker } from '../src';
 
@@ -8,24 +8,23 @@ const client = new FlashQ();
 await client.obliterate('sections');
 await client.obliterate('report');
 
-// Child worker - processes individual sections
+// Child worker
 const childWorker = new Worker('sections', async (job) => {
   console.log(`Processing section: ${job.data.section}`);
   await new Promise(r => setTimeout(r, 300));
   return { section: job.data.section, done: true };
-}, { concurrency: 3 });
+}, { autorun: false, concurrency: 3 });
 
-// Parent worker - runs after all children complete
+// Parent worker (runs after all children)
 const parentWorker = new Worker('report', async (job) => {
-  console.log(`\nGenerating final report: ${job.data.type}`);
+  console.log(`\nGenerating report: ${job.data.type}`);
   return { report: 'complete' };
-}, { concurrency: 1 });
+}, { autorun: false });
 
 await childWorker.start();
 await parentWorker.start();
 
-// Push a flow: parent waits for all children
-console.log('Pushing flow with 3 children...');
+// Push flow: parent waits for children
 const flow = await client.pushFlow(
   'report',
   { type: 'monthly' },
@@ -36,14 +35,11 @@ const flow = await client.pushFlow(
   ]
 );
 
-console.log(`Parent ID: ${flow.parent_id}`);
-console.log(`Children IDs: ${flow.children_ids.join(', ')}\n`);
+console.log(`Parent: ${flow.parent_id}`);
+console.log(`Children: ${flow.children_ids.join(', ')}\n`);
 
-// Wait for all processing
-await new Promise(r => setTimeout(r, 2000));
+await new Promise(r => setTimeout(r, 3000));
 
-await childWorker.stop();
-await parentWorker.stop();
-await client.obliterate('sections');
-await client.obliterate('report');
+await childWorker.close();
+await parentWorker.close();
 await client.close();

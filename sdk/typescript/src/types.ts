@@ -64,8 +64,14 @@ export interface PushOptions {
 }
 
 export interface WorkerOptions {
+  /** Worker ID */
+  id?: string;
   /** Parallel job processing (default: 10) */
   concurrency?: number;
+  /** Jobs per batch (default: 100) */
+  batchSize?: number;
+  /** Heartbeat interval in ms (default: 1000) */
+  heartbeatInterval?: number;
   /** Auto-ack on success (default: true) */
   autoAck?: boolean;
 }

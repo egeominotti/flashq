@@ -1,23 +1,31 @@
 /**
- * Basic Usage - Push, Pull, Ack
+ * Basic Usage - BullMQ-style API
  */
-import { FlashQ } from '../src';
+import { Queue, Worker } from '../src';
 
-const client = new FlashQ();
+// Create queue
+const emailQueue = new Queue('emails');
 
-// Push a job
-const job = await client.push('emails', {
+// Add a job
+const job = await emailQueue.add('welcome', {
   to: 'user@example.com',
-  subject: 'Hello',
+  subject: 'Welcome!'
 });
-console.log('Pushed:', job.id);
+console.log('Added job:', job.id);
 
-// Pull and process
-const pulled = await client.pull('emails');
-if (pulled) {
-  console.log('Processing:', pulled.data);
-  await client.ack(pulled.id);
-  console.log('Done!');
-}
+// Create worker (auto-starts)
+const worker = new Worker('emails', async (job) => {
+  console.log('Processing:', job.data);
+  return { sent: true };
+});
 
-await client.close();
+worker.on('completed', (job, result) => {
+  console.log('Completed:', job.id, result);
+});
+
+// Wait for processing
+await new Promise(r => setTimeout(r, 2000));
+
+// Cleanup
+await worker.close();
+await emailQueue.close();
