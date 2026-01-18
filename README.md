@@ -32,6 +32,36 @@ Same API. Single binary. 10x faster. Built with Rust.
 
 ---
 
+## Feature Comparison
+
+| Feature | flashQ | BullMQ-Pro | BullMQ | Bull | Kue | Bee | Agenda |
+|---------|:------:|:----------:|:------:|:----:|:---:|:---:|:------:|
+| **Backend** | postgres | redis | redis | redis | redis | redis | mongo |
+| Observables | ✓ | ✓ | | | | | |
+| Group Rate Limit | | ✓ | | | | | |
+| Group Support | | ✓ | | | | | |
+| Batches Support | ✓ | ✓ | | | | | |
+| Parent/Child Dependencies | ✓ | ✓ | ✓ | | | | |
+| Deduplication (Debouncing) | ✓ | ✓ | ✓ | ✓ | | | |
+| Deduplication (Throttling) | ✓ | ✓ | ✓ | ✓ | | | |
+| Priorities | ✓ | ✓ | ✓ | ✓ | ✓ | | ✓ |
+| Concurrency | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Delayed jobs | ✓ | ✓ | ✓ | ✓ | ✓ | | ✓ |
+| Global events | ✓ | ✓ | ✓ | ✓ | ✓ | | |
+| Rate Limiter | ✓ | ✓ | ✓ | ✓ | | | |
+| Pause/Resume | ✓ | ✓ | ✓ | ✓ | ✓ | | |
+| Sandboxed worker | ✓ | ✓ | ✓ | ✓ | | | |
+| Repeatable jobs | ✓ | ✓ | ✓ | ✓ | | | ✓ |
+| Atomic ops | ✓ | ✓ | ✓ | ✓ | | ✓ | |
+| Persistence | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| UI | ✓ | ✓ | ✓ | ✓ | ✓ | | ✓ |
+| **gRPC API** | ✓ | | | | | | |
+| **Cluster/HA** | ✓ | | | | | | |
+| **Binary Protocol** | ✓ | | | | | | |
+| Optimized for | Jobs | Jobs | Jobs | Jobs | Jobs | Msgs | Jobs |
+
+---
+
 ## Built for AI Workloads
 
 flashQ is designed for modern AI/ML pipelines with **10MB payload support** for embeddings, images, and large contexts.
