@@ -1,43 +1,135 @@
-# Rust
+# ============== Rust ==============
 /server/target/
+/target/
 **/*.rs.bk
+Cargo.lock
+*.rlib
+*.rmeta
 
-# Node/Bun
-/client/node_modules/
-/client/bun.lockb
-/sdk/typescript/node_modules/
+# ============== Node/Bun ==============
+node_modules/
+bun.lockb
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+.npm/
+.yarn/
+.pnp.*
 
-# PHP
+# ============== TypeScript ==============
+*.tsbuildinfo
+dist/
+build/
+*.js.map
+*.d.ts.map
+
+# ============== PHP ==============
 /sdk/php/vendor/
 /sdk/php/composer.lock
 
-# Python
-/python/__pycache__/
-/python/**/__pycache__/
-/python/*.egg-info/
-/python/dist/
-/python/build/
-*.pyc
-*.pyo
+# ============== Python ==============
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+*.egg
+dist/
+build/
+.eggs/
+.python-version
+venv/
+.venv/
+pip-log.txt
 
-# IDE
+# ============== IDE ==============
 .idea/
 .vscode/
 *.swp
 *.swo
 *~
+*.sublime-*
+.project
+.classpath
+.settings/
+*.iml
 
-# OS
+# ============== OS ==============
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
 Thumbs.db
+ehthumbs.db
+Desktop.ini
 
-# Runtime
+# ============== Environment ==============
+.env
+.env.*
+!.env.example
+*.local
+
+# ============== Logs & Debug ==============
 *.log
+*.log.*
+logs/
+debug/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ============== Runtime & Data ==============
 *.wal
 flashq.wal
+*.db
+*.sqlite
+*.sqlite3
+data/
+tmp/
+temp/
 
-# Build artifacts
+# ============== Build Artifacts ==============
 *.exe
 *.dll
 *.so
 *.dylib
+*.a
+*.o
+*.obj
+*.lib
+
+# ============== Test & Coverage ==============
+coverage/
+.nyc_output/
+*.lcov
+.coverage
+htmlcov/
+
+# ============== Docker ==============
+docker-compose.override.yml
+.docker/
+
+# ============== Secrets & Credentials ==============
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+secrets/
+credentials/
+.secrets
+
+# ============== Profiling ==============
+*.prof
+*.perf
+perf.data
+flamegraph.svg
+*.trace
+
+# ============== Misc ==============
+*.bak
+*.backup
+*.tmp
+*.temp
+*.orig
+*.rej
