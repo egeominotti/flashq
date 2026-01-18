@@ -130,6 +130,9 @@ export class EventSubscriber extends EventEmitter {
   private reconnectAttempts = 0;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private closed = false;
+  // Store handlers for proper cleanup
+  private sseHandlers: Map<string, (e: Event) => void> = new Map();
+  private wsMessageHandler: ((e: MessageEvent) => void) | null = null;
 
   constructor(options: EventSubscriberOptions = {}) {
     super();
@@ -192,12 +195,19 @@ export class EventSubscriber extends EventEmitter {
       this.reconnectTimer = null;
     }
 
+    // Clean up SSE handlers to prevent memory leak
     if (this.eventSource) {
+      for (const [eventType, handler] of this.sseHandlers) {
+        this.eventSource.removeEventListener(eventType, handler);
+      }
+      this.sseHandlers.clear();
       this.eventSource.close();
       this.eventSource = null;
     }
 
+    // Clean up WebSocket
     if (this.websocket) {
+      this.wsMessageHandler = null;
       this.websocket.close();
       this.websocket = null;
     }
@@ -249,6 +259,9 @@ export class EventSubscriber extends EventEmitter {
           }
         };
 
+        // Clear any existing handlers
+        this.sseHandlers.clear();
+
         // Listen for specific event types
         const eventTypes: EventType[] = ['pushed', 'completed', 'failed', 'progress', 'timeout'];
 
@@ -264,6 +277,7 @@ export class EventSubscriber extends EventEmitter {
               // Ignore parse errors
             }
           };
+          this.sseHandlers.set(eventType, handler);
           this.eventSource.addEventListener(eventType, handler);
         }
       } catch (error) {
@@ -312,14 +326,15 @@ export class EventSubscriber extends EventEmitter {
           }
         };
 
-        this.websocket.onerror = (error) => {
+        this.websocket.onerror = () => {
           this.emit('error', new Error('WebSocket error'));
           if (!this.connected) {
             reject(new Error('Failed to connect to WebSocket'));
           }
         };
 
-        this.websocket.onmessage = (e: MessageEvent) => {
+        // Store message handler for cleanup
+        this.wsMessageHandler = (e: MessageEvent) => {
           try {
             const rawEvent = JSON.parse(e.data);
             const event = this.normalizeEvent(rawEvent);
@@ -329,6 +344,7 @@ export class EventSubscriber extends EventEmitter {
             // Ignore parse errors
           }
         };
+        this.websocket.onmessage = this.wsMessageHandler;
       } catch (error) {
         reject(error);
       }

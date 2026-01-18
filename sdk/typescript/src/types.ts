@@ -119,6 +119,14 @@ export interface ClientOptions {
   useHttp?: boolean;
   /** Use binary (MessagePack) protocol */
   useBinary?: boolean;
+  /** Enable auto-reconnect on connection loss (default: true) */
+  autoReconnect?: boolean;
+  /** Max reconnect attempts (default: 10, 0 = infinite) */
+  maxReconnectAttempts?: number;
+  /** Initial reconnect delay in ms (default: 1000) */
+  reconnectDelay?: number;
+  /** Max reconnect delay in ms (default: 30000) */
+  maxReconnectDelay?: number;
 }
 
 // ============== Queue Info ==============

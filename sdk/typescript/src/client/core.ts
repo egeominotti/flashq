@@ -2,9 +2,14 @@
  * Core operations: push, pull, ack, fail
  */
 import type { IFlashQClient, Job, PushOptions } from './types';
+import {
+  validateQueueName,
+  validateJobDataSize,
+  MAX_BATCH_SIZE,
+  MAX_JOB_DATA_SIZE,
+} from '../client/connection';
 
-/** Maximum batch size allowed by the server */
-export const MAX_BATCH_SIZE = 1000;
+export { MAX_BATCH_SIZE, MAX_JOB_DATA_SIZE };
 
 /**
  * Push a job to a queue.
@@ -26,6 +31,9 @@ export async function push<T = unknown>(
   data: T,
   options: PushOptions = {}
 ): Promise<Job> {
+  validateQueueName(queue);
+  validateJobDataSize(data);
+
   const response = await client.send<{ ok: boolean; id: number }>({
     cmd: 'PUSH',
     queue,
@@ -104,8 +112,14 @@ export async function pushBatch<T = unknown>(
   queue: string,
   jobs: Array<{ data: T } & PushOptions>
 ): Promise<number[]> {
+  validateQueueName(queue);
   if (jobs.length > MAX_BATCH_SIZE) {
     throw new Error(`Batch size ${jobs.length} exceeds maximum allowed (${MAX_BATCH_SIZE})`);
+  }
+
+  // Validate each job's data size
+  for (const job of jobs) {
+    validateJobDataSize(job.data);
   }
 
   const response = await client.send<{ ok: boolean; ids: number[] }>({
@@ -157,6 +171,7 @@ export async function pull<T = unknown>(
   queue: string,
   timeout?: number
 ): Promise<(Job & { data: T }) | null> {
+  validateQueueName(queue);
   const serverTimeout = timeout ?? 60000;
   const clientTimeout = serverTimeout + 5000;
   const response = await client.send<{ ok: boolean; job: Job | null }>(
@@ -193,6 +208,7 @@ export async function pullBatch<T = unknown>(
   count: number,
   timeout?: number
 ): Promise<Array<Job & { data: T }>> {
+  validateQueueName(queue);
   if (count > MAX_BATCH_SIZE) {
     throw new Error(`Batch size ${count} exceeds maximum allowed (${MAX_BATCH_SIZE})`);
   }

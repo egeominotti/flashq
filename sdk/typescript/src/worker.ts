@@ -12,6 +12,8 @@ export interface BullMQWorkerOptions extends WorkerOptions, ClientOptions {
   autorun?: boolean;
 }
 
+type WorkerState = 'idle' | 'starting' | 'running' | 'stopping' | 'stopped';
+
 /**
  * FlashQ Worker (BullMQ-compatible)
  *
@@ -40,11 +42,13 @@ export class Worker<T = unknown, R = unknown> extends EventEmitter {
   private queues: string[];
   private processor: JobProcessor<T, R>;
   private options: Required<WorkerOptions> & { autorun: boolean };
-  private running = false;
+  private state: WorkerState = 'idle';
   private processing = 0;
   private jobsProcessed = 0;
   private workers: Promise<void>[] = [];
   private heartbeatTimer?: NodeJS.Timeout;
+  private startPromise: Promise<void> | null = null;
+  private stopPromise: Promise<void> | null = null;
 
   constructor(
     queues: string | string[],
@@ -81,8 +85,31 @@ export class Worker<T = unknown, R = unknown> extends EventEmitter {
    * Start processing jobs
    */
   async start(): Promise<void> {
-    if (this.running) return;
+    // Return existing promise if already starting
+    if (this.state === 'starting' && this.startPromise) {
+      return this.startPromise;
+    }
 
+    // Already running or stopped
+    if (this.state === 'running') {
+      return;
+    }
+
+    if (this.state === 'stopping' || this.state === 'stopped') {
+      throw new Error('Cannot start a stopped worker. Create a new Worker instance.');
+    }
+
+    this.state = 'starting';
+    this.startPromise = this.doStart();
+
+    try {
+      await this.startPromise;
+    } finally {
+      this.startPromise = null;
+    }
+  }
+
+  private async doStart(): Promise<void> {
     // Create a separate client for each worker (TCP pull is blocking)
     for (let i = 0; i < this.options.concurrency; i++) {
       const client = new FlashQ(this.clientOptions);
@@ -90,7 +117,7 @@ export class Worker<T = unknown, R = unknown> extends EventEmitter {
       this.clients.push(client);
     }
 
-    this.running = true;
+    this.state = 'running';
     this.emit('ready');
 
     // Start heartbeat
@@ -113,14 +140,37 @@ export class Worker<T = unknown, R = unknown> extends EventEmitter {
    * Stop processing jobs (graceful shutdown)
    */
   async stop(): Promise<void> {
-    if (!this.running) return;
+    // Wait for starting to complete first
+    if (this.state === 'starting' && this.startPromise) {
+      await this.startPromise;
+    }
 
-    this.running = false;
+    // Return existing promise if already stopping
+    if (this.state === 'stopping' && this.stopPromise) {
+      return this.stopPromise;
+    }
+
+    // Already stopped or never started
+    if (this.state === 'stopped' || this.state === 'idle') {
+      return;
+    }
+
+    this.state = 'stopping';
     this.emit('stopping');
+    this.stopPromise = this.doStop();
 
+    try {
+      await this.stopPromise;
+    } finally {
+      this.stopPromise = null;
+    }
+  }
+
+  private async doStop(): Promise<void> {
     // Stop heartbeat
     if (this.heartbeatTimer) {
       clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = undefined;
     }
 
     // Wait for current jobs to finish
@@ -128,8 +178,11 @@ export class Worker<T = unknown, R = unknown> extends EventEmitter {
     this.workers = [];
 
     // Close all clients
-    await Promise.all(this.clients.map((c) => c.close()));
+    const clientsToClose = [...this.clients];
     this.clients = [];
+    await Promise.all(clientsToClose.map((c) => c.close()));
+
+    this.state = 'stopped';
     this.emit('stopped');
   }
 
@@ -137,7 +190,14 @@ export class Worker<T = unknown, R = unknown> extends EventEmitter {
    * Check if worker is running
    */
   isRunning(): boolean {
-    return this.running;
+    return this.state === 'running';
+  }
+
+  /**
+   * Get current worker state
+   */
+  getState(): WorkerState {
+    return this.state;
   }
 
   /**
@@ -160,9 +220,9 @@ export class Worker<T = unknown, R = unknown> extends EventEmitter {
   private async batchWorkerLoop(workerId: number, client: FlashQ): Promise<void> {
     const batchSize = this.options.batchSize;
 
-    while (this.running) {
+    while (this.state === 'running') {
       for (const queue of this.queues) {
-        if (!this.running) break;
+        if (this.state !== 'running') break;
 
         try {
           // Batch pull with SHORT timeout (500ms) for responsive shutdown
@@ -196,7 +256,7 @@ export class Worker<T = unknown, R = unknown> extends EventEmitter {
 
           // Batch ack successful jobs - THEN emit completed
           if (this.options.autoAck && successJobs.length > 0) {
-            await client.ackBatch(successJobs.map(j => j.job.id));
+            await client.ackBatch(successJobs.map((j) => j.job.id));
             // Emit completed AFTER ack succeeds
             for (const { job, result } of successJobs) {
               this.jobsProcessed++;
@@ -233,7 +293,7 @@ export class Worker<T = unknown, R = unknown> extends EventEmitter {
             continue;
           }
           // Connection error - wait before retry
-          if (this.running) {
+          if (this.state === 'running') {
             this.emit('error', error);
             await this.sleep(1000);
           }
@@ -248,7 +308,7 @@ export class Worker<T = unknown, R = unknown> extends EventEmitter {
 
   private startHeartbeat(): void {
     const sendHeartbeat = async () => {
-      if (!this.running) return;
+      if (this.state !== 'running') return;
       try {
         const url = `http://${this.clientOptions.host ?? 'localhost'}:${this.clientOptions.httpPort ?? 6790}/workers/${this.options.id}/heartbeat`;
         await fetch(url, {
