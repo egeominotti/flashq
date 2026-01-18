@@ -8,9 +8,9 @@ import { FlashQ, Worker } from '../src';
 
 const QUEUE_NAME = 'production-extreme';
 const TOTAL_JOBS = 100_000;
-const BATCH_SIZE = 2000;
-const WORKER_CONCURRENCY = 500;
-const NUM_WORKERS = 16;
+const BATCH_SIZE = 1000;
+const WORKER_CONCURRENCY = 50;
+const NUM_WORKERS = 4;
 
 async function main() {
   console.log('\n╔════════════════════════════════════════════════════════╗');

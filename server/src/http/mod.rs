@@ -9,7 +9,6 @@ mod events;
 mod jobs;
 mod metrics;
 mod queues;
-mod rate_limit;
 mod settings;
 mod types;
 mod webhooks;
@@ -18,13 +17,10 @@ mod workers;
 
 use axum::{
     http::{header, Method},
-    middleware,
     routing::{delete, get, post},
-    Extension, Router,
+    Router,
 };
 use tower_http::cors::{AllowOrigin, CorsLayer};
-
-pub use rate_limit::RateLimiter;
 
 use crate::dashboard;
 
@@ -65,15 +61,6 @@ fn create_cors_layer() -> CorsLayer {
 /// Create the HTTP router with all API routes.
 pub fn create_router(state: AppState) -> Router {
     let cors = create_cors_layer();
-    let rate_limiter = RateLimiter::from_env();
-
-    // Log rate limiting configuration
-    if rate_limiter.is_enabled() {
-        tracing::info!(
-            "HTTP rate limiting enabled: {} requests per window",
-            std::env::var("RATE_LIMIT_REQUESTS").unwrap_or_else(|_| "1000".to_string())
-        );
-    }
 
     // Initialize start time for uptime tracking
     settings::init_start_time();
@@ -195,8 +182,6 @@ pub fn create_router(state: AppState) -> Router {
     Router::new()
         .merge(dashboard::dashboard_routes())
         .merge(api_routes)
-        .layer(middleware::from_fn(rate_limit::rate_limit_middleware))
-        .layer(Extension(rate_limiter))
         .layer(cors)
 }
 
@@ -245,15 +230,5 @@ mod tests {
         let state: AppState = QueueManager::new(false);
         let _router = create_router(state);
         // If it doesn't panic, the test passes
-    }
-
-    /// Test RateLimiter from_env creates a valid limiter
-    #[tokio::test]
-    async fn test_rate_limiter_from_env() {
-        // from_env should create a valid RateLimiter regardless of env vars
-        let limiter = RateLimiter::from_env();
-        // is_enabled returns true if max_requests > 0
-        // Default is 1000, so it should be enabled
-        let _ = limiter.is_enabled(); // Just verify it doesn't panic
     }
 }
