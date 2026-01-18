@@ -76,6 +76,24 @@ Each job performs realistic CPU work:
 | **Process Rate** | 62,814 jobs/sec | 23,923 jobs/sec | **2.6x** |
 | **Total Time** | 2.04s | 6.48s | **3.2x** |
 
+### Latency Comparison (100,000 jobs)
+
+| Metric | flashQ | BullMQ | Winner |
+|--------|-------:|-------:|:------:|
+| **Push P50** | 2.99ms | 23.18ms | **7.8x** |
+| **Push P95** | 6.41ms | 25.76ms | **4.0x** |
+| **Push P99** | 14.21ms | 32.25ms | **2.3x** |
+
+### Memory Efficiency
+
+| Metric | flashQ | Redis (BullMQ) |
+|--------|-------:|---------------:|
+| **Initial** | ~800 MB | ~5 MB |
+| **After 100K jobs** | +117 MB | +45 MB |
+| **Per job overhead** | ~1.2 KB | ~0.5 KB |
+
+> Note: flashQ memory includes full Rust runtime. Redis is data-only.
+
 ### Results: 1 Million Jobs (flashQ only)
 
 | Scenario | Push Rate | Process Rate | Total Time | Data Integrity |
@@ -271,8 +289,10 @@ bun run examples/01-basic.ts
 | **heavy-benchmark.ts** | 100K no-op benchmark |
 | **cpu-benchmark.ts** | 100K CPU-bound benchmark |
 | **million-benchmark.ts** | 1M jobs with verification |
+| **benchmark-full.ts** | Memory + latency + throughput |
 | **bullmq-benchmark.ts** | BullMQ comparison (no-op) |
 | **bullmq-cpu-benchmark.ts** | BullMQ comparison (CPU) |
+| **bullmq-benchmark-full.ts** | BullMQ memory + latency |
 | kv-benchmark.ts | KV store benchmark |
 | pubsub-example.ts | Pub/Sub messaging |
 

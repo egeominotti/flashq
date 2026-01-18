@@ -1,11 +1,94 @@
+# Build artifacts
 target/
 server/target/
+*.o
+*.a
+*.so
+*.dylib
+
+# Git
 .git/
-*.md
-sdk/
+.gitignore
+.gitattributes
+
+# Documentation (keep README for reference)
 docs/
-.github/
+*.md
+!README.md
+
+# SDK (not needed in server image)
+sdk/
+examples/
+
+# IDE & Editor
 .vscode/
-*.log
-.env*
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+Jenkinsfile
+
+# Environment & Config
+.env
+.env.*
+*.local
+fly.toml
 fly.toml.bak
+docker-compose*.yml
+!docker-compose.yml
+
+# Logs & Debug
+*.log
+*.log.*
+debug/
+logs/
+
+# Test files
+tests/
+test/
+*_test.go
+*_test.rs
+*.test.ts
+*.spec.ts
+__tests__/
+coverage/
+.nyc_output/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
+*.bak
+*.backup
+
+# Node modules (if any)
+node_modules/
+bun.lockb
+package-lock.json
+yarn.lock
+
+# Rust specific
+Cargo.lock
+rustfmt.toml
+clippy.toml
+.cargo/
+
+# Benchmarks & profiling
+*.prof
+*.perf
+flamegraph.svg
+perf.data
+
+# Other
+*.pem
+*.key
+*.crt
+*.p12
+secrets/
