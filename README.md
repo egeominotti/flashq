@@ -59,28 +59,31 @@ Built with Rust for teams who refuse to compromise on performance.
 
 ## ⚡ Performance
 
-Real benchmarks on Apple M1 Max. No synthetic tests. No asterisks.
+Real benchmarks on Apple Silicon. No synthetic tests. No asterisks.
 
-<div align="center">
+### flashQ vs BullMQ (January 2026)
 
-<img src="https://raw.githubusercontent.com/egeominotti/flashq/main/docs/benchmark.svg" alt="flashQ Benchmark Results" width="850">
+| Scenario | flashQ | BullMQ | Speedup |
+|----------|--------|--------|---------|
+| **Single Push** | 21,487 jobs/sec | 4,383 jobs/sec | **4.9x** |
+| **Batch Push** | 601,389 jobs/sec | 42,518 jobs/sec | **14.1x** |
+| **Processing** | 310,224 jobs/sec | 14,657 jobs/sec | **21.2x** |
+| **High Throughput** | 242,293 jobs/sec | 14,678 jobs/sec | **16.5x** |
+| **Large Payload (10KB)** | 17,653 jobs/sec | 4,699 jobs/sec | **3.8x** |
 
-</div>
+> **Average: flashQ is 12.1x faster than BullMQ** *(full job lifecycle: push → process → ack)*
 
-<br>
-<br>
-<br>
+### Extreme Scale Test: 10 Million Jobs
 
-| Metric | flashQ | BullMQ (Redis) | Improvement |
-|--------|--------|----------------|-------------|
-| **Batch Throughput** | 2,127,660 ops/sec | 36,232 ops/sec | **58x faster** |
-| **Pull + Ack** | 519,388 ops/sec | ~10,000 ops/sec | **52x faster** |
-| **P99 Latency** | 127-196 μs | 606-647 μs | **3-5x lower** |
-| **Memory per 1M jobs** | ~200 MB | ~2 GB | **10x less** |
+| Metric | Result |
+|--------|--------|
+| **Total Jobs** | 10,000,000 |
+| **Processing Rate** | **245,863 jobs/sec** |
+| **Total Time** | ~40 seconds |
+| **Errors** | 0 |
 
-### Latency Benchmark (Validated)
-
-Real P99 latency comparison with statistical analysis:
+<details>
+<summary><b>View Latency Benchmark</b></summary>
 
 | Test | flashQ P99 | BullMQ P99 | Improvement |
 |------|------------|------------|-------------|
@@ -90,19 +93,6 @@ Real P99 latency comparison with statistical analysis:
 | 1KB Payload | 127μs | 643μs | **5.0x faster** |
 | 10KB Payload | 196μs | 647μs | **3.3x faster** |
 
-<details>
-<summary><b>View Mean Latency Results</b></summary>
-
-| Test | flashQ Mean | BullMQ Mean | Improvement |
-|------|-------------|-------------|-------------|
-| Single Push | 81μs | 237μs | 2.9x faster |
-| Priority Push | 62μs | 197μs | 3.2x faster |
-| 100B Payload | 64μs | 228μs | 3.5x faster |
-| 1KB Payload | 69μs | 224μs | 3.2x faster |
-| 10KB Payload | 88μs | 266μs | 3.0x faster |
-
-*Benchmark: 1000 operations with 100 warmup ops, measured with `performance.now()` at microsecond precision.*
-
 </details>
 
 <details>
@@ -110,12 +100,13 @@ Real P99 latency comparison with statistical analysis:
 
 | Protocol | Single Push | Batch Push | Pull + Ack |
 |----------|-------------|------------|------------|
-| **TCP** | 6,000/sec | **667,000/sec** | **185,000/sec** |
-| Unix Socket | 10,000/sec | 588,000/sec | 192,000/sec |
+| **TCP** | 21,000/sec | **650,000/sec** | **294,000/sec** |
 | HTTP/REST | 4,000/sec | 20,000/sec | 5,000/sec |
 | gRPC | 5,500/sec | 450,000/sec | 160,000/sec |
 
 </details>
+
+[**View Full Benchmarks →**](BENCHMARKS.md)
 
 <br>
 

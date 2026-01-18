@@ -1,0 +1,16 @@
+{
+  "name": "flashq-benchmarks",
+  "version": "1.0.0",
+  "description": "Performance benchmarks: flashQ vs BullMQ",
+  "scripts": {
+    "bench": "bun run benchmark.ts",
+    "bench:flashq": "bun run benchmark.ts --flashq-only",
+    "bench:bullmq": "bun run benchmark.ts --bullmq-only",
+    "report": "bun run generate-report.ts"
+  },
+  "dependencies": {
+    "flashq": "file:../sdk/typescript",
+    "bullmq": "^5.66.5",
+    "ioredis": "^5.9.2"
+  }
+}

@@ -164,7 +164,7 @@ export class Worker<T = unknown, R = unknown> extends EventEmitter {
           this.processing += jobs.length;
 
           // Track successful and failed jobs
-          const successIds: number[] = [];
+          const successJobs: Array<{ job: Job & { data: T }; result: R }> = [];
           const failedJobs: Array<{ job: Job & { data: T }; error: string }> = [];
 
           // Process all jobs in parallel
@@ -174,27 +174,42 @@ export class Worker<T = unknown, R = unknown> extends EventEmitter {
 
               try {
                 const result = await this.processJob(job);
-                successIds.push(job.id);
-                this.jobsProcessed++;
-                this.emit('completed', job, result, workerId);
+                successJobs.push({ job, result });
               } catch (error) {
                 const errorMessage = error instanceof Error ? error.message : String(error);
                 failedJobs.push({ job, error: errorMessage });
-                this.emit('failed', job, error, workerId);
               }
             })
           );
 
-          // Batch ack successful jobs
-          if (this.options.autoAck && successIds.length > 0) {
-            await client.ackBatch(successIds);
+          // Batch ack successful jobs - THEN emit completed
+          if (this.options.autoAck && successJobs.length > 0) {
+            await client.ackBatch(successJobs.map(j => j.job.id));
+            // Emit completed AFTER ack succeeds
+            for (const { job, result } of successJobs) {
+              this.jobsProcessed++;
+              this.emit('completed', job, result, workerId);
+            }
+          } else if (!this.options.autoAck && successJobs.length > 0) {
+            // If autoAck is disabled, emit completed after processing
+            for (const { job, result } of successJobs) {
+              this.jobsProcessed++;
+              this.emit('completed', job, result, workerId);
+            }
           }
 
-          // Fail individual jobs that errored
+          // Fail individual jobs that errored - THEN emit failed
           if (this.options.autoAck && failedJobs.length > 0) {
             await Promise.all(
-              failedJobs.map(({ job, error }) => client.fail(job.id, error))
+              failedJobs.map(async ({ job, error }) => {
+                await client.fail(job.id, error);
+                this.emit('failed', job, new Error(error), workerId);
+              })
             );
+          } else if (!this.options.autoAck && failedJobs.length > 0) {
+            for (const { job, error } of failedJobs) {
+              this.emit('failed', job, new Error(error), workerId);
+            }
           }
 
           this.processing -= jobs.length;
