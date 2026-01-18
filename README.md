@@ -162,13 +162,47 @@ Each job: JSON parse, 10x SHA256, array sort/filter, string ops
 
 ## Quick Start
 
-```bash
-# Docker
-docker run -p 6789:6789 -p 6790:6790 -e HTTP=1 flashq/flashq
+### Docker (Recommended)
 
-# Docker Compose
+```bash
+# Pull from GitHub Container Registry
+docker pull ghcr.io/egeominotti/flashq:latest
+
+# Run with HTTP/Dashboard enabled
+docker run -d --name flashq \
+  -p 6789:6789 \
+  -p 6790:6790 \
+  -e HTTP=1 \
+  ghcr.io/egeominotti/flashq:latest
+
+# Apple Silicon (M1/M2/M3) - use platform flag
+docker run -d --name flashq \
+  --platform linux/amd64 \
+  -p 6789:6789 \
+  -p 6790:6790 \
+  -e HTTP=1 \
+  ghcr.io/egeominotti/flashq:latest
+```
+
+### Docker Compose
+
+```bash
 git clone https://github.com/egeominotti/flashq.git && cd flashq
 docker-compose up -d
+```
+
+### Binary Releases
+
+Download from [GitHub Releases](https://github.com/egeominotti/flashq/releases):
+
+```bash
+# Linux x86_64
+curl -L https://github.com/egeominotti/flashq/releases/latest/download/flashq-linux-x86_64.tar.gz | tar xz
+./flashq-server
+
+# macOS (Apple Silicon)
+curl -L https://github.com/egeominotti/flashq/releases/latest/download/flashq-macos-arm64.tar.gz | tar xz
+./flashq-server
 ```
 
 Dashboard: http://localhost:6790
@@ -383,8 +417,14 @@ flashQ automatically detects the optimal I/O backend:
 
 Startup logs show the active backend:
 ```
-INFO IO backend runtime="tokio" io_backend="epoll"
-INFO IO backend runtime="tokio + io_uring" (with feature)
+# Linux with io_uring (Docker default)
+INFO flashq_server::runtime: IO backend: io_uring (kernel-level async)
+
+# Linux without io_uring
+INFO flashq_server::runtime: IO backend: epoll (poll-based async)
+
+# macOS
+INFO flashq_server::runtime: IO backend: kqueue (poll-based async)
 ```
 
 ## License
