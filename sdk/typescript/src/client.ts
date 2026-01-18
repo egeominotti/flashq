@@ -412,6 +412,40 @@ export class FlashQ extends EventEmitter {
       throw new Error(json.error ?? 'Unknown error');
     }
 
+    // Normalize HTTP response to match TCP format
+    // HTTP returns: { ok: true, data: {...} }
+    // TCP returns: { ok: true, id: 1, job: {...}, ... }
+    const data = (json as { ok: boolean; data?: unknown }).data;
+
+    if (cmd === 'PUSH' && data && typeof data === 'object') {
+      // Push returns the job, extract id
+      return { ok: true, id: (data as { id: number }).id };
+    }
+
+    if ((cmd === 'PULL' || cmd === 'PULLB') && Array.isArray(data)) {
+      // Pull returns array of jobs, convert to single job or null
+      if (data.length === 0) {
+        return { ok: true, job: null };
+      }
+      return cmd === 'PULL'
+        ? { ok: true, job: data[0] }
+        : { ok: true, jobs: data };
+    }
+
+    if (cmd === 'STATS' && data && typeof data === 'object') {
+      // Stats returns data directly
+      return { ok: true, ...data };
+    }
+
+    if (cmd === 'METRICS' && data && typeof data === 'object') {
+      // Metrics returns data directly
+      return { ok: true, ...data };
+    }
+
+    if (cmd === 'LISTQUEUES' && Array.isArray(data)) {
+      return { ok: true, queues: data };
+    }
+
     return json;
   }
 
