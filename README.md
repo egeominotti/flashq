@@ -6,11 +6,13 @@
 
 Same API. Single binary. 10x faster. Built with Rust.
 
+**Perfect for AI workloads:** LLM pipelines, RAG, agents, batch inference.
+
 [![CI](https://img.shields.io/github/actions/workflow/status/egeominotti/flashq/ci.yml?branch=main&label=CI)](https://github.com/egeominotti/flashq/actions)
 [![npm](https://img.shields.io/npm/v/flashq)](https://www.npmjs.com/package/flashq)
 [![License](https://img.shields.io/badge/License-MIT-blue)](LICENSE)
 
-[Quick Start](#quick-start) • [SDK](#sdk) • [Features](#features) • [Docs](#documentation)
+[Quick Start](#quick-start) • [AI Workloads](#built-for-ai-workloads) • [SDK](#sdk) • [Features](#features)
 
 </div>
 
@@ -27,6 +29,41 @@ Same API. Single binary. 10x faster. Built with Rust.
 | **Persistence** | Redis RDB/AOF | Optional PostgreSQL |
 
 > **No Redis? No problem.** flashQ is a standalone job queue with the API you already know.
+
+---
+
+## Built for AI Workloads
+
+flashQ is designed for modern AI/ML pipelines with **10MB payload support** for embeddings, images, and large contexts.
+
+| Use Case | How flashQ Helps |
+|----------|------------------|
+| **LLM API Calls** | Rate limiting to control OpenAI/Anthropic costs |
+| **Batch Inference** | 300K jobs/sec throughput for high-volume inference |
+| **AI Agents** | Job dependencies for multi-step workflows |
+| **RAG Pipelines** | Chain jobs: embed → search → generate |
+| **Training Jobs** | Progress tracking, long timeouts, retries |
+
+```typescript
+// AI Agent workflow example
+const agent = new Queue('ai-agent');
+
+// Step 1: Parse user intent
+const parse = await agent.add('parse', { prompt: userInput });
+
+// Step 2: Retrieve context (waits for step 1)
+const retrieve = await agent.add('retrieve', { query }, {
+  dependencies: [parse.id]
+});
+
+// Step 3: Generate response (waits for step 2)
+const generate = await agent.add('generate', { context }, {
+  dependencies: [retrieve.id],
+  priority: 10
+});
+
+const result = await generate.finished();
+```
 
 ---
 
