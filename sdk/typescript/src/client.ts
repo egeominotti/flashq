@@ -12,13 +12,9 @@ import type {
   Metrics,
   CronJob,
   CronOptions,
-  WebhookConfig,
-  WebhookOptions,
-  WorkerInfo,
   ApiResponse,
   JobLogEntry,
   FlowChild,
-  FlowOptions,
   FlowResult,
 } from './types';
 
