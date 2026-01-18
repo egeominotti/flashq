@@ -40,6 +40,7 @@ import * as metrics from './metrics';
 import * as flows from './flows';
 import * as advanced from './advanced';
 import * as kv from './kv';
+import * as pubsub from './pubsub';
 
 import type {
   Job,
@@ -801,6 +802,108 @@ export class FlashQ extends FlashQConnection {
    */
   kvDecr(key: string, by: number = 1): Promise<number> {
     return kv.decr(this, key, by);
+  }
+
+  // ============== Pub/Sub (Redis-like) ==============
+
+  /**
+   * Publish a message to a channel.
+   *
+   * @param channel - Channel name
+   * @param message - Message data (any JSON-serializable data)
+   * @returns Number of subscribers that received the message
+   *
+   * @example
+   * ```typescript
+   * const receivers = await client.publish('notifications', { type: 'alert', text: 'Hello!' });
+   * console.log(`Message sent to ${receivers} subscribers`);
+   * ```
+   */
+  publish(channel: string, message: unknown): Promise<number> {
+    return pubsub.publish(this, channel, message);
+  }
+
+  /**
+   * Subscribe to channels.
+   * Note: For real-time message delivery, use WebSocket/SSE connections.
+   *
+   * @param channels - Array of channel names
+   * @returns List of subscribed channels
+   *
+   * @example
+   * ```typescript
+   * await client.pubsubSubscribe(['notifications', 'alerts']);
+   * ```
+   */
+  pubsubSubscribe(channels: string[]): Promise<string[]> {
+    return pubsub.subscribe(this, channels);
+  }
+
+  /**
+   * Subscribe to channels matching patterns (e.g., "events:*").
+   *
+   * @param patterns - Array of glob patterns
+   * @returns List of subscribed patterns
+   *
+   * @example
+   * ```typescript
+   * await client.pubsubPsubscribe(['events:*', 'logs:*']);
+   * ```
+   */
+  pubsubPsubscribe(patterns: string[]): Promise<string[]> {
+    return pubsub.psubscribe(this, patterns);
+  }
+
+  /**
+   * Unsubscribe from channels.
+   *
+   * @param channels - Array of channel names
+   * @returns List of unsubscribed channels
+   */
+  pubsubUnsubscribe(channels: string[]): Promise<string[]> {
+    return pubsub.unsubscribe(this, channels);
+  }
+
+  /**
+   * Unsubscribe from patterns.
+   *
+   * @param patterns - Array of patterns
+   * @returns List of unsubscribed patterns
+   */
+  pubsubPunsubscribe(patterns: string[]): Promise<string[]> {
+    return pubsub.punsubscribe(this, patterns);
+  }
+
+  /**
+   * List active channels (optionally matching a pattern).
+   *
+   * @param pattern - Optional glob pattern
+   * @returns Array of active channel names
+   *
+   * @example
+   * ```typescript
+   * const allChannels = await client.pubsubChannels();
+   * const eventChannels = await client.pubsubChannels('events:*');
+   * ```
+   */
+  pubsubChannels(pattern?: string): Promise<string[]> {
+    return pubsub.channels(this, pattern);
+  }
+
+  /**
+   * Get subscriber counts for channels.
+   *
+   * @param channels - Array of channel names
+   * @returns Array of [channel, count] tuples
+   *
+   * @example
+   * ```typescript
+   * const counts = await client.pubsubNumsub(['notifications', 'alerts']);
+   * // [['notifications', 5], ['alerts', 2]]
+   * ```
+   */
+  pubsubNumsub(channels: string[]): Promise<Array<[string, number]>> {
+    return pubsub.numsub(this, channels);
   }
 }
 

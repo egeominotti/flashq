@@ -253,7 +253,7 @@ impl QueueManager {
 }
 
 /// Simple glob pattern matching (* = any chars, ? = one char)
-fn glob_match(pattern: &str, text: &str) -> bool {
+pub fn glob_match(pattern: &str, text: &str) -> bool {
     let mut p_chars = pattern.chars().peekable();
     let mut t_chars = text.chars().peekable();
 

@@ -80,6 +80,7 @@ worker.on('completed', (job, result) => {
 | **Persistence** | Optional PostgreSQL storage |
 | **Dashboard** | Built-in monitoring UI |
 | **KV Storage** | Redis-like key-value store |
+| **Pub/Sub** | Redis-like publish/subscribe messaging |
 
 ## Documentation
 
@@ -150,6 +151,32 @@ await client.kvIncr('page:views');
 | **Batch MSET** | **640K ops/sec** |
 | **Batch MGET** | **1.2M ops/sec** |
 
+### Pub/Sub
+
+Redis-like publish/subscribe messaging.
+
+```typescript
+import { FlashQ } from 'flashq';
+
+const client = new FlashQ();
+
+// Publish messages
+const receivers = await client.publish('notifications', { type: 'alert', text: 'Hello!' });
+
+// Subscribe to channels
+await client.pubsubSubscribe(['notifications', 'alerts']);
+
+// Pattern subscribe
+await client.pubsubPsubscribe(['events:*', 'logs:*']);
+
+// List active channels
+const channels = await client.pubsubChannels();
+const eventChannels = await client.pubsubChannels('events:*');
+
+// Get subscriber counts
+const counts = await client.pubsubNumsub(['notifications', 'alerts']);
+```
+
 ### Configuration
 
 | Variable | Description | Default |
@@ -174,6 +201,7 @@ See [sdk/typescript/examples/](sdk/typescript/examples/):
 - **09-concurrency** - Parallel processing
 - **10-benchmark** - Performance test
 - **kv-benchmark** - KV store benchmark
+- **pubsub-example** - Pub/Sub messaging
 
 ## License
 

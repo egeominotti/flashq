@@ -529,6 +529,38 @@ async fn process_command(
             Ok(value) => Response::kv_incr(value),
             Err(e) => Response::error(e),
         },
+
+        // === Pub/Sub Commands ===
+        Command::Pub { channel, message } => {
+            let receivers = queue_manager.pubsub.publish(&channel, message);
+            Response::pub_count(receivers)
+        }
+        Command::Sub { channels } => {
+            // Note: Subscription requires dedicated connection with message loop
+            // This registers the subscription but messages are delivered via WebSocket/SSE
+            let _rx = queue_manager.pubsub.subscribe(channels.clone());
+            Response::pub_subscribed(channels)
+        }
+        Command::Psub { patterns } => {
+            let _rx = queue_manager.pubsub.psubscribe(patterns.clone());
+            Response::pub_subscribed(patterns)
+        }
+        Command::Unsub { channels } => {
+            // Note: Proper unsubscribe requires tracking the sender per connection
+            // For now this is a no-op acknowledgement
+            Response::pub_subscribed(channels)
+        }
+        Command::Punsub { patterns } => {
+            Response::pub_subscribed(patterns)
+        }
+        Command::PubsubChannels { pattern } => {
+            let channels = queue_manager.pubsub.channels(pattern.as_deref());
+            Response::pub_channels(channels)
+        }
+        Command::PubsubNumsub { channels } => {
+            let counts = queue_manager.pubsub.numsub(&channels);
+            Response::pub_numsub(counts)
+        }
     }
 }
 

@@ -162,6 +162,34 @@ pub enum Response {
         ok: bool,
         value: i64,
     },
+    // === Pub/Sub Responses ===
+    /// Response for Pub (number of receivers)
+    PubCount {
+        ok: bool,
+        receivers: usize,
+    },
+    /// Incoming message on subscribed channel
+    PubMessage {
+        channel: String,
+        message: Value,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pattern: Option<String>, // Set if received via pattern subscription
+    },
+    /// Response for Sub/Psub (list of subscribed channels/patterns)
+    PubSubscribed {
+        ok: bool,
+        channels: Vec<String>,
+    },
+    /// Response for PubsubChannels
+    PubChannels {
+        ok: bool,
+        channels: Vec<String>,
+    },
+    /// Response for PubsubNumsub
+    PubNumsub {
+        ok: bool,
+        counts: Vec<(String, usize)>,
+    },
 }
 
 impl Response {
@@ -370,5 +398,35 @@ impl Response {
     #[inline(always)]
     pub fn kv_incr(value: i64) -> Self {
         Response::KvIncr { ok: true, value }
+    }
+
+    // === Pub/Sub Response Helpers ===
+    #[inline(always)]
+    pub fn pub_count(receivers: usize) -> Self {
+        Response::PubCount { ok: true, receivers }
+    }
+
+    #[inline(always)]
+    pub fn pub_message(channel: String, message: Value, pattern: Option<String>) -> Self {
+        Response::PubMessage {
+            channel,
+            message,
+            pattern,
+        }
+    }
+
+    #[inline(always)]
+    pub fn pub_subscribed(channels: Vec<String>) -> Self {
+        Response::PubSubscribed { ok: true, channels }
+    }
+
+    #[inline(always)]
+    pub fn pub_channels(channels: Vec<String>) -> Self {
+        Response::PubChannels { ok: true, channels }
+    }
+
+    #[inline(always)]
+    pub fn pub_numsub(counts: Vec<(String, usize)>) -> Self {
+        Response::PubNumsub { ok: true, counts }
     }
 }

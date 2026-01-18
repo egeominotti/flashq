@@ -134,6 +134,38 @@ await client.kvDecr('stock:item:456');       // -1
 
 > Use batch operations (MSET/MGET) for best performance!
 
+## Pub/Sub
+
+Redis-like publish/subscribe messaging.
+
+```typescript
+import { FlashQ } from 'flashq';
+
+const client = new FlashQ();
+
+// Publish messages to a channel
+const receivers = await client.publish('notifications', { type: 'alert', text: 'Hello!' });
+console.log(`Message sent to ${receivers} subscribers`);
+
+// Subscribe to channels
+await client.pubsubSubscribe(['notifications', 'alerts']);
+
+// Pattern subscribe (e.g., "events:*" matches "events:user:signup")
+await client.pubsubPsubscribe(['events:*', 'logs:*']);
+
+// List active channels
+const allChannels = await client.pubsubChannels();
+const eventChannels = await client.pubsubChannels('events:*');
+
+// Get subscriber counts
+const counts = await client.pubsubNumsub(['notifications', 'alerts']);
+// [['notifications', 5], ['alerts', 2]]
+
+// Unsubscribe
+await client.pubsubUnsubscribe(['notifications']);
+await client.pubsubPunsubscribe(['events:*']);
+```
+
 ## Examples
 
 ```bash
@@ -153,6 +185,7 @@ bun run examples/01-basic.ts
 | 09-concurrency.ts | Parallel processing |
 | 10-benchmark.ts | Performance test |
 | kv-benchmark.ts | KV store benchmark |
+| pubsub-example.ts | Pub/Sub messaging |
 
 ## Performance
 

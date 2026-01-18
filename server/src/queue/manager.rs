@@ -116,6 +116,8 @@ pub struct QueueManager {
     pub(crate) shutdown_flag: std::sync::atomic::AtomicBool,
     // Key-Value storage (Redis-like) - DashMap for lock-free concurrent access
     pub(crate) kv_store: DashMap<String, super::kv::KvValue, BuildHasherDefault<GxHasher>>,
+    // Pub/Sub system (Redis-like)
+    pub(crate) pubsub: super::pubsub::PubSub,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -338,6 +340,8 @@ impl QueueManager {
             shutdown_flag: std::sync::atomic::AtomicBool::new(false),
             // Key-Value storage - DashMap for lock-free concurrent access
             kv_store: DashMap::with_capacity_and_hasher(1024, Default::default()),
+            // Pub/Sub system
+            pubsub: super::pubsub::PubSub::new(),
         });
 
         let mgr = Arc::clone(&manager);

@@ -331,6 +331,38 @@ pub enum Command {
         #[serde(default = "default_incr_by")]
         by: i64,
     },
+
+    // === Pub/Sub (Redis-like) ===
+    /// Publish a message to a channel
+    Pub {
+        channel: String,
+        message: Value,
+    },
+    /// Subscribe to channels
+    Sub {
+        channels: Vec<String>,
+    },
+    /// Pattern subscribe (e.g., "events:*")
+    Psub {
+        patterns: Vec<String>,
+    },
+    /// Unsubscribe from channels
+    Unsub {
+        channels: Vec<String>,
+    },
+    /// Pattern unsubscribe
+    Punsub {
+        patterns: Vec<String>,
+    },
+    /// List active channels
+    PubsubChannels {
+        #[serde(default)]
+        pattern: Option<String>,
+    },
+    /// Count subscribers for channels
+    PubsubNumsub {
+        channels: Vec<String>,
+    },
 }
 
 fn default_incr_by() -> i64 {
