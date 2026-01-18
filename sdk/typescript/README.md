@@ -6,7 +6,33 @@ BullMQ-compatible API for [flashQ](https://github.com/egeominotti/flashq).
 
 ```bash
 bun add flashq
+# or
+npm install flashq
 ```
+
+## Start the Server
+
+```bash
+# Pull from GitHub Container Registry
+docker pull ghcr.io/egeominotti/flashq:latest
+
+# Run with HTTP/Dashboard enabled
+docker run -d --name flashq \
+  -p 6789:6789 \
+  -p 6790:6790 \
+  -e HTTP=1 \
+  ghcr.io/egeominotti/flashq:latest
+
+# Apple Silicon (M1/M2/M3) - use platform flag
+docker run -d --name flashq \
+  --platform linux/amd64 \
+  -p 6789:6789 \
+  -p 6790:6790 \
+  -e HTTP=1 \
+  ghcr.io/egeominotti/flashq:latest
+```
+
+Dashboard: http://localhost:6790
 
 ## Quick Start
 
