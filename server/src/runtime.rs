@@ -20,12 +20,14 @@ use tracing::info;
 
 /// Check if io_uring is available and enabled at compile time
 #[inline]
+#[allow(dead_code)]
 pub fn is_io_uring_enabled() -> bool {
     cfg!(all(target_os = "linux", feature = "io-uring"))
 }
 
 /// Check if running on Linux
 #[inline]
+#[allow(dead_code)]
 pub fn is_linux() -> bool {
     cfg!(target_os = "linux")
 }
@@ -76,6 +78,7 @@ pub fn print_runtime_info() {
 }
 
 /// Get runtime description string
+#[allow(dead_code)]
 pub fn runtime_description() -> &'static str {
     #[cfg(all(target_os = "linux", feature = "io-uring"))]
     {

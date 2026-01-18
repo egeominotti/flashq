@@ -9,8 +9,9 @@ use tokio::sync::mpsc;
 
 use super::kv::glob_match;
 
-/// Message sent to subscribers
+/// Message sent to subscribers (for future real-time streaming)
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct PubSubMessage {
     pub channel: String,
     pub message: Value,
@@ -21,8 +22,9 @@ pub struct PubSubMessage {
 pub type SubscriberSender = mpsc::UnboundedSender<PubSubMessage>;
 pub type SubscriberReceiver = mpsc::UnboundedReceiver<PubSubMessage>;
 
-/// Subscriber entry with sender and subscribed channels/patterns
+/// Subscriber entry with sender and subscribed channels/patterns (for future real-time streaming)
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct Subscriber {
     pub sender: SubscriberSender,
     pub channels: Vec<String>,
@@ -104,10 +106,7 @@ impl PubSub {
         let (tx, rx) = mpsc::unbounded_channel();
 
         for channel in channels {
-            self.channels
-                .entry(channel)
-                .or_insert_with(Vec::new)
-                .push(tx.clone());
+            self.channels.entry(channel).or_default().push(tx.clone());
         }
 
         rx
@@ -119,17 +118,15 @@ impl PubSub {
         let (tx, rx) = mpsc::unbounded_channel();
 
         for pattern in patterns {
-            self.patterns
-                .entry(pattern)
-                .or_insert_with(Vec::new)
-                .push(tx.clone());
+            self.patterns.entry(pattern).or_default().push(tx.clone());
         }
 
         rx
     }
 
-    /// Unsubscribe from channels.
+    /// Unsubscribe from channels (for future real-time streaming).
     /// Note: This removes ALL subscribers for those channels - caller should track their own sender.
+    #[allow(dead_code)]
     pub fn unsubscribe(&self, channels: &[String], sender: &SubscriberSender) {
         for channel in channels {
             if let Some(mut subscribers) = self.channels.get_mut(channel) {
@@ -139,7 +136,8 @@ impl PubSub {
         }
     }
 
-    /// Unsubscribe from patterns.
+    /// Unsubscribe from patterns (for future real-time streaming).
+    #[allow(dead_code)]
     pub fn punsubscribe(&self, patterns: &[String], sender: &SubscriberSender) {
         for pattern in patterns {
             if let Some(mut subscribers) = self.patterns.get_mut(pattern) {
@@ -169,7 +167,8 @@ impl PubSub {
             .collect()
     }
 
-    /// Cleanup empty channels (called periodically).
+    /// Cleanup empty channels (for future periodic maintenance).
+    #[allow(dead_code)]
     pub fn cleanup(&self) {
         self.channels.retain(|_, v| !v.is_empty());
         self.patterns.retain(|_, v| !v.is_empty());

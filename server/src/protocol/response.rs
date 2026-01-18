@@ -168,7 +168,8 @@ pub enum Response {
         ok: bool,
         receivers: usize,
     },
-    /// Incoming message on subscribed channel
+    /// Incoming message on subscribed channel (for future real-time streaming)
+    #[allow(dead_code)]
     PubMessage {
         channel: String,
         message: Value,
@@ -410,6 +411,7 @@ impl Response {
     }
 
     #[inline(always)]
+    #[allow(dead_code)]
     pub fn pub_message(channel: String, message: Value, pattern: Option<String>) -> Self {
         Response::PubMessage {
             channel,
