@@ -3,6 +3,7 @@ mod grpc;
 mod http;
 mod protocol;
 mod queue;
+mod runtime;
 mod server;
 mod telemetry;
 
@@ -78,6 +79,9 @@ async fn shutdown_signal(shutdown_tx: broadcast::Sender<()>) {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize telemetry (structured logging)
     telemetry::init();
+
+    // Print runtime information
+    runtime::print_runtime_info();
 
     // Create shutdown channel for graceful shutdown
     let (shutdown_tx, _) = broadcast::channel::<()>(1);
