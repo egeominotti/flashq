@@ -203,6 +203,40 @@ See [sdk/typescript/examples/](sdk/typescript/examples/):
 - **kv-benchmark** - KV store benchmark
 - **pubsub-example** - Pub/Sub messaging
 
+## Advanced: io_uring (Linux)
+
+On Linux, flashQ can use `io_uring` for kernel-level async I/O, providing:
+- Zero-copy I/O operations
+- Batched syscalls
+- Reduced context switches
+
+### Build with io_uring
+
+```bash
+# Local build
+cargo build --release --features io-uring
+
+# Docker (enabled by default)
+docker build -t flashq .
+```
+
+### Runtime Detection
+
+flashQ automatically detects the optimal I/O backend:
+
+| OS | Backend | Notes |
+|----|---------|-------|
+| Linux | epoll (default) | Fast, stable |
+| Linux + io-uring | io_uring | Fastest, kernel 5.1+ |
+| macOS | kqueue | Native, optimal |
+| Windows | IOCP | Native, optimal |
+
+Startup logs show the active backend:
+```
+INFO IO backend runtime="tokio" io_backend="epoll"
+INFO IO backend runtime="tokio + io_uring" (with feature)
+```
+
 ## License
 
 MIT

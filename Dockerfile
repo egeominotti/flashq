@@ -1,5 +1,5 @@
 # Stage 1: Build
-FROM rust:1.92-slim-bookworm AS builder
+FROM rust:latest AS builder
 
 WORKDIR /app
 
@@ -7,23 +7,26 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
     protobuf-compiler \
     libprotobuf-dev \
+    build-essential \
     lld \
     curl \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Install newer protoc (bookworm has 3.21 which supports proto3 optional)
 # Verify protoc version
 RUN protoc --version
 
 # Copy source
 COPY server/ ./
 
-# Build release binary with LTO
-RUN cargo build --release
+# Build release binary with LTO and io_uring support (Linux)
+RUN cargo build --release --features io-uring
 
-# Stage 2: Runtime (minimal)
-FROM gcr.io/distroless/cc-debian12:nonroot
+# Stage 2: Runtime (minimal, matches builder's glibc)
+FROM debian:trixie-slim
+
+# Install CA certificates for HTTPS
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/*
 
 # Copy binary
 COPY --from=builder /app/target/release/flashq-server /flashq-server
@@ -35,9 +38,6 @@ EXPOSE 6789 6790 6791
 ENV RUST_LOG=info
 ENV ENV=dev
 ENV RATE_LIMIT_REQUESTS=0
-
-# Run as non-root
-USER nonroot:nonroot
 
 # Entrypoint
 ENTRYPOINT ["/flashq-server"]
