@@ -531,18 +531,32 @@ impl QueueManager {
     }
 
     /// Broadcast a job event.
+    /// Optimized: early return if no webhooks and no broadcast receivers.
+    #[inline]
     pub(crate) fn broadcast_event(&self, event: JobEvent) {
+        let has_receivers = self.event_tx.receiver_count() > 0;
+        let has_webhooks = !self.webhooks.read().is_empty();
+
+        // Early return if no one is listening
+        if !has_receivers && !has_webhooks {
+            return;
+        }
+
         // Fire webhooks first (uses references, no clone needed)
-        self.fire_webhooks(
-            &event.event_type,
-            &event.queue,
-            event.job_id,
-            event.data.as_ref(),
-            event.error.as_deref(),
-        );
+        if has_webhooks {
+            self.fire_webhooks(
+                &event.event_type,
+                &event.queue,
+                event.job_id,
+                event.data.as_ref(),
+                event.error.as_deref(),
+            );
+        }
 
         // Then send to broadcast channel (consumes ownership)
-        let _ = self.event_tx.send(event);
+        if has_receivers {
+            let _ = self.event_tx.send(event);
+        }
     }
 
     // ============== Runtime Settings ==============

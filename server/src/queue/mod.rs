@@ -3,11 +3,17 @@
 //! ## Module Organization (after refactoring)
 //!
 //! - `manager.rs` - Core QueueManager struct, constructors, shard helpers
-//! - `core.rs` - Core push/pull/ack/fail operations
 //! - `types.rs` - IndexedPriorityQueue, RateLimiter, Shard, GlobalMetrics
 //! - `postgres.rs` - PostgreSQL persistence layer
 //! - `cluster.rs` - Clustering and leader election
 //! - `background.rs` - Background tasks (cleanup, cron, timeout)
+//!
+//! ### Core operations (split from core.rs for maintainability)
+//!
+//! - `validation.rs` - Input validation and size limits
+//! - `push.rs` - Push and push_batch operations
+//! - `pull.rs` - Pull, pull_batch, and distributed pull operations
+//! - `ack.rs` - Ack, ack_batch, fail, and get_result operations
 //!
 //! ### Manager modules (split from manager.rs for maintainability)
 //!
@@ -29,10 +35,15 @@
 
 mod background;
 pub mod cluster;
-mod core;
 mod manager;
 mod postgres;
 mod types;
+
+// Core operations (split from core.rs)
+mod ack;
+mod pull;
+mod push;
+mod validation;
 
 // Manager modules (split from manager.rs)
 mod admin;

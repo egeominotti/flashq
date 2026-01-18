@@ -13,7 +13,7 @@ use super::types::{cleanup_interned_strings, intern, now_ms, JobLocation};
 
 impl QueueManager {
     pub async fn background_tasks(self: Arc<Self>) {
-        let mut wakeup_ticker = interval(Duration::from_millis(100)); // Wake up waiting workers
+        let mut wakeup_ticker = interval(Duration::from_millis(500)); // Wake up waiting workers (reduced from 100ms - notify_shard handles immediate wakeups)
         let mut cron_ticker = interval(Duration::from_secs(1));
         let mut cleanup_ticker = interval(Duration::from_secs(60));
         let mut timeout_ticker = interval(Duration::from_millis(500));
