@@ -663,7 +663,7 @@
         <a href="#pricing">Pricing</a>
         <a href="https://github.com/egeominotti/flashq" target="_blank">GitHub</a>
         <a href="https://npmjs.com/package/flashq" target="_blank">npm</a>
-        <a href="#waitlist" class="btn btn-primary">Get Early Access</a>
+        <a href="/docs/" class="btn btn-primary">Get Started</a>
       </div>
     </div>
   </nav>
@@ -673,7 +673,7 @@
     <div class="container">
       <div class="badge">
         <span class="badge-dot"></span>
-        Now in beta — 50+ teams on waitlist
+        Open Source — MIT License
       </div>
       <h1>
         AI Background Jobs<br>
@@ -684,7 +684,7 @@
         The simplest way to run LLM pipelines, RAG workflows, and batch inference.
       </p>
       <div class="hero-buttons">
-        <a href="#waitlist" class="btn btn-primary">Get Early Access</a>
+        <a href="/docs/" class="btn btn-primary">Get Started</a>
         <a href="https://github.com/egeominotti/flashq" class="btn btn-secondary" target="_blank">
           View on GitHub
         </a>
@@ -909,69 +909,71 @@
     <div class="container">
       <div class="section-header">
         <h2>Simple, Predictable Pricing</h2>
-        <p>Start free. Scale as you grow.</p>
+        <p>Self-host free forever. Managed cloud coming soon.</p>
       </div>
 
       <div class="pricing-grid">
         <div class="pricing-card">
-          <h3>Free</h3>
-          <div class="price">$0<span>/mo</span></div>
-          <p class="description">Perfect for side projects and prototypes.</p>
+          <h3>Self-Hosted</h3>
+          <div class="price">$0<span>/forever</span></div>
+          <p class="description">Full power, your infrastructure.</p>
           <ul class="pricing-features">
-            <li>1,000 jobs/day</li>
-            <li>1 queue</li>
-            <li>7 days retention</li>
+            <li>Unlimited jobs</li>
+            <li>Unlimited queues</li>
+            <li>All features included</li>
             <li>Community support</li>
           </ul>
-          <a href="#waitlist" class="btn btn-secondary">Start Free</a>
+          <a href="/docs/#quickstart" class="btn btn-secondary">Get Started</a>
         </div>
 
         <div class="pricing-card popular">
-          <span class="popular-badge">Most Popular</span>
-          <h3>Pro</h3>
+          <span class="popular-badge">Coming Soon</span>
+          <h3>Pro Cloud</h3>
           <div class="price">$49<span>/mo</span></div>
-          <p class="description">For growing teams shipping AI products.</p>
+          <p class="description">Managed hosting, zero ops.</p>
           <ul class="pricing-features">
             <li>1M jobs/month</li>
             <li>Unlimited queues</li>
-            <li>30 days retention</li>
-            <li>Dashboard access</li>
+            <li>Automatic backups</li>
+            <li>Dashboard included</li>
             <li>Priority support</li>
             <li>99.9% SLA</li>
           </ul>
-          <a href="#waitlist" class="btn btn-primary">Get Started</a>
+          <a href="https://github.com/egeominotti/flashq" class="btn btn-primary" target="_blank">Star on GitHub</a>
         </div>
 
         <div class="pricing-card">
-          <h3>Scale</h3>
-          <div class="price">$199<span>/mo</span></div>
+          <h3>Enterprise</h3>
+          <div class="price">Custom</div>
           <p class="description">For high-volume production workloads.</p>
           <ul class="pricing-features">
-            <li>10M jobs/month</li>
-            <li>Unlimited queues</li>
-            <li>90 days retention</li>
+            <li>Unlimited jobs</li>
+            <li>Dedicated infrastructure</li>
+            <li>On-premise option</li>
             <li>Dedicated support</li>
             <li>Custom SLA</li>
             <li>SSO/SAML</li>
           </ul>
-          <a href="#waitlist" class="btn btn-secondary">Contact Sales</a>
+          <a href="https://github.com/egeominotti/flashq/issues" class="btn btn-secondary" target="_blank">Contact Us</a>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- Waitlist -->
+  <!-- Get Started -->
   <section id="waitlist" class="waitlist">
     <div class="container">
       <div class="section-header">
-        <h2>Get Early Access</h2>
-        <p>Join 50+ teams on the waitlist. Be the first to try flashQ Cloud.</p>
+        <h2>Get Started in 5 Minutes</h2>
+        <p>Open source and free to use. Start building with flashQ today.</p>
       </div>
 
-      <form class="waitlist-form" action="https://formspree.io/f/YOUR_FORM_ID" method="POST">
-        <input type="email" name="email" placeholder="you@company.com" required>
-        <button type="submit" class="btn btn-primary">Join Waitlist</button>
-      </form>
+      <div class="hero-buttons" style="margin-top: 40px;">
+        <a href="/docs/" class="btn btn-primary">Read the Docs</a>
+        <a href="https://github.com/egeominotti/flashq" class="btn btn-secondary" target="_blank">
+          View on GitHub
+        </a>
+      </div>
     </div>
   </section>
 
@@ -1013,7 +1015,7 @@
         <a href="https://github.com/egeominotti/flashq" target="_blank">GitHub</a>
         <a href="https://npmjs.com/package/flashq" target="_blank">npm</a>
         <a href="/docs/">Docs</a>
-        <a href="mailto:support@flashq.dev">Contact</a>
+        <a href="https://github.com/egeominotti/flashq/issues" target="_blank">Support</a>
       </div>
       <div class="footer-copy">
         © 2025 flashQ. MIT License.
@@ -1033,25 +1035,6 @@
       });
     });
 
-    // Form submission
-    const form = document.querySelector('.waitlist-form');
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const email = form.querySelector('input[type="email"]').value;
-      const btn = form.querySelector('button');
-
-      btn.textContent = 'Joining...';
-      btn.disabled = true;
-
-      // Simulate API call (replace with actual endpoint)
-      await new Promise(r => setTimeout(r, 1000));
-
-      btn.textContent = 'You\'re on the list!';
-      btn.style.background = '#22c55e';
-
-      // Store email locally for now
-      console.log('Waitlist signup:', email);
-    });
   </script>
 </body>
 </html>
