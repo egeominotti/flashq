@@ -39,7 +39,7 @@ const worker = new Worker('emails', async (job) => {
 | **flashQ Server** | 0.1.0 | Docker with `io_uring` enabled, Rust + tokio async runtime |
 | **BullMQ** | 5.66.5 | npm package |
 | **Redis** | 7.4.7 | Docker (`redis:7-alpine`), jemalloc allocator |
-| **Runtime** | Bun 1.x | TypeScript SDK |
+| **Bun** | 1.3.6 | TypeScript runtime |
 | **Platform** | Linux/macOS | Docker containers |
 
 ### Benchmark Configuration

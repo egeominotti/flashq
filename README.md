@@ -26,7 +26,7 @@ Built with Rust. BullMQ-compatible. 600K+ jobs/sec.
 | **flashQ Server** | 0.1.0 | Docker with `io_uring`, Rust + tokio async runtime |
 | **BullMQ** | 5.66.5 | npm package |
 | **Redis** | 7.4.7 | Docker (`redis:7-alpine`), jemalloc allocator |
-| **Runtime** | Bun 1.x | TypeScript SDK |
+| **Bun** | 1.3.6 | TypeScript runtime |
 
 ### Test Configuration
 
