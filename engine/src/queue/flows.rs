@@ -58,6 +58,7 @@ impl QueueManager {
             keep_completed_age: 0,
             keep_completed_count: 0,
             completed_at: 0,
+            group_id: None,
         };
 
         // Create child jobs
@@ -94,6 +95,7 @@ impl QueueManager {
                 keep_completed_age: 0,
                 keep_completed_count: 0,
                 completed_at: 0,
+                group_id: None,
             };
             child_jobs.push(child_job);
         }

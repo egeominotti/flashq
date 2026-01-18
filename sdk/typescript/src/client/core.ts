@@ -56,6 +56,7 @@ export async function push<T = unknown>(
     job_id: options.jobId,
     keep_completed_age: options.keepCompletedAge,
     keep_completed_count: options.keepCompletedCount,
+    group_id: options.group_id,
   });
 
   return {
@@ -88,6 +89,7 @@ export async function push<T = unknown>(
     keep_completed_age: options.keepCompletedAge ?? 0,
     keep_completed_count: options.keepCompletedCount ?? 0,
     completed_at: 0,
+    group_id: options.group_id,
   };
 }
 
@@ -145,6 +147,7 @@ export async function pushBatch<T = unknown>(
       job_id: j.jobId,
       keep_completed_age: j.keepCompletedAge,
       keep_completed_count: j.keepCompletedCount,
+      group_id: j.group_id,
     })),
   });
   return response.ids;

@@ -54,6 +54,8 @@ pub enum Command {
         keep_completed_age: Option<u64>, // Keep completed job for N ms (retention policy)
         #[serde(default)]
         keep_completed_count: Option<usize>, // Keep in last N completed jobs (retention policy)
+        #[serde(default)]
+        group_id: Option<String>, // Group ID for FIFO processing within group
     },
     Pushb {
         queue: String,
@@ -416,4 +418,6 @@ pub struct JobInput {
     pub keep_completed_age: Option<u64>, // Retention: keep for N ms after completion
     #[serde(default)]
     pub keep_completed_count: Option<usize>, // Retention: keep in last N completed
+    #[serde(default)]
+    pub group_id: Option<String>, // Group ID for FIFO processing within group
 }

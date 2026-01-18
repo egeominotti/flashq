@@ -109,6 +109,7 @@ async fn process_command(
             job_id,
             keep_completed_age,
             keep_completed_count,
+            group_id,
         } => {
             match queue_manager
                 .push(
@@ -132,6 +133,7 @@ async fn process_command(
                     job_id,
                     keep_completed_age,
                     keep_completed_count,
+                    group_id,
                 )
                 .await
             {

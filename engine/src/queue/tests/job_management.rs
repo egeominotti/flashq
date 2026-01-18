@@ -30,6 +30,7 @@ async fn test_unique_key() {
             None,  // job_id
             None,  // keep_completed_age
             None,  // keep_completed_count
+            None,  // group_id
         )
         .await;
     assert!(job1.is_ok());
@@ -57,6 +58,7 @@ async fn test_unique_key() {
             None,  // job_id
             None,  // keep_completed_age
             None,  // keep_completed_count
+            None,  // group_id
         )
         .await;
     assert!(job2.is_err());
@@ -87,6 +89,7 @@ async fn test_unique_key() {
             None,  // job_id
             None,  // keep_completed_age
             None,  // keep_completed_count
+            None,  // group_id
         )
         .await;
     assert!(job3.is_ok());
@@ -119,6 +122,7 @@ async fn test_unique_key_different_queues() {
             None,  // job_id
             None,  // keep_completed_age
             None,  // keep_completed_count
+            None,  // group_id
         )
         .await;
     assert!(job1.is_ok());
@@ -145,6 +149,7 @@ async fn test_unique_key_different_queues() {
             None,  // job_id
             None,  // keep_completed_age
             None,  // keep_completed_count
+            None,  // group_id
         )
         .await;
     assert!(job2.is_ok());
@@ -176,6 +181,7 @@ async fn test_unique_key_released_on_fail() {
             None,  // job_id
             None,  // keep_completed_age
             None,  // keep_completed_count
+            None,  // group_id
         )
         .await
         .unwrap();
@@ -213,6 +219,7 @@ async fn test_cancel_releases_unique_key() {
             None,  // job_id
             None,  // keep_completed_age
             None,  // keep_completed_count
+            None,  // group_id
         )
         .await
         .unwrap();
@@ -243,6 +250,7 @@ async fn test_cancel_releases_unique_key() {
             None,  // job_id
             None,  // keep_completed_age
             None,  // keep_completed_count
+            None,  // group_id
         )
         .await;
     assert!(job2.is_ok());
@@ -276,6 +284,7 @@ async fn test_cancel() {
             None,  // job_id
             None,  // keep_completed_age
             None,  // keep_completed_count
+            None,  // group_id
         )
         .await
         .unwrap();
@@ -314,6 +323,7 @@ async fn test_cancel_processing_job() {
             None,  // job_id
             None,  // keep_completed_age
             None,  // keep_completed_count
+            None,  // group_id
         )
         .await
         .unwrap();
@@ -354,6 +364,7 @@ async fn test_cancel_job_in_queue_preserves_others() {
             None,
             None,
             None,
+            None,  // group_id
         )
         .await
         .unwrap();
@@ -379,6 +390,7 @@ async fn test_cancel_job_in_queue_preserves_others() {
             None,
             None,
             None,
+            None,  // group_id
         )
         .await
         .unwrap();
@@ -404,6 +416,7 @@ async fn test_cancel_job_in_queue_preserves_others() {
             None,
             None,
             None,
+            None,  // group_id
         )
         .await
         .unwrap();
@@ -453,6 +466,7 @@ async fn test_concurrent_cancel_operations() {
                 None,
                 None,
                 None,
+                None,  // group_id
             )
             .await
             .unwrap();
@@ -503,6 +517,7 @@ async fn test_progress() {
             None,  // job_id
             None,  // keep_completed_age
             None,  // keep_completed_count
+            None,  // group_id
         )
         .await
         .unwrap();
@@ -544,6 +559,7 @@ async fn test_progress_max_100() {
             None,  // job_id
             None,  // keep_completed_age
             None,  // keep_completed_count
+            None,  // group_id
         )
         .await
         .unwrap();

@@ -28,6 +28,7 @@ async fn test_push_and_pull() {
             None,  // job_id
             None,  // keep_completed_age
             None,  // keep_completed_count
+            None,  // group_id
         )
         .await
         .unwrap();
@@ -65,6 +66,7 @@ async fn test_push_with_all_options() {
             None,                      // job_id
             None,                      // keep_completed_age
             None,                      // keep_completed_count
+            None,                      // group_id
         )
         .await
         .unwrap();
@@ -102,6 +104,7 @@ async fn test_push_batch() {
             job_id: None,
             keep_completed_age: None,
             keep_completed_count: None,
+            group_id: None,
         },
         crate::protocol::JobInput {
             data: json!({"i": 2}),
@@ -123,6 +126,7 @@ async fn test_push_batch() {
             job_id: None,
             keep_completed_age: None,
             keep_completed_count: None,
+            group_id: None,
         },
     ];
 
@@ -162,6 +166,7 @@ async fn test_push_batch_large() {
             job_id: None,
             keep_completed_age: None,
             keep_completed_count: None,
+            group_id: None,
         })
         .collect();
 
@@ -199,6 +204,7 @@ async fn test_push_batch_exceeds_limit() {
             job_id: None,
             keep_completed_age: None,
             keep_completed_count: None,
+            group_id: None,
         })
         .collect();
 
@@ -233,6 +239,7 @@ async fn test_push_batch_at_limit() {
             job_id: None,
             keep_completed_age: None,
             keep_completed_count: None,
+            group_id: None,
         })
         .collect();
 
@@ -266,6 +273,7 @@ async fn test_ack() {
             None,  // job_id
             None,  // keep_completed_age
             None,  // keep_completed_count
+            None,  // group_id
         )
         .await
         .unwrap();
@@ -305,6 +313,7 @@ async fn test_ack_with_result() {
             None,  // job_id
             None,  // keep_completed_age
             None,  // keep_completed_count
+            None,  // group_id
         )
         .await
         .unwrap();
@@ -352,6 +361,7 @@ async fn test_pull_batch() {
             None,  // job_id
             None,  // keep_completed_age
             None,  // keep_completed_count
+            None,  // group_id
         )
         .await
         .unwrap();
@@ -391,6 +401,7 @@ async fn test_ack_batch() {
             None,  // job_id
             None,  // keep_completed_age
             None,  // keep_completed_count
+            None,  // group_id
         )
         .await
         .unwrap();
@@ -434,6 +445,7 @@ async fn test_fail_and_retry() {
             None,  // job_id
             None,  // keep_completed_age
             None,  // keep_completed_count
+            None,  // group_id
         )
         .await
         .unwrap();
@@ -476,6 +488,7 @@ async fn test_fail_with_backoff() {
             None,  // job_id
             None,  // keep_completed_age
             None,  // keep_completed_count
+            None,  // group_id
         )
         .await
         .unwrap();

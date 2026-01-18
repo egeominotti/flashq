@@ -14,7 +14,7 @@ impl QueueManager {
     pub async fn ack(&self, job_id: u64, result: Option<Value>) -> Result<(), String> {
         let job = self.processing_remove(job_id);
         if let Some(job) = job {
-            // Release concurrency
+            // Release concurrency and group
             let idx = Self::shard_index(&job.queue);
             let queue_arc = intern(&job.queue);
             {
@@ -28,6 +28,13 @@ impl QueueManager {
                 if let Some(ref key) = job.unique_key {
                     if let Some(keys) = shard.unique_keys.get_mut(&queue_arc) {
                         keys.remove(key);
+                    }
+                }
+
+                // Release group if job has a group_id
+                if let Some(ref group_id) = job.group_id {
+                    if let Some(groups) = shard.active_groups.get_mut(&queue_arc) {
+                        groups.remove(group_id);
                     }
                 }
             }
@@ -126,6 +133,13 @@ impl QueueManager {
                             keys.remove(key);
                         }
                     }
+
+                    // Release group if job has a group_id
+                    if let Some(ref group_id) = job.group_id {
+                        if let Some(groups) = shard.active_groups.get_mut(&queue_arc) {
+                            groups.remove(group_id);
+                        }
+                    }
                 }
                 self.completed_jobs.write().insert(id);
                 self.index_job(id, JobLocation::Completed);
@@ -161,12 +175,18 @@ impl QueueManager {
 
                 // Handle remove_on_fail option
                 if job.remove_on_fail {
-                    // OPTIMIZATION: Single lock scope for release concurrency
+                    // OPTIMIZATION: Single lock scope for release concurrency and group
                     {
                         let mut shard = self.shards[idx].write();
                         let state = shard.get_state(&queue_arc);
                         if let Some(ref mut conc) = state.concurrency {
                             conc.release();
+                        }
+                        // Release group if job has a group_id
+                        if let Some(ref group_id) = job.group_id {
+                            if let Some(groups) = shard.active_groups.get_mut(&queue_arc) {
+                                groups.remove(group_id);
+                            }
                         }
                     }
                     // Don't store in DLQ, just discard
@@ -185,13 +205,20 @@ impl QueueManager {
                     self.persist_dlq(&job, error.as_deref());
                     // Extract data for broadcast before moving
                     let queue_name = job.queue.clone();
+                    let group_id_to_release = job.group_id.clone();
 
-                    // OPTIMIZATION: Single lock scope for release concurrency + DLQ push
+                    // OPTIMIZATION: Single lock scope for release concurrency, group + DLQ push
                     {
                         let mut shard = self.shards[idx].write();
                         let state = shard.get_state(&queue_arc);
                         if let Some(ref mut conc) = state.concurrency {
                             conc.release();
+                        }
+                        // Release group if job has a group_id
+                        if let Some(ref group_id) = group_id_to_release {
+                            if let Some(groups) = shard.active_groups.get_mut(&queue_arc) {
+                                groups.remove(group_id);
+                            }
                         }
                         shard.dlq.entry(queue_arc).or_default().push_back(job);
                     }
@@ -256,12 +283,18 @@ impl QueueManager {
                 self.persist_fail(job_id, new_run_at, job.attempts);
             }
 
-            // OPTIMIZATION: Single lock scope for release concurrency + queue push
+            // OPTIMIZATION: Single lock scope for release concurrency, group + queue push
             {
                 let mut shard = self.shards[idx].write();
                 let state = shard.get_state(&queue_arc);
                 if let Some(ref mut conc) = state.concurrency {
                     conc.release();
+                }
+                // Release group if job has a group_id (job will be re-queued and can be picked up again)
+                if let Some(ref group_id) = job.group_id {
+                    if let Some(groups) = shard.active_groups.get_mut(&queue_arc) {
+                        groups.remove(group_id);
+                    }
                 }
                 shard.queues.entry(queue_arc).or_default().push(job);
             }

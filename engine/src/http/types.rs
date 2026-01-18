@@ -50,6 +50,8 @@ pub struct PushRequest {
     pub keep_completed_age: Option<u64>,
     #[serde(default)]
     pub keep_completed_count: Option<usize>,
+    #[serde(default)]
+    pub group_id: Option<String>,
 }
 
 /// Acknowledge job request.

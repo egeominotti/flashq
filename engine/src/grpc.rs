@@ -135,6 +135,7 @@ impl QueueService for QueueServiceImpl {
                 None,  // job_id (custom ID)
                 None,  // keep_completed_age
                 None,  // keep_completed_count
+                None,  // group_id
             )
             .await
         {
@@ -197,6 +198,7 @@ impl QueueService for QueueServiceImpl {
                 job_id: None,
                 keep_completed_age: None,
                 keep_completed_count: None,
+                group_id: None,
             });
         }
 

@@ -109,6 +109,9 @@ pub struct Job {
     pub keep_completed_count: usize, // Keep in last N completed (0 = use default)
     #[serde(default)]
     pub completed_at: u64, // When job was completed (for retention)
+    // === Group Support ===
+    #[serde(default)]
+    pub group_id: Option<String>, // Group ID for FIFO processing within group
 }
 
 impl Job {

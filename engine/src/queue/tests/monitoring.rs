@@ -29,6 +29,7 @@ async fn test_stats() {
             None,
             None,
             None,
+            None,  // group_id
         )
         .await
         .unwrap();
@@ -75,6 +76,7 @@ async fn test_metrics() {
             None,
             None,
             None,
+            None,  // group_id
         )
         .await
         .unwrap();
@@ -113,6 +115,7 @@ async fn test_list_queues() {
         None,
         None,
         None,
+        None,  // group_id
     )
     .await
     .unwrap();
@@ -137,6 +140,7 @@ async fn test_list_queues() {
         None,
         None,
         None,
+        None,  // group_id
     )
     .await
     .unwrap();
@@ -161,6 +165,7 @@ async fn test_list_queues() {
         None,
         None,
         None,
+        None,  // group_id
     )
     .await
     .unwrap();
@@ -200,6 +205,7 @@ async fn test_metrics_throughput_calculation() {
             None,
             None,
             None,
+            None,  // group_id
         )
         .await
         .unwrap();

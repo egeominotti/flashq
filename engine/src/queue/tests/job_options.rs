@@ -31,6 +31,7 @@ async fn test_remove_on_complete() {
             None,
             None,
             None,
+            None,  // group_id
         )
         .await
         .unwrap();
@@ -69,6 +70,7 @@ async fn test_remove_on_complete_false() {
             None,
             None,
             None,
+            None,  // group_id
         )
         .await
         .unwrap();
@@ -109,6 +111,7 @@ async fn test_remove_on_fail() {
             None,
             None,
             None,
+            None,  // group_id
         )
         .await
         .unwrap();
@@ -153,6 +156,7 @@ async fn test_debounce_prevents_duplicate() {
             None,
             None,
             None,
+            None,  // group_id
         )
         .await;
     assert!(job1.is_ok());
@@ -180,6 +184,7 @@ async fn test_debounce_prevents_duplicate() {
             None,
             None,
             None,
+            None,  // group_id
         )
         .await;
     assert!(job2.is_err());
@@ -212,6 +217,7 @@ async fn test_debounce_different_ids_allowed() {
             None,
             None,
             None,
+            None,  // group_id
         )
         .await;
     assert!(job1.is_ok());
@@ -238,6 +244,7 @@ async fn test_debounce_different_ids_allowed() {
             None,
             None,
             None,
+            None,  // group_id
         )
         .await;
     assert!(job2.is_ok());
@@ -271,6 +278,7 @@ async fn test_keep_completed_count() {
             None,
             None,
             Some(100), // keep_completed_count
+            None,      // group_id
         )
         .await
         .unwrap();
@@ -304,6 +312,7 @@ async fn test_keep_completed_age() {
             None,
             Some(86400000), // 24 hours
             None,
+            None,  // group_id
         )
         .await
         .unwrap();
@@ -339,6 +348,7 @@ async fn test_add_job_log() {
             None,
             None,
             None,
+            None,  // group_id
         )
         .await
         .unwrap();
@@ -394,6 +404,7 @@ async fn test_job_heartbeat() {
             None,
             None,
             None,
+            None,  // group_id
         )
         .await
         .unwrap();
@@ -440,6 +451,7 @@ async fn test_heartbeat_not_processing() {
             None,
             None,
             None,
+            None,  // group_id
         )
         .await
         .unwrap();
@@ -477,6 +489,7 @@ async fn test_stall_timeout_set() {
             None,
             None,
             None,
+            None,  // group_id
         )
         .await
         .unwrap();
@@ -545,6 +558,7 @@ async fn test_get_children_not_flow() {
             None,
             None,
             None,
+            None,  // group_id
         )
         .await
         .unwrap();

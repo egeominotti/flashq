@@ -81,6 +81,7 @@ pub async fn pull_job_distributed(
                 keep_completed_age: 0,
                 keep_completed_count: 0,
                 completed_at: 0,
+                group_id: None,
             }))
         }
         None => Ok(None),
@@ -161,6 +162,7 @@ pub async fn pull_jobs_distributed_batch(
                 keep_completed_age: 0,
                 keep_completed_count: 0,
                 completed_at: 0,
+                group_id: None,
             }
         })
         .collect();
@@ -226,6 +228,7 @@ pub async fn load_jobs_by_queue_since(
             keep_completed_age: 0,
             keep_completed_count: 0,
             completed_at: 0,
+            group_id: None,
         };
         let state: String = row.get("state");
         jobs.push((job, state));

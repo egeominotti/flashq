@@ -46,6 +46,7 @@ pub async fn push_job(
             req.job_id,
             req.keep_completed_age,
             req.keep_completed_count,
+            req.group_id,
         )
         .await
     {

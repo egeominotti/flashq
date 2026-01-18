@@ -32,6 +32,8 @@ export interface JobOptions {
   depends_on?: number[];
   /** Tags for filtering */
   tags?: string[];
+  /** Group ID for FIFO processing within group (only one job per group processed at a time) */
+  group_id?: string;
 }
 
 /**
@@ -77,6 +79,7 @@ export class Queue<T = unknown> {
       jobId: opts.jobId,
       depends_on: opts.depends_on,
       tags: opts.tags,
+      group_id: opts.group_id,
     };
 
     // Handle backoff (BullMQ uses object, flashQ uses number)
@@ -106,6 +109,7 @@ export class Queue<T = unknown> {
         ttl: opts.ttl,
         jobId: opts.jobId,
         backoff: typeof opts.backoff === 'number' ? opts.backoff : opts.backoff?.delay,
+        group_id: opts.group_id,
       };
     });
 

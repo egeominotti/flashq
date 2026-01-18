@@ -32,6 +32,7 @@ async fn test_subscribe_events() {
             None,
             None,
             None,
+            None,  // group_id
         )
         .await
         .unwrap();
@@ -77,6 +78,7 @@ async fn test_broadcast_event_on_ack() {
             None,
             None,
             None,
+            None,  // group_id
         )
         .await
         .unwrap();
@@ -127,6 +129,7 @@ async fn test_broadcast_event_on_fail() {
             None,
             None,
             None,
+            None,  // group_id
         )
         .await
         .unwrap();

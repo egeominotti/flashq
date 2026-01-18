@@ -44,6 +44,14 @@ impl QueueManager {
                     PullResult::SleepConcurrency
                 } else {
                     let mut result = None;
+                    let mut skipped_jobs: Vec<Job> = Vec::new();
+
+                    // Clone active groups to avoid borrow conflict with heap
+                    let active_groups: Option<std::collections::HashSet<String>> = shard
+                        .active_groups
+                        .get(&queue_arc)
+                        .map(|g| g.iter().cloned().collect());
+
                     if let Some(heap) = shard.queues.get_mut(&queue_arc) {
                         loop {
                             // Safe pattern: pop directly and check, avoiding peek+expect race
@@ -53,6 +61,17 @@ impl QueueManager {
                                     continue;
                                 }
                                 Some(mut job) if job.is_ready(now) => {
+                                    // Check if job's group is already active
+                                    if let Some(ref group_id) = job.group_id {
+                                        if active_groups
+                                            .as_ref()
+                                            .is_some_and(|g| g.contains(group_id))
+                                        {
+                                            // Group is busy, skip this job
+                                            skipped_jobs.push(job);
+                                            continue;
+                                        }
+                                    }
                                     job.started_at = now;
                                     job.last_heartbeat = now;
                                     result = Some(job);
@@ -66,10 +85,23 @@ impl QueueManager {
                                 None => break,
                             }
                         }
+
+                        // Put back all skipped jobs
+                        for job in skipped_jobs {
+                            heap.push(job);
+                        }
                     }
 
-                    if let Some(job) = result {
-                        PullResult::Job(Box::new(job))
+                    if let Some(ref job) = result {
+                        // Mark group as active if job has a group_id
+                        if let Some(ref group_id) = job.group_id {
+                            shard
+                                .active_groups
+                                .entry(queue_arc.clone())
+                                .or_default()
+                                .insert(group_id.clone());
+                        }
+                        PullResult::Job(Box::new(result.unwrap()))
                     } else {
                         let state = shard.get_state(&queue_arc);
                         if let Some(ref mut conc) = state.concurrency {
@@ -145,7 +177,17 @@ impl QueueManager {
                     }
 
                     if slots_acquired > 0 {
+                        let mut skipped_jobs: Vec<Job> = Vec::new();
+
+                        // Clone active groups to avoid borrow conflict with heap
+                        let existing_active: Option<std::collections::HashSet<String>> = shard
+                            .active_groups
+                            .get(&queue_arc)
+                            .map(|g| g.iter().cloned().collect());
+
                         if let Some(heap) = shard.queues.get_mut(&queue_arc) {
+                            let mut newly_activated: Vec<String> = Vec::new();
+
                             while jobs.len() < slots_acquired {
                                 // Safe pattern: pop directly and check, avoiding peek+expect race
                                 match heap.pop() {
@@ -154,6 +196,20 @@ impl QueueManager {
                                         continue;
                                     }
                                     Some(mut job) if job.is_ready(now) => {
+                                        // Check if job's group is already active
+                                        if let Some(ref group_id) = job.group_id {
+                                            let is_active = existing_active
+                                                .as_ref()
+                                                .is_some_and(|g| g.contains(group_id))
+                                                || newly_activated.contains(group_id);
+                                            if is_active {
+                                                // Group is busy, skip this job
+                                                skipped_jobs.push(job);
+                                                continue;
+                                            }
+                                            // Mark group as being activated in this batch
+                                            newly_activated.push(group_id.clone());
+                                        }
                                         job.started_at = now;
                                         job.last_heartbeat = now;
                                         jobs.push(job);
@@ -165,6 +221,22 @@ impl QueueManager {
                                     }
                                     None => break,
                                 }
+                            }
+
+                            // Put back all skipped jobs
+                            for job in skipped_jobs {
+                                heap.push(job);
+                            }
+                        }
+
+                        // Mark groups as active for all jobs we're returning
+                        for job in &jobs {
+                            if let Some(ref group_id) = job.group_id {
+                                shard
+                                    .active_groups
+                                    .entry(queue_arc.clone())
+                                    .or_default()
+                                    .insert(group_id.clone());
                             }
                         }
 
@@ -210,6 +282,117 @@ impl QueueManager {
                 }
             }
         }
+    }
+
+    /// Pull jobs from queue without waiting (non-blocking version of pull_batch).
+    /// Returns immediately with whatever jobs are available (may be empty).
+    /// Used primarily for testing and situations where blocking is not desired.
+    pub async fn pull_batch_nowait(&self, queue_name: &str, count: usize) -> Vec<Job> {
+        let idx = Self::shard_index(queue_name);
+        let queue_arc = intern(queue_name);
+        let now = now_ms();
+
+        let mut jobs = Vec::new();
+        let mut skipped_jobs: Vec<Job> = Vec::new();
+
+        {
+            let mut shard = self.shards[idx].write();
+            let state = shard.get_state(&queue_arc);
+
+            if state.paused {
+                return jobs;
+            }
+
+            let has_concurrency = state.concurrency.is_some();
+            let mut slots_acquired = 0usize;
+
+            if has_concurrency {
+                let state = shard.get_state(&queue_arc);
+                if let Some(ref mut conc) = state.concurrency {
+                    while slots_acquired < count && conc.try_acquire() {
+                        slots_acquired += 1;
+                    }
+                }
+            } else {
+                slots_acquired = count;
+            }
+
+            if slots_acquired > 0 {
+                // Clone active groups to avoid borrow conflict with heap
+                let existing_active: Option<std::collections::HashSet<String>> = shard
+                    .active_groups
+                    .get(&queue_arc)
+                    .map(|g| g.iter().cloned().collect());
+
+                if let Some(heap) = shard.queues.get_mut(&queue_arc) {
+                    let mut newly_activated: Vec<String> = Vec::new();
+
+                    while jobs.len() < slots_acquired {
+                        match heap.pop() {
+                            Some(job) if job.is_expired(now) => {
+                                continue;
+                            }
+                            Some(mut job) if job.is_ready(now) => {
+                                // Check if job's group is already active
+                                if let Some(ref group_id) = job.group_id {
+                                    let is_active = existing_active
+                                        .as_ref()
+                                        .is_some_and(|g| g.contains(group_id))
+                                        || newly_activated.contains(group_id);
+                                    if is_active {
+                                        skipped_jobs.push(job);
+                                        continue;
+                                    }
+                                    newly_activated.push(group_id.clone());
+                                }
+                                job.started_at = now;
+                                job.last_heartbeat = now;
+                                jobs.push(job);
+                            }
+                            Some(job) => {
+                                heap.push(job);
+                                break;
+                            }
+                            None => break,
+                        }
+                    }
+
+                    // Put back all skipped jobs
+                    for job in skipped_jobs {
+                        heap.push(job);
+                    }
+                }
+
+                // Mark groups as active for all jobs we're returning
+                for job in &jobs {
+                    if let Some(ref group_id) = job.group_id {
+                        shard
+                            .active_groups
+                            .entry(queue_arc.clone())
+                            .or_default()
+                            .insert(group_id.clone());
+                    }
+                }
+
+                if has_concurrency && jobs.len() < slots_acquired {
+                    let state = shard.get_state(&queue_arc);
+                    if let Some(ref mut conc) = state.concurrency {
+                        for _ in 0..(slots_acquired - jobs.len()) {
+                            conc.release();
+                        }
+                    }
+                }
+            }
+        }
+
+        // Index and track jobs
+        for job in &jobs {
+            self.index_job(job.id, JobLocation::Processing);
+            self.processing_insert(job.clone());
+            self.metrics.record_pull();
+        }
+
+        jobs
     }
 
     // ============== Distributed Pull (Cluster Mode) ==============

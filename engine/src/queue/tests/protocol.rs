@@ -39,6 +39,7 @@ fn test_job_is_ready() {
         keep_completed_age: 0,
         keep_completed_count: 0,
         completed_at: 0,
+        group_id: None,
     };
 
     assert!(job.is_ready(now));
@@ -86,6 +87,7 @@ fn test_job_is_expired() {
         keep_completed_age: 0,
         keep_completed_count: 0,
         completed_at: 0,
+        group_id: None,
     };
 
     assert!(job.is_expired(now)); // 1000 > 900
@@ -140,6 +142,7 @@ fn test_job_is_timed_out() {
         keep_completed_age: 0,
         keep_completed_count: 0,
         completed_at: 0,
+        group_id: None,
     };
 
     assert!(job.is_timed_out(now)); // 1000 > 900
@@ -192,6 +195,7 @@ fn test_job_should_go_to_dlq() {
         keep_completed_age: 0,
         keep_completed_count: 0,
         completed_at: 0,
+        group_id: None,
     };
 
     assert!(job.should_go_to_dlq()); // attempts >= max_attempts
@@ -244,6 +248,7 @@ fn test_job_next_backoff() {
         keep_completed_age: 0,
         keep_completed_count: 0,
         completed_at: 0,
+        group_id: None,
     };
 
     // Exponential backoff: base * 2^attempts

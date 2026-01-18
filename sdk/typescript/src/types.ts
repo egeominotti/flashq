@@ -34,6 +34,8 @@ export interface Job<T = unknown> {
   keep_completed_age: number;
   keep_completed_count: number;
   completed_at: number;
+  /** Group ID for FIFO processing within group */
+  group_id?: string;
 }
 
 export type JobState =
@@ -87,6 +89,8 @@ export interface PushOptions {
   keepCompletedAge?: number;
   /** Keep completed job in last N completed */
   keepCompletedCount?: number;
+  /** Group ID for FIFO processing within group (only one job per group processed at a time) */
+  group_id?: string;
 }
 
 export interface WorkerOptions {

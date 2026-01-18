@@ -29,6 +29,7 @@ async fn test_different_queues_different_shards() {
             None,
             None,
             None,
+            None,  // group_id
         )
         .await
         .unwrap();

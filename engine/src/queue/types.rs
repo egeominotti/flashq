@@ -423,6 +423,10 @@ pub struct Shard {
     pub waiting_children: GxHashMap<u64, Job>, // Parent jobs waiting for children (Flows)
     pub queue_state: GxHashMap<CompactString, QueueState>,
     pub notify: Arc<Notify>, // Per-shard notify for targeted wakeups
+    /// Active groups: tracks which groups have jobs currently being processed
+    /// Key: queue name, Value: set of group_ids that have active jobs
+    /// Used to ensure only one job per group is processed at a time (FIFO within group)
+    pub active_groups: GxHashMap<CompactString, GxHashSet<String>>,
 }
 
 impl Shard {
@@ -436,6 +440,7 @@ impl Shard {
             waiting_children: GxHashMap::with_capacity_and_hasher(256, Default::default()),
             queue_state: GxHashMap::with_capacity_and_hasher(16, Default::default()),
             notify: Arc::new(Notify::new()),
+            active_groups: GxHashMap::with_capacity_and_hasher(16, Default::default()),
         }
     }
 

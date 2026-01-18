@@ -95,3 +95,6 @@ mod remaining;
 
 // Key-Value storage
 mod kv;
+
+// Group support: FIFO processing within groups
+mod groups;

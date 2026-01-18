@@ -29,6 +29,7 @@ async fn test_dlq() {
             None,  // job_id
             None,  // keep_completed_age
             None,  // keep_completed_count
+            None,  // group_id
         )
         .await
         .unwrap();
@@ -75,6 +76,7 @@ async fn test_dlq_retry_single() {
             None,  // job_id
             None,  // keep_completed_age
             None,  // keep_completed_count
+            None,  // group_id
         )
         .await
         .unwrap();
@@ -100,6 +102,7 @@ async fn test_dlq_retry_single() {
             None,  // job_id
             None,  // keep_completed_age
             None,  // keep_completed_count
+            None,  // group_id
         )
         .await
         .unwrap();
@@ -149,6 +152,7 @@ async fn test_dlq_with_limit() {
             None,  // job_id
             None,  // keep_completed_age
             None,  // keep_completed_count
+            None,  // group_id
         )
         .await
         .unwrap();

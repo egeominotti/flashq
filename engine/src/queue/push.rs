@@ -35,6 +35,7 @@ impl QueueManager {
         custom_id: Option<String>,
         keep_completed_age: Option<u64>,
         keep_completed_count: Option<usize>,
+        group_id: Option<String>,
     ) -> Job {
         JobBuilder::new(queue, data)
             .priority(priority)
@@ -53,6 +54,7 @@ impl QueueManager {
             .custom_id_opt(custom_id)
             .keep_completed_age_opt(keep_completed_age)
             .keep_completed_count_opt(keep_completed_count)
+            .group_id_opt(group_id)
             .build(id, now_ms())
     }
 
@@ -79,6 +81,7 @@ impl QueueManager {
         job_id: Option<String>,
         keep_completed_age: Option<u64>,
         keep_completed_count: Option<usize>,
+        group_id: Option<String>,
     ) -> Result<Job, String> {
         // Validate inputs to prevent DoS attacks
         validate_queue_name(&queue)?;
@@ -137,6 +140,7 @@ impl QueueManager {
             job_id.clone(),
             keep_completed_age,
             keep_completed_count,
+            group_id,
         );
 
         let idx = Self::shard_index(&queue);
@@ -339,6 +343,7 @@ impl QueueManager {
                     input.job_id,
                     input.keep_completed_age,
                     input.keep_completed_count,
+                    input.group_id,
                 );
                 ids.push(job.id);
 

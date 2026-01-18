@@ -30,6 +30,7 @@ async fn test_cleanup_completed_jobs_removes_from_index() {
                 None,
                 None,
                 None,
+                None,  // group_id
             )
             .await
             .unwrap();
@@ -74,6 +75,7 @@ async fn test_cleanup_completed_jobs_threshold() {
                 None,
                 None,
                 None,
+                None,  // group_id
             )
             .await
             .unwrap();
@@ -116,6 +118,7 @@ async fn test_job_index_consistency_after_operations() {
             None,
             None,
             None,
+            None,  // group_id
         )
         .await
         .unwrap();
@@ -167,6 +170,7 @@ async fn test_job_index_consistency_after_fail_to_dlq() {
             None,
             None,
             None,
+            None,  // group_id
         )
         .await
         .unwrap();

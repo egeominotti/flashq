@@ -59,6 +59,7 @@ async fn test_postgres_job_persistence() {
             None,
             None,
             None,
+            None,  // group_id
         )
         .await
         .expect("Failed to push job");
@@ -118,6 +119,7 @@ async fn test_postgres_job_state_transitions() {
             None,
             None,
             None,
+            None,  // group_id
         )
         .await
         .expect("Push failed");

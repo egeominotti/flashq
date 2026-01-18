@@ -36,6 +36,7 @@ pub struct JobBuilder {
     custom_id: Option<String>,
     keep_completed_age: Option<u64>,
     keep_completed_count: Option<usize>,
+    group_id: Option<String>,
 }
 
 #[allow(dead_code)]
@@ -246,6 +247,20 @@ impl JobBuilder {
         self
     }
 
+    /// Set group ID for FIFO processing within group. Default: None
+    #[inline]
+    pub fn group_id(mut self, id: impl Into<String>) -> Self {
+        self.group_id = Some(id.into());
+        self
+    }
+
+    /// Set optional group ID
+    #[inline]
+    pub fn group_id_opt(mut self, id: Option<String>) -> Self {
+        self.group_id = id;
+        self
+    }
+
     /// Build the Job with the given ID and current timestamp.
     #[inline]
     pub fn build(self, id: u64, now: u64) -> Job {
@@ -280,6 +295,7 @@ impl JobBuilder {
             keep_completed_age: self.keep_completed_age.unwrap_or(0),
             keep_completed_count: self.keep_completed_count.unwrap_or(0),
             completed_at: 0,
+            group_id: self.group_id,
         }
     }
 

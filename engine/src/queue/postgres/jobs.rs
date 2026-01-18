@@ -197,6 +197,7 @@ pub async fn load_pending_jobs(pool: &PgPool) -> Result<Vec<(Job, String)>, sqlx
             keep_completed_age: 0,
             keep_completed_count: 0,
             completed_at: 0,
+            group_id: None,
         };
         let state: String = row.get("state");
         jobs.push((job, state));
@@ -254,6 +255,7 @@ pub async fn load_dlq_jobs(pool: &PgPool) -> Result<Vec<Job>, sqlx::Error> {
             keep_completed_age: 0,
             keep_completed_count: 0,
             completed_at: 0,
+            group_id: None,
         });
     }
 
@@ -312,6 +314,7 @@ pub async fn load_job_by_id(
                 keep_completed_age: 0,
                 keep_completed_count: 0,
                 completed_at: 0,
+                group_id: None,
             };
             let state: String = row.get("state");
             Ok(Some((job, state)))
