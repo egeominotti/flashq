@@ -32,7 +32,7 @@ async fn test_drain_removes_all_waiting_jobs() {
             None,
             None,
             None,
-            None,  // group_id
+            None, // group_id
         )
         .await
         .unwrap();
@@ -77,7 +77,7 @@ async fn test_drain_does_not_affect_other_queues() {
             None,
             None,
             None,
-            None,  // group_id
+            None, // group_id
         )
         .await
         .unwrap();
@@ -104,7 +104,7 @@ async fn test_drain_does_not_affect_other_queues() {
             None,
             None,
             None,
-            None,  // group_id
+            None, // group_id
         )
         .await
         .unwrap();
@@ -156,7 +156,7 @@ async fn test_obliterate_removes_all_queue_data() {
             None,
             None,
             None,
-            None,  // group_id
+            None, // group_id
         )
         .await
         .unwrap();
@@ -215,7 +215,7 @@ async fn test_clean_removes_old_failed_jobs() {
                 None,
                 None,
                 None,
-                None,  // group_id
+                None, // group_id
             )
             .await
             .unwrap();
@@ -267,7 +267,7 @@ async fn test_change_priority_waiting_job() {
             None,
             None,
             None,
-            None,  // group_id
+            None, // group_id
         )
         .await
         .unwrap();
@@ -294,7 +294,7 @@ async fn test_change_priority_waiting_job() {
             None,
             None,
             None,
-            None,  // group_id
+            None, // group_id
         )
         .await
         .unwrap();
@@ -330,7 +330,7 @@ async fn test_change_priority_waiting_job() {
             None,
             None,
             None,
-            None,  // group_id
+            None, // group_id
         )
         .await
         .unwrap();
@@ -370,7 +370,7 @@ async fn test_change_priority_processing_job() {
             None,
             None,
             None,
-            None,  // group_id
+            None, // group_id
         )
         .await
         .unwrap();
@@ -419,7 +419,7 @@ async fn test_move_to_delayed() {
             None,
             None,
             None,
-            None,  // group_id
+            None, // group_id
         )
         .await
         .unwrap();
@@ -467,7 +467,7 @@ async fn test_move_to_delayed_not_processing() {
             None,
             None,
             None,
-            None,  // group_id
+            None, // group_id
         )
         .await
         .unwrap();
@@ -506,7 +506,7 @@ async fn test_promote_delayed_job() {
             None,
             None,
             None,
-            None,  // group_id
+            None, // group_id
         )
         .await
         .unwrap();
@@ -551,7 +551,7 @@ async fn test_promote_not_delayed() {
             None,
             None,
             None,
-            None,  // group_id
+            None, // group_id
         )
         .await
         .unwrap();
@@ -589,7 +589,7 @@ async fn test_update_job_data_waiting() {
             None,
             None,
             None,
-            None,  // group_id
+            None, // group_id
         )
         .await
         .unwrap();
@@ -630,7 +630,7 @@ async fn test_update_job_data_processing() {
             None,
             None,
             None,
-            None,  // group_id
+            None, // group_id
         )
         .await
         .unwrap();
@@ -672,7 +672,7 @@ async fn test_discard_processing_job() {
             None,
             None,
             None,
-            None,  // group_id
+            None, // group_id
         )
         .await
         .unwrap();
@@ -719,7 +719,7 @@ async fn test_discard_waiting_job() {
             None,
             None,
             None,
-            None,  // group_id
+            None, // group_id
         )
         .await
         .unwrap();
@@ -851,7 +851,7 @@ async fn test_purge_dlq() {
                 None,
                 None,
                 None,
-                None,  // group_id
+                None, // group_id
             )
             .await
             .unwrap();
@@ -921,7 +921,7 @@ async fn test_count() {
             None,
             None,
             None,
-            None,  // group_id
+            None, // group_id
         )
         .await
         .unwrap();
@@ -966,7 +966,7 @@ async fn test_get_job_counts() {
             None,
             None,
             None,
-            None,  // group_id
+            None, // group_id
         )
         .await
         .unwrap();
@@ -995,7 +995,7 @@ async fn test_get_job_counts() {
             None,
             None,
             None,
-            None,  // group_id
+            None, // group_id
         )
         .await
         .unwrap();

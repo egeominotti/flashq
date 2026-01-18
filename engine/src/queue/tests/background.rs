@@ -29,7 +29,7 @@ async fn test_job_timeout_detection() {
             None,
             None,
             None,
-            None,  // group_id
+            None, // group_id
         )
         .await
         .unwrap();
@@ -76,7 +76,7 @@ async fn test_job_timeout_retry() {
             None,
             None,
             None,
-            None,  // group_id
+            None, // group_id
         )
         .await
         .unwrap();

@@ -36,7 +36,7 @@ async fn test_list_jobs_all() {
             None,
             None,
             None,
-            None,  // group_id
+            None, // group_id
         )
         .await
         .unwrap();
@@ -64,7 +64,7 @@ async fn test_list_jobs_all() {
             None,
             None,
             None,
-            None,  // group_id
+            None, // group_id
         )
         .await
         .unwrap();
@@ -100,7 +100,7 @@ async fn test_list_jobs_filter_by_queue() {
             None,
             None,
             None,
-            None,  // group_id
+            None, // group_id
         )
         .await
         .unwrap();
@@ -128,7 +128,7 @@ async fn test_list_jobs_filter_by_queue() {
             None,
             None,
             None,
-            None,  // group_id
+            None, // group_id
         )
         .await
         .unwrap();
@@ -168,7 +168,7 @@ async fn test_list_jobs_filter_by_state() {
             None,
             None,
             None,
-            None,  // group_id
+            None, // group_id
         )
         .await
         .unwrap();
@@ -197,7 +197,7 @@ async fn test_list_jobs_filter_by_state() {
             None,
             None,
             None,
-            None,  // group_id
+            None, // group_id
         )
         .await
         .unwrap();
@@ -238,7 +238,7 @@ async fn test_list_jobs_pagination() {
             None,
             None,
             None,
-            None,  // group_id
+            None, // group_id
         )
         .await
         .unwrap();
@@ -287,7 +287,7 @@ async fn test_get_jobs_with_filtering() {
             None,
             None,
             None,
-            None,  // group_id
+            None, // group_id
         )
         .await
         .unwrap();
@@ -326,7 +326,7 @@ async fn test_get_jobs_batch() {
                 None,
                 None,
                 None,
-                None,  // group_id
+                None, // group_id
             )
             .await
             .unwrap();
@@ -363,7 +363,7 @@ async fn test_get_jobs_batch_with_missing() {
             None,
             None,
             None,
-            None,  // group_id
+            None, // group_id
         )
         .await
         .unwrap();

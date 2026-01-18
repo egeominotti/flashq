@@ -32,7 +32,7 @@ async fn test_concurrent_push() {
                     None,
                     None,
                     None,
-                    None,  // group_id
+                    None, // group_id
                 )
                 .await
                 .unwrap()
@@ -74,7 +74,7 @@ async fn test_concurrent_push_pull() {
             None,
             None,
             None,
-            None,  // group_id
+            None, // group_id
         )
         .await
         .unwrap();
@@ -109,7 +109,7 @@ async fn test_concurrent_push_pull() {
                     None,
                     None,
                     None,
-                    None,  // group_id
+                    None, // group_id
                 )
                 .await
                 .unwrap()

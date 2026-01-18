@@ -30,7 +30,7 @@ async fn test_pause_resume() {
         None,
         None,
         None,
-        None,  // group_id
+        None, // group_id
     )
     .await
     .unwrap();
@@ -81,7 +81,7 @@ async fn test_rate_limit() {
         None,
         None,
         None,
-        None,  // group_id
+        None, // group_id
     )
     .await
     .unwrap();
@@ -129,7 +129,7 @@ async fn test_concurrency_limit() {
             None,
             None,
             None,
-            None,  // group_id
+            None, // group_id
         )
         .await
         .unwrap();

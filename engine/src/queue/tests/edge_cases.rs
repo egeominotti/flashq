@@ -29,7 +29,7 @@ async fn test_empty_queue_name() {
             None,
             None,
             None,
-            None,  // group_id
+            None, // group_id
         )
         .await;
     assert!(result.is_err());
@@ -64,7 +64,7 @@ async fn test_large_payload() {
             None,
             None,
             None,
-            None,  // group_id
+            None, // group_id
         )
         .await
         .unwrap();
@@ -108,7 +108,7 @@ async fn test_special_characters_in_queue_name() {
                 None,
                 None,
                 None,
-                None,  // group_id
+                None, // group_id
             )
             .await
             .unwrap();
@@ -148,7 +148,7 @@ async fn test_special_characters_in_queue_name() {
                 None,
                 None,
                 None,
-                None,  // group_id
+                None, // group_id
             )
             .await;
         assert!(result.is_err(), "Queue name '{}' should be rejected", name);
@@ -181,7 +181,7 @@ async fn test_unicode_queue_name() {
             None,
             None,
             None,
-            None,  // group_id
+            None, // group_id
         )
         .await
         .unwrap();
@@ -217,7 +217,7 @@ async fn test_null_json_data() {
         None,
         None,
         None,
-        None,  // group_id
+        None, // group_id
     )
     .await
     .unwrap();
@@ -262,7 +262,7 @@ async fn test_nested_json_data() {
         None,
         None,
         None,
-        None,  // group_id
+        None, // group_id
     )
     .await
     .unwrap();
@@ -300,7 +300,7 @@ async fn test_job_ttl_expired_not_processed() {
             None,
             None,
             None,
-            None,  // group_id
+            None, // group_id
         )
         .await
         .unwrap();
@@ -343,7 +343,7 @@ async fn test_job_ttl_not_expired() {
             None,
             None,
             None,
-            None,  // group_id
+            None, // group_id
         )
         .await
         .unwrap();
@@ -384,7 +384,7 @@ async fn test_payload_too_large_rejected() {
             None,
             None,
             None,
-            None,  // group_id
+            None, // group_id
         )
         .await;
 
@@ -439,7 +439,7 @@ async fn test_double_ack_fails() {
             None,
             None,
             None,
-            None,  // group_id
+            None, // group_id
         )
         .await
         .unwrap();
@@ -481,7 +481,7 @@ async fn test_double_fail_fails() {
             None,
             None,
             None,
-            None,  // group_id
+            None, // group_id
         )
         .await
         .unwrap();
@@ -525,7 +525,7 @@ async fn test_custom_job_id() {
             Some("my-custom-id-123".to_string()),
             None,
             None,
-            None,  // group_id
+            None, // group_id
         )
         .await
         .unwrap();

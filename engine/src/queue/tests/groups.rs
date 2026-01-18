@@ -128,7 +128,11 @@ async fn test_single_job_per_group_in_batch() {
 
     // Even though we request 10 jobs, should only get 1 (group constraint)
     let pulled = qm.pull_batch_nowait("orders", 10).await;
-    assert_eq!(pulled.len(), 1, "Should pull exactly one job from same group");
+    assert_eq!(
+        pulled.len(),
+        1,
+        "Should pull exactly one job from same group"
+    );
     assert_eq!(pulled[0].id, job1.id, "Should get first job");
 }
 
@@ -193,7 +197,11 @@ async fn test_different_groups_in_single_batch() {
 
     // Should get both jobs since they're in different groups
     let pulled = qm.pull_batch_nowait("orders", 10).await;
-    assert_eq!(pulled.len(), 2, "Should pull both jobs from different groups");
+    assert_eq!(
+        pulled.len(),
+        2,
+        "Should pull both jobs from different groups"
+    );
     assert!(pulled.iter().any(|j| j.id == job_a.id));
     assert!(pulled.iter().any(|j| j.id == job_b.id));
 }
@@ -278,13 +286,13 @@ async fn test_group_released_after_fail() {
     // Push 2 jobs in same group (with max_attempts=1 so fail goes to DLQ)
     let job1 = qm
         .push(
-            "tasks-fail".to_string(),  // Use unique queue name for isolation
+            "tasks-fail".to_string(), // Use unique queue name for isolation
             json!({"task": 1}),
             0,
             None,
             None,
             None,
-            Some(1),  // max_attempts=1 - goes to DLQ on first fail
+            Some(1), // max_attempts=1 - goes to DLQ on first fail
             None,
             None,
             None,
@@ -311,7 +319,7 @@ async fn test_group_released_after_fail() {
             None,
             None,
             None,
-            Some(1),  // max_attempts=1
+            Some(1), // max_attempts=1
             None,
             None,
             None,
@@ -342,7 +350,11 @@ async fn test_group_released_after_fail() {
 
     // Now second job should be available (group is released after fail)
     let pulled2 = qm.pull_batch_nowait("tasks-fail", 10).await;
-    assert_eq!(pulled2.len(), 1, "Should pull second job after first one fails");
+    assert_eq!(
+        pulled2.len(),
+        1,
+        "Should pull second job after first one fails"
+    );
     // Check the job data to confirm it's the second job
     let data = pulled2[0].data.as_object().unwrap();
     assert_eq!(data.get("task").unwrap(), 2, "Should be task 2");
@@ -476,7 +488,11 @@ async fn test_mixed_grouped_and_ungrouped() {
 
     // Both should be available (one grouped, one ungrouped)
     let pulled = qm.pull_batch_nowait("mixed", 10).await;
-    assert_eq!(pulled.len(), 2, "Should pull both grouped and ungrouped jobs");
+    assert_eq!(
+        pulled.len(),
+        2,
+        "Should pull both grouped and ungrouped jobs"
+    );
     assert!(pulled.iter().any(|j| j.id == grouped.id));
     assert!(pulled.iter().any(|j| j.id == ungrouped.id));
 }

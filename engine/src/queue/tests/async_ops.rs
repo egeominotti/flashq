@@ -28,7 +28,7 @@ async fn test_wait_for_job_completed() {
             None,
             None,
             None,
-            None,  // group_id
+            None, // group_id
         )
         .await
         .unwrap();
@@ -78,7 +78,7 @@ async fn test_wait_for_job_already_completed() {
             None,
             None,
             None,
-            None,  // group_id
+            None, // group_id
         )
         .await
         .unwrap();
@@ -120,7 +120,7 @@ async fn test_wait_for_job_timeout() {
             None,
             None,
             None,
-            None,  // group_id
+            None, // group_id
         )
         .await
         .unwrap();
@@ -168,7 +168,7 @@ async fn test_wait_for_job_failed() {
             None,
             None,
             None,
-            None,  // group_id
+            None, // group_id
         )
         .await
         .unwrap();
@@ -209,7 +209,7 @@ async fn test_wait_for_job_multiple_waiters() {
             None,
             None,
             None,
-            None,  // group_id
+            None, // group_id
         )
         .await
         .unwrap();

@@ -28,7 +28,7 @@ async fn test_push_with_tags() {
             None,
             None,
             None,
-            None,  // group_id
+            None, // group_id
         )
         .await
         .unwrap();
@@ -62,7 +62,7 @@ async fn test_push_with_empty_tags() {
             None,
             None,
             None,
-            None,  // group_id
+            None, // group_id
         )
         .await
         .unwrap();
@@ -96,7 +96,7 @@ async fn test_tags_preserved_after_pull() {
             None,
             None,
             None,
-            None,  // group_id
+            None, // group_id
         )
         .await
         .unwrap();
@@ -132,7 +132,7 @@ async fn test_get_job_includes_tags() {
             None,
             None,
             None,
-            None,  // group_id
+            None, // group_id
         )
         .await
         .unwrap();
@@ -167,7 +167,7 @@ async fn test_job_state_with_tags() {
             None,
             None,
             None,
-            None,  // group_id
+            None, // group_id
         )
         .await
         .unwrap();

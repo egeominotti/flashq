@@ -364,7 +364,7 @@ async fn test_cancel_job_in_queue_preserves_others() {
             None,
             None,
             None,
-            None,  // group_id
+            None, // group_id
         )
         .await
         .unwrap();
@@ -390,7 +390,7 @@ async fn test_cancel_job_in_queue_preserves_others() {
             None,
             None,
             None,
-            None,  // group_id
+            None, // group_id
         )
         .await
         .unwrap();
@@ -416,7 +416,7 @@ async fn test_cancel_job_in_queue_preserves_others() {
             None,
             None,
             None,
-            None,  // group_id
+            None, // group_id
         )
         .await
         .unwrap();
@@ -466,7 +466,7 @@ async fn test_concurrent_cancel_operations() {
                 None,
                 None,
                 None,
-                None,  // group_id
+                None, // group_id
             )
             .await
             .unwrap();

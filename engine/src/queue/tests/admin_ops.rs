@@ -31,7 +31,7 @@ async fn test_reset_clears_everything() {
             None,
             None,
             None,
-            None,  // group_id
+            None, // group_id
         )
         .await
         .unwrap();
@@ -90,7 +90,7 @@ async fn test_clear_all_queues() {
             None,
             None,
             None,
-            None,  // group_id
+            None, // group_id
         )
         .await
         .unwrap();
@@ -133,7 +133,7 @@ async fn test_clear_all_dlq() {
                 None,
                 None,
                 None,
-                None,  // group_id
+                None, // group_id
             )
             .await
             .unwrap();
@@ -175,7 +175,7 @@ async fn test_clear_completed_jobs() {
                 None,
                 None,
                 None,
-                None,  // group_id
+                None, // group_id
             )
             .await
             .unwrap();
@@ -217,7 +217,7 @@ async fn test_reset_metrics() {
                 None,
                 None,
                 None,
-                None,  // group_id
+                None, // group_id
             )
             .await
             .unwrap();
@@ -339,7 +339,7 @@ async fn test_run_cleanup() {
                 None,
                 None,
                 None,
-                None,  // group_id
+                None, // group_id
             )
             .await
             .unwrap();

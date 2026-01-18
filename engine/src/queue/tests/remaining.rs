@@ -31,7 +31,7 @@ async fn test_paused_queue_pull_returns_empty() {
         None,
         None,
         None,
-        None,  // group_id
+        None, // group_id
     )
     .await
     .unwrap();
@@ -78,7 +78,7 @@ async fn test_paused_queue_pull_batch_blocks() {
             None,
             None,
             None,
-            None,  // group_id
+            None, // group_id
         )
         .await
         .unwrap();
@@ -129,7 +129,7 @@ async fn test_get_result_after_ack() {
             None,
             None,
             None,
-            None,  // group_id
+            None, // group_id
         )
         .await
         .unwrap();
@@ -286,7 +286,7 @@ async fn test_processing_count() {
         None,
         None,
         None,
-        None,  // group_id
+        None, // group_id
     )
     .await
     .unwrap();
@@ -427,7 +427,7 @@ async fn test_get_job_by_internal_id() {
             None,
             None,
             None,
-            None,  // group_id
+            None, // group_id
         )
         .await
         .unwrap();
@@ -473,7 +473,7 @@ async fn test_collect_metrics_history_accumulates() {
             None,
             None,
             None,
-            None,  // group_id
+            None, // group_id
         )
         .await
         .unwrap();
