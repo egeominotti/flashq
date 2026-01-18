@@ -39,6 +39,7 @@ import * as cron from './cron';
 import * as metrics from './metrics';
 import * as flows from './flows';
 import * as advanced from './advanced';
+import * as kv from './kv';
 
 import type {
   Job,
@@ -648,6 +649,158 @@ export class FlashQ extends FlashQConnection {
       queue: queueName,
       type: 'websocket',
     });
+  }
+
+  // ============== Key-Value Storage (Redis-like) ==============
+
+  /**
+   * Set a key-value pair.
+   *
+   * @param key - Key name
+   * @param value - Value (any JSON-serializable data)
+   * @param options - Optional TTL settings
+   *
+   * @example
+   * ```typescript
+   * await client.kvSet('user:123', { name: 'John' });
+   * await client.kvSet('session:abc', { token: 'xyz' }, { ttl: 3600000 }); // 1 hour TTL
+   * ```
+   */
+  kvSet(key: string, value: unknown, options: kv.KvSetOptions = {}): Promise<void> {
+    return kv.set(this, key, value, options);
+  }
+
+  /**
+   * Get a value by key.
+   *
+   * @param key - Key name
+   * @returns Value or null if not found/expired
+   *
+   * @example
+   * ```typescript
+   * const user = await client.kvGet<User>('user:123');
+   * ```
+   */
+  kvGet<T = unknown>(key: string): Promise<T | null> {
+    return kv.get<T>(this, key);
+  }
+
+  /**
+   * Delete a key.
+   *
+   * @param key - Key name
+   * @returns true if key existed
+   */
+  kvDel(key: string): Promise<boolean> {
+    return kv.del(this, key);
+  }
+
+  /**
+   * Check if a key exists.
+   *
+   * @param key - Key name
+   * @returns true if key exists and not expired
+   */
+  kvExists(key: string): Promise<boolean> {
+    return kv.exists(this, key);
+  }
+
+  /**
+   * Set TTL on an existing key.
+   *
+   * @param key - Key name
+   * @param ttl - Time-to-live in milliseconds
+   * @returns true if key existed
+   */
+  kvExpire(key: string, ttl: number): Promise<boolean> {
+    return kv.expire(this, key, ttl);
+  }
+
+  /**
+   * Get remaining TTL for a key.
+   *
+   * @param key - Key name
+   * @returns ms remaining, -1 if no TTL, -2 if key doesn't exist
+   */
+  kvTtl(key: string): Promise<number> {
+    return kv.ttl(this, key);
+  }
+
+  /**
+   * Get multiple values by keys (batch operation).
+   *
+   * @param keys - Array of keys
+   * @returns Array of values (null for missing keys)
+   *
+   * @example
+   * ```typescript
+   * const [user1, user2, user3] = await client.kvMget<User>(['user:1', 'user:2', 'user:3']);
+   * ```
+   */
+  kvMget<T = unknown>(keys: string[]): Promise<(T | null)[]> {
+    return kv.mget<T>(this, keys);
+  }
+
+  /**
+   * Set multiple key-value pairs (batch operation).
+   *
+   * @param entries - Array of {key, value, ttl?}
+   * @returns Number of keys set
+   *
+   * @example
+   * ```typescript
+   * await client.kvMset([
+   *   { key: 'user:1', value: { name: 'Alice' } },
+   *   { key: 'user:2', value: { name: 'Bob' }, ttl: 60000 },
+   * ]);
+   * ```
+   */
+  kvMset(entries: kv.KvEntry[]): Promise<number> {
+    return kv.mset(this, entries);
+  }
+
+  /**
+   * List keys matching a pattern.
+   *
+   * @param pattern - Glob pattern (* = any, ? = one char)
+   * @returns Array of matching keys
+   *
+   * @example
+   * ```typescript
+   * const userKeys = await client.kvKeys('user:*');
+   * const sessionKeys = await client.kvKeys('session:???');
+   * ```
+   */
+  kvKeys(pattern?: string): Promise<string[]> {
+    return kv.keys(this, pattern);
+  }
+
+  /**
+   * Increment a numeric value atomically.
+   *
+   * @param key - Key name
+   * @param by - Amount to increment (default: 1)
+   * @returns New value
+   *
+   * @example
+   * ```typescript
+   * const views = await client.kvIncr('page:views');
+   * const score = await client.kvIncr('user:123:score', 10);
+   * ```
+   */
+  kvIncr(key: string, by: number = 1): Promise<number> {
+    return kv.incr(this, key, by);
+  }
+
+  /**
+   * Decrement a numeric value atomically.
+   *
+   * @param key - Key name
+   * @param by - Amount to decrement (default: 1)
+   * @returns New value
+   */
+  kvDecr(key: string, by: number = 1): Promise<number> {
+    return kv.decr(this, key, by);
   }
 }
 

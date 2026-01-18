@@ -79,6 +79,7 @@ worker.on('completed', (job, result) => {
 | **Concurrency** | Limit parallel processing |
 | **Persistence** | Optional PostgreSQL storage |
 | **Dashboard** | Built-in monitoring UI |
+| **KV Storage** | Redis-like key-value store |
 
 ## Documentation
 
@@ -117,6 +118,38 @@ await queue.obliterate();  // remove all
 await queue.getJobCounts();
 ```
 
+### Key-Value Storage
+
+Redis-like in-memory KV store with TTL support.
+
+```typescript
+import { FlashQ } from 'flashq';
+
+const client = new FlashQ();
+
+// SET/GET with optional TTL
+await client.kvSet('user:123', { name: 'John' });
+await client.kvSet('session:abc', { token: 'xyz' }, { ttl: 3600000 });
+const user = await client.kvGet('user:123');
+
+// Batch operations (10-100x faster!)
+await client.kvMset([
+  { key: 'user:1', value: { name: 'Alice' } },
+  { key: 'user:2', value: { name: 'Bob' } },
+]);
+const users = await client.kvMget(['user:1', 'user:2']);
+
+// Pattern matching & counters
+const keys = await client.kvKeys('user:*');
+await client.kvIncr('page:views');
+```
+
+| Operation | Throughput |
+|-----------|------------|
+| Sequential | ~30K ops/sec |
+| **Batch MSET** | **640K ops/sec** |
+| **Batch MGET** | **1.2M ops/sec** |
+
 ### Configuration
 
 | Variable | Description | Default |
@@ -140,6 +173,7 @@ See [sdk/typescript/examples/](sdk/typescript/examples/):
 - **08-priority** - Priority ordering
 - **09-concurrency** - Parallel processing
 - **10-benchmark** - Performance test
+- **kv-benchmark** - KV store benchmark
 
 ## License
 

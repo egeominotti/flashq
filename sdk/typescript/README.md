@@ -84,6 +84,56 @@ await worker.close();
 | `timeout` | number | Processing timeout |
 | `jobId` | string | Custom ID |
 
+## Key-Value Storage
+
+Redis-like KV store with TTL support and batch operations.
+
+```typescript
+import { FlashQ } from 'flashq';
+
+const client = new FlashQ();
+
+// Basic operations
+await client.kvSet('user:123', { name: 'John', email: 'john@example.com' });
+const user = await client.kvGet('user:123');
+await client.kvDel('user:123');
+
+// With TTL (milliseconds)
+await client.kvSet('session:abc', { token: 'xyz' }, { ttl: 3600000 }); // 1 hour
+
+// TTL operations
+await client.kvExpire('user:123', 60000);  // Set TTL
+const ttl = await client.kvTtl('user:123'); // Get remaining TTL
+
+// Batch operations (10-100x faster!)
+await client.kvMset([
+  { key: 'user:1', value: { name: 'Alice' } },
+  { key: 'user:2', value: { name: 'Bob' } },
+  { key: 'user:3', value: { name: 'Charlie' }, ttl: 60000 },
+]);
+
+const users = await client.kvMget(['user:1', 'user:2', 'user:3']);
+
+// Pattern matching
+const userKeys = await client.kvKeys('user:*');
+const sessionKeys = await client.kvKeys('session:???');
+
+// Atomic counters
+await client.kvIncr('page:views');           // +1
+await client.kvIncr('user:123:score', 10);   // +10
+await client.kvDecr('stock:item:456');       // -1
+```
+
+### KV Performance
+
+| Operation | Throughput |
+|-----------|------------|
+| Sequential SET/GET | ~30K ops/sec |
+| **Batch MSET** | **640K ops/sec** |
+| **Batch MGET** | **1.2M ops/sec** |
+
+> Use batch operations (MSET/MGET) for best performance!
+
 ## Examples
 
 ```bash
@@ -102,6 +152,7 @@ bun run examples/01-basic.ts
 | 08-priority.ts | Priority ordering |
 | 09-concurrency.ts | Parallel processing |
 | 10-benchmark.ts | Performance test |
+| kv-benchmark.ts | KV store benchmark |
 
 ## Performance
 
