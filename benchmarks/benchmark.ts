@@ -750,7 +750,7 @@ function generateMarkdownReport(results: ScenarioResult[]): string {
 
 \`\`\`bash
 # Start flashQ server
-cd server && HTTP=1 cargo run --release
+cd engine && HTTP=1 cargo run --release
 
 # Start Redis (for BullMQ)
 docker run -d -p 6379:6379 redis:alpine

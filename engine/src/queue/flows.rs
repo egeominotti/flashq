@@ -2,6 +2,8 @@
 //!
 //! Create job workflows where a parent job waits for all children to complete.
 
+use std::sync::Arc;
+
 use super::manager::QueueManager;
 use super::types::{intern, now_ms, JobLocation};
 use crate::protocol::{FlowChild, Job};
@@ -28,7 +30,7 @@ impl QueueManager {
         let parent_job = Job {
             id: parent_id,
             queue: queue.clone(),
-            data: parent_data,
+            data: Arc::new(parent_data),
             priority,
             created_at: now,
             run_at: now,
@@ -64,7 +66,7 @@ impl QueueManager {
             let child_job = Job {
                 id: children_ids[i],
                 queue: child.queue,
-                data: child.data,
+                data: Arc::new(child.data),
                 priority: child.priority,
                 created_at: now,
                 run_at: now + child.delay.unwrap_or(0),

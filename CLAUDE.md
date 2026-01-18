@@ -129,7 +129,7 @@ flashQ is a high-performance job queue server built with Rust.
 ### Server (Rust)
 
 ```bash
-cd server
+cd engine
 
 # Development
 cargo run
@@ -191,7 +191,7 @@ docker run -p 6789:6789 flashq
 ### Server Structure (< 350 lines per file)
 
 ```
-server/src/
+engine/src/
 ├── main.rs           # TCP/Unix socket server, command routing
 ├── http.rs           # HTTP REST API + WebSocket (axum)
 ├── grpc.rs           # gRPC API (tonic)
@@ -476,7 +476,7 @@ curl http://localhost:6790/cluster/nodes
 
 ### Adding tests
 
-Add to `server/src/queue/tests.rs`:
+Add to `engine/src/queue/tests.rs`:
 
 ```rust
 #[tokio::test]
@@ -505,7 +505,7 @@ GitHub Actions runs on every push to `main` and on PRs.
 **Always run these commands before pushing:**
 
 ```bash
-cd server
+cd engine
 
 # Check formatting (must pass)
 cargo fmt --check

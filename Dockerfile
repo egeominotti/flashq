@@ -17,7 +17,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN protoc --version
 
 # Copy source
-COPY server/ ./
+COPY engine/ ./
 
 # Build release binary with LTO and io_uring support (Linux)
 RUN cargo build --release --features io-uring

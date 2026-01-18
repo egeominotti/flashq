@@ -217,7 +217,7 @@ async fn test_null_json_data() {
     .unwrap();
 
     let pulled = qm.pull("test").await;
-    assert_eq!(pulled.data, json!(null));
+    assert_eq!(*pulled.data, json!(null));
 }
 
 #[tokio::test]
@@ -261,7 +261,7 @@ async fn test_nested_json_data() {
     .unwrap();
 
     let pulled = qm.pull("test").await;
-    assert_eq!(pulled.data, nested);
+    assert_eq!(*pulled.data, nested);
 }
 
 // ==================== TTL ====================

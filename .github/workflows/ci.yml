@@ -35,21 +35,21 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            server/target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('server/Cargo.lock') }}
+            engine/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('engine/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-
 
       - name: Check formatting
-        working-directory: server
+        working-directory: engine
         run: cargo fmt --check
 
       - name: Run clippy
-        working-directory: server
+        working-directory: engine
         run: cargo clippy -- -D warnings
 
       - name: Run tests
-        working-directory: server
+        working-directory: engine
         run: cargo test
 
   # Build release binary
@@ -72,20 +72,20 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            server/target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('server/Cargo.lock') }}
+            engine/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('engine/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-
 
       - name: Build release
-        working-directory: server
+        working-directory: engine
         run: cargo build --release
 
       - name: Upload binary
         uses: actions/upload-artifact@v4
         with:
           name: flashq-server
-          path: server/target/release/flashq-server
+          path: engine/target/release/flashq-server
 
   # Test TypeScript SDK against running server
   test-sdk-typescript:

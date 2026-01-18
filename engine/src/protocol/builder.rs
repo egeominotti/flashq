@@ -8,6 +8,8 @@
 //!       .max_attempts(3)
 //!       .build(job_id, now_ms)
 
+use std::sync::Arc;
+
 use serde_json::Value;
 
 use super::{next_id, Job};
@@ -250,7 +252,7 @@ impl JobBuilder {
         Job {
             id,
             queue: self.queue,
-            data: self.data,
+            data: Arc::new(self.data),
             priority: self.priority,
             created_at: now,
             run_at: self.delay.map_or(now, |d| now + d),

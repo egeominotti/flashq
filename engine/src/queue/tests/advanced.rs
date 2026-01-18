@@ -587,7 +587,7 @@ async fn test_update_job_data_waiting() {
 
     // Pull and verify data was updated
     let pulled = qm.pull("test").await;
-    assert_eq!(pulled.data, new_data);
+    assert_eq!(*pulled.data, new_data);
 }
 
 #[tokio::test]

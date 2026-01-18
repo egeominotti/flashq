@@ -1,6 +1,6 @@
 # Build artifacts
 target/
-server/target/
+engine/target/
 *.o
 *.a
 *.so

@@ -2,6 +2,8 @@
 //!
 //! Contains Job, JobState, and related data structures.
 
+use std::sync::Arc;
+
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -51,7 +53,8 @@ pub struct FlowResult {
 pub struct Job {
     pub id: u64,
     pub queue: String,
-    pub data: Value,
+    /// Job payload data. Wrapped in Arc for cheap cloning (avoids copying large JSON).
+    pub data: Arc<Value>,
     pub priority: i32,
     pub created_at: u64,
     pub run_at: u64,

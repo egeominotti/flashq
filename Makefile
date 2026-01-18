@@ -14,33 +14,33 @@ PIDFILE := /tmp/flashq.pid
 # =============
 
 dev:
-	cd server && cargo run
+	cd engine && cargo run
 
 run:
-	cd server && HTTP=1 cargo run
+	cd engine && HTTP=1 cargo run
 
 server:
-	cd server && HTTP=1 GRPC=1 cargo run --release
+	cd engine && HTTP=1 GRPC=1 cargo run --release
 
 release:
-	cd server && HTTP=1 cargo run --release
+	cd engine && HTTP=1 cargo run --release
 
 # =============
 # Code Quality
 # =============
 
 fmt:
-	cd server && cargo fmt
+	cd engine && cargo fmt
 
 lint:
-	cd server && cargo clippy -- -D warnings
+	cd engine && cargo clippy -- -D warnings
 
 check:
-	cd server && cargo fmt --check && cargo clippy -- -D warnings
+	cd engine && cargo fmt --check && cargo clippy -- -D warnings
 	@echo "Code quality checks passed"
 
 test:
-	cd server && cargo test
+	cd engine && cargo test
 
 # =============
 # Docker
@@ -66,7 +66,7 @@ docker-build:
 # =============
 
 persist: up
-	cd server && DATABASE_URL=$(DATABASE_URL) HTTP=1 cargo run --release
+	cd engine && DATABASE_URL=$(DATABASE_URL) HTTP=1 cargo run --release
 
 stop:
 	@if [ -f $(PIDFILE) ]; then \
@@ -79,7 +79,7 @@ stop:
 
 restart: stop up
 	@sleep 1
-	@cd server && DATABASE_URL=$(DATABASE_URL) HTTP=1 \
+	@cd engine && DATABASE_URL=$(DATABASE_URL) HTTP=1 \
 		nohup cargo run --release > /tmp/flashq.log 2>&1 & echo $$! > $(PIDFILE)
 	@echo "Waiting for server..."
 	@for i in $$(seq 1 30); do \
@@ -92,7 +92,7 @@ restart: stop up
 
 restart-mem: stop
 	@sleep 1
-	@cd server && HTTP=1 \
+	@cd engine && HTTP=1 \
 		nohup cargo run --release > /tmp/flashq.log 2>&1 & echo $$! > $(PIDFILE)
 	@echo "Waiting for server..."
 	@for i in $$(seq 1 15); do \
@@ -114,7 +114,7 @@ stress:
 
 full-test: up
 	@echo "Starting server..."
-	@cd server && DATABASE_URL=$(DATABASE_URL) HTTP=1 \
+	@cd engine && DATABASE_URL=$(DATABASE_URL) HTTP=1 \
 		nohup cargo run --release > /tmp/flashq.log 2>&1 & echo $$! > $(PIDFILE)
 	@echo "Waiting for server..."
 	@for i in $$(seq 1 60); do \
@@ -142,7 +142,7 @@ else
 endif
 
 clean:
-	cd server && cargo clean
+	cd engine && cargo clean
 	docker-compose down -v
 	rm -f $(PIDFILE) /tmp/flashq.log
 

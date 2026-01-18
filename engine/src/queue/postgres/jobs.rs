@@ -1,5 +1,7 @@
 //! Job database operations.
 
+use std::sync::Arc;
+
 use serde_json::Value;
 use sqlx::{PgPool, Row};
 
@@ -27,7 +29,7 @@ pub async fn insert_job(pool: &PgPool, job: &Job, state: &str) -> Result<(), sql
     )
     .bind(job.id as i64)
     .bind(&job.queue)
-    .bind(&job.data)
+    .bind(&*job.data)
     .bind(job.priority)
     .bind(job.created_at as i64)
     .bind(job.run_at as i64)
@@ -108,7 +110,7 @@ pub async fn move_to_dlq(pool: &PgPool, job: &Job, error: Option<&str>) -> Resul
     )
     .bind(job.id as i64)
     .bind(&job.queue)
-    .bind(&job.data)
+    .bind(&*job.data)
     .bind(error)
     .bind(now as i64)
     .bind(job.attempts as i32)
@@ -166,7 +168,7 @@ pub async fn load_pending_jobs(pool: &PgPool) -> Result<Vec<(Job, String)>, sqlx
         let job = Job {
             id: row.get::<i64, _>("id") as u64,
             queue: row.get("queue"),
-            data: row.get("data"),
+            data: Arc::new(row.get("data")),
             priority: row.get("priority"),
             created_at: row.get::<i64, _>("created_at") as u64,
             run_at: row.get::<i64, _>("run_at") as u64,
@@ -223,7 +225,7 @@ pub async fn load_dlq_jobs(pool: &PgPool) -> Result<Vec<Job>, sqlx::Error> {
         jobs.push(Job {
             id: row.get::<i64, _>("id") as u64,
             queue: row.get("queue"),
-            data: row.get("data"),
+            data: Arc::new(row.get("data")),
             priority: row.get("priority"),
             created_at: row.get::<i64, _>("created_at") as u64,
             run_at: row.get::<i64, _>("run_at") as u64,
@@ -282,7 +284,7 @@ pub async fn load_job_by_id(
             let job = Job {
                 id: row.get::<i64, _>("id") as u64,
                 queue: row.get("queue"),
-                data: row.get("data"),
+                data: Arc::new(row.get("data")),
                 priority: row.get("priority"),
                 created_at: row.get::<i64, _>("created_at") as u64,
                 run_at: row.get::<i64, _>("run_at") as u64,

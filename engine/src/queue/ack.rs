@@ -61,16 +61,18 @@ impl QueueManager {
             self.metrics.record_complete(now_ms() - job.created_at);
             self.notify_subscribers("completed", &job.queue, &job);
 
-            // Broadcast completed event
-            self.broadcast_event(JobEvent {
-                event_type: "completed".to_string(),
-                queue: job.queue.clone(),
-                job_id: job.id,
-                timestamp: now_ms(),
-                data: result.clone(),
-                error: None,
-                progress: None,
-            });
+            // OPTIMIZATION: Only allocate JobEvent if there are listeners
+            if self.has_event_listeners() {
+                self.broadcast_event(JobEvent {
+                    event_type: "completed".to_string(),
+                    queue: job.queue.clone(),
+                    job_id: job.id,
+                    timestamp: now_ms(),
+                    data: result.clone(),
+                    error: None,
+                    progress: None,
+                });
+            }
 
             // Notify any waiters (finished() promise)
             self.notify_job_waiters(job.id, result.clone());
@@ -94,12 +96,24 @@ impl QueueManager {
 
     pub async fn ack_batch(&self, ids: &[u64]) -> usize {
         let mut acked = 0;
+        // OPTIMIZATION: Cache shard index and interned queue name to avoid
+        // re-hashing for jobs in the same queue (common case in batch ack)
+        let mut queue_cache: Option<(String, usize, compact_str::CompactString)> = None;
 
         for &id in ids {
             if let Some(job) = self.processing_remove(id) {
                 // Release concurrency
-                let idx = Self::shard_index(&job.queue);
-                let queue_arc = intern(&job.queue);
+                let (idx, queue_arc) = match &queue_cache {
+                    Some((cached_queue, idx, arc)) if cached_queue == &job.queue => {
+                        (*idx, arc.clone())
+                    }
+                    _ => {
+                        let idx = Self::shard_index(&job.queue);
+                        let arc = intern(&job.queue);
+                        queue_cache = Some((job.queue.clone(), idx, arc.clone()));
+                        (idx, arc)
+                    }
+                };
                 {
                     let mut shard = self.shards[idx].write();
                     let state = shard.get_state(&queue_arc);
@@ -140,15 +154,6 @@ impl QueueManager {
             let idx = Self::shard_index(&job.queue);
             let queue_arc = intern(&job.queue);
 
-            // Release concurrency
-            {
-                let mut shard = self.shards[idx].write();
-                let state = shard.get_state(&queue_arc);
-                if let Some(ref mut conc) = state.concurrency {
-                    conc.release();
-                }
-            }
-
             job.attempts += 1;
 
             if job.should_go_to_dlq() {
@@ -156,6 +161,14 @@ impl QueueManager {
 
                 // Handle remove_on_fail option
                 if job.remove_on_fail {
+                    // OPTIMIZATION: Single lock scope for release concurrency
+                    {
+                        let mut shard = self.shards[idx].write();
+                        let state = shard.get_state(&queue_arc);
+                        if let Some(ref mut conc) = state.concurrency {
+                            conc.release();
+                        }
+                    }
                     // Don't store in DLQ, just discard
                     self.unindex_job(job_id);
                     self.job_logs.write().remove(&job_id);
@@ -172,45 +185,53 @@ impl QueueManager {
                     self.persist_dlq(&job, error.as_deref());
                     // Extract data for broadcast before moving
                     let queue_name = job.queue.clone();
-                    // Then move into DLQ (no clone)
-                    self.shards[idx]
-                        .write()
-                        .dlq
-                        .entry(queue_arc)
-                        .or_default()
-                        .push_back(job);
+
+                    // OPTIMIZATION: Single lock scope for release concurrency + DLQ push
+                    {
+                        let mut shard = self.shards[idx].write();
+                        let state = shard.get_state(&queue_arc);
+                        if let Some(ref mut conc) = state.concurrency {
+                            conc.release();
+                        }
+                        shard.dlq.entry(queue_arc).or_default().push_back(job);
+                    }
 
                     self.metrics.record_fail();
                     // OPTIMIZATION: Update atomic counter (processing -> DLQ)
                     self.metrics.record_dlq();
 
-                    // Broadcast failed event
+                    // OPTIMIZATION: Only allocate JobEvent if there are listeners
+                    if self.has_event_listeners() {
+                        self.broadcast_event(JobEvent {
+                            event_type: "failed".to_string(),
+                            queue: queue_name,
+                            job_id,
+                            timestamp: now_ms(),
+                            data: None,
+                            error,
+                            progress: None,
+                        });
+                    }
+                    return Ok(());
+                }
+
+                // OPTIMIZATION: Only allocate JobEvent if there are listeners
+                if self.has_event_listeners() {
                     self.broadcast_event(JobEvent {
                         event_type: "failed".to_string(),
-                        queue: queue_name,
-                        job_id,
+                        queue: job.queue.clone(),
+                        job_id: job.id,
                         timestamp: now_ms(),
                         data: None,
                         error,
                         progress: None,
                     });
-                    return Ok(());
                 }
-
-                // Broadcast failed event for remove_on_fail case
-                self.broadcast_event(JobEvent {
-                    event_type: "failed".to_string(),
-                    queue: job.queue.clone(),
-                    job_id: job.id,
-                    timestamp: now_ms(),
-                    data: None,
-                    error,
-                    progress: None,
-                });
 
                 return Ok(());
             }
 
+            // Job will be retried
             let backoff = job.next_backoff();
             let new_run_at = if backoff > 0 {
                 now_ms() + backoff
@@ -235,13 +256,15 @@ impl QueueManager {
                 self.persist_fail(job_id, new_run_at, job.attempts);
             }
 
-            // Then move job into queue (no clone)
-            self.shards[idx]
-                .write()
-                .queues
-                .entry(queue_arc)
-                .or_default()
-                .push(job);
+            // OPTIMIZATION: Single lock scope for release concurrency + queue push
+            {
+                let mut shard = self.shards[idx].write();
+                let state = shard.get_state(&queue_arc);
+                if let Some(ref mut conc) = state.concurrency {
+                    conc.release();
+                }
+                shard.queues.entry(queue_arc).or_default().push(job);
+            }
 
             // OPTIMIZATION: Update atomic counter (processing -> queue)
             self.metrics.record_retry();

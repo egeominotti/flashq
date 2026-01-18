@@ -1,5 +1,7 @@
 //! Distributed pull operations using SELECT FOR UPDATE SKIP LOCKED.
 
+use std::sync::Arc;
+
 use sqlx::{PgPool, Row};
 
 use crate::protocol::Job;
@@ -50,7 +52,7 @@ pub async fn pull_job_distributed(
             Ok(Some(Job {
                 id: row.get::<i64, _>("id") as u64,
                 queue: row.get("queue"),
-                data: row.get("data"),
+                data: Arc::new(row.get("data")),
                 priority: row.get("priority"),
                 created_at: row.get::<i64, _>("created_at") as u64,
                 run_at: row.get::<i64, _>("run_at") as u64,
@@ -131,7 +133,7 @@ pub async fn pull_jobs_distributed_batch(
             Job {
                 id: row.get::<i64, _>("id") as u64,
                 queue: row.get("queue"),
-                data: row.get("data"),
+                data: Arc::new(row.get("data")),
                 priority: row.get("priority"),
                 created_at: row.get::<i64, _>("created_at") as u64,
                 run_at: row.get::<i64, _>("run_at") as u64,
@@ -196,7 +198,7 @@ pub async fn load_jobs_by_queue_since(
         let job = Job {
             id: row.get::<i64, _>("id") as u64,
             queue: row.get("queue"),
-            data: row.get("data"),
+            data: Arc::new(row.get("data")),
             priority: row.get("priority"),
             created_at: row.get::<i64, _>("created_at") as u64,
             run_at: row.get::<i64, _>("run_at") as u64,

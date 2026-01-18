@@ -237,16 +237,18 @@ impl QueueManager {
             self.custom_id_map.write().insert(custom_id.clone(), job.id);
         }
 
-        // Broadcast pushed event
-        self.broadcast_event(JobEvent {
-            event_type: "pushed".to_string(),
-            queue: job.queue.clone(),
-            job_id: job.id,
-            timestamp: now_ms(),
-            data: Some(job.data.clone()),
-            error: None,
-            progress: None,
-        });
+        // OPTIMIZATION: Only allocate JobEvent if there are listeners
+        if self.has_event_listeners() {
+            self.broadcast_event(JobEvent {
+                event_type: "pushed".to_string(),
+                queue: job.queue.clone(),
+                job_id: job.id,
+                timestamp: now_ms(),
+                data: Some((*job.data).clone()),
+                error: None,
+                progress: None,
+            });
+        }
 
         Ok(job)
     }

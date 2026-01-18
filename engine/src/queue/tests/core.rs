@@ -144,7 +144,7 @@ async fn test_push_batch_large() {
     let inputs: Vec<_> = (0..100)
         .map(|i| crate::protocol::JobInput {
             data: json!({"i": i}),
-            priority: i as i32,
+            priority: i,
             delay: None,
             ttl: None,
             timeout: None,

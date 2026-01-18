@@ -1,5 +1,7 @@
 //! Protocol and Job struct method tests.
 
+use std::sync::Arc;
+
 use super::*;
 
 #[test]
@@ -9,7 +11,7 @@ fn test_job_is_ready() {
     let job = crate::protocol::Job {
         id: 1,
         queue: "test".to_string(),
-        data: json!({}),
+        data: Arc::new(json!({})),
         priority: 0,
         created_at: 900,
         run_at: 950, // In the past
@@ -56,7 +58,7 @@ fn test_job_is_expired() {
     let job = crate::protocol::Job {
         id: 1,
         queue: "test".to_string(),
-        data: json!({}),
+        data: Arc::new(json!({})),
         priority: 0,
         created_at: 500,
         run_at: 500,
@@ -110,7 +112,7 @@ fn test_job_is_timed_out() {
     let job = crate::protocol::Job {
         id: 1,
         queue: "test".to_string(),
-        data: json!({}),
+        data: Arc::new(json!({})),
         priority: 0,
         created_at: 500,
         run_at: 500,
@@ -162,7 +164,7 @@ fn test_job_should_go_to_dlq() {
     let job = crate::protocol::Job {
         id: 1,
         queue: "test".to_string(),
-        data: json!({}),
+        data: Arc::new(json!({})),
         priority: 0,
         created_at: 0,
         run_at: 0,
@@ -214,7 +216,7 @@ fn test_job_next_backoff() {
     let job = crate::protocol::Job {
         id: 1,
         queue: "test".to_string(),
-        data: json!({}),
+        data: Arc::new(json!({})),
         priority: 0,
         created_at: 0,
         run_at: 0,

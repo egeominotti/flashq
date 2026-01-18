@@ -26,7 +26,7 @@ pub async fn insert_jobs_batch(
         )
         .bind(job.id as i64)
         .bind(&job.queue)
-        .bind(&job.data)
+        .bind(&*job.data)
         .bind(job.priority)
         .bind(job.created_at as i64)
         .bind(job.run_at as i64)

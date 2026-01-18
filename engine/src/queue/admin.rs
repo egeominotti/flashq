@@ -534,8 +534,16 @@ impl QueueManager {
         self.event_tx.subscribe()
     }
 
+    /// Check if there are any event listeners (WebSocket/SSE subscribers or webhooks).
+    /// OPTIMIZATION: Call this before allocating JobEvent to avoid unnecessary allocations.
+    #[inline]
+    pub(crate) fn has_event_listeners(&self) -> bool {
+        self.event_tx.receiver_count() > 0 || !self.webhooks.read().is_empty()
+    }
+
     /// Broadcast a job event.
     /// Optimized: early return if no webhooks and no broadcast receivers.
+    /// NOTE: For best performance, call has_event_listeners() before allocating JobEvent.
     #[inline]
     pub(crate) fn broadcast_event(&self, event: JobEvent) {
         let has_receivers = self.event_tx.receiver_count() > 0;

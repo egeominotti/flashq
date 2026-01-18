@@ -70,7 +70,7 @@ BullMQ: v5.66.5 with Redis 7.x
 
 ```bash
 # 1. Start flashQ server
-cd server && HTTP=1 cargo run --release
+cd engine && HTTP=1 cargo run --release
 
 # 2. Start Redis (for BullMQ comparison)
 docker run -d -p 6379:6379 redis:alpine

@@ -1,5 +1,5 @@
 # ============== Rust ==============
-/server/target/
+/engine/target/
 /target/
 **/*.rs.bk
 Cargo.lock

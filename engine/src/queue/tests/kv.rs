@@ -271,9 +271,10 @@ async fn test_kv_key_too_long() {
 async fn test_kv_value_too_large() {
     let qm = setup();
 
-    // Create a very large JSON value
-    let large_value: Vec<u8> = vec![0; 2_000_000];
-    let result = qm.kv_set("key".to_string(), json!(large_value), None);
+    // Create a value larger than MAX_VALUE_SIZE (10MB)
+    // A string of 11M chars serializes to >11MB JSON
+    let large_string = "x".repeat(11_000_000);
+    let result = qm.kv_set("key".to_string(), json!(large_string), None);
     assert!(result.is_err());
     assert!(result.unwrap_err().contains("too large"));
 }
@@ -316,8 +317,8 @@ async fn test_kv_different_value_types() {
     assert_eq!(qm.kv_get("num"), Some(json!(42)));
 
     // Float
-    qm.kv_set("float".to_string(), json!(3.14), None).unwrap();
-    assert_eq!(qm.kv_get("float"), Some(json!(3.14)));
+    qm.kv_set("float".to_string(), json!(1.234), None).unwrap();
+    assert_eq!(qm.kv_get("float"), Some(json!(1.234)));
 
     // Boolean
     qm.kv_set("bool".to_string(), json!(true), None).unwrap();

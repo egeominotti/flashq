@@ -2,6 +2,8 @@
 //!
 //! Individual job management: cancel, progress, priority changes, etc.
 
+use std::sync::Arc;
+
 use compact_str::CompactString;
 use serde_json::Value;
 
@@ -389,7 +391,7 @@ impl QueueManager {
             Some(JobLocation::Processing) => {
                 let found = self
                     .processing_get_mut(job_id, |job| {
-                        job.data = new_data.clone();
+                        job.data = Arc::new(new_data.clone());
                     })
                     .is_some();
 
@@ -422,7 +424,7 @@ impl QueueManager {
                         if let Some(heap) = shard.queues.get_mut(&queue_name) {
                             // O(log n) update: remove, modify, re-insert
                             if let Some(mut job) = heap.remove(job_id) {
-                                job.data = new_data.clone();
+                                job.data = Arc::new(new_data.clone());
                                 heap.push(job);
                                 true
                             } else {
@@ -453,7 +455,7 @@ impl QueueManager {
                     let mut updated = false;
                     for dlq in shard.dlq.values_mut() {
                         if let Some(job) = dlq.iter_mut().find(|j| j.id == job_id) {
-                            job.data = new_data.clone();
+                            job.data = Arc::new(new_data.clone());
                             updated = true;
                             break;
                         }
