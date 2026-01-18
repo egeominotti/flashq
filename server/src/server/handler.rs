@@ -172,11 +172,7 @@ async fn process_command(
                 let jobs = queue_manager
                     .pull_distributed_batch(&queue, count, timeout_ms)
                     .await;
-                if jobs.is_empty() {
-                    Response::null_job()
-                } else {
-                    Response::jobs(jobs)
-                }
+                Response::jobs(jobs)
             } else {
                 match tokio::time::timeout(
                     tokio::time::Duration::from_millis(timeout_ms),
@@ -185,7 +181,7 @@ async fn process_command(
                 .await
                 {
                     Ok(jobs) => Response::jobs(jobs),
-                    Err(_) => Response::null_job(),
+                    Err(_) => Response::jobs(vec![]), // Return empty array on timeout
                 }
             }
         }

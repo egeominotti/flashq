@@ -636,7 +636,7 @@ export class FlashQ extends EventEmitter {
       },
       clientTimeout
     );
-    return response.jobs as Array<Job & { data: T }>;
+    return (response.jobs ?? []) as Array<Job & { data: T }>;
   }
 
   /**
