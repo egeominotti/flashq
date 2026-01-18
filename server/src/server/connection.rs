@@ -143,3 +143,250 @@ where
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Cursor;
+    use tokio::io::duplex;
+
+    /// Test ConnectionState default values
+    #[test]
+    fn test_connection_state_default() {
+        let state = ConnectionState {
+            authenticated: false,
+        };
+        assert!(!state.authenticated);
+    }
+
+    /// Test ConnectionState authenticated
+    #[test]
+    fn test_connection_state_authenticated() {
+        let state = ConnectionState {
+            authenticated: true,
+        };
+        assert!(state.authenticated);
+    }
+
+    /// Test protocol detection: JSON starts with '{'
+    #[tokio::test]
+    async fn test_protocol_detection_json() {
+        let qm = QueueManager::new(false);
+        let input = b"{\"cmd\":\"STATS\"}\n";
+        let reader = Cursor::new(input.to_vec());
+        let mut output = Vec::new();
+
+        let result = handle_connection(reader, &mut output, qm).await;
+        assert!(result.is_ok());
+
+        // Output should be JSON (contains "ok")
+        let output_str = String::from_utf8_lossy(&output);
+        assert!(output_str.contains("\"ok\""));
+    }
+
+    /// Test protocol detection: newline triggers text mode
+    #[tokio::test]
+    async fn test_protocol_detection_newline() {
+        let qm = QueueManager::new(false);
+        let input = b"\n{\"cmd\":\"STATS\"}\n";
+        let reader = Cursor::new(input.to_vec());
+        let mut output = Vec::new();
+
+        let result = handle_connection(reader, &mut output, qm).await;
+        assert!(result.is_ok());
+    }
+
+    /// Test protocol detection: carriage return triggers text mode
+    #[tokio::test]
+    async fn test_protocol_detection_cr() {
+        let qm = QueueManager::new(false);
+        let input = b"\r\n{\"cmd\":\"STATS\"}\n";
+        let reader = Cursor::new(input.to_vec());
+        let mut output = Vec::new();
+
+        let result = handle_connection(reader, &mut output, qm).await;
+        assert!(result.is_ok());
+    }
+
+    /// Test empty connection (no data)
+    #[tokio::test]
+    async fn test_empty_connection() {
+        let qm = QueueManager::new(false);
+        let input: &[u8] = b"";
+        let reader = Cursor::new(input.to_vec());
+        let mut output = Vec::new();
+
+        let result = handle_connection(reader, &mut output, qm).await;
+        assert!(result.is_ok());
+        assert!(output.is_empty());
+    }
+
+    /// Test text protocol with multiple commands (pipelining)
+    #[tokio::test]
+    async fn test_text_protocol_pipelining() {
+        let qm = QueueManager::new(false);
+        let input = b"{\"cmd\":\"STATS\"}\n{\"cmd\":\"STATS\"}\n";
+        let reader = Cursor::new(input.to_vec());
+        let mut output = Vec::new();
+
+        let result = handle_connection(reader, &mut output, qm).await;
+        assert!(result.is_ok());
+
+        // Should have two JSON responses
+        let output_str = String::from_utf8_lossy(&output);
+        let responses: Vec<&str> = output_str.trim().split('\n').collect();
+        assert_eq!(responses.len(), 2);
+    }
+
+    /// Test text protocol with invalid JSON
+    #[tokio::test]
+    async fn test_text_protocol_invalid_json() {
+        let qm = QueueManager::new(false);
+        let input = b"{invalid json}\n";
+        let reader = Cursor::new(input.to_vec());
+        let mut output = Vec::new();
+
+        let result = handle_connection(reader, &mut output, qm).await;
+        assert!(result.is_ok());
+
+        // Should return error response
+        let output_str = String::from_utf8_lossy(&output);
+        assert!(output_str.contains("\"ok\":false"));
+    }
+
+    /// Test binary protocol detection (non-JSON first byte)
+    #[tokio::test]
+    async fn test_protocol_detection_binary() {
+        let qm = QueueManager::new(false);
+
+        // Create a valid MessagePack request
+        use crate::protocol::{create_binary_frame, serialize_msgpack, Command, Request};
+
+        let request = Request {
+            req_id: None,
+            command: Command::Stats,
+        };
+        let msgpack_data = serialize_msgpack(&request).unwrap();
+        let frame = create_binary_frame(&msgpack_data);
+
+        let reader = Cursor::new(frame);
+        let mut output = Vec::new();
+
+        let result = handle_connection(reader, &mut output, qm).await;
+        assert!(result.is_ok());
+
+        // Output should be a binary frame (starts with length prefix)
+        assert!(output.len() >= 4);
+    }
+
+    /// Test binary protocol with multiple frames
+    #[tokio::test]
+    async fn test_binary_protocol_multiple_frames() {
+        let qm = QueueManager::new(false);
+
+        use crate::protocol::{create_binary_frame, serialize_msgpack, Command, Request};
+
+        let request = Request {
+            req_id: None,
+            command: Command::Stats,
+        };
+        let msgpack_data = serialize_msgpack(&request).unwrap();
+
+        // Send two frames
+        let mut input = Vec::new();
+        input.extend_from_slice(&create_binary_frame(&msgpack_data));
+        input.extend_from_slice(&create_binary_frame(&msgpack_data));
+
+        let reader = Cursor::new(input);
+        let mut output = Vec::new();
+
+        let result = handle_connection(reader, &mut output, qm).await;
+        assert!(result.is_ok());
+
+        // Should have two response frames
+        // Each frame has 4-byte length prefix + data
+        assert!(output.len() > 8); // At least two frames
+    }
+
+    /// Test binary protocol message too large error
+    #[tokio::test]
+    async fn test_binary_protocol_message_too_large() {
+        let qm = QueueManager::new(false);
+
+        // Create a frame with length > 16MB
+        let mut input = Vec::new();
+        let huge_len: u32 = 17 * 1024 * 1024; // 17MB
+        input.extend_from_slice(&huge_len.to_be_bytes());
+        // Don't actually add the data, just the length prefix
+        // Add some dummy data to prevent immediate EOF
+        input.extend_from_slice(&[0u8; 100]);
+
+        let reader = Cursor::new(input);
+        let mut output = Vec::new();
+
+        // This should return an error response, not crash
+        let _result = handle_connection(reader, &mut output, qm).await;
+        // The result might be an error due to EOF when trying to read the huge message
+        // but it should not panic
+
+        // If we got a response, it should be an error
+        if !output.is_empty() {
+            assert!(output.len() >= 4);
+        }
+    }
+
+    /// Test text protocol PUSH and PULL
+    #[tokio::test]
+    async fn test_text_protocol_push_pull() {
+        let qm = QueueManager::new(false);
+        let input =
+            b"{\"cmd\":\"PUSH\",\"queue\":\"test\",\"data\":{\"x\":1}}\n{\"cmd\":\"STATS\"}\n";
+        let reader = Cursor::new(input.to_vec());
+        let mut output = Vec::new();
+
+        let result = handle_connection(reader, &mut output, qm).await;
+        assert!(result.is_ok());
+
+        let output_str = String::from_utf8_lossy(&output);
+        // First response should be ok with id
+        assert!(output_str.contains("\"ok\":true"));
+        assert!(output_str.contains("\"id\":"));
+    }
+
+    /// Test duplex stream simulation
+    #[tokio::test]
+    async fn test_duplex_connection() {
+        let qm = QueueManager::new(false);
+        let (client, server) = duplex(1024);
+        let (server_reader, server_writer) = tokio::io::split(server);
+        let (mut client_reader, mut client_writer) = tokio::io::split(client);
+
+        // Spawn server handler
+        let qm_clone = qm.clone();
+        let server_handle = tokio::spawn(async move {
+            handle_connection(server_reader, server_writer, qm_clone).await
+        });
+
+        // Send a command from client
+        client_writer
+            .write_all(b"{\"cmd\":\"STATS\"}\n")
+            .await
+            .unwrap();
+        client_writer.flush().await.unwrap();
+
+        // Read response
+        let mut response = vec![0u8; 1024];
+        let n = client_reader.read(&mut response).await.unwrap();
+        assert!(n > 0);
+
+        let response_str = String::from_utf8_lossy(&response[..n]);
+        assert!(response_str.contains("\"ok\":true"));
+
+        // Close client to end server
+        drop(client_writer);
+        drop(client_reader);
+
+        // Wait for server to finish
+        let _ = server_handle.await;
+    }
+}

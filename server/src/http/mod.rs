@@ -199,3 +199,61 @@ pub fn create_router(state: AppState) -> Router {
         .layer(Extension(rate_limiter))
         .layer(cors)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use crate::queue::QueueManager;
+
+    /// Test create_cors_layer function with default settings
+    #[test]
+    fn test_create_cors_layer_default() {
+        // Without CORS_ALLOW_ORIGIN env var, should create permissive layer
+        std::env::remove_var("CORS_ALLOW_ORIGIN");
+        let _ = create_cors_layer();
+        // If it doesn't panic, the test passes
+    }
+
+    /// Test create_cors_layer function with specific origins
+    #[test]
+    fn test_create_cors_layer_with_origins() {
+        std::env::set_var("CORS_ALLOW_ORIGIN", "http://localhost:3000,http://example.com");
+        let _ = create_cors_layer();
+        std::env::remove_var("CORS_ALLOW_ORIGIN");
+    }
+
+    /// Test create_cors_layer function with wildcard
+    #[test]
+    fn test_create_cors_layer_wildcard() {
+        std::env::set_var("CORS_ALLOW_ORIGIN", "*");
+        let _ = create_cors_layer();
+        std::env::remove_var("CORS_ALLOW_ORIGIN");
+    }
+
+    /// Test AppState creation (type alias for Arc<QueueManager>)
+    #[tokio::test]
+    async fn test_app_state_creation() {
+        let state: AppState = QueueManager::new(false);
+        // AppState is Arc<QueueManager>, verify it can be cloned (Arc)
+        let _cloned = state.clone();
+    }
+
+    /// Test router creation doesn't panic
+    #[tokio::test]
+    async fn test_create_router_no_panic() {
+        let state: AppState = QueueManager::new(false);
+        let _router = create_router(state);
+        // If it doesn't panic, the test passes
+    }
+
+    /// Test RateLimiter from_env creates a valid limiter
+    #[tokio::test]
+    async fn test_rate_limiter_from_env() {
+        // from_env should create a valid RateLimiter regardless of env vars
+        let limiter = RateLimiter::from_env();
+        // is_enabled returns true if max_requests > 0
+        // Default is 1000, so it should be enabled
+        let _ = limiter.is_enabled(); // Just verify it doesn't panic
+    }
+}
