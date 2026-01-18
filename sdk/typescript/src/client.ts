@@ -1168,16 +1168,9 @@ export class FlashQ extends EventEmitter {
     }>({
       cmd: 'FLOW',
       queue,
-      parent_data: parentData,
+      data: parentData,
       children,
       priority: options.priority ?? 0,
-      delay: options.delay,
-      ttl: options.ttl,
-      timeout: options.timeout,
-      max_attempts: options.max_attempts,
-      backoff: options.backoff,
-      unique_key: options.unique_key,
-      tags: options.tags,
     });
     return {
       parent_id: response.parent_id,
