@@ -54,12 +54,19 @@ jobs:
       - name: Build release binary
         working-directory: engine
         run: |
-          if [ "${{ matrix.target }}" == "aarch64-unknown-linux-gnu" ]; then
-            export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc
-            export RUSTFLAGS="-C target-feature=+aes,+neon"
-          elif [ "${{ matrix.target }}" == "aarch64-apple-darwin" ]; then
-            export RUSTFLAGS="-C target-feature=+aes,+neon"
-          fi
+          # Set RUSTFLAGS based on target architecture (gxhash requires AES intrinsics)
+          case "${{ matrix.target }}" in
+            aarch64-unknown-linux-gnu)
+              export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc
+              export RUSTFLAGS="-C target-feature=+aes,+neon"
+              ;;
+            aarch64-apple-darwin)
+              export RUSTFLAGS="-C target-feature=+aes,+neon"
+              ;;
+            x86_64-unknown-linux-gnu|x86_64-apple-darwin)
+              export RUSTFLAGS="-C target-feature=+aes,+sse2"
+              ;;
+          esac
           cargo build --release --target ${{ matrix.target }}
         shell: bash
 
