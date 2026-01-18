@@ -288,6 +288,7 @@ fn get_memory_info() -> (f64, f64) {
                 return (resident, 0.0);
             }
         }
+        return (0.0, 0.0);
     }
 
     // macOS: use mach APIs or fallback

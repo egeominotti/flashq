@@ -8,7 +8,6 @@
 Built with Rust for teams who refuse to compromise on performance.
 
 [![CI](https://img.shields.io/github/actions/workflow/status/egeominotti/flashq/ci.yml?branch=main&style=for-the-badge&logo=github&label=CI)](https://github.com/egeominotti/flashq/actions/workflows/ci.yml)
-[![Coverage](https://img.shields.io/codecov/c/github/egeominotti/flashq?style=for-the-badge&logo=codecov&label=Coverage)](https://codecov.io/gh/egeominotti/flashq)
 [![GitHub Stars](https://img.shields.io/github/stars/egeominotti/flashq?style=for-the-badge&logo=github&color=yellow)](https://github.com/egeominotti/flashq)
 [![License](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)](LICENSE)
 [![Rust](https://img.shields.io/badge/Built%20with-Rust-orange?style=for-the-badge&logo=rust)](https://www.rust-lang.org/)

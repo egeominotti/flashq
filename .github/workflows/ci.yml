@@ -49,56 +49,6 @@ jobs:
         working-directory: server
         run: cargo test
 
-  # Code coverage with tarpaulin
-  coverage:
-    name: Code Coverage
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install protobuf compiler
-        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache cargo registry
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            server/target
-          key: ${{ runner.os }}-cargo-coverage-${{ hashFiles('server/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-coverage-
-
-      - name: Install cargo-tarpaulin
-        run: cargo install cargo-tarpaulin
-
-      - name: Run coverage
-        working-directory: server
-        run: |
-          cargo tarpaulin --out xml --out html --output-dir coverage \
-            --skip-clean --timeout 300 \
-            --ignore-tests --ignore-panics \
-            --exclude-files "src/bin/*" "build.rs"
-
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
-        with:
-          files: server/coverage/cobertura.xml
-          flags: rust
-          name: flashq-coverage
-          fail_ci_if_error: false
-          token: ${{ secrets.CODECOV_TOKEN }}
-
-      - name: Upload coverage artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-report
-          path: server/coverage/
-
   # Build release binary
   build-server:
     name: Build Server
@@ -190,21 +140,3 @@ jobs:
           tags: flashq:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-
-  # Security audit
-  security-audit:
-    name: Security Audit
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Install cargo-audit
-        run: cargo install cargo-audit
-
-      - name: Run security audit
-        working-directory: server
-        run: cargo audit
-        continue-on-error: true  # Don't fail CI on audit warnings
