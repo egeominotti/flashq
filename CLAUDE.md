@@ -161,11 +161,11 @@ cargo test
 ```bash
 cd sdk/typescript
 
-# Run comprehensive API tests
-bun run examples/comprehensive-test.ts
+# Run unit tests
+bun test
 
-# Run stress tests
-bun run examples/stress-test.ts
+# Run benchmarks
+bun run examples/benchmark-full.ts
 ```
 
 ### Docker Compose (Recommended)
@@ -605,12 +605,19 @@ sdk/typescript/
 │   ├── index.ts    # Main exports
 │   ├── client.ts   # flashQ client (TCP/HTTP/Binary)
 │   ├── worker.ts   # Worker class for job processing
+│   ├── queue.ts    # Queue class (BullMQ-compatible)
 │   ├── sandbox.ts  # Sandboxed processors (isolated workers)
 │   └── types.ts    # TypeScript type definitions
+├── tests/
+│   ├── client.test.ts      # Client unit tests (980 lines)
+│   ├── worker.test.ts      # Worker tests (565 lines)
+│   ├── events.test.ts      # Event emitter tests (594 lines)
+│   ├── integration.test.ts # E2E workflow tests (392 lines)
+│   ├── queue.test.ts       # Queue class tests (187 lines)
+│   └── types.test.ts       # Type definition tests (141 lines)
 └── examples/
-    ├── comprehensive-test.ts           # 53 API tests
-    ├── binary-protocol-test.ts         # Binary protocol test
-    └── stress-test.ts                  # 33 stress tests
+    ├── 01-basic.ts ... 15-unique.ts  # Usage examples
+    └── *-benchmark.ts                 # Performance benchmarks
 ```
 
 ### SDK Client Options

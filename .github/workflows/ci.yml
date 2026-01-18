@@ -122,7 +122,7 @@ jobs:
 
       - name: Run SDK tests
         working-directory: sdk/typescript
-        run: bun run examples/comprehensive-test.ts
+        run: bun test
 
   # Build Docker image
   build-docker:
