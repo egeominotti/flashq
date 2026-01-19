@@ -863,12 +863,15 @@ li::marker {
     border-radius: 0;
     padding: 20px 16px;
     max-width: 100vw;
+    background: #0a0a0c;
   }
 
   pre code {
-    font-size: 0.8rem;
+    font-size: 0.85rem;
     white-space: pre;
     word-break: normal;
+    line-height: 1.8;
+    letter-spacing: 0.01em;
   }
 
   .code-block {
@@ -907,11 +910,13 @@ li::marker {
   pre {
     margin-left: -16px;
     margin-right: -16px;
-    padding: 16px 12px;
+    padding: 18px 14px;
+    background: #0a0a0c;
   }
 
   pre code {
-    font-size: 0.75rem;
+    font-size: 0.8rem;
+    line-height: 1.75;
   }
 
   .code-block {
