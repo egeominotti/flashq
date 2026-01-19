@@ -49,6 +49,12 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://flashq.dev/blog/flashq-in-action.html</loc>
+    <lastmod>2026-01-20</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://flashq.dev/blog/job-queue-patterns.html</loc>
     <lastmod>2026-01-14</lastmod>
     <changefreq>monthly</changefreq>

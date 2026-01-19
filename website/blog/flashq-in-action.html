@@ -1,0 +1,757 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>flashQ in Action: Live Demo of All Features - flashQ Blog</title>
+  <meta name="description" content="Interactive walkthrough of flashQ features: job queues, priorities, rate limiting, retries, DLQ, cron jobs, and real-time monitoring.">
+  <meta name="keywords" content="flashq demo, job queue example, background jobs tutorial, queue features, live demo">
+  <meta name="robots" content="index, follow">
+
+  <meta property="og:title" content="flashQ in Action: Live Demo of All Features">
+  <meta property="og:description" content="Interactive walkthrough of all flashQ features with live examples.">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://flashq.dev/blog/flashq-in-action.html">
+  <meta property="og:image" content="https://flashq.dev/og-image.png">
+
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="flashQ in Action: Live Demo of All Features">
+  <meta name="twitter:image" content="https://flashq.dev/og-image.png">
+
+  <link rel="canonical" href="https://flashq.dev/blog/flashq-in-action.html">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="styles.css">
+
+  <style>
+    .demo-terminal {
+      background: #0a0a0c;
+      border: 1px solid #1a1a1f;
+      border-radius: 12px;
+      margin: 24px 0;
+      overflow: hidden;
+    }
+    .demo-terminal-header {
+      background: rgba(255,255,255,0.03);
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      border-bottom: 1px solid #1a1a1f;
+    }
+    .demo-terminal-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+    }
+    .demo-terminal-dot.red { background: #ff5f56; }
+    .demo-terminal-dot.yellow { background: #ffbd2e; }
+    .demo-terminal-dot.green { background: #27ca40; }
+    .demo-terminal-title {
+      flex: 1;
+      text-align: center;
+      font-size: 0.8rem;
+      color: #71717a;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .demo-terminal-content {
+      padding: 20px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.85rem;
+      line-height: 1.8;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+    .demo-terminal-content .line {
+      display: block;
+      margin-bottom: 4px;
+    }
+    .demo-terminal-content .prompt { color: #22c55e; }
+    .demo-terminal-content .cmd { color: #fbbf24; }
+    .demo-terminal-content .output { color: #a1a1aa; }
+    .demo-terminal-content .success { color: #4ade80; }
+    .demo-terminal-content .error { color: #f87171; }
+    .demo-terminal-content .info { color: #60a5fa; }
+    .demo-terminal-content .time { color: #71717a; font-size: 0.75rem; }
+
+    .demo-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin: 24px 0;
+    }
+    @media (max-width: 768px) {
+      .demo-grid { grid-template-columns: 1fr; }
+    }
+
+    .demo-box {
+      background: rgba(255,255,255,0.02);
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 12px;
+      padding: 20px;
+    }
+    .demo-box h4 {
+      font-size: 0.9rem;
+      margin-bottom: 12px;
+      color: #f97316;
+    }
+    .demo-box .metric {
+      font-size: 2rem;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+    .demo-box .label {
+      font-size: 0.8rem;
+      color: #71717a;
+    }
+
+    .job-card {
+      background: rgba(255,255,255,0.02);
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 8px;
+      padding: 12px 16px;
+      margin: 8px 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .job-card .job-id { font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; }
+    .job-card .job-status {
+      font-size: 0.75rem;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-weight: 600;
+    }
+    .job-card .job-status.waiting { background: rgba(251, 191, 36, 0.2); color: #fbbf24; }
+    .job-card .job-status.active { background: rgba(59, 130, 246, 0.2); color: #3b82f6; }
+    .job-card .job-status.completed { background: rgba(34, 197, 94, 0.2); color: #22c55e; }
+    .job-card .job-status.failed { background: rgba(239, 68, 68, 0.2); color: #ef4444; }
+
+    .progress-bar {
+      height: 8px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 4px;
+      overflow: hidden;
+      margin: 8px 0;
+    }
+    .progress-bar .fill {
+      height: 100%;
+      background: linear-gradient(90deg, #f97316, #22c55e);
+      border-radius: 4px;
+      transition: width 0.3s;
+    }
+  </style>
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "headline": "flashQ in Action: Live Demo of All Features",
+    "datePublished": "2026-01-20",
+    "author": { "@type": "Organization", "name": "flashQ" }
+  }
+  </script>
+</head>
+<body>
+  <nav>
+    <div class="container wide">
+      <a href="../" class="logo"><span>⚡</span> flashQ</a>
+      <div class="nav-links">
+        <a href="../#features">Features</a>
+        <a href="../blog/" class="active">Blog</a>
+        <a href="../docs/">Docs</a>
+        <a href="https://github.com/egeominotti/flashq" target="_blank">GitHub</a>
+        <a href="../docs/#quickstart" class="btn btn-primary">Get Started</a>
+      </div>
+      <button class="mobile-menu-btn" aria-label="Menu">
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
+    </div>
+  </nav>
+
+  <div class="mobile-menu">
+    <a href="../#features">Features</a>
+    <a href="../blog/">Blog</a>
+    <a href="../docs/">Docs</a>
+    <a href="https://github.com/egeominotti/flashq" target="_blank">GitHub</a>
+    <a href="../docs/#quickstart" class="btn btn-primary">Get Started</a>
+  </div>
+
+  <header class="article-header">
+    <div class="container">
+      <span class="article-tag tutorial">Tutorial</span>
+      <h1>flashQ in Action: Live Demo of All Features</h1>
+      <div class="article-meta">
+        <span>📅 January 20, 2026</span>
+        <span>⏱️ 12 min read</span>
+      </div>
+    </div>
+  </header>
+
+  <article class="article-content">
+    <div class="container">
+      <p>Let's walk through flashQ's features with practical examples. We'll simulate real scenarios showing exactly how each feature works, from basic job processing to advanced patterns.</p>
+
+      <h2>🚀 1. Basic Job Processing</h2>
+
+      <p>Let's start with the fundamentals: pushing a job and processing it.</p>
+
+      <div class="demo-terminal">
+        <div class="demo-terminal-header">
+          <div class="demo-terminal-dot red"></div>
+          <div class="demo-terminal-dot yellow"></div>
+          <div class="demo-terminal-dot green"></div>
+          <div class="demo-terminal-title">producer.ts</div>
+        </div>
+        <div class="demo-terminal-content">
+          <span class="line"><span class="prompt">$</span> <span class="cmd">bun run producer.ts</span></span>
+          <span class="line"><span class="time">[10:00:00.000]</span> <span class="info">Connecting to flashQ server...</span></span>
+          <span class="line"><span class="time">[10:00:00.012]</span> <span class="success">✓ Connected to localhost:6789</span></span>
+          <span class="line"><span class="time">[10:00:00.015]</span> <span class="info">Pushing job to 'emails' queue...</span></span>
+          <span class="line"><span class="time">[10:00:00.018]</span> <span class="success">✓ Job created: #1001</span></span>
+          <span class="line"><span class="output">  → Queue: emails</span></span>
+          <span class="line"><span class="output">  → Data: { to: "user@example.com", subject: "Welcome!" }</span></span>
+          <span class="line"><span class="output">  → State: waiting</span></span>
+        </div>
+      </div>
+
+      <div class="demo-terminal">
+        <div class="demo-terminal-header">
+          <div class="demo-terminal-dot red"></div>
+          <div class="demo-terminal-dot yellow"></div>
+          <div class="demo-terminal-dot green"></div>
+          <div class="demo-terminal-title">worker.ts</div>
+        </div>
+        <div class="demo-terminal-content">
+          <span class="line"><span class="prompt">$</span> <span class="cmd">bun run worker.ts</span></span>
+          <span class="line"><span class="time">[10:00:00.050]</span> <span class="info">Worker started for 'emails' queue</span></span>
+          <span class="line"><span class="time">[10:00:00.052]</span> <span class="info">Pulled job #1001</span></span>
+          <span class="line"><span class="time">[10:00:00.053]</span> <span class="output">Processing: Send email to user@example.com</span></span>
+          <span class="line"><span class="time">[10:00:00.250]</span> <span class="success">✓ Email sent successfully</span></span>
+          <span class="line"><span class="time">[10:00:00.252]</span> <span class="success">✓ Job #1001 completed in 200ms</span></span>
+        </div>
+      </div>
+
+      <pre><code><span class="comment">// producer.ts</span>
+<span class="keyword">const</span> <span class="variable">client</span> = <span class="keyword">new</span> <span class="function">FlashQ</span>();
+<span class="keyword">await</span> client.<span class="function">connect</span>();
+
+<span class="keyword">const</span> <span class="variable">job</span> = <span class="keyword">await</span> client.<span class="function">push</span>(<span class="string">'emails'</span>, {
+  to: <span class="string">'user@example.com'</span>,
+  subject: <span class="string">'Welcome!'</span>,
+  body: <span class="string">'Thanks for signing up.'</span>
+});
+
+console.<span class="function">log</span>(<span class="string">`Job created: #${job.id}`</span>);</code></pre>
+
+      <h2>⚡ 2. Priority Queues</h2>
+
+      <p>High-priority jobs get processed first. Let's see how priorities work:</p>
+
+      <div class="demo-terminal">
+        <div class="demo-terminal-header">
+          <div class="demo-terminal-dot red"></div>
+          <div class="demo-terminal-dot yellow"></div>
+          <div class="demo-terminal-dot green"></div>
+          <div class="demo-terminal-title">priority-demo.ts</div>
+        </div>
+        <div class="demo-terminal-content">
+          <span class="line"><span class="time">[10:00:00.000]</span> <span class="info">Pushing 5 jobs with different priorities...</span></span>
+          <span class="line"><span class="time">[10:00:00.010]</span> <span class="output">Job #1: priority 1 (low)</span></span>
+          <span class="line"><span class="time">[10:00:00.012]</span> <span class="output">Job #2: priority 1 (low)</span></span>
+          <span class="line"><span class="time">[10:00:00.014]</span> <span class="output">Job #3: priority 50 (high)</span></span>
+          <span class="line"><span class="time">[10:00:00.016]</span> <span class="output">Job #4: priority 100 (critical)</span></span>
+          <span class="line"><span class="time">[10:00:00.018]</span> <span class="output">Job #5: priority 10 (normal)</span></span>
+          <span class="line"></span>
+          <span class="line"><span class="time">[10:00:00.020]</span> <span class="info">Processing order (highest priority first):</span></span>
+          <span class="line"><span class="time">[10:00:00.025]</span> <span class="success">1st: Job #4 (priority 100) ⭐</span></span>
+          <span class="line"><span class="time">[10:00:00.030]</span> <span class="success">2nd: Job #3 (priority 50)</span></span>
+          <span class="line"><span class="time">[10:00:00.035]</span> <span class="success">3rd: Job #5 (priority 10)</span></span>
+          <span class="line"><span class="time">[10:00:00.040]</span> <span class="success">4th: Job #1 (priority 1)</span></span>
+          <span class="line"><span class="time">[10:00:00.045]</span> <span class="success">5th: Job #2 (priority 1)</span></span>
+        </div>
+      </div>
+
+      <pre><code><span class="comment">// Critical job - processed first</span>
+<span class="keyword">await</span> client.<span class="function">push</span>(<span class="string">'tasks'</span>, { type: <span class="string">'urgent'</span> }, { priority: <span class="number">100</span> });
+
+<span class="comment">// Normal job</span>
+<span class="keyword">await</span> client.<span class="function">push</span>(<span class="string">'tasks'</span>, { type: <span class="string">'regular'</span> }, { priority: <span class="number">10</span> });
+
+<span class="comment">// Background job - processed last</span>
+<span class="keyword">await</span> client.<span class="function">push</span>(<span class="string">'tasks'</span>, { type: <span class="string">'cleanup'</span> }, { priority: <span class="number">1</span> });</code></pre>
+
+      <h2>⏱️ 3. Delayed Jobs</h2>
+
+      <p>Schedule jobs to run in the future:</p>
+
+      <div class="demo-terminal">
+        <div class="demo-terminal-header">
+          <div class="demo-terminal-dot red"></div>
+          <div class="demo-terminal-dot yellow"></div>
+          <div class="demo-terminal-dot green"></div>
+          <div class="demo-terminal-title">delayed-demo.ts</div>
+        </div>
+        <div class="demo-terminal-content">
+          <span class="line"><span class="time">[10:00:00.000]</span> <span class="info">Scheduling reminder for 5 seconds from now...</span></span>
+          <span class="line"><span class="time">[10:00:00.015]</span> <span class="success">✓ Job #2001 created (delayed)</span></span>
+          <span class="line"><span class="output">  → State: delayed</span></span>
+          <span class="line"><span class="output">  → Scheduled for: 10:00:05.000</span></span>
+          <span class="line"></span>
+          <span class="line"><span class="time">[10:00:01.000]</span> <span class="output">⏳ Waiting... (4s remaining)</span></span>
+          <span class="line"><span class="time">[10:00:02.000]</span> <span class="output">⏳ Waiting... (3s remaining)</span></span>
+          <span class="line"><span class="time">[10:00:03.000]</span> <span class="output">⏳ Waiting... (2s remaining)</span></span>
+          <span class="line"><span class="time">[10:00:04.000]</span> <span class="output">⏳ Waiting... (1s remaining)</span></span>
+          <span class="line"><span class="time">[10:00:05.000]</span> <span class="info">Job moved to waiting queue</span></span>
+          <span class="line"><span class="time">[10:00:05.010]</span> <span class="success">✓ Job #2001 processed: "Don't forget your meeting!"</span></span>
+        </div>
+      </div>
+
+      <pre><code><span class="comment">// Send reminder in 5 seconds</span>
+<span class="keyword">await</span> client.<span class="function">push</span>(<span class="string">'reminders'</span>, {
+  message: <span class="string">"Don't forget your meeting!"</span>
+}, {
+  delay: <span class="number">5000</span>  <span class="comment">// 5000ms = 5 seconds</span>
+});
+
+<span class="comment">// Schedule for specific time</span>
+<span class="keyword">const</span> <span class="variable">tomorrow</span> = <span class="keyword">new</span> <span class="function">Date</span>();
+tomorrow.<span class="function">setDate</span>(tomorrow.<span class="function">getDate</span>() + <span class="number">1</span>);
+
+<span class="keyword">await</span> client.<span class="function">push</span>(<span class="string">'reports'</span>, { type: <span class="string">'daily'</span> }, {
+  delay: tomorrow.<span class="function">getTime</span>() - Date.<span class="function">now</span>()
+});</code></pre>
+
+      <h2>🔄 4. Automatic Retries with Exponential Backoff</h2>
+
+      <p>When jobs fail, flashQ automatically retries them with exponential backoff:</p>
+
+      <div class="demo-terminal">
+        <div class="demo-terminal-header">
+          <div class="demo-terminal-dot red"></div>
+          <div class="demo-terminal-dot yellow"></div>
+          <div class="demo-terminal-dot green"></div>
+          <div class="demo-terminal-title">retry-demo.ts</div>
+        </div>
+        <div class="demo-terminal-content">
+          <span class="line"><span class="time">[10:00:00.000]</span> <span class="info">Pushing job with max 3 attempts...</span></span>
+          <span class="line"><span class="time">[10:00:00.020]</span> <span class="success">✓ Job #3001 created</span></span>
+          <span class="line"></span>
+          <span class="line"><span class="time">[10:00:00.025]</span> <span class="info">Attempt 1/3</span></span>
+          <span class="line"><span class="time">[10:00:00.500]</span> <span class="error">✗ Failed: Connection timeout</span></span>
+          <span class="line"><span class="time">[10:00:00.502]</span> <span class="output">  → Retry in 1000ms (backoff: 1s × 2^0)</span></span>
+          <span class="line"></span>
+          <span class="line"><span class="time">[10:00:01.510]</span> <span class="info">Attempt 2/3</span></span>
+          <span class="line"><span class="time">[10:00:02.000]</span> <span class="error">✗ Failed: Connection timeout</span></span>
+          <span class="line"><span class="time">[10:00:02.002]</span> <span class="output">  → Retry in 2000ms (backoff: 1s × 2^1)</span></span>
+          <span class="line"></span>
+          <span class="line"><span class="time">[10:00:04.010]</span> <span class="info">Attempt 3/3</span></span>
+          <span class="line"><span class="time">[10:00:04.200]</span> <span class="success">✓ Success! API responded</span></span>
+          <span class="line"><span class="time">[10:00:04.202]</span> <span class="success">✓ Job #3001 completed after 3 attempts</span></span>
+        </div>
+      </div>
+
+      <pre><code><span class="keyword">await</span> client.<span class="function">push</span>(<span class="string">'api-calls'</span>, { url: <span class="string">'https://api.example.com'</span> }, {
+  max_attempts: <span class="number">3</span>,   <span class="comment">// Try up to 3 times</span>
+  backoff: <span class="number">1000</span>      <span class="comment">// Start with 1s, then 2s, then 4s...</span>
+});</code></pre>
+
+      <h2>💀 5. Dead Letter Queue (DLQ)</h2>
+
+      <p>Jobs that fail all attempts go to the DLQ for inspection:</p>
+
+      <div class="demo-terminal">
+        <div class="demo-terminal-header">
+          <div class="demo-terminal-dot red"></div>
+          <div class="demo-terminal-dot yellow"></div>
+          <div class="demo-terminal-dot green"></div>
+          <div class="demo-terminal-title">dlq-demo.ts</div>
+        </div>
+        <div class="demo-terminal-content">
+          <span class="line"><span class="time">[10:00:00.000]</span> <span class="error">Job #4001 failed all 3 attempts</span></span>
+          <span class="line"><span class="time">[10:00:00.001]</span> <span class="info">Moving to Dead Letter Queue...</span></span>
+          <span class="line"></span>
+          <span class="line"><span class="time">[10:00:05.000]</span> <span class="info">Inspecting DLQ...</span></span>
+          <span class="line"><span class="output">┌─────────┬─────────────────────┬──────────┬─────────────────────┐</span></span>
+          <span class="line"><span class="output">│ Job ID  │ Queue               │ Attempts │ Last Error          │</span></span>
+          <span class="line"><span class="output">├─────────┼─────────────────────┼──────────┼─────────────────────┤</span></span>
+          <span class="line"><span class="output">│ #4001   │ payments            │ 3        │ Card declined       │</span></span>
+          <span class="line"><span class="output">│ #4002   │ emails              │ 3        │ Invalid address     │</span></span>
+          <span class="line"><span class="output">│ #4003   │ webhooks            │ 3        │ Timeout             │</span></span>
+          <span class="line"><span class="output">└─────────┴─────────────────────┴──────────┴─────────────────────┘</span></span>
+          <span class="line"></span>
+          <span class="line"><span class="time">[10:00:10.000]</span> <span class="info">Retrying job #4003 from DLQ...</span></span>
+          <span class="line"><span class="time">[10:00:10.200]</span> <span class="success">✓ Job #4003 completed on retry!</span></span>
+        </div>
+      </div>
+
+      <pre><code><span class="comment">// Get failed jobs</span>
+<span class="keyword">const</span> <span class="variable">failedJobs</span> = <span class="keyword">await</span> client.<span class="function">getDlq</span>(<span class="string">'payments'</span>, <span class="number">10</span>);
+
+<span class="keyword">for</span> (<span class="keyword">const</span> job <span class="keyword">of</span> failedJobs) {
+  console.<span class="function">log</span>(<span class="string">`Job #${job.id} failed: ${job.failedReason}`</span>);
+
+  <span class="comment">// Retry specific job</span>
+  <span class="keyword">await</span> client.<span class="function">retryDlq</span>(<span class="string">'payments'</span>, job.id);
+}
+
+<span class="comment">// Retry all DLQ jobs</span>
+<span class="keyword">await</span> client.<span class="function">retryDlq</span>(<span class="string">'payments'</span>);</code></pre>
+
+      <h2>🚦 6. Rate Limiting</h2>
+
+      <p>Control how fast jobs are processed to respect API limits:</p>
+
+      <div class="demo-terminal">
+        <div class="demo-terminal-header">
+          <div class="demo-terminal-dot red"></div>
+          <div class="demo-terminal-dot yellow"></div>
+          <div class="demo-terminal-dot green"></div>
+          <div class="demo-terminal-title">rate-limit-demo.ts</div>
+        </div>
+        <div class="demo-terminal-content">
+          <span class="line"><span class="time">[10:00:00.000]</span> <span class="info">Setting rate limit: 10 jobs/second</span></span>
+          <span class="line"><span class="time">[10:00:00.005]</span> <span class="success">✓ Rate limit configured</span></span>
+          <span class="line"></span>
+          <span class="line"><span class="time">[10:00:00.010]</span> <span class="info">Pushing 50 jobs at once...</span></span>
+          <span class="line"><span class="time">[10:00:00.100]</span> <span class="success">✓ 50 jobs queued</span></span>
+          <span class="line"></span>
+          <span class="line"><span class="time">[10:00:00.100]</span> <span class="output">Processing: ████████░░ 10/50 (rate: 10/s)</span></span>
+          <span class="line"><span class="time">[10:00:01.100]</span> <span class="output">Processing: ████████████████░░░░ 20/50 (rate: 10/s)</span></span>
+          <span class="line"><span class="time">[10:00:02.100]</span> <span class="output">Processing: ████████████████████████░░░░░░ 30/50 (rate: 10/s)</span></span>
+          <span class="line"><span class="time">[10:00:03.100]</span> <span class="output">Processing: ████████████████████████████████░░░░ 40/50 (rate: 10/s)</span></span>
+          <span class="line"><span class="time">[10:00:04.100]</span> <span class="output">Processing: ████████████████████████████████████████ 50/50</span></span>
+          <span class="line"><span class="time">[10:00:04.100]</span> <span class="success">✓ All jobs completed in 4s (exactly 10/s)</span></span>
+        </div>
+      </div>
+
+      <pre><code><span class="comment">// Limit to 10 jobs per second</span>
+<span class="keyword">await</span> client.<span class="function">setRateLimit</span>(<span class="string">'openai'</span>, {
+  max: <span class="number">10</span>,
+  duration: <span class="number">1000</span>  <span class="comment">// 1 second</span>
+});
+
+<span class="comment">// Limit to 100 jobs per minute</span>
+<span class="keyword">await</span> client.<span class="function">setRateLimit</span>(<span class="string">'emails'</span>, {
+  max: <span class="number">100</span>,
+  duration: <span class="number">60000</span>  <span class="comment">// 60 seconds</span>
+});</code></pre>
+
+      <h2>📊 7. Progress Tracking</h2>
+
+      <p>Track progress for long-running jobs:</p>
+
+      <div class="demo-terminal">
+        <div class="demo-terminal-header">
+          <div class="demo-terminal-dot red"></div>
+          <div class="demo-terminal-dot yellow"></div>
+          <div class="demo-terminal-dot green"></div>
+          <div class="demo-terminal-title">progress-demo.ts</div>
+        </div>
+        <div class="demo-terminal-content">
+          <span class="line"><span class="time">[10:00:00.000]</span> <span class="info">Processing 1000 documents...</span></span>
+          <span class="line"></span>
+          <span class="line"><span class="time">[10:00:01.000]</span> <span class="output">Progress: ██░░░░░░░░ 10% - Processing batch 1/10</span></span>
+          <span class="line"><span class="time">[10:00:02.000]</span> <span class="output">Progress: ████░░░░░░ 20% - Processing batch 2/10</span></span>
+          <span class="line"><span class="time">[10:00:03.000]</span> <span class="output">Progress: ██████░░░░ 30% - Processing batch 3/10</span></span>
+          <span class="line"><span class="time">[10:00:04.000]</span> <span class="output">Progress: ████████░░ 40% - Processing batch 4/10</span></span>
+          <span class="line"><span class="time">[10:00:05.000]</span> <span class="output">Progress: ██████████ 50% - Processing batch 5/10</span></span>
+          <span class="line"><span class="time">[10:00:06.000]</span> <span class="output">Progress: ████████████░░░░░░░░ 60% - Processing batch 6/10</span></span>
+          <span class="line"><span class="time">[10:00:07.000]</span> <span class="output">Progress: ██████████████░░░░░░ 70% - Processing batch 7/10</span></span>
+          <span class="line"><span class="time">[10:00:08.000]</span> <span class="output">Progress: ████████████████░░░░ 80% - Processing batch 8/10</span></span>
+          <span class="line"><span class="time">[10:00:09.000]</span> <span class="output">Progress: ██████████████████░░ 90% - Processing batch 9/10</span></span>
+          <span class="line"><span class="time">[10:00:10.000]</span> <span class="success">Progress: ████████████████████ 100% - Complete!</span></span>
+        </div>
+      </div>
+
+      <pre><code><span class="comment">// Worker updates progress</span>
+<span class="keyword">new</span> <span class="function">Worker</span>(<span class="string">'documents'</span>, <span class="keyword">async</span> (job) => {
+  <span class="keyword">const</span> <span class="variable">docs</span> = job.data.documents;
+  <span class="keyword">const</span> <span class="variable">batchSize</span> = <span class="number">100</span>;
+
+  <span class="keyword">for</span> (<span class="keyword">let</span> i = <span class="number">0</span>; i < docs.length; i += batchSize) {
+    <span class="keyword">await</span> <span class="function">processBatch</span>(docs.<span class="function">slice</span>(i, i + batchSize));
+
+    <span class="comment">// Update progress</span>
+    <span class="keyword">const</span> <span class="variable">percent</span> = Math.<span class="function">round</span>((i + batchSize) / docs.length * <span class="number">100</span>);
+    <span class="keyword">await</span> job.<span class="function">updateProgress</span>(percent, <span class="string">`Processing batch ${i/batchSize + 1}`</span>);
+  }
+
+  <span class="keyword">return</span> { processed: docs.length };
+});
+
+<span class="comment">// Monitor progress from another process</span>
+<span class="keyword">const</span> <span class="variable">progress</span> = <span class="keyword">await</span> client.<span class="function">getProgress</span>(jobId);
+console.<span class="function">log</span>(<span class="string">`${progress.percent}% - ${progress.message}`</span>);</code></pre>
+
+      <h2>⏰ 8. Cron Jobs</h2>
+
+      <p>Schedule recurring jobs with cron expressions:</p>
+
+      <div class="demo-terminal">
+        <div class="demo-terminal-header">
+          <div class="demo-terminal-dot red"></div>
+          <div class="demo-terminal-dot yellow"></div>
+          <div class="demo-terminal-dot green"></div>
+          <div class="demo-terminal-title">cron-demo.ts</div>
+        </div>
+        <div class="demo-terminal-content">
+          <span class="line"><span class="time">[10:00:00.000]</span> <span class="info">Registering cron jobs...</span></span>
+          <span class="line"><span class="time">[10:00:00.010]</span> <span class="success">✓ daily-report: "0 9 * * *" (every day at 9 AM)</span></span>
+          <span class="line"><span class="time">[10:00:00.015]</span> <span class="success">✓ hourly-sync: "0 * * * *" (every hour)</span></span>
+          <span class="line"><span class="time">[10:00:00.020]</span> <span class="success">✓ cleanup: "*/5 * * * *" (every 5 minutes)</span></span>
+          <span class="line"></span>
+          <span class="line"><span class="time">[10:00:00.025]</span> <span class="info">Cron scheduler running...</span></span>
+          <span class="line"></span>
+          <span class="line"><span class="time">[10:05:00.000]</span> <span class="info">⏰ Triggered: cleanup</span></span>
+          <span class="line"><span class="time">[10:05:00.500]</span> <span class="success">✓ Cleanup completed: removed 127 stale records</span></span>
+          <span class="line"></span>
+          <span class="line"><span class="time">[10:10:00.000]</span> <span class="info">⏰ Triggered: cleanup</span></span>
+          <span class="line"><span class="time">[10:10:00.300]</span> <span class="success">✓ Cleanup completed: removed 89 stale records</span></span>
+          <span class="line"></span>
+          <span class="line"><span class="time">[11:00:00.000]</span> <span class="info">⏰ Triggered: hourly-sync</span></span>
+          <span class="line"><span class="time">[11:00:05.000]</span> <span class="success">✓ Sync completed: 1,234 records updated</span></span>
+        </div>
+      </div>
+
+      <pre><code><span class="comment">// Daily report at 9 AM</span>
+<span class="keyword">await</span> client.<span class="function">addCron</span>(<span class="string">'daily-report'</span>, {
+  queue: <span class="string">'reports'</span>,
+  schedule: <span class="string">'0 9 * * *'</span>,
+  data: { type: <span class="string">'daily'</span> }
+});
+
+<span class="comment">// Every 5 minutes</span>
+<span class="keyword">await</span> client.<span class="function">addCron</span>(<span class="string">'cleanup'</span>, {
+  queue: <span class="string">'maintenance'</span>,
+  schedule: <span class="string">'*/5 * * * *'</span>,
+  data: { action: <span class="string">'cleanup'</span> }
+});
+
+<span class="comment">// List all cron jobs</span>
+<span class="keyword">const</span> <span class="variable">crons</span> = <span class="keyword">await</span> client.<span class="function">listCrons</span>();
+crons.<span class="function">forEach</span>(c => console.<span class="function">log</span>(<span class="string">`${c.name}: ${c.schedule}`</span>));</code></pre>
+
+      <h2>🔗 9. Job Dependencies (Workflows)</h2>
+
+      <p>Create complex workflows where jobs depend on other jobs:</p>
+
+      <div class="demo-terminal">
+        <div class="demo-terminal-header">
+          <div class="demo-terminal-dot red"></div>
+          <div class="demo-terminal-dot yellow"></div>
+          <div class="demo-terminal-dot green"></div>
+          <div class="demo-terminal-title">workflow-demo.ts</div>
+        </div>
+        <div class="demo-terminal-content">
+          <span class="line"><span class="time">[10:00:00.000]</span> <span class="info">Creating AI pipeline workflow...</span></span>
+          <span class="line"></span>
+          <span class="line"><span class="output">Workflow Structure:</span></span>
+          <span class="line"><span class="output">┌─────────────┐     ┌─────────────┐     ┌─────────────┐</span></span>
+          <span class="line"><span class="output">│   Extract   │ ──▶ │   Embed     │ ──▶ │   Store     │</span></span>
+          <span class="line"><span class="output">│   #5001     │     │   #5002     │     │   #5003     │</span></span>
+          <span class="line"><span class="output">└─────────────┘     └─────────────┘     └─────────────┘</span></span>
+          <span class="line"></span>
+          <span class="line"><span class="time">[10:00:00.100]</span> <span class="info">Job #5001 (extract): waiting</span></span>
+          <span class="line"><span class="time">[10:00:00.101]</span> <span class="output">Job #5002 (embed): waiting-children [#5001]</span></span>
+          <span class="line"><span class="time">[10:00:00.102]</span> <span class="output">Job #5003 (store): waiting-children [#5002]</span></span>
+          <span class="line"></span>
+          <span class="line"><span class="time">[10:00:00.200]</span> <span class="info">Processing #5001 (extract)...</span></span>
+          <span class="line"><span class="time">[10:00:01.000]</span> <span class="success">✓ #5001 completed → #5002 now waiting</span></span>
+          <span class="line"></span>
+          <span class="line"><span class="time">[10:00:01.100]</span> <span class="info">Processing #5002 (embed)...</span></span>
+          <span class="line"><span class="time">[10:00:03.000]</span> <span class="success">✓ #5002 completed → #5003 now waiting</span></span>
+          <span class="line"></span>
+          <span class="line"><span class="time">[10:00:03.100]</span> <span class="info">Processing #5003 (store)...</span></span>
+          <span class="line"><span class="time">[10:00:03.500]</span> <span class="success">✓ #5003 completed</span></span>
+          <span class="line"><span class="time">[10:00:03.501]</span> <span class="success">✓ Workflow complete!</span></span>
+        </div>
+      </div>
+
+      <pre><code><span class="comment">// Create workflow with dependencies</span>
+<span class="keyword">const</span> <span class="variable">extract</span> = <span class="keyword">await</span> client.<span class="function">push</span>(<span class="string">'pipeline'</span>, {
+  step: <span class="string">'extract'</span>,
+  file: <span class="string">'document.pdf'</span>
+});
+
+<span class="keyword">const</span> <span class="variable">embed</span> = <span class="keyword">await</span> client.<span class="function">push</span>(<span class="string">'pipeline'</span>, {
+  step: <span class="string">'embed'</span>
+}, {
+  depends_on: [extract.id]  <span class="comment">// Wait for extract</span>
+});
+
+<span class="keyword">const</span> <span class="variable">store</span> = <span class="keyword">await</span> client.<span class="function">push</span>(<span class="string">'pipeline'</span>, {
+  step: <span class="string">'store'</span>
+}, {
+  depends_on: [embed.id]  <span class="comment">// Wait for embed</span>
+});
+
+<span class="comment">// Wait for entire workflow</span>
+<span class="keyword">const</span> <span class="variable">result</span> = <span class="keyword">await</span> client.<span class="function">finished</span>(store.id);
+console.<span class="function">log</span>(<span class="string">'Workflow complete!'</span>, result);</code></pre>
+
+      <h2>📈 10. Real-Time Monitoring</h2>
+
+      <p>Monitor your queues with live metrics:</p>
+
+      <div class="demo-grid">
+        <div class="demo-box">
+          <h4>📊 Queue: emails</h4>
+          <div class="metric">12,847</div>
+          <div class="label">Jobs processed today</div>
+          <div class="progress-bar"><div class="fill" style="width: 85%"></div></div>
+          <div style="display: flex; justify-content: space-between; font-size: 0.8rem; color: #71717a;">
+            <span>Waiting: 23</span>
+            <span>Active: 5</span>
+            <span>Failed: 2</span>
+          </div>
+        </div>
+        <div class="demo-box">
+          <h4>📊 Queue: embeddings</h4>
+          <div class="metric">156,234</div>
+          <div class="label">Jobs processed today</div>
+          <div class="progress-bar"><div class="fill" style="width: 92%"></div></div>
+          <div style="display: flex; justify-content: space-between; font-size: 0.8rem; color: #71717a;">
+            <span>Waiting: 1,247</span>
+            <span>Active: 32</span>
+            <span>Failed: 8</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="demo-terminal">
+        <div class="demo-terminal-header">
+          <div class="demo-terminal-dot red"></div>
+          <div class="demo-terminal-dot yellow"></div>
+          <div class="demo-terminal-dot green"></div>
+          <div class="demo-terminal-title">monitoring.ts</div>
+        </div>
+        <div class="demo-terminal-content">
+          <span class="line"><span class="time">[10:00:00.000]</span> <span class="info">Fetching queue stats...</span></span>
+          <span class="line"></span>
+          <span class="line"><span class="output">┌─────────────────┬─────────┬────────┬───────────┬────────┐</span></span>
+          <span class="line"><span class="output">│ Queue           │ Waiting │ Active │ Completed │ Failed │</span></span>
+          <span class="line"><span class="output">├─────────────────┼─────────┼────────┼───────────┼────────┤</span></span>
+          <span class="line"><span class="output">│ emails          │ 23      │ 5      │ 12,847    │ 2      │</span></span>
+          <span class="line"><span class="output">│ embeddings      │ 1,247   │ 32     │ 156,234   │ 8      │</span></span>
+          <span class="line"><span class="output">│ webhooks        │ 0       │ 0      │ 8,912     │ 0      │</span></span>
+          <span class="line"><span class="output">│ reports         │ 3       │ 1      │ 47        │ 0      │</span></span>
+          <span class="line"><span class="output">└─────────────────┴─────────┴────────┴───────────┴────────┘</span></span>
+          <span class="line"></span>
+          <span class="line"><span class="info">Throughput: 2,847 jobs/min | Avg latency: 127ms</span></span>
+        </div>
+      </div>
+
+      <pre><code><span class="comment">// Get queue statistics</span>
+<span class="keyword">const</span> <span class="variable">stats</span> = <span class="keyword">await</span> client.<span class="function">stats</span>();
+console.<span class="function">log</span>(<span class="string">`Total queues: ${stats.queues}`</span>);
+console.<span class="function">log</span>(<span class="string">`Jobs waiting: ${stats.waiting}`</span>);
+console.<span class="function">log</span>(<span class="string">`Jobs active: ${stats.active}`</span>);
+
+<span class="comment">// Get detailed metrics</span>
+<span class="keyword">const</span> <span class="variable">metrics</span> = <span class="keyword">await</span> client.<span class="function">metrics</span>();
+console.<span class="function">log</span>(<span class="string">`Throughput: ${metrics.throughput}/min`</span>);
+console.<span class="function">log</span>(<span class="string">`Avg latency: ${metrics.avgLatency}ms`</span>);
+
+<span class="comment">// Get job counts by state</span>
+<span class="keyword">const</span> <span class="variable">counts</span> = <span class="keyword">await</span> client.<span class="function">getJobCounts</span>(<span class="string">'emails'</span>);
+console.<span class="function">log</span>(counts);
+<span class="comment">// { waiting: 23, active: 5, completed: 12847, failed: 2 }</span></code></pre>
+
+      <h2>🎯 Summary</h2>
+
+      <p>flashQ provides a complete toolkit for background job processing:</p>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Feature</th>
+            <th>Use Case</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Priority Queues</td>
+            <td>Process urgent jobs first</td>
+          </tr>
+          <tr>
+            <td>Delayed Jobs</td>
+            <td>Schedule for future execution</td>
+          </tr>
+          <tr>
+            <td>Retries + Backoff</td>
+            <td>Handle transient failures</td>
+          </tr>
+          <tr>
+            <td>Dead Letter Queue</td>
+            <td>Debug and retry failed jobs</td>
+          </tr>
+          <tr>
+            <td>Rate Limiting</td>
+            <td>Respect API limits</td>
+          </tr>
+          <tr>
+            <td>Progress Tracking</td>
+            <td>Monitor long-running jobs</td>
+          </tr>
+          <tr>
+            <td>Cron Jobs</td>
+            <td>Recurring scheduled tasks</td>
+          </tr>
+          <tr>
+            <td>Dependencies</td>
+            <td>Complex workflows</td>
+          </tr>
+          <tr>
+            <td>Real-Time Metrics</td>
+            <td>Monitor queue health</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="article-cta">
+        <h3>Try It Yourself</h3>
+        <p>Get started with flashQ in under 5 minutes.</p>
+        <a href="../docs/#quickstart" class="btn btn-primary">Quick Start Guide →</a>
+      </div>
+    </div>
+  </article>
+
+  <footer>
+    <div class="container wide">
+      <a href="../" class="logo"><span>⚡</span> flashQ</a>
+      <div class="footer-links">
+        <a href="https://github.com/egeominotti/flashq" target="_blank">GitHub</a>
+        <a href="https://npmjs.com/package/flashq" target="_blank">npm</a>
+        <a href="../docs/">Docs</a>
+        <a href="../blog/">Blog</a>
+      </div>
+      <div class="footer-copy">© <span id="year"></span> flashQ. MIT License.</div>
+    </div>
+  </footer>
+
+  <script>
+    document.getElementById("year").textContent = new Date().getFullYear();
+    const mobileMenuBtn = document.querySelector(".mobile-menu-btn");
+    const mobileMenu = document.querySelector(".mobile-menu");
+    mobileMenuBtn.addEventListener("click", () => {
+      mobileMenuBtn.classList.toggle("active");
+      mobileMenu.classList.toggle("active");
+      document.body.style.overflow = mobileMenu.classList.contains("active") ? "hidden" : "";
+    });
+    mobileMenu.querySelectorAll("a").forEach(link => {
+      link.addEventListener("click", () => {
+        mobileMenuBtn.classList.remove("active");
+        mobileMenu.classList.remove("active");
+        document.body.style.overflow = "";
+      });
+    });
+  </script>
+</body>
+</html>
