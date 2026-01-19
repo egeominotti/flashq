@@ -1214,11 +1214,13 @@ footer .container {
   opacity: 0;
   transform: translateY(-20px);
   transition: all 0.3s ease;
+  pointer-events: none;
 }
 
 .mobile-menu.active {
   opacity: 1;
   transform: translateY(0);
+  pointer-events: auto;
 }
 
 .mobile-menu a {
