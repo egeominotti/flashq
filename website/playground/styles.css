@@ -17,6 +17,12 @@
 /* Utilities */
 .hidden { display: none !important; }
 
+/* Override fade-in from main styles - always visible */
+.fade-in {
+  opacity: 1 !important;
+  transform: translateY(0) !important;
+}
+
 /* Header */
 .playground-section {
   padding: 100px 0 60px;
