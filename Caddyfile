@@ -8,11 +8,26 @@
 }
 
 api.flashq.dev {
-	reverse_proxy flashq:6790 {
-		header_up Host {host}
-		header_up X-Real-IP {remote_host}
-		header_up X-Forwarded-For {remote_host}
-		header_up X-Forwarded-Proto {scheme}
+	# Playground Worker API (Elysia + Bun + SDK)
+	handle /worker/* {
+		uri strip_prefix /worker
+		reverse_proxy playground-api:3000 {
+			header_up Host {host}
+			header_up X-Real-IP {remote_host}
+			header_up X-Forwarded-For {remote_host}
+			header_up X-Forwarded-Proto {scheme}
+		}
 	}
+
+	# flashQ HTTP API
+	handle {
+		reverse_proxy flashq:6790 {
+			header_up Host {host}
+			header_up X-Real-IP {remote_host}
+			header_up X-Forwarded-For {remote_host}
+			header_up X-Forwarded-Proto {scheme}
+		}
+	}
+
 	encode gzip zstd
 }

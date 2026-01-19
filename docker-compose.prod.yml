@@ -58,6 +58,28 @@ services:
         reservations:
           memory: 512M
 
+  playground-api:
+    build:
+      context: .
+      dockerfile: playground-api/Dockerfile
+    container_name: flashq-playground-api
+    environment:
+      - FLASHQ_HOST=flashq
+      - FLASHQ_PORT=6789
+      - API_PORT=3000
+    expose:
+      - "3000"
+    depends_on:
+      - flashq
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - flashq-net
+
 volumes:
   caddy_data:
   caddy_config:

@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>flashQ - Live Playground</title>
+  <meta name="description" content="Experience flashQ speed live. Push thousands of jobs, run benchmarks, and visualize the flow in real-time.">
+
+  <!-- Favicon -->
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+  <!-- Styles -->
+  <link rel="stylesheet" href="../styles.css">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="bg-grid"></div>
+  <div class="bg-gradient"></div>
+
+  <!-- Navigation -->
+  <nav>
+    <div class="container">
+      <a href="/" class="logo">
+        <span>⚡</span> flashQ
+      </a>
+      <div class="nav-links">
+        <a href="/#features">Features</a>
+        <a href="/docs/">Docs</a>
+        <a href="/blog/">Blog</a>
+        <a href="https://github.com/egeominotti/flashq" target="_blank">GitHub</a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Main Section -->
+  <section class="playground-section">
+    <div class="container">
+      <!-- Header -->
+      <header class="playground-header fade-in">
+        <h1>Live Playground</h1>
+        <p>Connected to a real flashQ server. Push jobs, run benchmarks, see the speed.</p>
+      </header>
+
+      <!-- Connection Status -->
+      <div class="connection-banner loading fade-in" id="connectionBanner">
+        <div class="status-indicator"></div>
+        <span>Connecting to</span>
+        <span class="connection-url">api.flashq.dev</span>
+      </div>
+
+      <!-- Main Grid -->
+      <div class="playground-grid">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+          <!-- Push Job -->
+          <article class="card fade-in">
+            <header class="card-header">
+              <span class="icon">📤</span>
+              Push Job
+            </header>
+            <div class="card-body">
+              <div class="form-group">
+                <label class="form-label" for="queueName">Queue</label>
+                <input type="text" class="form-input" id="queueName" value="demo" placeholder="queue-name">
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="jobData">Data (JSON)</label>
+                <textarea class="form-input" id="jobData">{"task": "process", "value": 42}</textarea>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="form-label" for="priority">Priority</label>
+                  <input type="number" class="form-input" id="priority" value="0" min="0">
+                </div>
+                <div class="form-group">
+                  <label class="form-label" for="delay">Delay (ms)</label>
+                  <input type="number" class="form-input" id="delay" value="0" min="0">
+                </div>
+              </div>
+              <button class="btn-action btn-primary" id="pushBtn">
+                <span>Push Job</span>
+              </button>
+            </div>
+          </article>
+
+          <!-- Benchmark -->
+          <article class="card fade-in">
+            <header class="card-header">
+              <span class="icon">🚀</span>
+              Stress Test
+            </header>
+            <div class="card-body">
+              <div class="form-group">
+                <label class="form-label" for="benchmarkCount">Number of Jobs</label>
+                <input type="number" class="form-input" id="benchmarkCount" value="100" min="10" max="1000">
+              </div>
+              <button class="btn-action btn-danger" id="benchmarkBtn">
+                <span>Run Benchmark</span>
+              </button>
+
+              <!-- Results -->
+              <div id="benchmarkResults" class="benchmark-results hidden">
+                <div class="benchmark-row">
+                  <span class="benchmark-label">Jobs Pushed</span>
+                  <span class="benchmark-value" id="bmJobs">-</span>
+                </div>
+                <div class="benchmark-row">
+                  <span class="benchmark-label">Total Time</span>
+                  <span class="benchmark-value" id="bmTime">-</span>
+                </div>
+                <div class="benchmark-row">
+                  <span class="benchmark-label">Throughput</span>
+                  <span class="benchmark-value highlight" id="bmThroughput">-</span>
+                </div>
+              </div>
+
+              <!-- Progress -->
+              <div id="benchmarkProgress" class="progress-container hidden">
+                <div class="progress-bar">
+                  <div class="progress-fill" id="progressFill"></div>
+                </div>
+                <div class="progress-text">
+                  <span id="progressText">0 / 100</span>
+                  <span id="progressPercent">0%</span>
+                </div>
+              </div>
+            </div>
+          </article>
+
+          <!-- Get Job -->
+          <article class="card fade-in">
+            <header class="card-header">
+              <span class="icon">🔍</span>
+              Get Job
+            </header>
+            <div class="card-body">
+              <div class="form-group">
+                <label class="form-label" for="getJobId">Job ID</label>
+                <input type="text" class="form-input" id="getJobId" placeholder="Enter job ID">
+              </div>
+              <button class="btn-action btn-secondary" id="getJobBtn">
+                Get Job Details
+              </button>
+            </div>
+          </article>
+
+          <!-- Simulated Worker -->
+          <article class="card fade-in">
+            <header class="card-header">
+              <span class="icon">⚙️</span>
+              Worker Simulator
+            </header>
+            <div class="card-body">
+              <p class="form-hint">Simula un worker che processa i job dalla coda.</p>
+              <div class="form-group">
+                <label class="form-label" for="workerQueue">Queue</label>
+                <input type="text" class="form-input" id="workerQueue" value="demo" placeholder="queue-name">
+              </div>
+              <div class="form-row">
+                <button class="btn-action btn-success" id="pullAckBtn">
+                  <span>Pull & Ack</span>
+                </button>
+                <button class="btn-action btn-danger" id="pullFailBtn">
+                  <span>Pull & Fail</span>
+                </button>
+              </div>
+              <div id="workerResult" class="worker-result hidden"></div>
+            </div>
+          </article>
+
+          <!-- Queue Controls -->
+          <article class="card fade-in">
+            <header class="card-header">
+              <span class="icon">🎛️</span>
+              Queue Controls
+            </header>
+            <div class="card-body">
+              <div class="form-group">
+                <label class="form-label" for="controlQueue">Queue</label>
+                <input type="text" class="form-input" id="controlQueue" value="demo" placeholder="queue-name">
+              </div>
+              <div class="form-row">
+                <button class="btn-action btn-secondary" id="pauseBtn">
+                  <span>Pause</span>
+                </button>
+                <button class="btn-action btn-secondary" id="resumeBtn">
+                  <span>Resume</span>
+                </button>
+              </div>
+              <div class="form-row" style="margin-top: 8px;">
+                <button class="btn-action btn-danger" id="drainBtn">
+                  <span>Drain</span>
+                </button>
+              </div>
+            </div>
+          </article>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+          <!-- Stats -->
+          <div class="stats-bar fade-in">
+            <div class="stat-card">
+              <div class="stat-value" id="statQueued">0</div>
+              <div class="stat-label">Queued</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-value" id="statProcessing">0</div>
+              <div class="stat-label">Processing</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-value" id="statDelayed">0</div>
+              <div class="stat-label">Delayed</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-value" id="statCompleted">0</div>
+              <div class="stat-label">Completed</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-value" id="statDlq">0</div>
+              <div class="stat-label">Failed</div>
+            </div>
+          </div>
+
+          <!-- Flow Visualization -->
+          <article class="card visualization-card fade-in">
+            <header class="card-header">
+              <span class="icon">📊</span>
+              Job Flow Visualization
+            </header>
+            <div class="card-body">
+              <div class="flow-container">
+                <div class="jobs-flow" id="jobsFlow"></div>
+
+                <div class="flow-stage">
+                  <div class="flow-circle" id="flowPush">📤</div>
+                  <div class="flow-label">Push</div>
+                  <div class="flow-count" id="flowPushCount">0</div>
+                </div>
+
+                <div class="flow-arrow"></div>
+
+                <div class="flow-stage">
+                  <div class="flow-circle" id="flowQueue">📋</div>
+                  <div class="flow-label">Queue</div>
+                  <div class="flow-count" id="flowQueueCount">0</div>
+                </div>
+
+                <div class="flow-arrow"></div>
+
+                <div class="flow-stage">
+                  <div class="flow-circle" id="flowProcess">⚙️</div>
+                  <div class="flow-label">Process</div>
+                  <div class="flow-count" id="flowProcessCount">0</div>
+                </div>
+
+                <div class="flow-arrow"></div>
+
+                <div class="flow-stage">
+                  <div class="flow-circle" id="flowComplete">✅</div>
+                  <div class="flow-label">Complete</div>
+                  <div class="flow-count" id="flowCompleteCount">0</div>
+                </div>
+              </div>
+            </div>
+          </article>
+
+          <!-- Activity Log -->
+          <article class="card fade-in">
+            <header class="card-header">
+              <span class="icon">📜</span>
+              Activity Log
+              <button class="btn-action btn-secondary btn-small" id="clearLogBtn">Clear</button>
+            </header>
+            <div class="card-body">
+              <div class="log-container" id="logContainer">
+                <div class="log-entry info">
+                  <span class="log-time">--:--:--</span>
+                  <span class="log-message">Waiting for activity...</span>
+                </div>
+              </div>
+            </div>
+          </article>
+        </main>
+      </div>
+    </div>
+  </section>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
+  <!-- Footer -->
+  <footer>
+    <div class="container">
+      <a href="/" class="logo">
+        <span>⚡</span> flashQ
+      </a>
+      <div class="footer-links">
+        <a href="https://github.com/egeominotti/flashq" target="_blank">GitHub</a>
+        <a href="https://npmjs.com/package/flashq" target="_blank">npm</a>
+        <a href="/docs/">Docs</a>
+      </div>
+      <div class="footer-copy">
+        &copy; <span id="year"></span> flashQ. MIT License.
+      </div>
+    </div>
+  </footer>
+
+  <!-- Scripts -->
+  <script src="app.js"></script>
+</body>
+</html>
