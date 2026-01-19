@@ -128,8 +128,22 @@
 
   <main class="container wide">
     <div class="blog-grid">
-      <!-- Article - Production Checklist -->
+      <!-- NEW: Elysia & Hono.js Integration -->
       <article class="article-card featured">
+        <div class="article-card-image cover-5"></div>
+        <div class="article-card-content">
+          <div class="article-card-meta">
+            <span class="article-tag tutorial">Tutorial</span>
+            <span class="article-date">Jan 19, 2026</span>
+          </div>
+          <h2><a href="elysia-hono-integration.html">flashQ + Elysia & Hono.js: Modern Bun-Powered Background Jobs</a></h2>
+          <p>Integrate flashQ with Elysia and Hono.js for blazing-fast background job processing with Bun.</p>
+          <a href="elysia-hono-integration.html" class="read-more">Read more →</a>
+        </div>
+      </article>
+
+      <!-- Article - Production Checklist -->
+      <article class="article-card">
         <div class="article-card-image cover-1"></div>
         <div class="article-card-content">
           <div class="article-card-meta">
@@ -508,6 +522,7 @@
 
     // Search functionality
     const searchData = [
+      { title: "Elysia & Hono.js Integration", url: "elysia-hono-integration.html", description: "Modern Bun-powered background jobs", tag: "Tutorial" },
       { title: "flashQ in Action: Live Demo", url: "flashq-in-action.html", description: "Interactive walkthrough of all flashQ features", tag: "Tutorial" },
       { title: "flashQ Architecture", url: "flashq-architecture.html", description: "Deep dive into flashQ's 1.9M jobs/sec design", tag: "Deep Dive" },
       { title: "Migrating from BullMQ", url: "migrating-from-bullmq.html", description: "Step-by-step migration guide from BullMQ", tag: "Migration" },

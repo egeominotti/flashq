@@ -1,0 +1,958 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>flashQ + Elysia & Hono.js: Modern Bun-Powered Background Jobs - flashQ Blog</title>
+  <meta name="description" content="Learn how to integrate flashQ with Elysia and Hono.js for blazing-fast background job processing. Build production-ready APIs with Bun's lightning speed.">
+  <meta name="keywords" content="elysia flashq, hono.js background jobs, bun job queue, elysia worker, hono background processing, bun queue server">
+  <meta name="robots" content="index, follow">
+
+  <meta property="og:title" content="flashQ + Elysia & Hono.js: Modern Bun-Powered Background Jobs">
+  <meta property="og:description" content="Integrate flashQ with Elysia and Hono.js for blazing-fast background job processing.">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://flashq.dev/blog/elysia-hono-integration.html">
+  <meta property="og:image" content="https://flashq.dev/og-image.png">
+  <meta property="article:published_time" content="2026-01-19">
+
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="flashQ + Elysia & Hono.js: Modern Bun-Powered Background Jobs">
+  <meta name="twitter:description" content="Integrate flashQ with Elysia and Hono.js for blazing-fast background job processing.">
+  <meta name="twitter:image" content="https://flashq.dev/og-image.png">
+
+  <link rel="canonical" href="https://flashq.dev/blog/elysia-hono-integration.html">
+  <link rel="alternate" type="application/rss+xml" title="flashQ Blog RSS Feed" href="https://flashq.dev/blog/feed.xml">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="styles.css">
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "headline": "flashQ + Elysia & Hono.js: Modern Bun-Powered Background Jobs",
+    "description": "Integrate flashQ with Elysia and Hono.js for blazing-fast background job processing.",
+    "datePublished": "2026-01-19",
+    "author": { "@type": "Organization", "name": "flashQ" }
+  }
+  </script>
+
+  <!-- Breadcrumb Schema -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "itemListElement": [
+      { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://flashq.dev" },
+      { "@type": "ListItem", "position": 2, "name": "Blog", "item": "https://flashq.dev/blog/" },
+      { "@type": "ListItem", "position": 3, "name": "Elysia & Hono.js Integration", "item": "https://flashq.dev/blog/elysia-hono-integration.html" }
+    ]
+  }
+  </script>
+</head>
+<body>
+  <nav>
+    <div class="container wide">
+      <a href="../" class="logo"><span>⚡</span> flashQ</a>
+      <div class="nav-links">
+        <a href="../#features">Features</a>
+        <a href="../blog/" class="active">Blog</a>
+        <a href="../docs/">Docs</a>
+        <a href="https://github.com/egeominotti/flashq" target="_blank">GitHub</a>
+        <button class="search-trigger" onclick="openSearch()">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+          Search <span class="kbd">⌘K</span>
+        </button>
+        <a href="../docs/#quickstart" class="btn btn-primary">Get Started</a>
+      </div>
+      <button class="mobile-menu-btn" aria-label="Menu"><span></span><span></span><span></span></button>
+    </div>
+  </nav>
+
+  <div class="mobile-menu">
+    <a href="../#features">Features</a>
+    <a href="../blog/">Blog</a>
+    <a href="../docs/">Docs</a>
+    <a href="https://github.com/egeominotti/flashq" target="_blank">GitHub</a>
+    <a href="../docs/#quickstart" class="btn btn-primary">Get Started</a>
+  </div>
+
+  <header class="article-header header-tutorial">
+    <div class="container">
+      <span class="article-tag tutorial">Tutorial</span>
+      <h1>flashQ + Elysia & Hono.js: Modern Bun-Powered Background Jobs</h1>
+      <div class="article-meta">
+        <span>📅 January 19, 2026</span>
+        <span class="reading-time">⏱️ 12 min read</span>
+      </div>
+    </div>
+  </header>
+
+  <article class="article-content">
+    <div class="container wide">
+      <div class="article-layout">
+        <div class="article-main">
+
+      <p>Elysia and Hono.js are two of the fastest and most developer-friendly web frameworks in the TypeScript ecosystem. When combined with flashQ's high-performance job queue, you get a stack that can handle millions of background jobs while maintaining sub-millisecond API response times.</p>
+
+      <p>In this comprehensive guide, we'll build production-ready background job systems with both frameworks, showing you patterns that scale from prototype to millions of users.</p>
+
+      <h2 id="why">Why Elysia & Hono.js with flashQ?</h2>
+
+      <p>Both frameworks share a philosophy of performance and developer experience:</p>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Feature</th>
+            <th>Elysia</th>
+            <th>Hono.js</th>
+            <th>flashQ</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Runtime</td>
+            <td>Bun-native</td>
+            <td>Multi-runtime</td>
+            <td>Rust-powered</td>
+          </tr>
+          <tr>
+            <td>Performance</td>
+            <td>~2.5M req/sec</td>
+            <td>~1.5M req/sec</td>
+            <td>~1.9M jobs/sec</td>
+          </tr>
+          <tr>
+            <td>Type Safety</td>
+            <td>End-to-end</td>
+            <td>Full TypeScript</td>
+            <td>Typed SDK</td>
+          </tr>
+          <tr>
+            <td>DX</td>
+            <td>Excellent</td>
+            <td>Excellent</td>
+            <td>BullMQ-compatible</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p>Together, they form a stack where your API responds instantly while heavy work happens asynchronously in the background.</p>
+
+      <h2 id="architecture">Architecture Overview</h2>
+
+      <pre><code>┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│  Elysia/Hono    │     │    flashQ       │     │    Worker       │
+│     API         │────▶│    Server       │◀────│    Process      │
+│                 │     │                 │     │                 │
+│  - Routes       │     │  - Job Queue    │     │  - AI Tasks     │
+│  - Validation   │     │  - Persistence  │     │  - Emails       │
+│  - Auth         │     │  - Scheduling   │     │  - Processing   │
+└─────────────────┘     └─────────────────┘     └─────────────────┘
+       │                                               │
+       └───────────────────────────────────────────────┘
+                    Same Bun process (optional)</code></pre>
+
+      <p>The beauty of Bun is that you can run both your API and workers in the same process for simplicity, or separate them for scale.</p>
+
+      <h2 id="elysia-setup">Elysia Integration</h2>
+
+      <h3>Project Setup</h3>
+
+      <pre><code><span class="comment"># Create new Elysia project</span>
+bun create elysia flashq-elysia
+<span class="keyword">cd</span> flashq-elysia
+
+<span class="comment"># Install flashQ</span>
+bun add flashq</code></pre>
+
+      <h3>Queue Configuration</h3>
+
+      <pre><code><span class="comment">// src/queue.ts</span>
+<span class="keyword">import</span> { FlashQ, Worker } <span class="keyword">from</span> <span class="string">'flashq'</span>;
+
+<span class="comment">// Singleton client instance</span>
+<span class="keyword">let</span> client: FlashQ | <span class="keyword">null</span> = <span class="keyword">null</span>;
+
+<span class="keyword">export</span> <span class="keyword">async</span> <span class="keyword">function</span> <span class="function">getClient</span>(): Promise&lt;FlashQ&gt; {
+  <span class="keyword">if</span> (!client) {
+    client = <span class="keyword">new</span> <span class="function">FlashQ</span>({
+      host: process.env.FLASHQ_HOST || <span class="string">'localhost'</span>,
+      port: <span class="function">parseInt</span>(process.env.FLASHQ_PORT || <span class="string">'6789'</span>),
+      token: process.env.FLASHQ_TOKEN,
+    });
+    <span class="keyword">await</span> client.<span class="function">connect</span>();
+  }
+  <span class="keyword">return</span> client;
+}
+
+<span class="comment">// Queue names as constants for type safety</span>
+<span class="keyword">export</span> <span class="keyword">const</span> <span class="variable">QUEUES</span> = {
+  EMAIL: <span class="string">'email'</span>,
+  AI_PROCESSING: <span class="string">'ai-processing'</span>,
+  WEBHOOKS: <span class="string">'webhooks'</span>,
+  NOTIFICATIONS: <span class="string">'notifications'</span>,
+} <span class="keyword">as const</span>;
+
+<span class="comment">// Type-safe job data interfaces</span>
+<span class="keyword">export</span> <span class="keyword">interface</span> <span class="function">EmailJob</span> {
+  to: <span class="keyword">string</span>;
+  subject: <span class="keyword">string</span>;
+  template: <span class="keyword">string</span>;
+  data: Record&lt;<span class="keyword">string</span>, <span class="keyword">any</span>&gt;;
+}
+
+<span class="keyword">export</span> <span class="keyword">interface</span> <span class="function">AIJob</span> {
+  prompt: <span class="keyword">string</span>;
+  model: <span class="string">'gpt-4'</span> | <span class="string">'gpt-4-turbo'</span> | <span class="string">'claude-3'</span>;
+  userId: <span class="keyword">string</span>;
+  maxTokens?: <span class="keyword">number</span>;
+}</code></pre>
+
+      <h3>Elysia Plugin for flashQ</h3>
+
+      <pre><code><span class="comment">// src/plugins/flashq.ts</span>
+<span class="keyword">import</span> { Elysia } <span class="keyword">from</span> <span class="string">'elysia'</span>;
+<span class="keyword">import</span> { getClient, QUEUES } <span class="keyword">from</span> <span class="string">'../queue'</span>;
+
+<span class="keyword">export</span> <span class="keyword">const</span> <span class="variable">flashqPlugin</span> = <span class="keyword">new</span> <span class="function">Elysia</span>({ name: <span class="string">'flashq'</span> })
+  .<span class="function">decorate</span>(<span class="string">'queue'</span>, {
+    <span class="comment">// Push a job to any queue</span>
+    <span class="keyword">async</span> <span class="function">push</span>&lt;T&gt;(queue: <span class="keyword">string</span>, data: T, options?: <span class="keyword">any</span>) {
+      <span class="keyword">const</span> <span class="variable">client</span> = <span class="keyword">await</span> <span class="function">getClient</span>();
+      <span class="keyword">return</span> client.<span class="function">push</span>(queue, data, options);
+    },
+
+    <span class="comment">// Get job status</span>
+    <span class="keyword">async</span> <span class="function">getJob</span>(jobId: <span class="keyword">string</span>) {
+      <span class="keyword">const</span> <span class="variable">client</span> = <span class="keyword">await</span> <span class="function">getClient</span>();
+      <span class="keyword">return</span> client.<span class="function">getJob</span>(jobId);
+    },
+
+    <span class="comment">// Get job result (for finished() pattern)</span>
+    <span class="keyword">async</span> <span class="function">waitForResult</span>(jobId: <span class="keyword">string</span>, timeout = <span class="number">30000</span>) {
+      <span class="keyword">const</span> <span class="variable">client</span> = <span class="keyword">await</span> <span class="function">getClient</span>();
+      <span class="keyword">return</span> client.<span class="function">finished</span>(jobId, timeout);
+    },
+
+    <span class="comment">// Queue stats</span>
+    <span class="keyword">async</span> <span class="function">stats</span>() {
+      <span class="keyword">const</span> <span class="variable">client</span> = <span class="keyword">await</span> <span class="function">getClient</span>();
+      <span class="keyword">return</span> client.<span class="function">stats</span>();
+    },
+
+    QUEUES,
+  });</code></pre>
+
+      <h3>API Routes with Elysia</h3>
+
+      <pre><code><span class="comment">// src/index.ts</span>
+<span class="keyword">import</span> { Elysia, t } <span class="keyword">from</span> <span class="string">'elysia'</span>;
+<span class="keyword">import</span> { flashqPlugin } <span class="keyword">from</span> <span class="string">'./plugins/flashq'</span>;
+
+<span class="keyword">const</span> <span class="variable">app</span> = <span class="keyword">new</span> <span class="function">Elysia</span>()
+  .<span class="function">use</span>(flashqPlugin)
+
+  <span class="comment">// Health check with queue stats</span>
+  .<span class="function">get</span>(<span class="string">'/health'</span>, <span class="keyword">async</span> ({ queue }) => {
+    <span class="keyword">const</span> <span class="variable">stats</span> = <span class="keyword">await</span> queue.<span class="function">stats</span>();
+    <span class="keyword">return</span> {
+      status: <span class="string">'healthy'</span>,
+      queue: stats,
+      timestamp: <span class="keyword">new</span> <span class="function">Date</span>().<span class="function">toISOString</span>(),
+    };
+  })
+
+  <span class="comment">// Send email endpoint</span>
+  .<span class="function">post</span>(<span class="string">'/api/email'</span>, <span class="keyword">async</span> ({ body, queue }) => {
+    <span class="keyword">const</span> <span class="variable">job</span> = <span class="keyword">await</span> queue.<span class="function">push</span>(queue.QUEUES.EMAIL, body, {
+      attempts: <span class="number">5</span>,
+      backoff: <span class="number">5000</span>,
+    });
+
+    <span class="keyword">return</span> {
+      success: <span class="keyword">true</span>,
+      jobId: job.id,
+      message: <span class="string">'Email queued for delivery'</span>,
+    };
+  }, {
+    body: t.<span class="function">Object</span>({
+      to: t.<span class="function">String</span>({ format: <span class="string">'email'</span> }),
+      subject: t.<span class="function">String</span>({ minLength: <span class="number">1</span> }),
+      template: t.<span class="function">String</span>(),
+      data: t.<span class="function">Record</span>(t.<span class="function">String</span>(), t.<span class="function">Any</span>()),
+    }),
+  })
+
+  <span class="comment">// AI generation with sync response option</span>
+  .<span class="function">post</span>(<span class="string">'/api/generate'</span>, <span class="keyword">async</span> ({ body, query, queue }) => {
+    <span class="keyword">const</span> <span class="variable">job</span> = <span class="keyword">await</span> queue.<span class="function">push</span>(queue.QUEUES.AI_PROCESSING, {
+      prompt: body.prompt,
+      model: body.model || <span class="string">'gpt-4-turbo'</span>,
+      userId: body.userId,
+      maxTokens: body.maxTokens,
+    }, {
+      priority: body.priority || <span class="number">5</span>,
+      timeout: <span class="number">120000</span>, <span class="comment">// 2 min for AI</span>
+    });
+
+    <span class="comment">// Optional: wait for result (sync mode)</span>
+    <span class="keyword">if</span> (query.sync === <span class="string">'true'</span>) {
+      <span class="keyword">const</span> <span class="variable">result</span> = <span class="keyword">await</span> queue.<span class="function">waitForResult</span>(job.id, <span class="number">60000</span>);
+      <span class="keyword">return</span> { success: <span class="keyword">true</span>, result };
+    }
+
+    <span class="keyword">return</span> {
+      success: <span class="keyword">true</span>,
+      jobId: job.id,
+      statusUrl: <span class="string">`/api/jobs/${job.id}`</span>,
+    };
+  }, {
+    body: t.<span class="function">Object</span>({
+      prompt: t.<span class="function">String</span>({ minLength: <span class="number">1</span> }),
+      model: t.<span class="function">Optional</span>(t.<span class="function">Union</span>([
+        t.<span class="function">Literal</span>(<span class="string">'gpt-4'</span>),
+        t.<span class="function">Literal</span>(<span class="string">'gpt-4-turbo'</span>),
+        t.<span class="function">Literal</span>(<span class="string">'claude-3'</span>),
+      ])),
+      userId: t.<span class="function">String</span>(),
+      maxTokens: t.<span class="function">Optional</span>(t.<span class="function">Number</span>({ minimum: <span class="number">1</span>, maximum: <span class="number">4096</span> })),
+      priority: t.<span class="function">Optional</span>(t.<span class="function">Number</span>({ minimum: <span class="number">1</span>, maximum: <span class="number">100</span> })),
+    }),
+    query: t.<span class="function">Object</span>({
+      sync: t.<span class="function">Optional</span>(t.<span class="function">String</span>()),
+    }),
+  })
+
+  <span class="comment">// Get job status</span>
+  .<span class="function">get</span>(<span class="string">'/api/jobs/:id'</span>, <span class="keyword">async</span> ({ params, queue }) => {
+    <span class="keyword">const</span> <span class="variable">job</span> = <span class="keyword">await</span> queue.<span class="function">getJob</span>(params.id);
+    <span class="keyword">if</span> (!job) {
+      <span class="keyword">return</span> { error: <span class="string">'Job not found'</span> };
+    }
+    <span class="keyword">return</span> job;
+  })
+
+  <span class="comment">// Batch job creation</span>
+  .<span class="function">post</span>(<span class="string">'/api/batch/emails'</span>, <span class="keyword">async</span> ({ body, queue }) => {
+    <span class="keyword">const</span> <span class="variable">client</span> = <span class="keyword">await</span> <span class="function">getClient</span>();
+    <span class="keyword">const</span> <span class="variable">jobs</span> = <span class="keyword">await</span> client.<span class="function">pushBatch</span>(
+      queue.QUEUES.EMAIL,
+      body.emails.<span class="function">map</span>((email: <span class="keyword">any</span>) => ({
+        data: email,
+        options: { attempts: <span class="number">3</span> },
+      }))
+    );
+
+    <span class="keyword">return</span> {
+      success: <span class="keyword">true</span>,
+      count: jobs.length,
+      jobIds: jobs.<span class="function">map</span>(j => j.id),
+    };
+  }, {
+    body: t.<span class="function">Object</span>({
+      emails: t.<span class="function">Array</span>(t.<span class="function">Object</span>({
+        to: t.<span class="function">String</span>({ format: <span class="string">'email'</span> }),
+        subject: t.<span class="function">String</span>(),
+        template: t.<span class="function">String</span>(),
+        data: t.<span class="function">Record</span>(t.<span class="function">String</span>(), t.<span class="function">Any</span>()),
+      })),
+    }),
+  })
+
+  .<span class="function">listen</span>(<span class="number">3000</span>);
+
+console.<span class="function">log</span>(<span class="string">`🦊 Elysia running at ${app.server?.hostname}:${app.server?.port}`</span>);</code></pre>
+
+      <div class="callout callout-info">
+        <div class="callout-title">💡 Type Safety with Elysia</div>
+        <p>Elysia's schema validation using <code>t</code> provides end-to-end type safety. Your TypeScript types are automatically inferred from your schema definitions.</p>
+      </div>
+
+      <h2 id="hono-setup">Hono.js Integration</h2>
+
+      <h3>Project Setup</h3>
+
+      <pre><code><span class="comment"># Create new Hono project</span>
+bun create hono@latest flashq-hono
+<span class="keyword">cd</span> flashq-hono
+
+<span class="comment"># Install flashQ and Zod for validation</span>
+bun add flashq zod @hono/zod-validator</code></pre>
+
+      <h3>Queue Middleware for Hono</h3>
+
+      <pre><code><span class="comment">// src/middleware/queue.ts</span>
+<span class="keyword">import</span> { createMiddleware } <span class="keyword">from</span> <span class="string">'hono/factory'</span>;
+<span class="keyword">import</span> { FlashQ } <span class="keyword">from</span> <span class="string">'flashq'</span>;
+
+<span class="keyword">let</span> client: FlashQ | <span class="keyword">null</span> = <span class="keyword">null</span>;
+
+<span class="keyword">async</span> <span class="keyword">function</span> <span class="function">getClient</span>(): Promise&lt;FlashQ&gt; {
+  <span class="keyword">if</span> (!client) {
+    client = <span class="keyword">new</span> <span class="function">FlashQ</span>({
+      host: process.env.FLASHQ_HOST || <span class="string">'localhost'</span>,
+      port: <span class="function">parseInt</span>(process.env.FLASHQ_PORT || <span class="string">'6789'</span>),
+      token: process.env.FLASHQ_TOKEN,
+    });
+    <span class="keyword">await</span> client.<span class="function">connect</span>();
+  }
+  <span class="keyword">return</span> client;
+}
+
+<span class="keyword">export</span> <span class="keyword">const</span> <span class="variable">QUEUES</span> = {
+  EMAIL: <span class="string">'email'</span>,
+  AI: <span class="string">'ai-processing'</span>,
+  WEBHOOKS: <span class="string">'webhooks'</span>,
+} <span class="keyword">as const</span>;
+
+<span class="keyword">type</span> QueueName = <span class="keyword">typeof</span> QUEUES[<span class="keyword">keyof typeof</span> QUEUES];
+
+<span class="keyword">export</span> <span class="keyword">type</span> <span class="function">QueueVariables</span> = {
+  queue: {
+    push: &lt;T&gt;(name: QueueName, data: T, options?: <span class="keyword">any</span>) => Promise&lt;<span class="keyword">any</span>&gt;;
+    getJob: (id: <span class="keyword">string</span>) => Promise&lt;<span class="keyword">any</span>&gt;;
+    finished: (id: <span class="keyword">string</span>, timeout?: <span class="keyword">number</span>) => Promise&lt;<span class="keyword">any</span>&gt;;
+    stats: () => Promise&lt;<span class="keyword">any</span>&gt;;
+  };
+};
+
+<span class="keyword">export</span> <span class="keyword">const</span> <span class="variable">queueMiddleware</span> = <span class="function">createMiddleware</span>&lt;{ Variables: QueueVariables }&gt;(
+  <span class="keyword">async</span> (c, next) => {
+    <span class="keyword">const</span> <span class="variable">flashq</span> = <span class="keyword">await</span> <span class="function">getClient</span>();
+
+    c.<span class="function">set</span>(<span class="string">'queue'</span>, {
+      push: (name, data, options) => flashq.<span class="function">push</span>(name, data, options),
+      getJob: (id) => flashq.<span class="function">getJob</span>(id),
+      finished: (id, timeout) => flashq.<span class="function">finished</span>(id, timeout),
+      stats: () => flashq.<span class="function">stats</span>(),
+    });
+
+    <span class="keyword">await</span> <span class="function">next</span>();
+  }
+);</code></pre>
+
+      <h3>Hono Routes</h3>
+
+      <pre><code><span class="comment">// src/index.ts</span>
+<span class="keyword">import</span> { Hono } <span class="keyword">from</span> <span class="string">'hono'</span>;
+<span class="keyword">import</span> { cors } <span class="keyword">from</span> <span class="string">'hono/cors'</span>;
+<span class="keyword">import</span> { logger } <span class="keyword">from</span> <span class="string">'hono/logger'</span>;
+<span class="keyword">import</span> { zValidator } <span class="keyword">from</span> <span class="string">'@hono/zod-validator'</span>;
+<span class="keyword">import</span> { z } <span class="keyword">from</span> <span class="string">'zod'</span>;
+<span class="keyword">import</span> { queueMiddleware, QUEUES, <span class="keyword">type</span> QueueVariables } <span class="keyword">from</span> <span class="string">'./middleware/queue'</span>;
+
+<span class="keyword">const</span> <span class="variable">app</span> = <span class="keyword">new</span> <span class="function">Hono</span>&lt;{ Variables: QueueVariables }&gt;();
+
+<span class="comment">// Global middleware</span>
+app.<span class="function">use</span>(<span class="string">'*'</span>, <span class="function">cors</span>());
+app.<span class="function">use</span>(<span class="string">'*'</span>, <span class="function">logger</span>());
+app.<span class="function">use</span>(<span class="string">'/api/*'</span>, queueMiddleware);
+
+<span class="comment">// Schemas</span>
+<span class="keyword">const</span> <span class="variable">emailSchema</span> = z.<span class="function">object</span>({
+  to: z.<span class="function">string</span>().<span class="function">email</span>(),
+  subject: z.<span class="function">string</span>().<span class="function">min</span>(<span class="number">1</span>),
+  template: z.<span class="function">string</span>(),
+  data: z.<span class="function">record</span>(z.<span class="function">any</span>()),
+});
+
+<span class="keyword">const</span> <span class="variable">generateSchema</span> = z.<span class="function">object</span>({
+  prompt: z.<span class="function">string</span>().<span class="function">min</span>(<span class="number">1</span>),
+  model: z.<span class="function">enum</span>([<span class="string">'gpt-4'</span>, <span class="string">'gpt-4-turbo'</span>, <span class="string">'claude-3'</span>]).<span class="function">default</span>(<span class="string">'gpt-4-turbo'</span>),
+  userId: z.<span class="function">string</span>(),
+  maxTokens: z.<span class="function">number</span>().<span class="function">min</span>(<span class="number">1</span>).<span class="function">max</span>(<span class="number">4096</span>).<span class="function">optional</span>(),
+  priority: z.<span class="function">number</span>().<span class="function">min</span>(<span class="number">1</span>).<span class="function">max</span>(<span class="number">100</span>).<span class="function">default</span>(<span class="number">5</span>),
+});
+
+<span class="comment">// Health endpoint</span>
+app.<span class="function">get</span>(<span class="string">'/health'</span>, <span class="keyword">async</span> (c) => {
+  <span class="keyword">const</span> <span class="variable">queue</span> = c.<span class="function">get</span>(<span class="string">'queue'</span>);
+  <span class="keyword">const</span> <span class="variable">stats</span> = queue ? <span class="keyword">await</span> queue.<span class="function">stats</span>() : <span class="keyword">null</span>;
+  <span class="keyword">return</span> c.<span class="function">json</span>({
+    status: <span class="string">'healthy'</span>,
+    queue: stats,
+    timestamp: <span class="keyword">new</span> <span class="function">Date</span>().<span class="function">toISOString</span>(),
+  });
+});
+
+<span class="comment">// Email endpoint</span>
+app.<span class="function">post</span>(
+  <span class="string">'/api/email'</span>,
+  <span class="function">zValidator</span>(<span class="string">'json'</span>, emailSchema),
+  <span class="keyword">async</span> (c) => {
+    <span class="keyword">const</span> <span class="variable">body</span> = c.req.<span class="function">valid</span>(<span class="string">'json'</span>);
+    <span class="keyword">const</span> <span class="variable">queue</span> = c.<span class="function">get</span>(<span class="string">'queue'</span>);
+
+    <span class="keyword">const</span> <span class="variable">job</span> = <span class="keyword">await</span> queue.<span class="function">push</span>(QUEUES.EMAIL, body, {
+      attempts: <span class="number">5</span>,
+      backoff: <span class="number">5000</span>,
+    });
+
+    <span class="keyword">return</span> c.<span class="function">json</span>({
+      success: <span class="keyword">true</span>,
+      jobId: job.id,
+      message: <span class="string">'Email queued'</span>,
+    });
+  }
+);
+
+<span class="comment">// AI Generation endpoint</span>
+app.<span class="function">post</span>(
+  <span class="string">'/api/generate'</span>,
+  <span class="function">zValidator</span>(<span class="string">'json'</span>, generateSchema),
+  <span class="keyword">async</span> (c) => {
+    <span class="keyword">const</span> <span class="variable">body</span> = c.req.<span class="function">valid</span>(<span class="string">'json'</span>);
+    <span class="keyword">const</span> <span class="variable">queue</span> = c.<span class="function">get</span>(<span class="string">'queue'</span>);
+    <span class="keyword">const</span> <span class="variable">sync</span> = c.req.<span class="function">query</span>(<span class="string">'sync'</span>) === <span class="string">'true'</span>;
+
+    <span class="keyword">const</span> <span class="variable">job</span> = <span class="keyword">await</span> queue.<span class="function">push</span>(QUEUES.AI, body, {
+      priority: body.priority,
+      timeout: <span class="number">120000</span>,
+    });
+
+    <span class="comment">// Sync mode: wait for result</span>
+    <span class="keyword">if</span> (sync) {
+      <span class="keyword">const</span> <span class="variable">result</span> = <span class="keyword">await</span> queue.<span class="function">finished</span>(job.id, <span class="number">60000</span>);
+      <span class="keyword">return</span> c.<span class="function">json</span>({ success: <span class="keyword">true</span>, result });
+    }
+
+    <span class="keyword">return</span> c.<span class="function">json</span>({
+      success: <span class="keyword">true</span>,
+      jobId: job.id,
+      statusUrl: <span class="string">`/api/jobs/${job.id}`</span>,
+    });
+  }
+);
+
+<span class="comment">// Job status endpoint</span>
+app.<span class="function">get</span>(<span class="string">'/api/jobs/:id'</span>, <span class="keyword">async</span> (c) => {
+  <span class="keyword">const</span> <span class="variable">queue</span> = c.<span class="function">get</span>(<span class="string">'queue'</span>);
+  <span class="keyword">const</span> <span class="variable">job</span> = <span class="keyword">await</span> queue.<span class="function">getJob</span>(c.req.<span class="function">param</span>(<span class="string">'id'</span>));
+
+  <span class="keyword">if</span> (!job) {
+    <span class="keyword">return</span> c.<span class="function">json</span>({ error: <span class="string">'Job not found'</span> }, <span class="number">404</span>);
+  }
+
+  <span class="keyword">return</span> c.<span class="function">json</span>(job);
+});
+
+<span class="comment">// Webhook handler with idempotency</span>
+app.<span class="function">post</span>(<span class="string">'/api/webhooks/:provider'</span>, <span class="keyword">async</span> (c) => {
+  <span class="keyword">const</span> <span class="variable">provider</span> = c.req.<span class="function">param</span>(<span class="string">'provider'</span>);
+  <span class="keyword">const</span> <span class="variable">body</span> = <span class="keyword">await</span> c.req.<span class="function">json</span>();
+  <span class="keyword">const</span> <span class="variable">queue</span> = c.<span class="function">get</span>(<span class="string">'queue'</span>);
+
+  <span class="comment">// Use webhook ID for idempotency</span>
+  <span class="keyword">const</span> <span class="variable">webhookId</span> = body.id || c.req.<span class="function">header</span>(<span class="string">'x-webhook-id'</span>);
+
+  <span class="keyword">const</span> <span class="variable">job</span> = <span class="keyword">await</span> queue.<span class="function">push</span>(QUEUES.WEBHOOKS, {
+    provider,
+    payload: body,
+  }, {
+    jobId: <span class="string">`webhook-${provider}-${webhookId}`</span>, <span class="comment">// Idempotent</span>
+    attempts: <span class="number">3</span>,
+  });
+
+  <span class="keyword">return</span> c.<span class="function">json</span>({ received: <span class="keyword">true</span>, jobId: job.id });
+});
+
+<span class="keyword">export</span> <span class="keyword">default</span> {
+  port: <span class="number">3000</span>,
+  fetch: app.fetch,
+};</code></pre>
+
+      <h2 id="workers">Worker Implementation</h2>
+
+      <p>The worker can be the same for both Elysia and Hono since it uses the flashQ SDK directly.</p>
+
+      <pre><code><span class="comment">// worker/index.ts</span>
+<span class="keyword">import</span> { Worker, FlashQ } <span class="keyword">from</span> <span class="string">'flashq'</span>;
+<span class="keyword">import</span> OpenAI <span class="keyword">from</span> <span class="string">'openai'</span>;
+<span class="keyword">import</span> { Resend } <span class="keyword">from</span> <span class="string">'resend'</span>;
+
+<span class="keyword">const</span> <span class="variable">openai</span> = <span class="keyword">new</span> <span class="function">OpenAI</span>();
+<span class="keyword">const</span> <span class="variable">resend</span> = <span class="keyword">new</span> <span class="function">Resend</span>(process.env.RESEND_API_KEY);
+
+<span class="comment">// Email Worker</span>
+<span class="keyword">const</span> <span class="variable">emailWorker</span> = <span class="keyword">new</span> <span class="function">Worker</span>(<span class="string">'email'</span>, <span class="keyword">async</span> (job) => {
+  <span class="keyword">const</span> { to, subject, template, data } = job.data;
+
+  <span class="comment">// Render template (use your preferred engine)</span>
+  <span class="keyword">const</span> <span class="variable">html</span> = <span class="function">renderTemplate</span>(template, data);
+
+  <span class="keyword">const</span> <span class="variable">result</span> = <span class="keyword">await</span> resend.emails.<span class="function">send</span>({
+    from: <span class="string">'noreply@yourdomain.com'</span>,
+    to,
+    subject,
+    html,
+  });
+
+  <span class="keyword">return</span> { emailId: result.id, sentAt: <span class="keyword">new</span> <span class="function">Date</span>().<span class="function">toISOString</span>() };
+}, {
+  connection: {
+    host: process.env.FLASHQ_HOST || <span class="string">'localhost'</span>,
+    port: <span class="function">parseInt</span>(process.env.FLASHQ_PORT || <span class="string">'6789'</span>),
+  },
+  concurrency: <span class="number">10</span>,
+});
+
+<span class="comment">// AI Worker</span>
+<span class="keyword">const</span> <span class="variable">aiWorker</span> = <span class="keyword">new</span> <span class="function">Worker</span>(<span class="string">'ai-processing'</span>, <span class="keyword">async</span> (job) => {
+  <span class="keyword">const</span> { prompt, model, maxTokens, userId } = job.data;
+
+  <span class="keyword">await</span> job.<span class="function">updateProgress</span>(<span class="number">10</span>, <span class="string">'Connecting to AI...'</span>);
+
+  <span class="keyword">let</span> response;
+
+  <span class="keyword">if</span> (model.<span class="function">startsWith</span>(<span class="string">'gpt'</span>)) {
+    response = <span class="keyword">await</span> openai.chat.completions.<span class="function">create</span>({
+      model,
+      messages: [{ role: <span class="string">'user'</span>, content: prompt }],
+      max_tokens: maxTokens || <span class="number">1000</span>,
+    });
+
+    <span class="keyword">await</span> job.<span class="function">updateProgress</span>(<span class="number">90</span>, <span class="string">'Processing complete'</span>);
+
+    <span class="keyword">return</span> {
+      content: response.choices[<span class="number">0</span>].message.content,
+      model,
+      tokens: response.usage?.total_tokens,
+      userId,
+    };
+  }
+
+  <span class="comment">// Claude handling would go here</span>
+  <span class="keyword">throw</span> <span class="keyword">new</span> <span class="function">Error</span>(<span class="string">`Unsupported model: ${model}`</span>);
+}, {
+  connection: {
+    host: process.env.FLASHQ_HOST || <span class="string">'localhost'</span>,
+    port: <span class="function">parseInt</span>(process.env.FLASHQ_PORT || <span class="string">'6789'</span>),
+  },
+  concurrency: <span class="number">3</span>, <span class="comment">// Limit AI concurrency</span>
+});
+
+<span class="comment">// Webhook Worker</span>
+<span class="keyword">const</span> <span class="variable">webhookWorker</span> = <span class="keyword">new</span> <span class="function">Worker</span>(<span class="string">'webhooks'</span>, <span class="keyword">async</span> (job) => {
+  <span class="keyword">const</span> { provider, payload } = job.data;
+
+  <span class="keyword">switch</span> (provider) {
+    <span class="keyword">case</span> <span class="string">'stripe'</span>:
+      <span class="keyword">return</span> <span class="keyword">await</span> <span class="function">handleStripeWebhook</span>(payload);
+    <span class="keyword">case</span> <span class="string">'github'</span>:
+      <span class="keyword">return</span> <span class="keyword">await</span> <span class="function">handleGithubWebhook</span>(payload);
+    <span class="keyword">default</span>:
+      <span class="keyword">throw</span> <span class="keyword">new</span> <span class="function">Error</span>(<span class="string">`Unknown provider: ${provider}`</span>);
+  }
+}, {
+  connection: {
+    host: process.env.FLASHQ_HOST || <span class="string">'localhost'</span>,
+    port: <span class="function">parseInt</span>(process.env.FLASHQ_PORT || <span class="string">'6789'</span>),
+  },
+  concurrency: <span class="number">20</span>,
+});
+
+<span class="comment">// Event handlers</span>
+[emailWorker, aiWorker, webhookWorker].<span class="function">forEach</span>(worker => {
+  worker.<span class="function">on</span>(<span class="string">'completed'</span>, (job, result) => {
+    console.<span class="function">log</span>(<span class="string">`✓ [${worker.name}] Job ${job.id} completed`</span>);
+  });
+
+  worker.<span class="function">on</span>(<span class="string">'failed'</span>, (job, error) => {
+    console.<span class="function">error</span>(<span class="string">`✗ [${worker.name}] Job ${job.id} failed: ${error.message}`</span>);
+  });
+});
+
+console.<span class="function">log</span>(<span class="string">'🔧 Workers started: email, ai-processing, webhooks'</span>);</code></pre>
+
+      <h2 id="advanced">Advanced Patterns</h2>
+
+      <h3>Rate Limiting per User</h3>
+
+      <pre><code><span class="comment">// Elysia example with per-user rate limiting</span>
+.<span class="function">post</span>(<span class="string">'/api/generate'</span>, <span class="keyword">async</span> ({ body, queue }) => {
+  <span class="keyword">const</span> <span class="variable">client</span> = <span class="keyword">await</span> <span class="function">getClient</span>();
+
+  <span class="comment">// Check user's current job count</span>
+  <span class="keyword">const</span> <span class="variable">userQueueName</span> = <span class="string">`ai-${body.userId}`</span>;
+  <span class="keyword">const</span> <span class="variable">counts</span> = <span class="keyword">await</span> client.<span class="function">getJobCounts</span>(userQueueName);
+
+  <span class="keyword">if</span> (counts.active + counts.waiting > <span class="number">5</span>) {
+    <span class="keyword">return</span> {
+      error: <span class="string">'Rate limit exceeded'</span>,
+      message: <span class="string">'Maximum 5 pending jobs allowed'</span>,
+    };
+  }
+
+  <span class="comment">// Use user-specific queue with rate limiting</span>
+  <span class="keyword">await</span> client.<span class="function">setRateLimit</span>(userQueueName, {
+    max: <span class="number">10</span>,        <span class="comment">// 10 jobs</span>
+    duration: <span class="number">60000</span>, <span class="comment">// per minute</span>
+  });
+
+  <span class="keyword">const</span> <span class="variable">job</span> = <span class="keyword">await</span> client.<span class="function">push</span>(userQueueName, body);
+  <span class="keyword">return</span> { success: <span class="keyword">true</span>, jobId: job.id };
+})</code></pre>
+
+      <h3>Job Workflows with Dependencies</h3>
+
+      <pre><code><span class="comment">// Hono example: Multi-step AI pipeline</span>
+app.<span class="function">post</span>(<span class="string">'/api/pipeline'</span>, <span class="keyword">async</span> (c) => {
+  <span class="keyword">const</span> <span class="variable">queue</span> = c.<span class="function">get</span>(<span class="string">'queue'</span>);
+  <span class="keyword">const</span> <span class="variable">body</span> = <span class="keyword">await</span> c.req.<span class="function">json</span>();
+  <span class="keyword">const</span> <span class="variable">client</span> = <span class="keyword">await</span> <span class="function">getClient</span>();
+
+  <span class="comment">// Step 1: Extract text from document</span>
+  <span class="keyword">const</span> <span class="variable">extractJob</span> = <span class="keyword">await</span> client.<span class="function">push</span>(<span class="string">'extract'</span>, {
+    documentUrl: body.documentUrl,
+  });
+
+  <span class="comment">// Step 2: Summarize (depends on extraction)</span>
+  <span class="keyword">const</span> <span class="variable">summarizeJob</span> = <span class="keyword">await</span> client.<span class="function">push</span>(<span class="string">'summarize'</span>, {
+    sourceJobId: extractJob.id,
+  }, {
+    depends_on: [extractJob.id],
+  });
+
+  <span class="comment">// Step 3: Generate embeddings (depends on extraction)</span>
+  <span class="keyword">const</span> <span class="variable">embedJob</span> = <span class="keyword">await</span> client.<span class="function">push</span>(<span class="string">'embed'</span>, {
+    sourceJobId: extractJob.id,
+  }, {
+    depends_on: [extractJob.id],
+  });
+
+  <span class="comment">// Step 4: Store in vector DB (depends on embeddings)</span>
+  <span class="keyword">const</span> <span class="variable">storeJob</span> = <span class="keyword">await</span> client.<span class="function">push</span>(<span class="string">'store-vectors'</span>, {
+    sourceJobId: embedJob.id,
+  }, {
+    depends_on: [embedJob.id],
+  });
+
+  <span class="keyword">return</span> c.<span class="function">json</span>({
+    pipelineId: extractJob.id,
+    jobs: {
+      extract: extractJob.id,
+      summarize: summarizeJob.id,
+      embed: embedJob.id,
+      store: storeJob.id,
+    },
+  });
+});</code></pre>
+
+      <h3>Real-time Progress with SSE</h3>
+
+      <pre><code><span class="comment">// Elysia SSE for job progress</span>
+<span class="keyword">import</span> { Elysia } <span class="keyword">from</span> <span class="string">'elysia'</span>;
+
+<span class="keyword">new</span> <span class="function">Elysia</span>()
+  .<span class="function">get</span>(<span class="string">'/api/jobs/:id/stream'</span>, <span class="keyword">async</span> <span class="keyword">function</span>* ({ params }) {
+    <span class="keyword">const</span> <span class="variable">client</span> = <span class="keyword">await</span> <span class="function">getClient</span>();
+    <span class="keyword">let</span> lastState = <span class="string">''</span>;
+    <span class="keyword">let</span> lastProgress = <span class="number">-1</span>;
+
+    <span class="keyword">while</span> (<span class="keyword">true</span>) {
+      <span class="keyword">const</span> <span class="variable">job</span> = <span class="keyword">await</span> client.<span class="function">getJob</span>(params.id);
+      <span class="keyword">if</span> (!job) {
+        <span class="keyword">yield</span> { event: <span class="string">'error'</span>, data: <span class="string">'Job not found'</span> };
+        <span class="keyword">break</span>;
+      }
+
+      <span class="keyword">const</span> <span class="variable">state</span> = <span class="keyword">await</span> client.<span class="function">getState</span>(params.id);
+      <span class="keyword">const</span> <span class="variable">progress</span> = <span class="keyword">await</span> client.<span class="function">getProgress</span>(params.id);
+
+      <span class="comment">// Only emit on changes</span>
+      <span class="keyword">if</span> (state !== lastState || progress?.percent !== lastProgress) {
+        <span class="keyword">yield</span> {
+          event: <span class="string">'update'</span>,
+          data: JSON.<span class="function">stringify</span>({ state, progress }),
+        };
+        lastState = state;
+        lastProgress = progress?.percent || <span class="number">0</span>;
+      }
+
+      <span class="keyword">if</span> (state === <span class="string">'completed'</span> || state === <span class="string">'failed'</span>) {
+        <span class="keyword">const</span> <span class="variable">result</span> = <span class="keyword">await</span> client.<span class="function">getResult</span>(params.id);
+        <span class="keyword">yield</span> {
+          event: state,
+          data: JSON.<span class="function">stringify</span>({ result }),
+        };
+        <span class="keyword">break</span>;
+      }
+
+      <span class="keyword">await</span> <span class="function">Bun</span>.<span class="function">sleep</span>(<span class="number">500</span>);
+    }
+  });</code></pre>
+
+      <div class="callout callout-success">
+        <div class="callout-title">🚀 Performance Tip</div>
+        <p>For high-throughput scenarios, use flashQ's binary protocol (MessagePack) by setting <code>useBinary: true</code> in the client options. This reduces payload size by 40% and speeds up serialization by 3-5x.</p>
+      </div>
+
+      <h2 id="deployment">Deployment</h2>
+
+      <h3>Docker Compose Setup</h3>
+
+      <pre><code><span class="comment"># docker-compose.yml</span>
+<span class="variable">version</span>: <span class="string">'3.8'</span>
+
+<span class="variable">services</span>:
+  <span class="variable">flashq</span>:
+    <span class="variable">image</span>: ghcr.io/egeominotti/flashq:latest
+    <span class="variable">ports</span>:
+      - <span class="string">"6789:6789"</span>
+      - <span class="string">"6790:6790"</span>
+    <span class="variable">environment</span>:
+      - DATABASE_URL=postgres://flashq:flashq@postgres:5432/flashq
+      - HTTP=1
+      - AUTH_TOKENS=your-secret-token
+    <span class="variable">depends_on</span>:
+      - postgres
+
+  <span class="variable">postgres</span>:
+    <span class="variable">image</span>: postgres:16-alpine
+    <span class="variable">environment</span>:
+      - POSTGRES_USER=flashq
+      - POSTGRES_PASSWORD=flashq
+      - POSTGRES_DB=flashq
+    <span class="variable">volumes</span>:
+      - postgres_data:/var/lib/postgresql/data
+
+  <span class="variable">api</span>:
+    <span class="variable">build</span>: .
+    <span class="variable">ports</span>:
+      - <span class="string">"3000:3000"</span>
+    <span class="variable">environment</span>:
+      - FLASHQ_HOST=flashq
+      - FLASHQ_PORT=6789
+      - FLASHQ_TOKEN=your-secret-token
+    <span class="variable">depends_on</span>:
+      - flashq
+
+  <span class="variable">worker</span>:
+    <span class="variable">build</span>:
+      <span class="variable">context</span>: .
+      <span class="variable">dockerfile</span>: Dockerfile.worker
+    <span class="variable">environment</span>:
+      - FLASHQ_HOST=flashq
+      - FLASHQ_PORT=6789
+      - FLASHQ_TOKEN=your-secret-token
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - RESEND_API_KEY=${RESEND_API_KEY}
+    <span class="variable">depends_on</span>:
+      - flashq
+    <span class="variable">deploy</span>:
+      <span class="variable">replicas</span>: 3
+
+<span class="variable">volumes</span>:
+  postgres_data:</code></pre>
+
+      <h3>Dockerfile for Bun</h3>
+
+      <pre><code><span class="comment"># Dockerfile</span>
+FROM oven/bun:1 AS base
+WORKDIR /app
+
+<span class="comment"># Install dependencies</span>
+FROM base AS deps
+COPY package.json bun.lockb ./
+RUN bun install --frozen-lockfile
+
+<span class="comment"># Build</span>
+FROM base AS build
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+RUN bun build ./src/index.ts --outdir ./dist --target bun
+
+<span class="comment"># Production</span>
+FROM base AS production
+COPY --from=build /app/dist ./dist
+COPY --from=deps /app/node_modules ./node_modules
+EXPOSE 3000
+CMD ["bun", "run", "dist/index.js"]</code></pre>
+
+      <h2 id="conclusion">Conclusion</h2>
+
+      <p>Elysia and Hono.js combined with flashQ create an exceptionally fast stack for building modern APIs with background job processing:</p>
+
+      <ul>
+        <li><strong>Elysia</strong>: Best for Bun-native applications with end-to-end type safety</li>
+        <li><strong>Hono.js</strong>: Perfect for multi-runtime support (Bun, Node, Cloudflare Workers)</li>
+        <li><strong>flashQ</strong>: Handles your background jobs with 1.9M jobs/sec throughput</li>
+      </ul>
+
+      <p>Both frameworks integrate seamlessly with flashQ's TypeScript SDK, giving you type-safe job queues with minimal configuration.</p>
+
+      <div class="article-cta">
+        <h3>Start Building Today</h3>
+        <p>Get started with flashQ and your favorite Bun framework.</p>
+        <a href="../docs/#quickstart" class="btn btn-primary">Get Started →</a>
+      </div>
+        </div>
+
+        <aside class="toc-sidebar">
+          <nav class="toc">
+            <div class="toc-title">On this page</div>
+            <ul class="toc-list">
+              <li><a href="#why">Why Elysia & Hono.js</a></li>
+              <li><a href="#architecture">Architecture</a></li>
+              <li><a href="#elysia-setup">Elysia Integration</a></li>
+              <li><a href="#hono-setup">Hono.js Integration</a></li>
+              <li><a href="#workers">Worker Implementation</a></li>
+              <li><a href="#advanced">Advanced Patterns</a></li>
+              <li><a href="#deployment">Deployment</a></li>
+              <li><a href="#conclusion">Conclusion</a></li>
+            </ul>
+          </nav>
+        </aside>
+      </div>
+    </div>
+  </article>
+
+  <footer>
+    <div class="container wide">
+      <a href="../" class="logo"><span>⚡</span> flashQ</a>
+      <div class="footer-links">
+        <a href="https://github.com/egeominotti/flashq" target="_blank">GitHub</a>
+        <a href="https://npmjs.com/package/flashq" target="_blank">npm</a>
+        <a href="../docs/">Docs</a>
+        <a href="../blog/">Blog</a>
+      </div>
+      <div class="footer-copy">© <span id="year"></span> flashQ. MIT License.</div>
+    </div>
+  </footer>
+
+  <div class="search-overlay" id="searchOverlay" onclick="closeSearch(event)">
+    <div class="search-modal" onclick="event.stopPropagation()">
+      <div class="search-input-wrapper">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        <input type="text" class="search-modal-input" id="searchInput" placeholder="Search articles and docs...">
+        <span class="search-shortcut">ESC</span>
+      </div>
+      <div class="search-results" id="searchResults"></div>
+    </div>
+  </div>
+
+  <script>
+    document.getElementById("year").textContent = new Date().getFullYear();
+    const mobileMenuBtn = document.querySelector(".mobile-menu-btn");
+    const mobileMenu = document.querySelector(".mobile-menu");
+    mobileMenuBtn.addEventListener("click", () => { mobileMenuBtn.classList.toggle("active"); mobileMenu.classList.toggle("active"); document.body.style.overflow = mobileMenu.classList.contains("active") ? "hidden" : ""; });
+    const tocLinks = document.querySelectorAll('.toc-list a');
+    const headings = document.querySelectorAll('h2[id]');
+    function updateTocActive() { let current = ''; headings.forEach(h => { if (window.scrollY >= h.offsetTop - 120) current = h.id; }); tocLinks.forEach(l => l.classList.toggle('active', l.getAttribute('href') === '#' + current)); }
+    window.addEventListener('scroll', updateTocActive); updateTocActive();
+    const searchData = [{ title: "Elysia & Hono.js Integration", url: "elysia-hono-integration.html", description: "Modern Bun-powered background jobs", tag: "Tutorial" }, { title: "Documentation", url: "../docs/", description: "API reference", tag: "Docs" }];
+    let selectedIndex = 0;
+    function openSearch() { document.getElementById('searchOverlay').classList.add('active'); document.getElementById('searchInput').focus(); renderResults(''); }
+    function closeSearch(e) { if (e?.target !== document.getElementById('searchOverlay')) return; document.getElementById('searchOverlay').classList.remove('active'); }
+    function renderResults(q) { const r = q ? searchData.filter(i => i.title.toLowerCase().includes(q.toLowerCase())) : searchData; document.getElementById('searchResults').innerHTML = r.map((i,idx) => `<a href="${i.url}" class="search-result ${idx===0?'active':''}"><div class="search-result-title">${i.title}</div><div class="search-result-description">${i.description}</div></a>`).join('') || '<div class="search-empty">No results</div>'; }
+    document.getElementById('searchInput').addEventListener('input', e => renderResults(e.target.value));
+    document.addEventListener('keydown', e => { if ((e.metaKey||e.ctrlKey) && e.key==='k') { e.preventDefault(); openSearch(); } if (e.key==='Escape') closeSearch({target:document.getElementById('searchOverlay')}); });
+  </script>
+</body>
+</html>
