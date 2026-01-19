@@ -38,6 +38,11 @@
   <!-- Lucide Icons -->
   <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
 
+  <!-- Highlight.js -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/typescript.min.js"></script>
+
   <!-- Schema.org JSON-LD -->
   <script type="application/ld+json">
   {
@@ -479,6 +484,8 @@ const result = await queue.finished(generate.id);</code></pre>
   <script>
     // Initialize Lucide icons
     lucide.createIcons();
+    // Initialize Highlight.js
+    hljs.highlightAll();
   </script>
 </body>
 </html>
