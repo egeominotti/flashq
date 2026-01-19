@@ -75,6 +75,14 @@
   <!-- Styles -->
   <link rel="stylesheet" href="styles.css">
 
+  <!-- Highlight.js -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/typescript.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/bash.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/yaml.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/json.min.js"></script>
+
   <!-- Lucide Icons -->
   <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
 </head>
@@ -237,10 +245,10 @@
             <span>Terminal</span>
             <button class="copy-btn" onclick="copyCode(this)">Copy</button>
           </div>
-          <pre><code><span class="token-comment"># Pull multi-arch image (amd64 + arm64)</span>
+          <pre><code class="language-bash"># Pull multi-arch image (amd64 + arm64)
 docker pull ghcr.io/egeominotti/flashq:latest
 
-<span class="token-comment"># Run with dashboard enabled</span>
+# Run with dashboard enabled
 docker run -d --name flashq \
   -p 6789:6789 \
   -p 6790:6790 \
@@ -254,11 +262,11 @@ docker run -d --name flashq \
             <span>Terminal</span>
             <button class="copy-btn" onclick="copyCode(this)">Copy</button>
           </div>
-          <pre><code><span class="token-comment"># Linux x86_64</span>
+          <pre><code class="language-bash"># Linux x86_64
 curl -L https://github.com/egeominotti/flashq/releases/latest/download/flashq-linux-x86_64.tar.gz | tar xz
 ./flashq-server
 
-<span class="token-comment"># macOS Apple Silicon</span>
+# macOS Apple Silicon
 curl -L https://github.com/egeominotti/flashq/releases/latest/download/flashq-macos-arm64.tar.gz | tar xz
 ./flashq-server</code></pre>
         </div>
@@ -271,13 +279,13 @@ curl -L https://github.com/egeominotti/flashq/releases/latest/download/flashq-ma
             <span>Terminal</span>
             <button class="copy-btn" onclick="copyCode(this)">Copy</button>
           </div>
-          <pre><code><span class="token-comment"># Using bun (recommended)</span>
+          <pre><code class="language-bash"># Using bun (recommended)
 bun add flashq
 
-<span class="token-comment"># Using npm</span>
+# Using npm
 npm install flashq
 
-<span class="token-comment"># Using yarn</span>
+# Using yarn
 yarn add flashq</code></pre>
         </div>
 
@@ -296,14 +304,14 @@ yarn add flashq</code></pre>
           <div class="step">
             <h4>Start the server</h4>
             <div class="code-block">
-              <pre><code>docker run -d -p 6789:6789 ghcr.io/egeominotti/flashq:latest</code></pre>
+              <pre><code class="language-bash">docker run -d -p 6789:6789 ghcr.io/egeominotti/flashq:latest</code></pre>
             </div>
           </div>
 
           <div class="step">
             <h4>Install the SDK</h4>
             <div class="code-block">
-              <pre><code>bun add flashq</code></pre>
+              <pre><code class="language-bash">bun add flashq</code></pre>
             </div>
           </div>
 
@@ -314,17 +322,17 @@ yarn add flashq</code></pre>
                 <span>producer.ts</span>
                 <button class="copy-btn" onclick="copyCode(this)">Copy</button>
               </div>
-              <pre><code><span class="token-keyword">import</span> { Queue } <span class="token-keyword">from</span> <span class="token-string">'flashq'</span>;
+              <pre><code class="language-typescript">import { Queue } from 'flashq';
 
-<span class="token-keyword">const</span> queue = <span class="token-keyword">new</span> <span class="token-function">Queue</span>(<span class="token-string">'emails'</span>);
+const queue = new Queue('emails');
 
-<span class="token-comment">// Add a job</span>
-<span class="token-keyword">await</span> queue.<span class="token-function">add</span>(<span class="token-string">'send-welcome'</span>, {
-  to: <span class="token-string">'user@example.com'</span>,
-  subject: <span class="token-string">'Welcome!'</span>
+// Add a job
+await queue.add('send-welcome', {
+  to: 'user@example.com',
+  subject: 'Welcome!'
 });
 
-console.<span class="token-function">log</span>(<span class="token-string">'Job added!'</span>);</code></pre>
+console.log('Job added!');</code></pre>
             </div>
           </div>
 
@@ -335,23 +343,23 @@ console.<span class="token-function">log</span>(<span class="token-string">'Job 
                 <span>worker.ts</span>
                 <button class="copy-btn" onclick="copyCode(this)">Copy</button>
               </div>
-              <pre><code><span class="token-keyword">import</span> { Worker } <span class="token-keyword">from</span> <span class="token-string">'flashq'</span>;
+              <pre><code class="language-typescript">import { Worker } from 'flashq';
 
-<span class="token-keyword">const</span> worker = <span class="token-keyword">new</span> <span class="token-function">Worker</span>(<span class="token-string">'emails'</span>, <span class="token-keyword">async</span> (job) => {
-  console.<span class="token-function">log</span>(<span class="token-string">`Sending email to ${job.data.to}`</span>);
+const worker = new Worker('emails', async (job) => {
+  console.log(`Sending email to ${job.data.to}`);
 
-  <span class="token-comment">// Your email sending logic here</span>
-  <span class="token-keyword">await</span> <span class="token-function">sendEmail</span>(job.data);
+  // Your email sending logic here
+  await sendEmail(job.data);
 
-  <span class="token-keyword">return</span> { sent: <span class="token-keyword">true</span> };
+  return { sent: true };
 });
 
-worker.<span class="token-function">on</span>(<span class="token-string">'completed'</span>, (job, result) => {
-  console.<span class="token-function">log</span>(<span class="token-string">`Job ${job.id} completed`</span>);
+worker.on('completed', (job, result) => {
+  console.log(`Job ${job.id} completed`);
 });
 
-worker.<span class="token-function">on</span>(<span class="token-string">'failed'</span>, (job, error) => {
-  console.<span class="token-function">error</span>(<span class="token-string">`Job ${job.id} failed: ${error.message}`</span>);
+worker.on('failed', (job, error) => {
+  console.error(`Job ${job.id} failed: ${error.message}`);
 });</code></pre>
             </div>
           </div>
@@ -370,27 +378,27 @@ worker.<span class="token-function">on</span>(<span class="token-string">'failed
         <h3>Queues</h3>
         <p>A <strong>Queue</strong> is a named container for jobs. Jobs in a queue are processed in priority order (highest first), with FIFO ordering for jobs of the same priority.</p>
         <div class="code-block">
-          <pre><code><span class="token-keyword">const</span> emailQueue = <span class="token-keyword">new</span> <span class="token-function">Queue</span>(<span class="token-string">'emails'</span>);
-<span class="token-keyword">const</span> reportQueue = <span class="token-keyword">new</span> <span class="token-function">Queue</span>(<span class="token-string">'reports'</span>);</code></pre>
+          <pre><code class="language-typescript">const emailQueue = new Queue('emails');
+const reportQueue = new Queue('reports');</code></pre>
         </div>
 
         <h3>Jobs</h3>
         <p>A <strong>Job</strong> is a unit of work with a name, data payload, and optional configuration. Jobs progress through states: <code>waiting</code> → <code>active</code> → <code>completed</code> or <code>failed</code>.</p>
         <div class="code-block">
-          <pre><code><span class="token-keyword">const</span> job = <span class="token-keyword">await</span> queue.<span class="token-function">add</span>(<span class="token-string">'process-image'</span>, {
-  imageUrl: <span class="token-string">'https://example.com/image.jpg'</span>,
-  filters: [<span class="token-string">'resize'</span>, <span class="token-string">'compress'</span>]
+          <pre><code class="language-typescript">const job = await queue.add('process-image', {
+  imageUrl: 'https://example.com/image.jpg',
+  filters: ['resize', 'compress']
 }, {
-  priority: <span class="token-number">10</span>,
-  attempts: <span class="token-number">3</span>
+  priority: 10,
+  attempts: 3
 });</code></pre>
         </div>
 
         <h3>Workers</h3>
         <p>A <strong>Worker</strong> processes jobs from a queue. Workers can run concurrently and automatically handle job acknowledgment, retries, and error handling.</p>
         <div class="code-block">
-          <pre><code><span class="token-keyword">const</span> worker = <span class="token-keyword">new</span> <span class="token-function">Worker</span>(<span class="token-string">'emails'</span>, processor, {
-  concurrency: <span class="token-number">10</span>  <span class="token-comment">// Process 10 jobs in parallel</span>
+          <pre><code class="language-typescript">const worker = new Worker('emails', processor, {
+  concurrency: 10  // Process 10 jobs in parallel
 });</code></pre>
         </div>
 
@@ -438,7 +446,7 @@ worker.<span class="token-function">on</span>(<span class="token-string">'failed
 
         <h3>Constructor</h3>
         <div class="code-block">
-          <pre><code><span class="token-keyword">const</span> queue = <span class="token-keyword">new</span> <span class="token-function">Queue</span>(name, options?);</code></pre>
+          <pre><code class="language-typescript">const queue = new Queue(name, options?);</code></pre>
         </div>
 
         <table>
@@ -477,67 +485,67 @@ worker.<span class="token-function">on</span>(<span class="token-string">'failed
         <h4><code>add(name, data, opts?)</code></h4>
         <p>Add a single job to the queue.</p>
         <div class="code-block">
-          <pre><code><span class="token-keyword">const</span> job = <span class="token-keyword">await</span> queue.<span class="token-function">add</span>(<span class="token-string">'send-email'</span>, {
-  to: <span class="token-string">'user@example.com'</span>
+          <pre><code class="language-typescript">const job = await queue.add('send-email', {
+  to: 'user@example.com'
 }, {
-  priority: <span class="token-number">10</span>,
-  delay: <span class="token-number">5000</span>,
-  attempts: <span class="token-number">3</span>
+  priority: 10,
+  delay: 5000,
+  attempts: 3
 });
 
-console.<span class="token-function">log</span>(job.id); <span class="token-comment">// Unique job ID</span></code></pre>
+console.log(job.id); // Unique job ID</code></pre>
         </div>
 
         <h4><code>addBulk(jobs)</code></h4>
         <p>Add multiple jobs in a single batch operation. More efficient than calling <code>add()</code> multiple times.</p>
         <div class="code-block">
-          <pre><code><span class="token-keyword">const</span> jobs = <span class="token-keyword">await</span> queue.<span class="token-function">addBulk</span>([
-  { name: <span class="token-string">'send'</span>, data: { to: <span class="token-string">'a@test.com'</span> } },
-  { name: <span class="token-string">'send'</span>, data: { to: <span class="token-string">'b@test.com'</span> }, opts: { priority: <span class="token-number">10</span> } },
-  { name: <span class="token-string">'send'</span>, data: { to: <span class="token-string">'c@test.com'</span> }, opts: { delay: <span class="token-number">5000</span> } },
+          <pre><code class="language-typescript">const jobs = await queue.addBulk([
+  { name: 'send', data: { to: 'a@test.com' } },
+  { name: 'send', data: { to: 'b@test.com' }, opts: { priority: 10 } },
+  { name: 'send', data: { to: 'c@test.com' }, opts: { delay: 5000 } },
 ]);</code></pre>
         </div>
 
         <h4><code>getJob(jobId)</code></h4>
         <p>Get a job by its ID, including current state and data.</p>
         <div class="code-block">
-          <pre><code><span class="token-keyword">const</span> job = <span class="token-keyword">await</span> queue.<span class="token-function">getJob</span>(<span class="token-number">123</span>);
-console.<span class="token-function">log</span>(job.state);  <span class="token-comment">// 'completed'</span>
-console.<span class="token-function">log</span>(job.result); <span class="token-comment">// { sent: true }</span></code></pre>
+          <pre><code class="language-typescript">const job = await queue.getJob(123);
+console.log(job.state);  // 'completed'
+console.log(job.result); // { sent: true }</code></pre>
         </div>
 
-        <h4><code>finished(jobId, timeout?)</code> <span class="badge badge-new">New</span></h4>
+        <h4><code>finished(jobId, timeout?)</code> <span class="badge badge-new">New</h4>
         <p>Wait for a job to complete and return its result. Perfect for synchronous workflows.</p>
         <div class="code-block">
-          <pre><code><span class="token-keyword">const</span> job = <span class="token-keyword">await</span> queue.<span class="token-function">add</span>(<span class="token-string">'generate'</span>, { prompt });
-<span class="token-keyword">const</span> result = <span class="token-keyword">await</span> queue.<span class="token-function">finished</span>(job.id, <span class="token-number">30000</span>); <span class="token-comment">// 30s timeout</span>
-console.<span class="token-function">log</span>(result); <span class="token-comment">// Worker's return value</span></code></pre>
+          <pre><code class="language-typescript">const job = await queue.add('generate', { prompt });
+const result = await queue.finished(job.id, 30000); // 30s timeout
+console.log(result); // Worker's return value</code></pre>
         </div>
 
         <h4><code>getJobCounts()</code></h4>
         <p>Get counts of jobs in each state.</p>
         <div class="code-block">
-          <pre><code><span class="token-keyword">const</span> counts = <span class="token-keyword">await</span> queue.<span class="token-function">getJobCounts</span>();
-<span class="token-comment">// { waiting: 10, active: 5, completed: 100, failed: 2, delayed: 3 }</span></code></pre>
+          <pre><code class="language-typescript">const counts = await queue.getJobCounts();
+// { waiting: 10, active: 5, completed: 100, failed: 2, delayed: 3 }</code></pre>
         </div>
 
         <h4><code>pause()</code> / <code>resume()</code></h4>
         <p>Pause or resume job processing on the queue.</p>
         <div class="code-block">
-          <pre><code><span class="token-keyword">await</span> queue.<span class="token-function">pause</span>();   <span class="token-comment">// Workers stop pulling jobs</span>
-<span class="token-keyword">await</span> queue.<span class="token-function">resume</span>();  <span class="token-comment">// Workers resume pulling jobs</span></code></pre>
+          <pre><code class="language-typescript">await queue.pause();   // Workers stop pulling jobs
+await queue.resume();  // Workers resume pulling jobs</code></pre>
         </div>
 
         <h4><code>drain()</code></h4>
         <p>Remove all waiting jobs from the queue.</p>
         <div class="code-block">
-          <pre><code><span class="token-keyword">await</span> queue.<span class="token-function">drain</span>(); <span class="token-comment">// Clear waiting jobs only</span></code></pre>
+          <pre><code class="language-typescript">await queue.drain(); // Clear waiting jobs only</code></pre>
         </div>
 
         <h4><code>obliterate()</code></h4>
         <p>Remove all data associated with the queue (jobs, DLQ, settings).</p>
         <div class="code-block">
-          <pre><code><span class="token-keyword">await</span> queue.<span class="token-function">obliterate</span>(); <span class="token-comment">// Nuclear option - removes everything</span></code></pre>
+          <pre><code class="language-typescript">await queue.obliterate(); // Nuclear option - removes everything</code></pre>
         </div>
         <div class="callout callout-danger">
           <div class="callout-title">⚠️ Warning</div>
@@ -614,36 +622,36 @@ console.<span class="token-function">log</span>(result); <span class="token-comm
         <h3>Priority</h3>
         <p>Jobs with higher priority values are processed first.</p>
         <div class="code-block">
-          <pre><code><span class="token-keyword">await</span> queue.<span class="token-function">add</span>(<span class="token-string">'low'</span>, data, { priority: <span class="token-number">1</span> });
-<span class="token-keyword">await</span> queue.<span class="token-function">add</span>(<span class="token-string">'high'</span>, data, { priority: <span class="token-number">100</span> }); <span class="token-comment">// Processed first</span>
-<span class="token-keyword">await</span> queue.<span class="token-function">add</span>(<span class="token-string">'urgent'</span>, data, { priority: <span class="token-number">1000</span> }); <span class="token-comment">// Processed before 'high'</span></code></pre>
+          <pre><code class="language-typescript">await queue.add('low', data, { priority: 1 });
+await queue.add('high', data, { priority: 100 }); // Processed first
+await queue.add('urgent', data, { priority: 1000 }); // Processed before 'high'</code></pre>
         </div>
 
         <h3>Delay</h3>
         <p>Schedule a job to run after a specified delay.</p>
         <div class="code-block">
-          <pre><code><span class="token-comment">// Run after 5 seconds</span>
-<span class="token-keyword">await</span> queue.<span class="token-function">add</span>(<span class="token-string">'reminder'</span>, data, { delay: <span class="token-number">5000</span> });
+          <pre><code class="language-typescript">// Run after 5 seconds
+await queue.add('reminder', data, { delay: 5000 });
 
-<span class="token-comment">// Run after 1 hour</span>
-<span class="token-keyword">await</span> queue.<span class="token-function">add</span>(<span class="token-string">'daily-report'</span>, data, { delay: <span class="token-number">60</span> * <span class="token-number">60</span> * <span class="token-number">1000</span> });</code></pre>
+// Run after 1 hour
+await queue.add('daily-report', data, { delay: 60 * 60 * 1000 });</code></pre>
         </div>
 
         <h3>Backoff</h3>
         <p>Configure retry delay strategy.</p>
         <div class="code-block">
-          <pre><code><span class="token-comment">// Fixed delay: retry after 5s each time</span>
-<span class="token-keyword">await</span> queue.<span class="token-function">add</span>(<span class="token-string">'job'</span>, data, {
-  attempts: <span class="token-number">3</span>,
-  backoff: <span class="token-number">5000</span>
+          <pre><code class="language-typescript">// Fixed delay: retry after 5s each time
+await queue.add('job', data, {
+  attempts: 3,
+  backoff: 5000
 });
 
-<span class="token-comment">// Exponential backoff: 1s, 2s, 4s, 8s...</span>
-<span class="token-keyword">await</span> queue.<span class="token-function">add</span>(<span class="token-string">'job'</span>, data, {
-  attempts: <span class="token-number">5</span>,
+// Exponential backoff: 1s, 2s, 4s, 8s...
+await queue.add('job', data, {
+  attempts: 5,
   backoff: {
-    type: <span class="token-string">'exponential'</span>,
-    delay: <span class="token-number">1000</span>
+    type: 'exponential',
+    delay: 1000
   }
 });</code></pre>
         </div>
@@ -651,15 +659,15 @@ console.<span class="token-function">log</span>(result); <span class="token-comm
         <h3>Custom Job ID (Idempotency)</h3>
         <p>Use <code>jobId</code> to prevent duplicate jobs. If a job with the same ID already exists, the existing job is returned.</p>
         <div class="code-block">
-          <pre><code><span class="token-comment">// Only one job per order</span>
-<span class="token-keyword">await</span> queue.<span class="token-function">add</span>(<span class="token-string">'process-order'</span>, orderData, {
-  jobId: <span class="token-string">`order-${orderId}`</span>
+          <pre><code class="language-typescript">// Only one job per order
+await queue.add('process-order', orderData, {
+  jobId: `order-${orderId}`
 });
 
-<span class="token-comment">// Second call with same jobId returns existing job</span>
-<span class="token-keyword">await</span> queue.<span class="token-function">add</span>(<span class="token-string">'process-order'</span>, orderData, {
-  jobId: <span class="token-string">`order-${orderId}`</span>
-}); <span class="token-comment">// No duplicate created</span></code></pre>
+// Second call with same jobId returns existing job
+await queue.add('process-order', orderData, {
+  jobId: `order-${orderId}`
+}); // No duplicate created</code></pre>
         </div>
       </section>
 
@@ -669,33 +677,33 @@ console.<span class="token-function">log</span>(result); <span class="token-comm
         <p>Create workflows where jobs wait for other jobs to complete before running.</p>
 
         <div class="code-block">
-          <pre><code><span class="token-comment">// Step 1: Fetch data</span>
-<span class="token-keyword">const</span> fetchJob = <span class="token-keyword">await</span> queue.<span class="token-function">add</span>(<span class="token-string">'fetch'</span>, { url });
+          <pre><code class="language-typescript">// Step 1: Fetch data
+const fetchJob = await queue.add('fetch', { url });
 
-<span class="token-comment">// Step 2: Process (waits for fetch to complete)</span>
-<span class="token-keyword">const</span> processJob = <span class="token-keyword">await</span> queue.<span class="token-function">add</span>(<span class="token-string">'process'</span>, { data }, {
+// Step 2: Process (waits for fetch to complete)
+const processJob = await queue.add('process', { data }, {
   depends_on: [fetchJob.id]
 });
 
-<span class="token-comment">// Step 3: Save (waits for process to complete)</span>
-<span class="token-keyword">const</span> saveJob = <span class="token-keyword">await</span> queue.<span class="token-function">add</span>(<span class="token-string">'save'</span>, { destination }, {
+// Step 3: Save (waits for process to complete)
+const saveJob = await queue.add('save', { destination }, {
   depends_on: [processJob.id]
 });
 
-<span class="token-comment">// Wait for the final result</span>
-<span class="token-keyword">const</span> result = <span class="token-keyword">await</span> queue.<span class="token-function">finished</span>(saveJob.id);</code></pre>
+// Wait for the final result
+const result = await queue.finished(saveJob.id);</code></pre>
         </div>
 
         <h3>Multiple Dependencies</h3>
         <p>A job can depend on multiple jobs. It will only run when ALL dependencies have completed.</p>
         <div class="code-block">
-          <pre><code><span class="token-comment">// Fan-out: multiple parallel jobs</span>
-<span class="token-keyword">const</span> job1 = <span class="token-keyword">await</span> queue.<span class="token-function">add</span>(<span class="token-string">'task1'</span>, data1);
-<span class="token-keyword">const</span> job2 = <span class="token-keyword">await</span> queue.<span class="token-function">add</span>(<span class="token-string">'task2'</span>, data2);
-<span class="token-keyword">const</span> job3 = <span class="token-keyword">await</span> queue.<span class="token-function">add</span>(<span class="token-string">'task3'</span>, data3);
+          <pre><code class="language-typescript">// Fan-out: multiple parallel jobs
+const job1 = await queue.add('task1', data1);
+const job2 = await queue.add('task2', data2);
+const job3 = await queue.add('task3', data3);
 
-<span class="token-comment">// Fan-in: aggregate results (waits for all 3)</span>
-<span class="token-keyword">const</span> aggregateJob = <span class="token-keyword">await</span> queue.<span class="token-function">add</span>(<span class="token-string">'aggregate'</span>, {}, {
+// Fan-in: aggregate results (waits for all 3)
+const aggregateJob = await queue.add('aggregate', {}, {
   depends_on: [job1.id, job2.id, job3.id]
 });</code></pre>
         </div>
@@ -713,7 +721,7 @@ console.<span class="token-function">log</span>(result); <span class="token-comm
 
         <h3>Constructor</h3>
         <div class="code-block">
-          <pre><code><span class="token-keyword">const</span> worker = <span class="token-keyword">new</span> <span class="token-function">Worker</span>(queueName, processor, options?);</code></pre>
+          <pre><code class="language-typescript">const worker = new Worker(queueName, processor, options?);</code></pre>
         </div>
 
         <h4>Options</h4>
@@ -757,30 +765,30 @@ console.<span class="token-function">log</span>(result); <span class="token-comm
         <h3>Processor Function</h3>
         <p>The processor function receives a job object and should return a result (or throw an error).</p>
         <div class="code-block">
-          <pre><code><span class="token-keyword">const</span> worker = <span class="token-keyword">new</span> <span class="token-function">Worker</span>(<span class="token-string">'emails'</span>, <span class="token-keyword">async</span> (job) => {
-  <span class="token-comment">// Access job properties</span>
-  console.<span class="token-function">log</span>(job.id);       <span class="token-comment">// Unique job ID</span>
-  console.<span class="token-function">log</span>(job.name);     <span class="token-comment">// Job name</span>
-  console.<span class="token-function">log</span>(job.data);     <span class="token-comment">// Job payload</span>
-  console.<span class="token-function">log</span>(job.attempts); <span class="token-comment">// Current attempt number</span>
+          <pre><code class="language-typescript">const worker = new Worker('emails', async (job) => {
+  // Access job properties
+  console.log(job.id);       // Unique job ID
+  console.log(job.name);     // Job name
+  console.log(job.data);     // Job payload
+  console.log(job.attempts); // Current attempt number
 
-  <span class="token-comment">// Do work...</span>
-  <span class="token-keyword">const</span> result = <span class="token-keyword">await</span> <span class="token-function">processJob</span>(job.data);
+  // Do work...
+  const result = await processJob(job.data);
 
-  <span class="token-comment">// Return result (stored with the job)</span>
-  <span class="token-keyword">return</span> result;
+  // Return result (stored with the job)
+  return result;
 });</code></pre>
         </div>
 
         <h3>Graceful Shutdown</h3>
         <div class="code-block">
-          <pre><code><span class="token-comment">// Close worker and wait for active jobs to finish</span>
-<span class="token-keyword">await</span> worker.<span class="token-function">close</span>();
+          <pre><code class="language-typescript">// Close worker and wait for active jobs to finish
+await worker.close();
 
-<span class="token-comment">// Handle process termination</span>
-process.<span class="token-function">on</span>(<span class="token-string">'SIGTERM'</span>, <span class="token-keyword">async</span> () => {
-  <span class="token-keyword">await</span> worker.<span class="token-function">close</span>();
-  process.<span class="token-function">exit</span>(<span class="token-number">0</span>);
+// Handle process termination
+process.on('SIGTERM', async () => {
+  await worker.close();
+  process.exit(0);
 });</code></pre>
         </div>
       </section>
@@ -828,16 +836,16 @@ process.<span class="token-function">on</span>(<span class="token-string">'SIGTE
         </table>
 
         <div class="code-block">
-          <pre><code>worker.<span class="token-function">on</span>(<span class="token-string">'completed'</span>, (job, result) => {
-  console.<span class="token-function">log</span>(<span class="token-string">`✅ Job ${job.id} completed`</span>, result);
+          <pre><code class="language-typescript">worker.on('completed', (job, result) => {
+  console.log(`✅ Job ${job.id} completed`, result);
 });
 
-worker.<span class="token-function">on</span>(<span class="token-string">'failed'</span>, (job, error) => {
-  console.<span class="token-function">error</span>(<span class="token-string">`❌ Job ${job.id} failed: ${error.message}`</span>);
+worker.on('failed', (job, error) => {
+  console.error(`❌ Job ${job.id} failed: ${error.message}`);
 });
 
-worker.<span class="token-function">on</span>(<span class="token-string">'active'</span>, (job) => {
-  console.<span class="token-function">log</span>(<span class="token-string">`🔄 Job ${job.id} started`</span>);
+worker.on('active', (job) => {
+  console.log(`🔄 Job ${job.id} started`);
 });</code></pre>
         </div>
       </section>
@@ -848,28 +856,28 @@ worker.<span class="token-function">on</span>(<span class="token-string">'active
         <p>Control job throughput to avoid overwhelming external APIs or services.</p>
 
         <div class="code-block">
-          <pre><code><span class="token-keyword">import</span> { FlashQ } <span class="token-keyword">from</span> <span class="token-string">'flashq'</span>;
+          <pre><code class="language-typescript">import { FlashQ } from 'flashq';
 
-<span class="token-keyword">const</span> client = <span class="token-keyword">new</span> <span class="token-function">FlashQ</span>();
+const client = new FlashQ();
 
-<span class="token-comment">// Limit to 100 jobs per second</span>
-<span class="token-keyword">await</span> client.<span class="token-function">setRateLimit</span>(<span class="token-string">'openai-calls'</span>, <span class="token-number">100</span>);
+// Limit to 100 jobs per second
+await client.setRateLimit('openai-calls', 100);
 
-<span class="token-comment">// Limit to 10 jobs per second (for expensive API)</span>
-<span class="token-keyword">await</span> client.<span class="token-function">setRateLimit</span>(<span class="token-string">'anthropic-calls'</span>, <span class="token-number">10</span>);
+// Limit to 10 jobs per second (for expensive API)
+await client.setRateLimit('anthropic-calls', 10);
 
-<span class="token-comment">// Remove rate limit</span>
-<span class="token-keyword">await</span> client.<span class="token-function">clearRateLimit</span>(<span class="token-string">'openai-calls'</span>);</code></pre>
+// Remove rate limit
+await client.clearRateLimit('openai-calls');</code></pre>
         </div>
 
         <h3>Concurrency Limiting</h3>
         <p>Limit how many jobs can be processed simultaneously across all workers.</p>
         <div class="code-block">
-          <pre><code><span class="token-comment">// Max 5 concurrent jobs processing</span>
-<span class="token-keyword">await</span> client.<span class="token-function">setConcurrency</span>(<span class="token-string">'heavy-tasks'</span>, <span class="token-number">5</span>);
+          <pre><code class="language-typescript">// Max 5 concurrent jobs processing
+await client.setConcurrency('heavy-tasks', 5);
 
-<span class="token-comment">// Remove concurrency limit</span>
-<span class="token-keyword">await</span> client.<span class="token-function">clearConcurrency</span>(<span class="token-string">'heavy-tasks'</span>);</code></pre>
+// Remove concurrency limit
+await client.clearConcurrency('heavy-tasks');</code></pre>
         </div>
 
         <div class="callout callout-info">
@@ -885,34 +893,34 @@ worker.<span class="token-function">on</span>(<span class="token-string">'active
 
         <h3>Basic Retries</h3>
         <div class="code-block">
-          <pre><code><span class="token-comment">// Retry up to 3 times on failure</span>
-<span class="token-keyword">await</span> queue.<span class="token-function">add</span>(<span class="token-string">'send-email'</span>, emailData, {
-  attempts: <span class="token-number">3</span>
+          <pre><code class="language-typescript">// Retry up to 3 times on failure
+await queue.add('send-email', emailData, {
+  attempts: 3
 });</code></pre>
         </div>
 
         <h3>Fixed Delay Backoff</h3>
         <p>Wait a fixed time between retry attempts.</p>
         <div class="code-block">
-          <pre><code><span class="token-comment">// Retry after 5 seconds each time</span>
-<span class="token-keyword">await</span> queue.<span class="token-function">add</span>(<span class="token-string">'api-call'</span>, data, {
-  attempts: <span class="token-number">5</span>,
-  backoff: <span class="token-number">5000</span>  <span class="token-comment">// 5 seconds</span>
+          <pre><code class="language-typescript">// Retry after 5 seconds each time
+await queue.add('api-call', data, {
+  attempts: 5,
+  backoff: 5000  // 5 seconds
 });</code></pre>
         </div>
 
         <h3>Exponential Backoff</h3>
         <p>Increase delay exponentially: 1s, 2s, 4s, 8s... Perfect for rate-limited APIs.</p>
         <div class="code-block">
-          <pre><code><span class="token-comment">// Exponential: base * 2^attempt</span>
-<span class="token-keyword">await</span> queue.<span class="token-function">add</span>(<span class="token-string">'openai-request'</span>, data, {
-  attempts: <span class="token-number">5</span>,
+          <pre><code class="language-typescript">// Exponential: base * 2^attempt
+await queue.add('openai-request', data, {
+  attempts: 5,
   backoff: {
-    type: <span class="token-string">'exponential'</span>,
-    delay: <span class="token-number">1000</span>  <span class="token-comment">// base delay</span>
+    type: 'exponential',
+    delay: 1000  // base delay
   }
 });
-<span class="token-comment">// Delays: 1s, 2s, 4s, 8s, 16s</span></code></pre>
+// Delays: 1s, 2s, 4s, 8s, 16s</code></pre>
         </div>
 
         <h3>Retry Flow</h3>
@@ -974,53 +982,53 @@ worker.<span class="token-function">on</span>(<span class="token-string">'active
             <span>rag-pipeline.ts</span>
             <button class="copy-btn" onclick="copyCode(this)">Copy</button>
           </div>
-          <pre><code><span class="token-keyword">import</span> { Queue, Worker } <span class="token-keyword">from</span> <span class="token-string">'flashq'</span>;
+          <pre><code class="language-typescript">import { Queue, Worker } from 'flashq';
 
-<span class="token-keyword">const</span> rag = <span class="token-keyword">new</span> <span class="token-function">Queue</span>(<span class="token-string">'rag-pipeline'</span>);
+const rag = new Queue('rag-pipeline');
 
-<span class="token-comment">// Create RAG pipeline</span>
-<span class="token-keyword">async function</span> <span class="token-function">askQuestion</span>(question: <span class="token-variable">string</span>) {
-  <span class="token-comment">// Step 1: Embed the question</span>
-  <span class="token-keyword">const</span> embedJob = <span class="token-keyword">await</span> rag.<span class="token-function">add</span>(<span class="token-string">'embed'</span>, { text: question });
+// Create RAG pipeline
+async function askQuestion(question: string) {
+  // Step 1: Embed the question
+  const embedJob = await rag.add('embed', { text: question });
 
-  <span class="token-comment">// Step 2: Search vector DB (waits for embedding)</span>
-  <span class="token-keyword">const</span> searchJob = <span class="token-keyword">await</span> rag.<span class="token-function">add</span>(<span class="token-string">'search'</span>, { query: question }, {
+  // Step 2: Search vector DB (waits for embedding)
+  const searchJob = await rag.add('search', { query: question }, {
     depends_on: [embedJob.id]
   });
 
-  <span class="token-comment">// Step 3: Generate answer (waits for search)</span>
-  <span class="token-keyword">const</span> generateJob = <span class="token-keyword">await</span> rag.<span class="token-function">add</span>(<span class="token-string">'generate'</span>, { question }, {
+  // Step 3: Generate answer (waits for search)
+  const generateJob = await rag.add('generate', { question }, {
     depends_on: [searchJob.id],
-    priority: <span class="token-number">10</span>
+    priority: 10
   });
 
-  <span class="token-comment">// Wait for result</span>
-  <span class="token-keyword">return</span> rag.<span class="token-function">finished</span>(generateJob.id);
+  // Wait for result
+  return rag.finished(generateJob.id);
 }
 
-<span class="token-comment">// Workers for each step</span>
-<span class="token-keyword">new</span> <span class="token-function">Worker</span>(<span class="token-string">'rag-pipeline'</span>, <span class="token-keyword">async</span> (job) => {
-  <span class="token-keyword">switch</span> (job.name) {
-    <span class="token-keyword">case</span> <span class="token-string">'embed'</span>:
-      <span class="token-keyword">return</span> <span class="token-keyword">await</span> openai.embeddings.<span class="token-function">create</span>({
-        model: <span class="token-string">'text-embedding-3-small'</span>,
+// Workers for each step
+new Worker('rag-pipeline', async (job) => {
+  switch (job.name) {
+    case 'embed':
+      return await openai.embeddings.create({
+        model: 'text-embedding-3-small',
         input: job.data.text
       });
 
-    <span class="token-keyword">case</span> <span class="token-string">'search'</span>:
-      <span class="token-keyword">return</span> <span class="token-keyword">await</span> vectorDb.<span class="token-function">search</span>(job.data.query, { limit: <span class="token-number">5</span> });
+    case 'search':
+      return await vectorDb.search(job.data.query, { limit: 5 });
 
-    <span class="token-keyword">case</span> <span class="token-string">'generate'</span>:
-      <span class="token-keyword">return</span> <span class="token-keyword">await</span> openai.chat.completions.<span class="token-function">create</span>({
-        model: <span class="token-string">'gpt-4'</span>,
-        messages: [{ role: <span class="token-string">'user'</span>, content: job.data.question }]
+    case 'generate':
+      return await openai.chat.completions.create({
+        model: 'gpt-4',
+        messages: [{ role: 'user', content: job.data.question }]
       });
   }
-}, { concurrency: <span class="token-number">10</span> });
+}, { concurrency: 10 });
 
-<span class="token-comment">// Usage</span>
-<span class="token-keyword">const</span> answer = <span class="token-keyword">await</span> <span class="token-function">askQuestion</span>(<span class="token-string">'What is flashQ?'</span>);
-console.<span class="token-function">log</span>(answer);</code></pre>
+// Usage
+const answer = await askQuestion('What is flashQ?');
+console.log(answer);</code></pre>
         </div>
       </section>
 
@@ -1034,50 +1042,50 @@ console.<span class="token-function">log</span>(answer);</code></pre>
             <span>llm-pipeline.ts</span>
             <button class="copy-btn" onclick="copyCode(this)">Copy</button>
           </div>
-          <pre><code><span class="token-keyword">import</span> { Queue, Worker } <span class="token-keyword">from</span> <span class="token-string">'flashq'</span>;
+          <pre><code class="language-typescript">import { Queue, Worker } from 'flashq';
 
-<span class="token-keyword">const</span> llm = <span class="token-keyword">new</span> <span class="token-function">Queue</span>(<span class="token-string">'llm-pipeline'</span>);
+const llm = new Queue('llm-pipeline');
 
-<span class="token-comment">// Multi-step summarization pipeline</span>
-<span class="token-keyword">async function</span> <span class="token-function">summarizeDocument</span>(doc: <span class="token-variable">string</span>) {
-  <span class="token-comment">// Step 1: Chunk the document</span>
-  <span class="token-keyword">const</span> chunkJob = <span class="token-keyword">await</span> llm.<span class="token-function">add</span>(<span class="token-string">'chunk'</span>, { text: doc });
+// Multi-step summarization pipeline
+async function summarizeDocument(doc: string) {
+  // Step 1: Chunk the document
+  const chunkJob = await llm.add('chunk', { text: doc });
 
-  <span class="token-comment">// Step 2: Summarize each chunk (parallel)</span>
-  <span class="token-keyword">const</span> summarizeJob = <span class="token-keyword">await</span> llm.<span class="token-function">add</span>(<span class="token-string">'summarize-chunks'</span>, {}, {
+  // Step 2: Summarize each chunk (parallel)
+  const summarizeJob = await llm.add('summarize-chunks', {}, {
     depends_on: [chunkJob.id]
   });
 
-  <span class="token-comment">// Step 3: Combine summaries</span>
-  <span class="token-keyword">const</span> combineJob = <span class="token-keyword">await</span> llm.<span class="token-function">add</span>(<span class="token-string">'combine'</span>, {}, {
+  // Step 3: Combine summaries
+  const combineJob = await llm.add('combine', {}, {
     depends_on: [summarizeJob.id],
-    priority: <span class="token-number">10</span>
+    priority: 10
   });
 
-  <span class="token-keyword">return</span> llm.<span class="token-function">finished</span>(combineJob.id, <span class="token-number">60000</span>);
+  return llm.finished(combineJob.id, 60000);
 }
 
-<span class="token-comment">// Worker with progress tracking</span>
-<span class="token-keyword">new</span> <span class="token-function">Worker</span>(<span class="token-string">'llm-pipeline'</span>, <span class="token-keyword">async</span> (job) => {
-  <span class="token-keyword">if</span> (job.name === <span class="token-string">'summarize-chunks'</span>) {
-    <span class="token-keyword">const</span> chunks = job.data.chunks;
-    <span class="token-keyword">const</span> summaries = [];
+// Worker with progress tracking
+new Worker('llm-pipeline', async (job) => {
+  if (job.name === 'summarize-chunks') {
+    const chunks = job.data.chunks;
+    const summaries = [];
 
-    <span class="token-keyword">for</span> (<span class="token-keyword">let</span> i = <span class="token-number">0</span>; i < chunks.length; i++) {
-      <span class="token-keyword">const</span> summary = <span class="token-keyword">await</span> openai.chat.completions.<span class="token-function">create</span>({
-        model: <span class="token-string">'gpt-4'</span>,
-        messages: [{ role: <span class="token-string">'user'</span>, content: <span class="token-string">`Summarize: ${chunks[i]}`</span> }]
+    for (let i = 0; i < chunks.length; i++) {
+      const summary = await openai.chat.completions.create({
+        model: 'gpt-4',
+        messages: [{ role: 'user', content: `Summarize: ${chunks[i]}` }]
       });
-      summaries.<span class="token-function">push</span>(summary);
+      summaries.push(summary);
 
-      <span class="token-comment">// Update progress</span>
-      <span class="token-keyword">await</span> job.<span class="token-function">updateProgress</span>(((i + <span class="token-number">1</span>) / chunks.length) * <span class="token-number">100</span>);
+      // Update progress
+      await job.updateProgress(((i + 1) / chunks.length) * 100);
     }
 
-    <span class="token-keyword">return</span> { summaries };
+    return { summaries };
   }
 }, {
-  concurrency: <span class="token-number">5</span>
+  concurrency: 5
 });</code></pre>
         </div>
 
@@ -1112,55 +1120,55 @@ console.<span class="token-function">log</span>(answer);</code></pre>
             <span>batch-inference.ts</span>
             <button class="copy-btn" onclick="copyCode(this)">Copy</button>
           </div>
-          <pre><code><span class="token-keyword">import</span> { Queue, Worker } <span class="token-keyword">from</span> <span class="token-string">'flashq'</span>;
+          <pre><code class="language-typescript">import { Queue, Worker } from 'flashq';
 
-<span class="token-keyword">const</span> batch = <span class="token-keyword">new</span> <span class="token-function">Queue</span>(<span class="token-string">'batch-inference'</span>);
+const batch = new Queue('batch-inference');
 
-<span class="token-comment">// Submit batch job for embeddings</span>
-<span class="token-keyword">async function</span> <span class="token-function">embedDocuments</span>(documents: <span class="token-variable">string</span>[]) {
-  <span class="token-comment">// Split into chunks of 100</span>
-  <span class="token-keyword">const</span> chunkSize = <span class="token-number">100</span>;
-  <span class="token-keyword">const</span> jobs = [];
+// Submit batch job for embeddings
+async function embedDocuments(documents: string[]) {
+  // Split into chunks of 100
+  const chunkSize = 100;
+  const jobs = [];
 
-  <span class="token-keyword">for</span> (<span class="token-keyword">let</span> i = <span class="token-number">0</span>; i < documents.length; i += chunkSize) {
-    <span class="token-keyword">const</span> chunk = documents.<span class="token-function">slice</span>(i, i + chunkSize);
-    <span class="token-keyword">const</span> job = <span class="token-keyword">await</span> batch.<span class="token-function">add</span>(<span class="token-string">'embed'</span>, {
+  for (let i = 0; i < documents.length; i += chunkSize) {
+    const chunk = documents.slice(i, i + chunkSize);
+    const job = await batch.add('embed', {
       documents: chunk,
       batchIndex: i / chunkSize
     }, {
-      priority: <span class="token-number">5</span>,
-      attempts: <span class="token-number">3</span>,
-      backoff: { type: <span class="token-string">'exponential'</span>, delay: <span class="token-number">2000</span> }
+      priority: 5,
+      attempts: 3,
+      backoff: { type: 'exponential', delay: 2000 }
     });
-    jobs.<span class="token-function">push</span>(job);
+    jobs.push(job);
   }
 
-  <span class="token-comment">// Wait for all jobs</span>
-  <span class="token-keyword">return</span> Promise.<span class="token-function">all</span>(jobs.<span class="token-function">map</span>(j => batch.<span class="token-function">finished</span>(j.id)));
+  // Wait for all jobs
+  return Promise.all(jobs.map(j => batch.finished(j.id)));
 }
 
-<span class="token-comment">// Worker optimized for batch processing</span>
-<span class="token-keyword">new</span> <span class="token-function">Worker</span>(<span class="token-string">'batch-inference'</span>, <span class="token-keyword">async</span> (job) => {
-  <span class="token-keyword">const</span> { documents } = job.data;
+// Worker optimized for batch processing
+new Worker('batch-inference', async (job) => {
+  const { documents } = job.data;
 
-  <span class="token-comment">// Use OpenAI batch embedding API</span>
-  <span class="token-keyword">const</span> response = <span class="token-keyword">await</span> openai.embeddings.<span class="token-function">create</span>({
-    model: <span class="token-string">'text-embedding-3-small'</span>,
+  // Use OpenAI batch embedding API
+  const response = await openai.embeddings.create({
+    model: 'text-embedding-3-small',
     input: documents
   });
 
-  <span class="token-keyword">return</span> {
-    embeddings: response.data.<span class="token-function">map</span>(d => d.embedding),
+  return {
+    embeddings: response.data.map(d => d.embedding),
     model: response.model,
     usage: response.usage
   };
 }, {
-  concurrency: <span class="token-number">10</span>  <span class="token-comment">// Process 10 batches in parallel</span>
+  concurrency: 10  // Process 10 batches in parallel
 });
 
-<span class="token-comment">// Usage: Process 10,000 documents</span>
-<span class="token-keyword">const</span> results = <span class="token-keyword">await</span> <span class="token-function">embedDocuments</span>(myDocuments);
-console.<span class="token-function">log</span>(<span class="token-string">`Processed ${results.length} batches`</span>);</code></pre>
+// Usage: Process 10,000 documents
+const results = await embedDocuments(myDocuments);
+console.log(`Processed ${results.length} batches`);</code></pre>
         </div>
 
         <div class="callout callout-info">
@@ -1179,44 +1187,44 @@ console.<span class="token-function">log</span>(<span class="token-string">`Proc
             <span>cron-jobs.ts</span>
             <button class="copy-btn" onclick="copyCode(this)">Copy</button>
           </div>
-          <pre><code><span class="token-keyword">import</span> { FlashQ } <span class="token-keyword">from</span> <span class="token-string">'flashq'</span>;
+          <pre><code class="language-typescript">import { FlashQ } from 'flashq';
 
-<span class="token-keyword">const</span> client = <span class="token-keyword">new</span> <span class="token-function">FlashQ</span>();
+const client = new FlashQ();
 
-<span class="token-comment">// Every minute</span>
-<span class="token-keyword">await</span> client.<span class="token-function">addCron</span>(<span class="token-string">'health-check'</span>, {
-  queue: <span class="token-string">'monitoring'</span>,
-  schedule: <span class="token-string">'0 * * * * *'</span>,  <span class="token-comment">// sec min hour day month weekday</span>
-  data: { type: <span class="token-string">'health'</span> }
+// Every minute
+await client.addCron('health-check', {
+  queue: 'monitoring',
+  schedule: '0 * * * * *',  // sec min hour day month weekday
+  data: { type: 'health' }
 });
 
-<span class="token-comment">// Every hour at minute 0</span>
-<span class="token-keyword">await</span> client.<span class="token-function">addCron</span>(<span class="token-string">'hourly-sync'</span>, {
-  queue: <span class="token-string">'sync'</span>,
-  schedule: <span class="token-string">'0 0 * * * *'</span>,
-  data: { source: <span class="token-string">'external-api'</span> }
+// Every hour at minute 0
+await client.addCron('hourly-sync', {
+  queue: 'sync',
+  schedule: '0 0 * * * *',
+  data: { source: 'external-api' }
 });
 
-<span class="token-comment">// Every day at 2 AM</span>
-<span class="token-keyword">await</span> client.<span class="token-function">addCron</span>(<span class="token-string">'daily-report'</span>, {
-  queue: <span class="token-string">'reports'</span>,
-  schedule: <span class="token-string">'0 0 2 * * *'</span>,
-  data: { reportType: <span class="token-string">'daily'</span> }
+// Every day at 2 AM
+await client.addCron('daily-report', {
+  queue: 'reports',
+  schedule: '0 0 2 * * *',
+  data: { reportType: 'daily' }
 });
 
-<span class="token-comment">// Every Monday at 9 AM</span>
-<span class="token-keyword">await</span> client.<span class="token-function">addCron</span>(<span class="token-string">'weekly-digest'</span>, {
-  queue: <span class="token-string">'emails'</span>,
-  schedule: <span class="token-string">'0 0 9 * * 1'</span>,
-  data: { template: <span class="token-string">'weekly-digest'</span> }
+// Every Monday at 9 AM
+await client.addCron('weekly-digest', {
+  queue: 'emails',
+  schedule: '0 0 9 * * 1',
+  data: { template: 'weekly-digest' }
 });
 
-<span class="token-comment">// List all cron jobs</span>
-<span class="token-keyword">const</span> crons = <span class="token-keyword">await</span> client.<span class="token-function">listCrons</span>();
-console.<span class="token-function">log</span>(crons);
+// List all cron jobs
+const crons = await client.listCrons();
+console.log(crons);
 
-<span class="token-comment">// Delete a cron job</span>
-<span class="token-keyword">await</span> client.<span class="token-function">deleteCron</span>(<span class="token-string">'health-check'</span>);</code></pre>
+// Delete a cron job
+await client.deleteCron('health-check');</code></pre>
         </div>
 
         <h3>Cron Expression Format</h3>
@@ -1266,27 +1274,27 @@ console.<span class="token-function">log</span>(crons);
             <span>dlq-handling.ts</span>
             <button class="copy-btn" onclick="copyCode(this)">Copy</button>
           </div>
-          <pre><code><span class="token-keyword">import</span> { FlashQ } <span class="token-keyword">from</span> <span class="token-string">'flashq'</span>;
+          <pre><code class="language-typescript">import { FlashQ } from 'flashq';
 
-<span class="token-keyword">const</span> client = <span class="token-keyword">new</span> <span class="token-function">FlashQ</span>();
+const client = new FlashQ();
 
-<span class="token-comment">// Get failed jobs from DLQ</span>
-<span class="token-keyword">const</span> failedJobs = <span class="token-keyword">await</span> client.<span class="token-function">getDlq</span>(<span class="token-string">'emails'</span>, <span class="token-number">10</span>);
+// Get failed jobs from DLQ
+const failedJobs = await client.getDlq('emails', 10);
 
-<span class="token-keyword">for</span> (<span class="token-keyword">const</span> job <span class="token-keyword">of</span> failedJobs) {
-  console.<span class="token-function">log</span>(<span class="token-string">`Job ${job.id} failed: ${job.error}`</span>);
-  console.<span class="token-function">log</span>(<span class="token-string">`Data: ${JSON.stringify(job.data)}`</span>);
-  console.<span class="token-function">log</span>(<span class="token-string">`Attempts: ${job.attempts}`</span>);
+for (const job of failedJobs) {
+  console.log(`Job ${job.id} failed: ${job.error}`);
+  console.log(`Data: ${JSON.stringify(job.data)}`);
+  console.log(`Attempts: ${job.attempts}`);
 }
 
-<span class="token-comment">// Retry a specific failed job</span>
-<span class="token-keyword">await</span> client.<span class="token-function">retryDlq</span>(<span class="token-string">'emails'</span>, <span class="token-number">123</span>);
+// Retry a specific failed job
+await client.retryDlq('emails', 123);
 
-<span class="token-comment">// Retry ALL failed jobs in queue</span>
-<span class="token-keyword">await</span> client.<span class="token-function">retryDlq</span>(<span class="token-string">'emails'</span>);
+// Retry ALL failed jobs in queue
+await client.retryDlq('emails');
 
-<span class="token-comment">// Discard a job directly to DLQ</span>
-<span class="token-keyword">await</span> client.<span class="token-function">discard</span>(<span class="token-number">456</span>);</code></pre>
+// Discard a job directly to DLQ
+await client.discard(456);</code></pre>
         </div>
 
         <h3>DLQ Best Practices</h3>
@@ -1320,45 +1328,45 @@ console.<span class="token-function">log</span>(crons);
             <span>progress-tracking.ts</span>
             <button class="copy-btn" onclick="copyCode(this)">Copy</button>
           </div>
-          <pre><code><span class="token-keyword">import</span> { Queue, Worker, FlashQ } <span class="token-keyword">from</span> <span class="token-string">'flashq'</span>;
+          <pre><code class="language-typescript">import { Queue, Worker, FlashQ } from 'flashq';
 
-<span class="token-keyword">const</span> queue = <span class="token-keyword">new</span> <span class="token-function">Queue</span>(<span class="token-string">'processing'</span>);
-<span class="token-keyword">const</span> client = <span class="token-keyword">new</span> <span class="token-function">FlashQ</span>();
+const queue = new Queue('processing');
+const client = new FlashQ();
 
-<span class="token-comment">// Worker that reports progress</span>
-<span class="token-keyword">new</span> <span class="token-function">Worker</span>(<span class="token-string">'processing'</span>, <span class="token-keyword">async</span> (job) => {
-  <span class="token-keyword">const</span> items = job.data.items;
-  <span class="token-keyword">const</span> results = [];
+// Worker that reports progress
+new Worker('processing', async (job) => {
+  const items = job.data.items;
+  const results = [];
 
-  <span class="token-keyword">for</span> (<span class="token-keyword">let</span> i = <span class="token-number">0</span>; i < items.length; i++) {
-    <span class="token-comment">// Process item</span>
-    <span class="token-keyword">const</span> result = <span class="token-keyword">await</span> <span class="token-function">processItem</span>(items[i]);
-    results.<span class="token-function">push</span>(result);
+  for (let i = 0; i < items.length; i++) {
+    // Process item
+    const result = await processItem(items[i]);
+    results.push(result);
 
-    <span class="token-comment">// Update progress (0-100)</span>
-    <span class="token-keyword">const</span> progress = Math.<span class="token-function">round</span>(((i + <span class="token-number">1</span>) / items.length) * <span class="token-number">100</span>);
-    <span class="token-keyword">await</span> job.<span class="token-function">updateProgress</span>(progress, <span class="token-string">`Processed ${i + 1}/${items.length}`</span>);
+    // Update progress (0-100)
+    const progress = Math.round(((i + 1) / items.length) * 100);
+    await job.updateProgress(progress, `Processed ${i + 1}/${items.length}`);
   }
 
-  <span class="token-keyword">return</span> results;
+  return results;
 });
 
-<span class="token-comment">// Monitor progress from producer</span>
-<span class="token-keyword">const</span> job = <span class="token-keyword">await</span> queue.<span class="token-function">add</span>(<span class="token-string">'batch'</span>, { items: largeArray });
+// Monitor progress from producer
+const job = await queue.add('batch', { items: largeArray });
 
-<span class="token-comment">// Poll progress</span>
-<span class="token-keyword">const</span> interval = <span class="token-function">setInterval</span>(<span class="token-keyword">async</span> () => {
-  <span class="token-keyword">const</span> { progress, message } = <span class="token-keyword">await</span> client.<span class="token-function">getProgress</span>(job.id);
-  console.<span class="token-function">log</span>(<span class="token-string">`Progress: ${progress}% - ${message}`</span>);
+// Poll progress
+const interval = setInterval(async () => {
+  const { progress, message } = await client.getProgress(job.id);
+  console.log(`Progress: ${progress}% - ${message}`);
 
-  <span class="token-keyword">if</span> (progress === <span class="token-number">100</span>) {
-    <span class="token-function">clearInterval</span>(interval);
+  if (progress === 100) {
+    clearInterval(interval);
   }
-}, <span class="token-number">1000</span>);
+}, 1000);
 
-<span class="token-comment">// Or listen to progress events</span>
-worker.<span class="token-function">on</span>(<span class="token-string">'progress'</span>, (job, progress) => {
-  console.<span class="token-function">log</span>(<span class="token-string">`Job ${job.id}: ${progress}%`</span>);
+// Or listen to progress events
+worker.on('progress', (job, progress) => {
+  console.log(`Job ${job.id}: ${progress}%`);
 });</code></pre>
         </div>
 
@@ -1392,15 +1400,15 @@ worker.<span class="token-function">on</span>(<span class="token-string">'progre
 
         <h3>Binary Installation</h3>
         <div class="code-block">
-          <pre><code><span class="token-comment"># Linux x86_64</span>
+          <pre><code class="language-bash"># Linux x86_64
 curl -L https://github.com/egeominotti/flashq/releases/latest/download/flashq-linux-x86_64.tar.gz | tar xz
 sudo mv flashq-server /usr/local/bin/
 
-<span class="token-comment"># Linux ARM64 (Raspberry Pi, AWS Graviton)</span>
+# Linux ARM64 (Raspberry Pi, AWS Graviton)
 curl -L https://github.com/egeominotti/flashq/releases/latest/download/flashq-linux-arm64.tar.gz | tar xz
 sudo mv flashq-server /usr/local/bin/
 
-<span class="token-comment"># macOS Apple Silicon</span>
+# macOS Apple Silicon
 curl -L https://github.com/egeominotti/flashq/releases/latest/download/flashq-macos-arm64.tar.gz | tar xz
 sudo mv flashq-server /usr/local/bin/</code></pre>
         </div>
@@ -1411,7 +1419,7 @@ sudo mv flashq-server /usr/local/bin/</code></pre>
             <span>/etc/systemd/system/flashq.service</span>
             <button class="copy-btn" onclick="copyCode(this)">Copy</button>
           </div>
-          <pre><code>[Unit]
+          <pre><code class="language-ini">[Unit]
 Description=flashQ Job Queue Server
 After=network.target postgresql.service
 
@@ -1429,14 +1437,14 @@ WantedBy=multi-user.target</code></pre>
         </div>
 
         <div class="code-block">
-          <pre><code><span class="token-comment"># Enable and start</span>
+          <pre><code class="language-bash"># Enable and start
 sudo systemctl enable flashq
 sudo systemctl start flashq
 
-<span class="token-comment"># Check status</span>
+# Check status
 sudo systemctl status flashq
 
-<span class="token-comment"># View logs</span>
+# View logs
 sudo journalctl -u flashq -f</code></pre>
         </div>
       </section>
@@ -1448,7 +1456,7 @@ sudo journalctl -u flashq -f</code></pre>
 
         <h3>Quick Start</h3>
         <div class="code-block">
-          <pre><code><span class="token-comment"># Run with dashboard enabled</span>
+          <pre><code class="language-bash"># Run with dashboard enabled
 docker run -d --name flashq \
   -p 6789:6789 \
   -p 6790:6790 \
@@ -1462,7 +1470,7 @@ docker run -d --name flashq \
             <span>docker-compose.yml</span>
             <button class="copy-btn" onclick="copyCode(this)">Copy</button>
           </div>
-          <pre><code>version: '3.8'
+          <pre><code class="language-yaml">version: '3.8'
 
 services:
   flashq:
@@ -1531,7 +1539,7 @@ volumes:
 
         <h3>Architecture</h3>
         <div class="code-block">
-          <pre><code>┌──────────┐    ┌──────────┐    ┌──────────┐
+          <pre><code class="language-plaintext">┌──────────┐    ┌──────────┐    ┌──────────┐
 │  Node 1  │    │  Node 2  │    │  Node 3  │
 │ (Leader) │    │(Follower)│    │(Follower)│
 └────┬─────┘    └────┬─────┘    └────┬─────┘
@@ -1559,7 +1567,7 @@ volumes:
             <span>docker-compose.ha.yml</span>
             <button class="copy-btn" onclick="copyCode(this)">Copy</button>
           </div>
-          <pre><code>version: '3.8'
+          <pre><code class="language-yaml">version: '3.8'
 
 services:
   flashq-node1:
@@ -1616,10 +1624,10 @@ volumes:
         </table>
 
         <div class="code-block">
-          <pre><code><span class="token-comment"># Check cluster status</span>
+          <pre><code class="language-bash"># Check cluster status
 curl http://localhost:6790/cluster/nodes
 
-<span class="token-comment"># Response</span>
+# Response
 {
   "nodes": [
     { "id": "node-1", "host": "flashq-node1", "is_leader": true },
@@ -1678,7 +1686,7 @@ curl http://localhost:6790/cluster/nodes
 
         <h3>Example: Production Docker</h3>
         <div class="code-block">
-          <pre><code>docker run -d --name flashq \
+          <pre><code class="language-bash">docker run -d --name flashq \
   -p 6789:6789 \
   -p 6790:6790 \
   -e HTTP=1 \
@@ -1697,38 +1705,38 @@ curl http://localhost:6790/cluster/nodes
           <div class="step">
             <h4>Install flashQ SDK</h4>
             <div class="code-block">
-              <pre><code>bun add flashq</code></pre>
+              <pre><code class="language-bash">bun add flashq</code></pre>
             </div>
           </div>
 
           <div class="step">
             <h4>Start the flashQ server</h4>
             <div class="code-block">
-              <pre><code>docker run -d -p 6789:6789 ghcr.io/egeominotti/flashq:latest</code></pre>
+              <pre><code class="language-bash">docker run -d -p 6789:6789 ghcr.io/egeominotti/flashq:latest</code></pre>
             </div>
           </div>
 
           <div class="step">
             <h4>Update your imports</h4>
             <div class="code-block">
-              <pre><code><span class="token-comment">// Before (BullMQ)</span>
-<span class="token-keyword">import</span> { Queue, Worker } <span class="token-keyword">from</span> <span class="token-string">'bullmq'</span>;
+              <pre><code class="language-typescript">// Before (BullMQ)
+import { Queue, Worker } from 'bullmq';
 
-<span class="token-comment">// After (flashQ)</span>
-<span class="token-keyword">import</span> { Queue, Worker } <span class="token-keyword">from</span> <span class="token-string">'flashq'</span>;</code></pre>
+// After (flashQ)
+import { Queue, Worker } from 'flashq';</code></pre>
             </div>
           </div>
 
           <div class="step">
             <h4>Remove Redis configuration</h4>
             <div class="code-block">
-              <pre><code><span class="token-comment">// Before (BullMQ)</span>
-<span class="token-keyword">const</span> queue = <span class="token-keyword">new</span> <span class="token-function">Queue</span>(<span class="token-string">'emails'</span>, {
-  connection: { host: <span class="token-string">'localhost'</span>, port: <span class="token-number">6379</span> }
+              <pre><code class="language-typescript">// Before (BullMQ)
+const queue = new Queue('emails', {
+  connection: { host: 'localhost', port: 6379 }
 });
 
-<span class="token-comment">// After (flashQ) - no Redis needed!</span>
-<span class="token-keyword">const</span> queue = <span class="token-keyword">new</span> <span class="token-function">Queue</span>(<span class="token-string">'emails'</span>);</code></pre>
+// After (flashQ) - no Redis needed!
+const queue = new Queue('emails');</code></pre>
             </div>
           </div>
         </div>
@@ -1879,14 +1887,14 @@ curl http://localhost:6790/cluster/nodes
             </tr>
           </thead>
           <tbody>
-            <tr><td><span class="api-method api-method-get">GET</span></td><td><code>/health</code></td><td>Health check</td></tr>
-            <tr><td><span class="api-method api-method-get">GET</span></td><td><code>/metrics/prometheus</code></td><td>Prometheus metrics</td></tr>
-            <tr><td><span class="api-method api-method-get">GET</span></td><td><code>/cluster/nodes</code></td><td>List cluster nodes</td></tr>
-            <tr><td><span class="api-method api-method-post">POST</span></td><td><code>/api/push</code></td><td>Push job via HTTP</td></tr>
-            <tr><td><span class="api-method api-method-post">POST</span></td><td><code>/api/pull</code></td><td>Pull job via HTTP</td></tr>
-            <tr><td><span class="api-method api-method-post">POST</span></td><td><code>/api/ack</code></td><td>Acknowledge job</td></tr>
-            <tr><td><span class="api-method api-method-get">GET</span></td><td><code>/api/job/:id</code></td><td>Get job details</td></tr>
-            <tr><td><span class="api-method api-method-get">GET</span></td><td><code>/api/stats</code></td><td>Queue statistics</td></tr>
+            <tr><td><span class="api-method api-method-get">GET</td><td><code>/health</code></td><td>Health check</td></tr>
+            <tr><td><span class="api-method api-method-get">GET</td><td><code>/metrics/prometheus</code></td><td>Prometheus metrics</td></tr>
+            <tr><td><span class="api-method api-method-get">GET</td><td><code>/cluster/nodes</code></td><td>List cluster nodes</td></tr>
+            <tr><td><span class="api-method api-method-post">POST</td><td><code>/api/push</code></td><td>Push job via HTTP</td></tr>
+            <tr><td><span class="api-method api-method-post">POST</td><td><code>/api/pull</code></td><td>Pull job via HTTP</td></tr>
+            <tr><td><span class="api-method api-method-post">POST</td><td><code>/api/ack</code></td><td>Acknowledge job</td></tr>
+            <tr><td><span class="api-method api-method-get">GET</td><td><code>/api/job/:id</code></td><td>Get job details</td></tr>
+            <tr><td><span class="api-method api-method-get">GET</td><td><code>/api/stats</code></td><td>Queue statistics</td></tr>
           </tbody>
         </table>
       </section>
@@ -1899,15 +1907,15 @@ curl http://localhost:6790/cluster/nodes
         <p><strong>Error:</strong> <code>ECONNREFUSED 127.0.0.1:6789</code></p>
         <p><strong>Solution:</strong> Make sure the flashQ server is running:</p>
         <div class="code-block">
-          <pre><code>docker ps | grep flashq</code></pre>
+          <pre><code class="language-bash">docker ps | grep flashq</code></pre>
         </div>
 
         <h3>Job timeout</h3>
         <p><strong>Error:</strong> Job exceeds processing timeout</p>
         <p><strong>Solution:</strong> Increase the timeout in job options:</p>
         <div class="code-block">
-          <pre><code><span class="token-keyword">await</span> queue.<span class="token-function">add</span>(<span class="token-string">'long-job'</span>, data, {
-  timeout: <span class="token-number">300000</span> <span class="token-comment">// 5 minutes</span>
+          <pre><code class="language-typescript">await queue.add('long-job', data, {
+  timeout: 300000 // 5 minutes
 });</code></pre>
         </div>
 
@@ -1915,8 +1923,8 @@ curl http://localhost:6790/cluster/nodes
         <p><strong>Error:</strong> <code>AUTH_FAILED</code></p>
         <p><strong>Solution:</strong> Set the token in your client configuration:</p>
         <div class="code-block">
-          <pre><code><span class="token-keyword">const</span> queue = <span class="token-keyword">new</span> <span class="token-function">Queue</span>(<span class="token-string">'emails'</span>, {
-  token: <span class="token-string">'your-auth-token'</span>
+          <pre><code class="language-typescript">const queue = new Queue('emails', {
+  token: 'your-auth-token'
 });</code></pre>
         </div>
 
@@ -1924,10 +1932,10 @@ curl http://localhost:6790/cluster/nodes
         <p><strong>Error:</strong> Job remains active after worker crash</p>
         <p><strong>Solution:</strong> Jobs are automatically recovered after the stall timeout. For long jobs, use heartbeat:</p>
         <div class="code-block">
-          <pre><code><span class="token-keyword">new</span> <span class="token-function">Worker</span>(<span class="token-string">'queue'</span>, <span class="token-keyword">async</span> (job) => {
-  <span class="token-keyword">for</span> (<span class="token-keyword">const</span> item <span class="token-keyword">of</span> items) {
-    <span class="token-keyword">await</span> <span class="token-function">processItem</span>(item);
-    <span class="token-keyword">await</span> job.<span class="token-function">heartbeat</span>();  <span class="token-comment">// Prevent stall detection</span>
+          <pre><code class="language-typescript">new Worker('queue', async (job) => {
+  for (const item of items) {
+    await processItem(item);
+    await job.heartbeat();  // Prevent stall detection
   }
 });</code></pre>
         </div>
@@ -1936,14 +1944,14 @@ curl http://localhost:6790/cluster/nodes
         <p><strong>Cause:</strong> Completed jobs and results accumulating</p>
         <p><strong>Solution:</strong> Configure retention or use clean():</p>
         <div class="code-block">
-          <pre><code><span class="token-comment">// During job creation</span>
-<span class="token-keyword">await</span> queue.<span class="token-function">add</span>(<span class="token-string">'job'</span>, data, {
-  keepCompletedAge: <span class="token-number">3600000</span>,  <span class="token-comment">// Keep for 1 hour</span>
-  keepCompletedCount: <span class="token-number">1000</span>   <span class="token-comment">// Keep last 1000</span>
+          <pre><code class="language-typescript">// During job creation
+await queue.add('job', data, {
+  keepCompletedAge: 3600000,  // Keep for 1 hour
+  keepCompletedCount: 1000   // Keep last 1000
 });
 
-<span class="token-comment">// Manual cleanup</span>
-<span class="token-keyword">await</span> queue.<span class="token-function">clean</span>(<span class="token-number">3600000</span>, <span class="token-string">'completed'</span>);</code></pre>
+// Manual cleanup
+await queue.clean(3600000, 'completed');</code></pre>
         </div>
       </section>
 
@@ -1958,6 +1966,8 @@ curl http://localhost:6790/cluster/nodes
   <script>
     // Initialize Lucide icons
     lucide.createIcons();
+    // Initialize Highlight.js
+    hljs.highlightAll();
   </script>
 </body>
 </html>
