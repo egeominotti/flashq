@@ -349,65 +349,239 @@ const result = await queue.finished(generate.id);</code></pre>
       </div>
 
       <div class="comparison-wrapper fade-in">
-        <table class="comparison-table">
+        <table class="comparison-table comparison-table-full">
           <thead>
             <tr>
               <th>Feature</th>
               <th class="highlight-col">flashQ</th>
-              <th>BullMQ + Redis</th>
-              <th>Inngest</th>
-              <th>AWS SQS</th>
+              <th>BullMQ-Pro</th>
+              <th>BullMQ</th>
+              <th>Bull</th>
+              <th>Kue</th>
+              <th>Bee</th>
+              <th>Agenda</th>
             </tr>
           </thead>
           <tbody>
             <tr>
-              <td>BullMQ-compatible API</td>
+              <td>Backend</td>
+              <td class="highlight-col"><strong>Postgres</strong></td>
+              <td>Redis</td>
+              <td>Redis</td>
+              <td>Redis</td>
+              <td>Redis</td>
+              <td>Redis</td>
+              <td>Mongo</td>
+            </tr>
+            <tr>
+              <td>Observables</td>
               <td class="highlight-col"><span class="check">✓</span></td>
               <td><span class="check">✓</span></td>
               <td><span class="cross">✗</span></td>
               <td><span class="cross">✗</span></td>
-            </tr>
-            <tr>
-              <td>No Redis required</td>
-              <td class="highlight-col"><span class="check">✓</span></td>
               <td><span class="cross">✗</span></td>
-              <td><span class="check">✓</span></td>
-              <td><span class="check">✓</span></td>
-            </tr>
-            <tr>
-              <td>Job dependencies</td>
-              <td class="highlight-col"><span class="check">✓</span></td>
-              <td><span class="check">✓</span></td>
-              <td><span class="check">✓</span></td>
+              <td><span class="cross">✗</span></td>
               <td><span class="cross">✗</span></td>
             </tr>
             <tr>
-              <td>Priority queues</td>
+              <td>Group Rate Limit</td>
               <td class="highlight-col"><span class="check">✓</span></td>
               <td><span class="check">✓</span></td>
               <td><span class="cross">✗</span></td>
               <td><span class="cross">✗</span></td>
+              <td><span class="cross">✗</span></td>
+              <td><span class="cross">✗</span></td>
+              <td><span class="cross">✗</span></td>
             </tr>
             <tr>
-              <td>Max payload</td>
-              <td class="highlight-col"><strong>10 MB</strong></td>
-              <td>~5 MB</td>
-              <td>4 MB</td>
-              <td>256 KB</td>
-            </tr>
-            <tr>
-              <td>Throughput</td>
-              <td class="highlight-col"><strong>300K/sec</strong></td>
-              <td>30K/sec</td>
-              <td>~10K/sec</td>
-              <td>~3K/sec</td>
-            </tr>
-            <tr>
-              <td>Self-host option</td>
+              <td>Group Support</td>
               <td class="highlight-col"><span class="check">✓</span></td>
               <td><span class="check">✓</span></td>
               <td><span class="cross">✗</span></td>
               <td><span class="cross">✗</span></td>
+              <td><span class="cross">✗</span></td>
+              <td><span class="cross">✗</span></td>
+              <td><span class="cross">✗</span></td>
+            </tr>
+            <tr>
+              <td>Batches Support</td>
+              <td class="highlight-col"><span class="check">✓</span></td>
+              <td><span class="check">✓</span></td>
+              <td><span class="cross">✗</span></td>
+              <td><span class="cross">✗</span></td>
+              <td><span class="cross">✗</span></td>
+              <td><span class="cross">✗</span></td>
+              <td><span class="cross">✗</span></td>
+            </tr>
+            <tr>
+              <td>Parent/Child Dependencies</td>
+              <td class="highlight-col"><span class="check">✓</span></td>
+              <td><span class="check">✓</span></td>
+              <td><span class="check">✓</span></td>
+              <td><span class="cross">✗</span></td>
+              <td><span class="cross">✗</span></td>
+              <td><span class="cross">✗</span></td>
+              <td><span class="cross">✗</span></td>
+            </tr>
+            <tr>
+              <td>Deduplication</td>
+              <td class="highlight-col"><span class="check">✓</span></td>
+              <td><span class="check">✓</span></td>
+              <td><span class="check">✓</span></td>
+              <td><span class="cross">✗</span></td>
+              <td><span class="cross">✗</span></td>
+              <td><span class="cross">✗</span></td>
+              <td><span class="cross">✗</span></td>
+            </tr>
+            <tr>
+              <td>Priorities</td>
+              <td class="highlight-col"><span class="check">✓</span></td>
+              <td><span class="check">✓</span></td>
+              <td><span class="check">✓</span></td>
+              <td><span class="check">✓</span></td>
+              <td><span class="check">✓</span></td>
+              <td><span class="cross">✗</span></td>
+              <td><span class="check">✓</span></td>
+            </tr>
+            <tr>
+              <td>Concurrency</td>
+              <td class="highlight-col"><span class="check">✓</span></td>
+              <td><span class="check">✓</span></td>
+              <td><span class="check">✓</span></td>
+              <td><span class="check">✓</span></td>
+              <td><span class="check">✓</span></td>
+              <td><span class="check">✓</span></td>
+              <td><span class="check">✓</span></td>
+            </tr>
+            <tr>
+              <td>Delayed jobs</td>
+              <td class="highlight-col"><span class="check">✓</span></td>
+              <td><span class="check">✓</span></td>
+              <td><span class="check">✓</span></td>
+              <td><span class="check">✓</span></td>
+              <td><span class="check">✓</span></td>
+              <td><span class="check">✓</span></td>
+              <td><span class="check">✓</span></td>
+            </tr>
+            <tr>
+              <td>Global events</td>
+              <td class="highlight-col"><span class="check">✓</span></td>
+              <td><span class="check">✓</span></td>
+              <td><span class="check">✓</span></td>
+              <td><span class="check">✓</span></td>
+              <td><span class="check">✓</span></td>
+              <td><span class="cross">✗</span></td>
+              <td><span class="cross">✗</span></td>
+            </tr>
+            <tr>
+              <td>Rate Limiter</td>
+              <td class="highlight-col"><span class="check">✓</span></td>
+              <td><span class="check">✓</span></td>
+              <td><span class="check">✓</span></td>
+              <td><span class="check">✓</span></td>
+              <td><span class="cross">✗</span></td>
+              <td><span class="cross">✗</span></td>
+              <td><span class="cross">✗</span></td>
+            </tr>
+            <tr>
+              <td>Pause/Resume</td>
+              <td class="highlight-col"><span class="check">✓</span></td>
+              <td><span class="check">✓</span></td>
+              <td><span class="check">✓</span></td>
+              <td><span class="check">✓</span></td>
+              <td><span class="check">✓</span></td>
+              <td><span class="check">✓</span></td>
+              <td><span class="cross">✗</span></td>
+            </tr>
+            <tr>
+              <td>Sandboxed worker</td>
+              <td class="highlight-col"><span class="check">✓</span></td>
+              <td><span class="check">✓</span></td>
+              <td><span class="check">✓</span></td>
+              <td><span class="check">✓</span></td>
+              <td><span class="cross">✗</span></td>
+              <td><span class="cross">✗</span></td>
+              <td><span class="cross">✗</span></td>
+            </tr>
+            <tr>
+              <td>Repeatable jobs</td>
+              <td class="highlight-col"><span class="check">✓</span></td>
+              <td><span class="check">✓</span></td>
+              <td><span class="check">✓</span></td>
+              <td><span class="check">✓</span></td>
+              <td><span class="check">✓</span></td>
+              <td><span class="cross">✗</span></td>
+              <td><span class="check">✓</span></td>
+            </tr>
+            <tr>
+              <td>Atomic ops</td>
+              <td class="highlight-col"><span class="check">✓</span></td>
+              <td><span class="check">✓</span></td>
+              <td><span class="check">✓</span></td>
+              <td><span class="cross">✗</span></td>
+              <td><span class="cross">✗</span></td>
+              <td><span class="cross">✗</span></td>
+              <td><span class="cross">✗</span></td>
+            </tr>
+            <tr>
+              <td>Persistence</td>
+              <td class="highlight-col"><span class="check">✓</span></td>
+              <td><span class="check">✓</span></td>
+              <td><span class="check">✓</span></td>
+              <td><span class="check">✓</span></td>
+              <td><span class="check">✓</span></td>
+              <td><span class="check">✓</span></td>
+              <td><span class="check">✓</span></td>
+            </tr>
+            <tr>
+              <td>UI Dashboard</td>
+              <td class="highlight-col"><span class="check">✓</span></td>
+              <td><span class="check">✓</span></td>
+              <td><span class="cross">✗</span></td>
+              <td><span class="cross">✗</span></td>
+              <td><span class="check">✓</span></td>
+              <td><span class="cross">✗</span></td>
+              <td><span class="cross">✗</span></td>
+            </tr>
+            <tr>
+              <td>gRPC API</td>
+              <td class="highlight-col"><span class="check">✓</span></td>
+              <td><span class="cross">✗</span></td>
+              <td><span class="cross">✗</span></td>
+              <td><span class="cross">✗</span></td>
+              <td><span class="cross">✗</span></td>
+              <td><span class="cross">✗</span></td>
+              <td><span class="cross">✗</span></td>
+            </tr>
+            <tr>
+              <td>Cluster/HA</td>
+              <td class="highlight-col"><span class="check">✓</span></td>
+              <td><span class="cross">✗</span></td>
+              <td><span class="cross">✗</span></td>
+              <td><span class="cross">✗</span></td>
+              <td><span class="cross">✗</span></td>
+              <td><span class="cross">✗</span></td>
+              <td><span class="cross">✗</span></td>
+            </tr>
+            <tr>
+              <td>Binary Protocol</td>
+              <td class="highlight-col"><span class="check">✓</span></td>
+              <td><span class="cross">✗</span></td>
+              <td><span class="cross">✗</span></td>
+              <td><span class="cross">✗</span></td>
+              <td><span class="cross">✗</span></td>
+              <td><span class="cross">✗</span></td>
+              <td><span class="cross">✗</span></td>
+            </tr>
+            <tr>
+              <td>Optimized for</td>
+              <td class="highlight-col"><strong>Jobs</strong></td>
+              <td>Jobs</td>
+              <td>Jobs</td>
+              <td>Jobs</td>
+              <td>Jobs</td>
+              <td>Msgs</td>
+              <td>Jobs</td>
             </tr>
           </tbody>
         </table>
