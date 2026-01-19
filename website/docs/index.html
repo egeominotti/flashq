@@ -74,6 +74,9 @@
 
   <!-- Styles -->
   <link rel="stylesheet" href="styles.css">
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
 </head>
 <body>
   <div class="docs-layout">
@@ -171,19 +174,19 @@
 
         <div class="card-grid">
           <a href="#quickstart" class="card">
-            <h4>🚀 Quick Start</h4>
+            <h4><i data-lucide="rocket" class="icon-inline"></i> Quick Start</h4>
             <p>Get up and running in under 5 minutes with Docker and TypeScript.</p>
           </a>
           <a href="#ai-overview" class="card">
-            <h4>🤖 AI Workloads</h4>
+            <h4><i data-lucide="bot" class="icon-inline"></i> AI Workloads</h4>
             <p>Learn how to build LLM pipelines, RAG workflows, and batch inference.</p>
           </a>
           <a href="#from-bullmq" class="card">
-            <h4>📦 Migration</h4>
+            <h4><i data-lucide="package" class="icon-inline"></i> Migration</h4>
             <p>Already using BullMQ? Migrate in minutes with the same API.</p>
           </a>
           <a href="#api-reference" class="card">
-            <h4>📚 API Reference</h4>
+            <h4><i data-lucide="book-open" class="icon-inline"></i> API Reference</h4>
             <p>Complete reference for Queue, Worker, and all job options.</p>
           </a>
         </div>
@@ -943,19 +946,19 @@ worker.<span class="token-function">on</span>(<span class="token-string">'active
 
         <div class="card-grid">
           <div class="card">
-            <h4>🔗 Job Dependencies</h4>
+            <h4><i data-lucide="git-branch" class="icon-inline"></i> Job Dependencies</h4>
             <p>Chain jobs for multi-step AI workflows. Perfect for RAG: embed → search → generate.</p>
           </div>
           <div class="card">
-            <h4>⏱️ Rate Limiting</h4>
+            <h4><i data-lucide="gauge" class="icon-inline"></i> Rate Limiting</h4>
             <p>Control API costs with per-queue rate limits. Never exceed your OpenAI/Anthropic quota.</p>
           </div>
           <div class="card">
-            <h4>📦 Large Payloads</h4>
+            <h4><i data-lucide="hard-drive" class="icon-inline"></i> Large Payloads</h4>
             <p>10MB payload support for embeddings, images, and large context windows.</p>
           </div>
           <div class="card">
-            <h4>🔄 Smart Retries</h4>
+            <h4><i data-lucide="refresh-ccw" class="icon-inline"></i> Smart Retries</h4>
             <p>Automatic retries with exponential backoff. Handle API rate limits gracefully.</p>
           </div>
         </div>
@@ -1952,5 +1955,9 @@ curl http://localhost:6790/cluster/nodes
 
   <!-- Scripts -->
   <script src="script.js"></script>
+  <script>
+    // Initialize Lucide icons
+    lucide.createIcons();
+  </script>
 </body>
 </html>
