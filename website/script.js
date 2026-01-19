@@ -385,6 +385,10 @@ function copyCode(btn) {
 
 // Initialize everything on DOM ready
 document.addEventListener('DOMContentLoaded', () => {
+  // Set current year in footer
+  const yearEl = document.getElementById('year');
+  if (yearEl) yearEl.textContent = new Date().getFullYear();
+
   // Trigger initial animations
   document.body.classList.add('loaded');
 

@@ -456,13 +456,14 @@
         <a href="../blog/">Blog</a>
       </div>
       <div class="footer-copy">
-        © 2025 flashQ. MIT License.
+        © <span id="year"></span> flashQ. MIT License.
       </div>
     </div>
   </footer>
   <script>
     const mobileMenuBtn = document.querySelector(".mobile-menu-btn");
     const mobileMenu = document.querySelector(".mobile-menu");
+    document.getElementById("year").textContent = new Date().getFullYear();
     mobileMenuBtn.addEventListener("click", () => {
       mobileMenuBtn.classList.toggle("active");
       mobileMenu.classList.toggle("active");
