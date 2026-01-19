@@ -27,6 +27,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
 
   <script type="application/ld+json">
   {
@@ -99,54 +100,54 @@
       <h3>1. Enable Authentication</h3>
       <p>Never run flashQ without authentication in production. Set the <code>AUTH_TOKENS</code> environment variable:</p>
 
-      <pre><code><span class="comment"># Single token</span>
+      <pre><code class="language-bash"># Single token
 AUTH_TOKENS=your-secure-token-here ./flashq-server
 
-<span class="comment"># Multiple tokens (comma-separated)</span>
+# Multiple tokens (comma-separated)
 AUTH_TOKENS=token1,token2,admin-token ./flashq-server</code></pre>
 
       <p>Generate secure tokens:</p>
-      <pre><code><span class="comment"># Generate a 32-character secure token</span>
+      <pre><code class="language-bash"># Generate a 32-character secure token
 openssl rand -hex 32</code></pre>
 
       <p>Client configuration:</p>
-      <pre><code><span class="keyword">import</span> { FlashQ } <span class="keyword">from</span> <span class="string">'flashq'</span>;
+      <pre><code class="language-javascript">import { FlashQ } from 'flashq';
 
-<span class="keyword">const</span> client = <span class="keyword">new</span> <span class="function">FlashQ</span>({
-  host: <span class="string">'your-server.com'</span>,
-  port: <span class="number">6789</span>,
-  token: process.env.FLASHQ_TOKEN <span class="comment">// Never hardcode tokens!</span>
+const client = new FlashQ({
+  host: 'your-server.com',
+  port: 6789,
+  token: process.env.FLASHQ_TOKEN // Never hardcode tokens!
 });</code></pre>
 
       <h3>2. Enable TLS/SSL Encryption</h3>
       <p>Encrypt all traffic between clients and server:</p>
 
-      <pre><code><span class="comment"># With certificate files</span>
+      <pre><code class="language-bash"># With certificate files
 TLS_CERT=/path/to/cert.pem TLS_KEY=/path/to/key.pem ./flashq-server
 
-<span class="comment"># Or use a reverse proxy (recommended)</span>
-<span class="comment"># nginx, Caddy, or cloud load balancer with TLS termination</span></code></pre>
+# Or use a reverse proxy (recommended)
+# nginx, Caddy, or cloud load balancer with TLS termination</code></pre>
 
       <p>Example Caddyfile for automatic HTTPS:</p>
-      <pre><code>flashq.yourdomain.com {
-    reverse_proxy localhost:6790  <span class="comment"># HTTP API</span>
+      <pre><code class="language-caddyfile">flashq.yourdomain.com {
+    reverse_proxy localhost:6790  # HTTP API
 }
 
 flashq-tcp.yourdomain.com {
-    reverse_proxy localhost:6789  <span class="comment"># TCP with TLS</span>
+    reverse_proxy localhost:6789  # TCP with TLS
 }</code></pre>
 
       <h3>3. Configure Network Security</h3>
       <p>Restrict access to flashQ ports:</p>
 
-      <pre><code><span class="comment"># Firewall rules (example with ufw)</span>
-ufw allow from 10.0.0.0/8 to any port 6789  <span class="comment"># TCP - internal only</span>
-ufw allow from 10.0.0.0/8 to any port 6790  <span class="comment"># HTTP - internal only</span>
+      <pre><code class="language-bash"># Firewall rules (example with ufw)
+ufw allow from 10.0.0.0/8 to any port 6789  # TCP - internal only
+ufw allow from 10.0.0.0/8 to any port 6790  # HTTP - internal only
 ufw deny 6789
 ufw deny 6790</code></pre>
 
       <p>For Kubernetes, use NetworkPolicies:</p>
-      <pre><code>apiVersion: networking.k8s.io/v1
+      <pre><code class="language-yaml">apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: flashq-policy
@@ -166,25 +167,25 @@ spec:
       <h3>4. Secure Webhook Signatures</h3>
       <p>If using webhooks, always configure HMAC signatures:</p>
 
-      <pre><code><span class="comment">// When setting up webhooks</span>
-<span class="keyword">await</span> client.<span class="function">push</span>(<span class="string">'orders'</span>, orderData, {
+      <pre><code class="language-javascript">// When setting up webhooks
+await client.push('orders', orderData, {
   webhook: {
-    url: <span class="string">'https://your-api.com/webhook'</span>,
-    secret: process.env.WEBHOOK_SECRET,  <span class="comment">// HMAC-SHA256 signature</span>
+    url: 'https://your-api.com/webhook',
+    secret: process.env.WEBHOOK_SECRET,  // HMAC-SHA256 signature
     headers: {
-      <span class="string">'X-Custom-Header'</span>: <span class="string">'value'</span>
+      'X-Custom-Header': 'value'
     }
   }
 });
 
-<span class="comment">// Verify webhook in your handler</span>
-<span class="keyword">import</span> { createHmac } <span class="keyword">from</span> <span class="string">'crypto'</span>;
+// Verify webhook in your handler
+import { createHmac } from 'crypto';
 
-<span class="keyword">function</span> <span class="function">verifyWebhook</span>(payload, signature, secret) {
-  <span class="keyword">const</span> expected = <span class="function">createHmac</span>(<span class="string">'sha256'</span>, secret)
-    .<span class="function">update</span>(payload)
-    .<span class="function">digest</span>(<span class="string">'hex'</span>);
-  <span class="keyword">return</span> signature === <span class="string">`sha256=</span>${expected}<span class="string">`</span>;
+function verifyWebhook(payload, signature, secret) {
+  const expected = createHmac('sha256', secret)
+    .update(payload)
+    .digest('hex');
+  return signature === `sha256=${expected}`;
 }</code></pre>
 
       <h2>Data Persistence</h2>
@@ -192,27 +193,27 @@ spec:
       <h3>5. Enable PostgreSQL Storage</h3>
       <p>In-memory mode loses all data on restart. Always use PostgreSQL in production:</p>
 
-      <pre><code><span class="comment"># Required for production</span>
+      <pre><code class="language-bash"># Required for production
 DATABASE_URL=postgres://user:password@localhost:5432/flashq ./flashq-server</code></pre>
 
       <p>PostgreSQL configuration recommendations:</p>
-      <pre><code><span class="comment">-- Recommended PostgreSQL settings for flashQ</span>
-<span class="keyword">ALTER SYSTEM SET</span> max_connections = <span class="number">200</span>;
-<span class="keyword">ALTER SYSTEM SET</span> shared_buffers = <span class="string">'256MB'</span>;
-<span class="keyword">ALTER SYSTEM SET</span> effective_cache_size = <span class="string">'1GB'</span>;
-<span class="keyword">ALTER SYSTEM SET</span> work_mem = <span class="string">'16MB'</span>;</code></pre>
+      <pre><code class="language-sql">-- Recommended PostgreSQL settings for flashQ
+ALTER SYSTEM SET max_connections = 200;
+ALTER SYSTEM SET shared_buffers = '256MB';
+ALTER SYSTEM SET effective_cache_size = '1GB';
+ALTER SYSTEM SET work_mem = '16MB';</code></pre>
 
       <h3>6. Configure Database Backups</h3>
       <p>Set up automated backups for your PostgreSQL database:</p>
 
-      <pre><code><span class="comment">#!/bin/bash</span>
-<span class="comment"># Daily backup script</span>
+      <pre><code class="language-bash">#!/bin/bash
+# Daily backup script
 DATE=$(date +%Y%m%d_%H%M%S)
 BACKUP_DIR=/var/backups/flashq
 
 pg_dump $DATABASE_URL | gzip > $BACKUP_DIR/flashq_$DATE.sql.gz
 
-<span class="comment"># Keep last 7 days</span>
+# Keep last 7 days
 find $BACKUP_DIR -name "*.sql.gz" -mtime +7 -delete</code></pre>
 
       <p>For cloud deployments, use managed backup solutions:</p>
@@ -225,10 +226,10 @@ find $BACKUP_DIR -name "*.sql.gz" -mtime +7 -delete</code></pre>
       <h3>7. Set Retention Policies</h3>
       <p>Configure how long to keep completed jobs and results:</p>
 
-      <pre><code><span class="comment">// Per-job retention</span>
-<span class="keyword">await</span> client.<span class="function">push</span>(<span class="string">'analytics'</span>, data, {
-  keepCompletedAge: <span class="number">86400000</span>,   <span class="comment">// Keep result for 24 hours</span>
-  keepCompletedCount: <span class="number">1000</span>      <span class="comment">// Or keep last 1000 results</span>
+      <pre><code class="language-javascript">// Per-job retention
+await client.push('analytics', data, {
+  keepCompletedAge: 86400000,   // Keep result for 24 hours
+  keepCompletedCount: 1000      // Or keep last 1000 results
 });</code></pre>
 
       <h2>Monitoring & Observability</h2>
@@ -236,15 +237,15 @@ find $BACKUP_DIR -name "*.sql.gz" -mtime +7 -delete</code></pre>
       <h3>8. Enable Prometheus Metrics</h3>
       <p>Enable the HTTP API to expose Prometheus metrics:</p>
 
-      <pre><code><span class="comment"># Enable HTTP API (includes /metrics/prometheus)</span>
+      <pre><code class="language-bash"># Enable HTTP API (includes /metrics/prometheus)
 HTTP=1 HTTP_PORT=6790 ./flashq-server</code></pre>
 
       <p>Prometheus scrape configuration:</p>
-      <pre><code><span class="comment"># prometheus.yml</span>
+      <pre><code class="language-yaml"># prometheus.yml
 scrape_configs:
-  - job_name: <span class="string">'flashq'</span>
+  - job_name: 'flashq'
     static_configs:
-      - targets: [<span class="string">'flashq-server:6790'</span>]
+      - targets: ['flashq-server:6790']
     metrics_path: /metrics/prometheus
     scrape_interval: 15s</code></pre>
 
@@ -259,30 +260,30 @@ scrape_configs:
       <h3>9. Set Up Alerting</h3>
       <p>Configure alerts for critical conditions:</p>
 
-      <pre><code><span class="comment"># alerting_rules.yml</span>
+      <pre><code class="language-yaml"># alerting_rules.yml
 groups:
   - name: flashq
     rules:
       - alert: FlashQHighDLQ
-        expr: flashq_jobs_failed > <span class="number">100</span>
+        expr: flashq_jobs_failed > 100
         for: 5m
         labels:
           severity: warning
         annotations:
-          summary: <span class="string">"High number of failed jobs in DLQ"</span>
+          summary: "High number of failed jobs in DLQ"
 
       - alert: FlashQProcessingStuck
-        expr: flashq_jobs_processing > <span class="number">0</span> and rate(flashq_jobs_completed[5m]) == <span class="number">0</span>
+        expr: flashq_jobs_processing > 0 and rate(flashq_jobs_completed[5m]) == 0
         for: 10m
         labels:
           severity: critical
         annotations:
-          summary: <span class="string">"Jobs are stuck in processing"</span></code></pre>
+          summary: "Jobs are stuck in processing"</code></pre>
 
       <h3>10. Configure Health Checks</h3>
       <p>Set up health checks for your orchestration platform:</p>
 
-      <pre><code><span class="comment"># Kubernetes deployment</span>
+      <pre><code class="language-yaml"># Kubernetes deployment
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -296,41 +297,41 @@ spec:
           livenessProbe:
             httpGet:
               path: /health
-              port: <span class="number">6790</span>
-            initialDelaySeconds: <span class="number">10</span>
-            periodSeconds: <span class="number">10</span>
+              port: 6790
+            initialDelaySeconds: 10
+            periodSeconds: 10
           readinessProbe:
             httpGet:
               path: /health
-              port: <span class="number">6790</span>
-            initialDelaySeconds: <span class="number">5</span>
-            periodSeconds: <span class="number">5</span></code></pre>
+              port: 6790
+            initialDelaySeconds: 5
+            periodSeconds: 5</code></pre>
 
       <h2>Performance Optimization</h2>
 
       <h3>11. Configure Worker Concurrency</h3>
       <p>Set appropriate concurrency limits based on your workload:</p>
 
-      <pre><code><span class="comment">// For CPU-bound tasks (e.g., image processing)</span>
-<span class="keyword">const</span> worker = <span class="keyword">new</span> <span class="function">Worker</span>(<span class="string">'cpu-tasks'</span>, processor, {
-  concurrency: <span class="number">4</span>  <span class="comment">// Match CPU cores</span>
+      <pre><code class="language-javascript">// For CPU-bound tasks (e.g., image processing)
+const worker = new Worker('cpu-tasks', processor, {
+  concurrency: 4  // Match CPU cores
 });
 
-<span class="comment">// For I/O-bound tasks (e.g., API calls)</span>
-<span class="keyword">const</span> worker = <span class="keyword">new</span> <span class="function">Worker</span>(<span class="string">'api-calls'</span>, processor, {
-  concurrency: <span class="number">20</span>  <span class="comment">// Higher for I/O</span>
+// For I/O-bound tasks (e.g., API calls)
+const worker = new Worker('api-calls', processor, {
+  concurrency: 20  // Higher for I/O
 });
 
-<span class="comment">// For rate-limited APIs (e.g., OpenAI)</span>
-<span class="keyword">await</span> client.<span class="function">setRateLimit</span>(<span class="string">'openai'</span>, { max: <span class="number">50</span>, window: <span class="number">60000</span> });</code></pre>
+// For rate-limited APIs (e.g., OpenAI)
+await client.setRateLimit('openai', { max: 50, window: 60000 });</code></pre>
 
       <h3>12. Enable Binary Protocol</h3>
       <p>Use MessagePack binary protocol for 40% smaller payloads:</p>
 
-      <pre><code><span class="keyword">const</span> client = <span class="keyword">new</span> <span class="function">FlashQ</span>({
-  host: <span class="string">'flashq-server'</span>,
-  port: <span class="number">6789</span>,
-  useBinary: <span class="keyword">true</span>  <span class="comment">// Enable MessagePack</span>
+      <pre><code class="language-javascript">const client = new FlashQ({
+  host: 'flashq-server',
+  port: 6789,
+  useBinary: true  // Enable MessagePack
 });</code></pre>
 
       <p>Benefits:</p>
@@ -343,14 +344,14 @@ spec:
       <h3>13. Optimize Job Payloads</h3>
       <p>Keep job payloads small and reference external data:</p>
 
-      <pre><code><span class="comment">// BAD: Large payload</span>
-<span class="keyword">await</span> client.<span class="function">push</span>(<span class="string">'process'</span>, {
-  document: largeBase64Document,  <span class="comment">// 5MB in job</span>
+      <pre><code class="language-javascript">// BAD: Large payload
+await client.push('process', {
+  document: largeBase64Document,  // 5MB in job
 });
 
-<span class="comment">// GOOD: Reference external storage</span>
-<span class="keyword">await</span> client.<span class="function">push</span>(<span class="string">'process'</span>, {
-  documentUrl: <span class="string">'s3://bucket/doc.pdf'</span>,  <span class="comment">// URL reference</span>
+// GOOD: Reference external storage
+await client.push('process', {
+  documentUrl: 's3://bucket/doc.pdf',  // URL reference
 });</code></pre>
 
       <h2>Resilience & High Availability</h2>
@@ -358,29 +359,29 @@ spec:
       <h3>14. Configure Retry Policies</h3>
       <p>Set appropriate retry and backoff settings:</p>
 
-      <pre><code><span class="keyword">await</span> client.<span class="function">push</span>(<span class="string">'critical-task'</span>, data, {
-  max_attempts: <span class="number">5</span>,           <span class="comment">// Retry up to 5 times</span>
-  backoff: <span class="number">1000</span>,             <span class="comment">// Start with 1s backoff</span>
-  timeout: <span class="number">30000</span>,            <span class="comment">// 30s processing timeout</span>
-  stall_timeout: <span class="number">60000</span>       <span class="comment">// 60s stall detection</span>
+      <pre><code class="language-javascript">await client.push('critical-task', data, {
+  max_attempts: 5,           // Retry up to 5 times
+  backoff: 1000,             // Start with 1s backoff
+  timeout: 30000,            // 30s processing timeout
+  stall_timeout: 60000       // 60s stall detection
 });
 
-<span class="comment">// Exponential backoff: 1s, 2s, 4s, 8s, 16s</span></code></pre>
+// Exponential backoff: 1s, 2s, 4s, 8s, 16s</code></pre>
 
       <h3>15. Enable Clustering (High Availability)</h3>
       <p>For high availability, deploy multiple flashQ nodes:</p>
 
-      <pre><code><span class="comment"># Node 1 (will become leader)</span>
+      <pre><code class="language-bash"># Node 1 (will become leader)
 CLUSTER_MODE=1 NODE_ID=node-1 DATABASE_URL=postgres://... ./flashq-server
 
-<span class="comment"># Node 2 (follower, automatic failover)</span>
+# Node 2 (follower, automatic failover)
 CLUSTER_MODE=1 NODE_ID=node-2 DATABASE_URL=postgres://... ./flashq-server
 
-<span class="comment"># Node 3 (follower)</span>
+# Node 3 (follower)
 CLUSTER_MODE=1 NODE_ID=node-3 DATABASE_URL=postgres://... ./flashq-server</code></pre>
 
       <p>Load balancer configuration:</p>
-      <pre><code><span class="comment"># nginx.conf</span>
+      <pre><code class="language-nginx"># nginx.conf
 upstream flashq {
     server node1:6789;
     server node2:6793;
@@ -443,7 +444,7 @@ server {
 
       <h2>Final Production Command</h2>
 
-      <pre><code><span class="comment"># Complete production startup</span>
+      <pre><code class="language-bash"># Complete production startup
 DATABASE_URL=postgres://user:pass@db:5432/flashq \
 AUTH_TOKENS=your-secure-token \
 HTTP=1 \
@@ -485,6 +486,8 @@ NODE_ID=node-1 \
     </div>
   </footer>
 
-  <script src="script.js"></script>
+  <script src="../script.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script>hljs.highlightAll();</script>
 </body>
 </html>
