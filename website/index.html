@@ -232,19 +232,19 @@
             <span class="terminal-title">ai-pipeline.ts</span>
           </div>
           <div class="terminal-content">
-            <code>// Same BullMQ API you already know</span>
-import</span> { Queue, Worker } from</span> 'flashq'</span>;
+            <pre><code class="language-typescript">// Same BullMQ API you already know
+import { Queue, Worker } from 'flashq';
 
-const</span> queue</span> = new</span> Queue</span>('ai-pipeline'</span>);
+const queue = new Queue('ai-pipeline');
 
-// Push job with dependencies</span>
-const</span> embed</span> = await</span> queue.add</span>('embed'</span>, { text });
-const</span> generate</span> = await</span> queue.add</span>('generate'</span>, { prompt }, {
-  depends_on</span>: [embed.id]
+// Push job with dependencies
+const embed = await queue.add('embed', { text });
+const generate = await queue.add('generate', { prompt }, {
+  depends_on: [embed.id]
 });
 
-// Wait for result</span>
-const</span> result</span> = await</span> queue.finished</span>(generate.id);</code>
+// Wait for result
+const result = await queue.finished(generate.id);</code></pre>
           </div>
         </div>
       </div>

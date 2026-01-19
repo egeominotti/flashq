@@ -515,7 +515,7 @@ h1 .highlight::after {
 }
 
 .terminal-content {
-  padding: 28px 32px;
+  padding: 0;
   font-family: 'JetBrains Mono', monospace;
   font-size: 0.95rem;
   line-height: 2;
@@ -524,19 +524,42 @@ h1 .highlight::after {
   background: #0a0a0c;
 }
 
+.terminal-content pre {
+  margin: 0;
+  padding: 28px 32px;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+}
+
 .terminal-content code {
   display: block;
   white-space: pre;
   color: #e4e4e7;
   text-align: left;
+  font-size: 0.95rem;
+  line-height: 2;
 }
 
-.terminal-content .comment { color: #6b7280; font-style: italic; }
-.terminal-content .keyword { color: #c084fc; font-weight: 500; }
-.terminal-content .string { color: #4ade80; }
-.terminal-content .function { color: #60a5fa; font-weight: 500; }
-.terminal-content .variable { color: #fbbf24; }
-.terminal-content .operator { color: #94a3b8; }
+/* Highlight.js overrides */
+.hljs {
+  background: transparent !important;
+  padding: 0 !important;
+}
+
+.hljs-keyword,
+.hljs-built_in { color: #c084fc; font-weight: 500; }
+.hljs-string { color: #4ade80; }
+.hljs-comment { color: #6b7280; font-style: italic; }
+.hljs-function,
+.hljs-title.function_ { color: #60a5fa; font-weight: 500; }
+.hljs-variable,
+.hljs-params { color: #fbbf24; }
+.hljs-number { color: #f472b6; }
+.hljs-property,
+.hljs-attr { color: #fb923c; }
+.hljs-literal { color: #f472b6; }
+.hljs-type { color: #22d3ee; }
 
 /* Sections */
 section {
