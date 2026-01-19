@@ -111,7 +111,7 @@ AUTH_TOKENS=token1,token2,admin-token ./flashq-server</code></pre>
 openssl rand -hex 32</code></pre>
 
       <p>Client configuration:</p>
-      <pre><code class="language-javascript">import { FlashQ } from 'flashq';
+      <pre><code class="language-typescript">import { FlashQ } from 'flashq';
 
 const client = new FlashQ({
   host: 'your-server.com',
@@ -129,7 +129,7 @@ TLS_CERT=/path/to/cert.pem TLS_KEY=/path/to/key.pem ./flashq-server
 # nginx, Caddy, or cloud load balancer with TLS termination</code></pre>
 
       <p>Example Caddyfile for automatic HTTPS:</p>
-      <pre><code class="language-caddyfile">flashq.yourdomain.com {
+      <pre><code class="language-typescript">flashq.yourdomain.com {
     reverse_proxy localhost:6790  # HTTP API
 }
 
@@ -167,7 +167,7 @@ spec:
       <h3>4. Secure Webhook Signatures</h3>
       <p>If using webhooks, always configure HMAC signatures:</p>
 
-      <pre><code class="language-javascript">// When setting up webhooks
+      <pre><code class="language-typescript">// When setting up webhooks
 await client.push('orders', orderData, {
   webhook: {
     url: 'https://your-api.com/webhook',
@@ -197,7 +197,7 @@ function verifyWebhook(payload, signature, secret) {
 DATABASE_URL=postgres://user:password@localhost:5432/flashq ./flashq-server</code></pre>
 
       <p>PostgreSQL configuration recommendations:</p>
-      <pre><code class="language-sql">-- Recommended PostgreSQL settings for flashQ
+      <pre><code class="language-typescript">-- Recommended PostgreSQL settings for flashQ
 ALTER SYSTEM SET max_connections = 200;
 ALTER SYSTEM SET shared_buffers = '256MB';
 ALTER SYSTEM SET effective_cache_size = '1GB';
@@ -226,7 +226,7 @@ find $BACKUP_DIR -name "*.sql.gz" -mtime +7 -delete</code></pre>
       <h3>7. Set Retention Policies</h3>
       <p>Configure how long to keep completed jobs and results:</p>
 
-      <pre><code class="language-javascript">// Per-job retention
+      <pre><code class="language-typescript">// Per-job retention
 await client.push('analytics', data, {
   keepCompletedAge: 86400000,   // Keep result for 24 hours
   keepCompletedCount: 1000      // Or keep last 1000 results
@@ -241,7 +241,7 @@ await client.push('analytics', data, {
 HTTP=1 HTTP_PORT=6790 ./flashq-server</code></pre>
 
       <p>Prometheus scrape configuration:</p>
-      <pre><code class="language-yaml"># prometheus.yml
+      <pre><code class="language-bash"># prometheus.yml
 scrape_configs:
   - job_name: 'flashq'
     static_configs:
@@ -260,7 +260,7 @@ scrape_configs:
       <h3>9. Set Up Alerting</h3>
       <p>Configure alerts for critical conditions:</p>
 
-      <pre><code class="language-yaml"># alerting_rules.yml
+      <pre><code class="language-bash"># alerting_rules.yml
 groups:
   - name: flashq
     rules:
@@ -283,7 +283,7 @@ groups:
       <h3>10. Configure Health Checks</h3>
       <p>Set up health checks for your orchestration platform:</p>
 
-      <pre><code class="language-yaml"># Kubernetes deployment
+      <pre><code class="language-bash"># Kubernetes deployment
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -312,7 +312,7 @@ spec:
       <h3>11. Configure Worker Concurrency</h3>
       <p>Set appropriate concurrency limits based on your workload:</p>
 
-      <pre><code class="language-javascript">// For CPU-bound tasks (e.g., image processing)
+      <pre><code class="language-typescript">// For CPU-bound tasks (e.g., image processing)
 const worker = new Worker('cpu-tasks', processor, {
   concurrency: 4  // Match CPU cores
 });
@@ -328,7 +328,7 @@ await client.setRateLimit('openai', { max: 50, window: 60000 });</code></pre>
       <h3>12. Enable Binary Protocol</h3>
       <p>Use MessagePack binary protocol for 40% smaller payloads:</p>
 
-      <pre><code class="language-javascript">const client = new FlashQ({
+      <pre><code class="language-typescript">const client = new FlashQ({
   host: 'flashq-server',
   port: 6789,
   useBinary: true  // Enable MessagePack
@@ -344,7 +344,7 @@ await client.setRateLimit('openai', { max: 50, window: 60000 });</code></pre>
       <h3>13. Optimize Job Payloads</h3>
       <p>Keep job payloads small and reference external data:</p>
 
-      <pre><code class="language-javascript">// BAD: Large payload
+      <pre><code class="language-typescript">// BAD: Large payload
 await client.push('process', {
   document: largeBase64Document,  // 5MB in job
 });
@@ -359,7 +359,7 @@ await client.push('process', {
       <h3>14. Configure Retry Policies</h3>
       <p>Set appropriate retry and backoff settings:</p>
 
-      <pre><code class="language-javascript">await client.push('critical-task', data, {
+      <pre><code class="language-typescript">await client.push('critical-task', data, {
   max_attempts: 5,           // Retry up to 5 times
   backoff: 1000,             // Start with 1s backoff
   timeout: 30000,            // 30s processing timeout
@@ -381,7 +381,7 @@ CLUSTER_MODE=1 NODE_ID=node-2 DATABASE_URL=postgres://... ./flashq-server
 CLUSTER_MODE=1 NODE_ID=node-3 DATABASE_URL=postgres://... ./flashq-server</code></pre>
 
       <p>Load balancer configuration:</p>
-      <pre><code class="language-nginx"># nginx.conf
+      <pre><code class="language-bash"># nginx.conf
 upstream flashq {
     server node1:6789;
     server node2:6793;

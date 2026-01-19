@@ -54,6 +54,13 @@
     ]
   }
   </script>
+  <!-- Highlight.js -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/typescript.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/bash.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/yaml.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/json.min.js"></script>
 </head>
 <body>
   <nav>
@@ -110,7 +117,7 @@
 
       <h2 id="solution">The flashQ Solution</h2>
 
-      <pre><code>┌──────────────┐     ┌──────────────┐     ┌──────────────┐
+      <pre><code class="language-plaintext">┌──────────────┐     ┌──────────────┐     ┌──────────────┐
 │   Webhook    │     │    flashQ    │     │   Worker     │
 │   Provider   │────▶│   (Enqueue)  │────▶│  (Process)   │
 │              │     │   < 100ms    │     │   Async      │
@@ -121,148 +128,148 @@
 
       <h2 id="stripe">Handling Stripe Webhooks</h2>
 
-      <pre><code><span class="comment">// app/api/webhooks/stripe/route.ts</span>
-<span class="keyword">import</span> { NextRequest, NextResponse } <span class="keyword">from</span> <span class="string">'next/server'</span>;
-<span class="keyword">import</span> Stripe <span class="keyword">from</span> <span class="string">'stripe'</span>;
-<span class="keyword">import</span> { Queue } <span class="keyword">from</span> <span class="string">'flashq'</span>;
+      <pre><code class="language-typescript">// app/api/webhooks/stripe/route.ts
+import { NextRequest, NextResponse } from 'next/server';
+import Stripe from 'stripe';
+import { Queue } from 'flashq';
 
-<span class="keyword">const</span> <span class="variable">stripe</span> = <span class="keyword">new</span> <span class="function">Stripe</span>(process.env.STRIPE_SECRET_KEY!);
-<span class="keyword">const</span> <span class="variable">queue</span> = <span class="keyword">new</span> <span class="function">Queue</span>(<span class="string">'stripe-webhooks'</span>, { useHttp: <span class="keyword">true</span> });
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+const queue = new Queue('stripe-webhooks', { useHttp: true });
 
-<span class="keyword">export</span> <span class="keyword">async</span> <span class="keyword">function</span> <span class="function">POST</span>(request: NextRequest) {
-  <span class="keyword">const</span> <span class="variable">body</span> = <span class="keyword">await</span> request.<span class="function">text</span>();
-  <span class="keyword">const</span> <span class="variable">signature</span> = request.headers.<span class="function">get</span>(<span class="string">'stripe-signature'</span>)!;
+export async function POST(request: NextRequest) {
+  const body = await request.text();
+  const signature = request.headers.get('stripe-signature')!;
 
-  <span class="comment">// Verify webhook signature</span>
-  <span class="keyword">let</span> event: Stripe.Event;
-  <span class="keyword">try</span> {
-    event = stripe.webhooks.<span class="function">constructEvent</span>(
+  // Verify webhook signature
+  let event: Stripe.Event;
+  try {
+    event = stripe.webhooks.constructEvent(
       body,
       signature,
       process.env.STRIPE_WEBHOOK_SECRET!
     );
-  } <span class="keyword">catch</span> (err) {
-    <span class="keyword">return</span> NextResponse.<span class="function">json</span>({ error: <span class="string">'Invalid signature'</span> }, { status: <span class="number">400</span> });
+  } catch (err) {
+    return NextResponse.json({ error: 'Invalid signature' }, { status: 400 });
   }
 
-  <span class="comment">// Enqueue for async processing (fast response to Stripe)</span>
-  <span class="keyword">await</span> queue.<span class="function">add</span>(event.type, event, {
-    jobId: event.id,  <span class="comment">// Idempotency - prevents duplicate processing</span>
+  // Enqueue for async processing (fast response to Stripe)
+  await queue.add(event.type, event, {
+    jobId: event.id,  // Idempotency - prevents duplicate processing
   });
 
-  <span class="comment">// Respond immediately (< 100ms)</span>
-  <span class="keyword">return</span> NextResponse.<span class="function">json</span>({ received: <span class="keyword">true</span> });
+  // Respond immediately (< 100ms)
+  return NextResponse.json({ received: true });
 }</code></pre>
 
       <h3>Stripe Worker</h3>
 
-      <pre><code><span class="comment">// workers/stripe.ts</span>
-<span class="keyword">import</span> { Worker } <span class="keyword">from</span> <span class="string">'flashq'</span>;
+      <pre><code class="language-typescript">// workers/stripe.ts
+import { Worker } from 'flashq';
 
-<span class="keyword">new</span> <span class="function">Worker</span>(<span class="string">'stripe-webhooks'</span>, <span class="keyword">async</span> (job) => {
-  <span class="keyword">const</span> <span class="variable">event</span> = job.data;
+new Worker('stripe-webhooks', async (job) => {
+  const event = job.data;
 
-  <span class="keyword">switch</span> (event.type) {
-    <span class="keyword">case</span> <span class="string">'checkout.session.completed'</span>:
-      <span class="keyword">await</span> <span class="function">handleCheckoutComplete</span>(event.data.object);
-      <span class="keyword">break</span>;
+  switch (event.type) {
+    case 'checkout.session.completed':
+      await handleCheckoutComplete(event.data.object);
+      break;
 
-    <span class="keyword">case</span> <span class="string">'invoice.paid'</span>:
-      <span class="keyword">await</span> <span class="function">handleInvoicePaid</span>(event.data.object);
-      <span class="keyword">break</span>;
+    case 'invoice.paid':
+      await handleInvoicePaid(event.data.object);
+      break;
 
-    <span class="keyword">case</span> <span class="string">'customer.subscription.deleted'</span>:
-      <span class="keyword">await</span> <span class="function">handleSubscriptionCanceled</span>(event.data.object);
-      <span class="keyword">break</span>;
+    case 'customer.subscription.deleted':
+      await handleSubscriptionCanceled(event.data.object);
+      break;
 
-    <span class="keyword">default</span>:
-      console.<span class="function">log</span>(<span class="string">`Unhandled event: ${event.type}`</span>);
+    default:
+      console.log(`Unhandled event: ${event.type}`);
   }
 }, {
-  concurrency: <span class="number">10</span>,
+  concurrency: 10,
 });
 
-<span class="keyword">async</span> <span class="keyword">function</span> <span class="function">handleCheckoutComplete</span>(session) {
-  <span class="comment">// Create user account</span>
-  <span class="keyword">await</span> db.users.<span class="function">create</span>({
+async function handleCheckoutComplete(session) {
+  // Create user account
+  await db.users.create({
     email: session.customer_email,
     stripeCustomerId: session.customer,
   });
 
-  <span class="comment">// Send welcome email</span>
-  <span class="keyword">await</span> emailQueue.<span class="function">add</span>(<span class="string">'welcome'</span>, {
+  // Send welcome email
+  await emailQueue.add('welcome', {
     to: session.customer_email,
   });
 }</code></pre>
 
       <h2 id="github">GitHub Webhooks</h2>
 
-      <pre><code><span class="comment">// app/api/webhooks/github/route.ts</span>
-<span class="keyword">import</span> crypto <span class="keyword">from</span> <span class="string">'crypto'</span>;
+      <pre><code class="language-typescript">// app/api/webhooks/github/route.ts
+import crypto from 'crypto';
 
-<span class="keyword">export</span> <span class="keyword">async</span> <span class="keyword">function</span> <span class="function">POST</span>(request: NextRequest) {
-  <span class="keyword">const</span> <span class="variable">body</span> = <span class="keyword">await</span> request.<span class="function">text</span>();
-  <span class="keyword">const</span> <span class="variable">signature</span> = request.headers.<span class="function">get</span>(<span class="string">'x-hub-signature-256'</span>);
-  <span class="keyword">const</span> <span class="variable">event</span> = request.headers.<span class="function">get</span>(<span class="string">'x-github-event'</span>);
-  <span class="keyword">const</span> <span class="variable">deliveryId</span> = request.headers.<span class="function">get</span>(<span class="string">'x-github-delivery'</span>);
+export async function POST(request: NextRequest) {
+  const body = await request.text();
+  const signature = request.headers.get('x-hub-signature-256');
+  const event = request.headers.get('x-github-event');
+  const deliveryId = request.headers.get('x-github-delivery');
 
-  <span class="comment">// Verify signature</span>
-  <span class="keyword">const</span> <span class="variable">expected</span> = <span class="string">`sha256=${crypto
+  // Verify signature
+  const expected = `sha256=${crypto
     .createHmac('sha256', process.env.GITHUB_WEBHOOK_SECRET!)
     .update(body)
-    .digest('hex')}`</span>;
+    .digest('hex')}`;
 
-  <span class="keyword">if</span> (signature !== expected) {
-    <span class="keyword">return</span> NextResponse.<span class="function">json</span>({ error: <span class="string">'Invalid signature'</span> }, { status: <span class="number">401</span> });
+  if (signature !== expected) {
+    return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
   }
 
-  <span class="comment">// Enqueue</span>
-  <span class="keyword">await</span> queue.<span class="function">add</span>(event!, JSON.<span class="function">parse</span>(body), {
-    jobId: deliveryId!,  <span class="comment">// Idempotency</span>
+  // Enqueue
+  await queue.add(event!, JSON.parse(body), {
+    jobId: deliveryId!,  // Idempotency
   });
 
-  <span class="keyword">return</span> NextResponse.<span class="function">json</span>({ received: <span class="keyword">true</span> });
+  return NextResponse.json({ received: true });
 }</code></pre>
 
       <h2 id="outgoing">Sending Outgoing Webhooks</h2>
 
       <p>flashQ can also send webhooks to your users:</p>
 
-      <pre><code><span class="comment">// Send webhook when job completes</span>
-worker.<span class="function">on</span>(<span class="string">'completed'</span>, <span class="keyword">async</span> (job, result) => {
-  <span class="keyword">if</span> (job.data.webhookUrl) {
-    <span class="keyword">await</span> webhookQueue.<span class="function">add</span>(<span class="string">'send'</span>, {
+      <pre><code class="language-typescript">// Send webhook when job completes
+worker.on('completed', async (job, result) => {
+  if (job.data.webhookUrl) {
+    await webhookQueue.add('send', {
       url: job.data.webhookUrl,
-      event: <span class="string">'job.completed'</span>,
+      event: 'job.completed',
       payload: { jobId: job.id, result },
     }, {
-      attempts: <span class="number">5</span>,
-      backoff: { type: <span class="string">'exponential'</span>, delay: <span class="number">1000</span> },
+      attempts: 5,
+      backoff: { type: 'exponential', delay: 1000 },
     });
   }
 });
 
-<span class="comment">// Webhook sender worker</span>
-<span class="keyword">new</span> <span class="function">Worker</span>(<span class="string">'outgoing-webhooks'</span>, <span class="keyword">async</span> (job) => {
-  <span class="keyword">const</span> { url, event, payload } = job.data;
+// Webhook sender worker
+new Worker('outgoing-webhooks', async (job) => {
+  const { url, event, payload } = job.data;
 
-  <span class="keyword">const</span> <span class="variable">signature</span> = crypto
-    .<span class="function">createHmac</span>(<span class="string">'sha256'</span>, process.env.WEBHOOK_SECRET!)
-    .<span class="function">update</span>(JSON.<span class="function">stringify</span>(payload))
-    .<span class="function">digest</span>(<span class="string">'hex'</span>);
+  const signature = crypto
+    .createHmac('sha256', process.env.WEBHOOK_SECRET!)
+    .update(JSON.stringify(payload))
+    .digest('hex');
 
-  <span class="keyword">const</span> <span class="variable">response</span> = <span class="keyword">await</span> <span class="function">fetch</span>(url, {
-    method: <span class="string">'POST'</span>,
+  const response = await fetch(url, {
+    method: 'POST',
     headers: {
-      <span class="string">'Content-Type'</span>: <span class="string">'application/json'</span>,
-      <span class="string">'X-Webhook-Signature'</span>: signature,
-      <span class="string">'X-Webhook-Event'</span>: event,
+      'Content-Type': 'application/json',
+      'X-Webhook-Signature': signature,
+      'X-Webhook-Event': event,
     },
-    body: JSON.<span class="function">stringify</span>(payload),
+    body: JSON.stringify(payload),
   });
 
-  <span class="keyword">if</span> (!response.ok) {
-    <span class="keyword">throw</span> <span class="keyword">new</span> <span class="function">Error</span>(<span class="string">`Webhook failed: ${response.status}`</span>);
+  if (!response.ok) {
+    throw new Error(`Webhook failed: ${response.status}`);
   }
 });</code></pre>
 
@@ -270,41 +277,41 @@ worker.<span class="function">on</span>(<span class="string">'completed'</span>,
 
       <h3>Fan-Out Pattern</h3>
 
-      <pre><code><span class="comment">// One event triggers multiple actions</span>
-<span class="keyword">new</span> <span class="function">Worker</span>(<span class="string">'events'</span>, <span class="keyword">async</span> (job) => {
-  <span class="keyword">if</span> (job.name === <span class="string">'user.created'</span>) {
-    <span class="comment">// Fan out to multiple queues</span>
-    <span class="keyword">await</span> Promise.<span class="function">all</span>([
-      emailQueue.<span class="function">add</span>(<span class="string">'welcome'</span>, job.data),
-      analyticsQueue.<span class="function">add</span>(<span class="string">'track'</span>, { event: <span class="string">'signup'</span>, ...job.data }),
-      slackQueue.<span class="function">add</span>(<span class="string">'notify'</span>, { message: <span class="string">`New user: ${job.data.email}`</span> }),
+      <pre><code class="language-typescript">// One event triggers multiple actions
+new Worker('events', async (job) => {
+  if (job.name === 'user.created') {
+    // Fan out to multiple queues
+    await Promise.all([
+      emailQueue.add('welcome', job.data),
+      analyticsQueue.add('track', { event: 'signup', ...job.data }),
+      slackQueue.add('notify', { message: `New user: ${job.data.email}` }),
     ]);
   }
 });</code></pre>
 
       <h3>Saga Pattern</h3>
 
-      <pre><code><span class="comment">// Multi-step workflow with compensation</span>
-<span class="keyword">async</span> <span class="keyword">function</span> <span class="function">processOrder</span>(orderId) {
-  <span class="keyword">const</span> <span class="variable">steps</span> = [];
+      <pre><code class="language-typescript">// Multi-step workflow with compensation
+async function processOrder(orderId) {
+  const steps = [];
 
-  <span class="keyword">try</span> {
-    <span class="comment">// Step 1: Reserve inventory</span>
-    steps.<span class="function">push</span>(<span class="keyword">await</span> inventoryQueue.<span class="function">add</span>(<span class="string">'reserve'</span>, { orderId }));
-    <span class="keyword">await</span> queue.<span class="function">finished</span>(steps[<span class="number">0</span>].id);
+  try {
+    // Step 1: Reserve inventory
+    steps.push(await inventoryQueue.add('reserve', { orderId }));
+    await queue.finished(steps[0].id);
 
-    <span class="comment">// Step 2: Process payment</span>
-    steps.<span class="function">push</span>(<span class="keyword">await</span> paymentQueue.<span class="function">add</span>(<span class="string">'charge'</span>, { orderId }));
-    <span class="keyword">await</span> queue.<span class="function">finished</span>(steps[<span class="number">1</span>].id);
+    // Step 2: Process payment
+    steps.push(await paymentQueue.add('charge', { orderId }));
+    await queue.finished(steps[1].id);
 
-    <span class="comment">// Step 3: Ship order</span>
-    steps.<span class="function">push</span>(<span class="keyword">await</span> shippingQueue.<span class="function">add</span>(<span class="string">'ship'</span>, { orderId }));
-    <span class="keyword">await</span> queue.<span class="function">finished</span>(steps[<span class="number">2</span>].id);
+    // Step 3: Ship order
+    steps.push(await shippingQueue.add('ship', { orderId }));
+    await queue.finished(steps[2].id);
 
-  } <span class="keyword">catch</span> (error) {
-    <span class="comment">// Compensation: rollback in reverse order</span>
-    <span class="keyword">for</span> (<span class="keyword">const</span> step <span class="keyword">of</span> steps.<span class="function">reverse</span>()) {
-      <span class="keyword">await</span> queue.<span class="function">add</span>(<span class="string">'compensate'</span>, { stepId: step.id });
+  } catch (error) {
+    // Compensation: rollback in reverse order
+    for (const step of steps.reverse()) {
+      await queue.add('compensate', { stepId: step.id });
     }
   }
 }</code></pre>
@@ -387,5 +394,6 @@ worker.<span class="function">on</span>(<span class="string">'completed'</span>,
     function closeSearch(e) { if (e?.target === document.getElementById('searchOverlay')) document.getElementById('searchOverlay').classList.remove('active'); }
     document.addEventListener('keydown', e => { if ((e.metaKey||e.ctrlKey) && e.key==='k') { e.preventDefault(); openSearch(); } if (e.key==='Escape') closeSearch({target:document.getElementById('searchOverlay')}); });
   </script>
+  <script>hljs.highlightAll();</script>
 </body>
 </html>

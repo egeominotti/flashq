@@ -232,19 +232,19 @@
             <span class="terminal-title">ai-pipeline.ts</span>
           </div>
           <div class="terminal-content">
-            <code><span class="comment">// Same BullMQ API you already know</span>
-<span class="keyword">import</span> { Queue, Worker } <span class="keyword">from</span> <span class="string">'flashq'</span>;
+            <code>// Same BullMQ API you already know</span>
+import</span> { Queue, Worker } from</span> 'flashq'</span>;
 
-<span class="keyword">const</span> <span class="variable">queue</span> = <span class="keyword">new</span> <span class="function">Queue</span>(<span class="string">'ai-pipeline'</span>);
+const</span> queue</span> = new</span> Queue</span>('ai-pipeline'</span>);
 
-<span class="comment">// Push job with dependencies</span>
-<span class="keyword">const</span> <span class="variable">embed</span> = <span class="keyword">await</span> queue.<span class="function">add</span>(<span class="string">'embed'</span>, { text });
-<span class="keyword">const</span> <span class="variable">generate</span> = <span class="keyword">await</span> queue.<span class="function">add</span>(<span class="string">'generate'</span>, { prompt }, {
-  <span class="variable">depends_on</span>: [embed.id]
+// Push job with dependencies</span>
+const</span> embed</span> = await</span> queue.add</span>('embed'</span>, { text });
+const</span> generate</span> = await</span> queue.add</span>('generate'</span>, { prompt }, {
+  depends_on</span>: [embed.id]
 });
 
-<span class="comment">// Wait for result</span>
-<span class="keyword">const</span> <span class="variable">result</span> = <span class="keyword">await</span> queue.<span class="function">finished</span>(generate.id);</code>
+// Wait for result</span>
+const</span> result</span> = await</span> queue.finished</span>(generate.id);</code>
           </div>
         </div>
       </div>

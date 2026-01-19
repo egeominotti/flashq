@@ -55,6 +55,13 @@
     ]
   }
   </script>
+  <!-- Highlight.js -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/typescript.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/bash.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/yaml.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/json.min.js"></script>
 </head>
 <body>
   <nav>
@@ -108,23 +115,23 @@
 
       <h2 id="project-setup">Project Setup</h2>
 
-      <pre><code><span class="comment"># Install test dependencies</span>
+      <pre><code class="language-bash"># Install test dependencies
 npm install -D vitest @vitest/coverage-v8 msw testcontainers</code></pre>
 
-      <pre><code><span class="comment">// vitest.config.ts</span>
-<span class="keyword">import</span> { defineConfig } <span class="keyword">from</span> <span class="string">'vitest/config'</span>;
+      <pre><code class="language-typescript">// vitest.config.ts
+import { defineConfig } from 'vitest/config';
 
-<span class="keyword">export default</span> defineConfig({
+export default defineConfig({
   test: {
-    globals: <span class="literal">true</span>,
-    environment: <span class="string">'node'</span>,
+    globals: <span class="literal">true,
+    environment: 'node',
     coverage: {
-      provider: <span class="string">'v8'</span>,
-      reporter: [<span class="string">'text'</span>, <span class="string">'json'</span>, <span class="string">'html'</span>],
-      exclude: [<span class="string">'**/mocks/**'</span>, <span class="string">'**/fixtures/**'</span>]
+      provider: 'v8',
+      reporter: ['text', 'json', 'html'],
+      exclude: ['**/mocks/**', '**/fixtures/**']
     },
-    testTimeout: <span class="number">30000</span>, <span class="comment">// AI tests need longer timeouts</span>
-    hookTimeout: <span class="number">30000</span>
+    testTimeout: 30000, // AI tests need longer timeouts
+    hookTimeout: 30000
   }
 });</code></pre>
 
@@ -132,109 +139,109 @@ npm install -D vitest @vitest/coverage-v8 msw testcontainers</code></pre>
 
       <h3>Mock Service Worker (MSW)</h3>
 
-      <pre><code><span class="comment">// mocks/handlers.ts</span>
-<span class="keyword">import</span> { http, HttpResponse } <span class="keyword">from</span> <span class="string">'msw'</span>;
+      <pre><code class="language-typescript">// mocks/handlers.ts
+import { http, HttpResponse } from 'msw';
 
-<span class="keyword">export const</span> handlers = [
-  <span class="comment">// Mock OpenAI Chat Completions</span>
-  http.post(<span class="string">'https://api.openai.com/v1/chat/completions'</span>, <span class="keyword">async</span> ({ request }) => {
-    <span class="keyword">const</span> body = <span class="keyword">await</span> request.json();
-    <span class="keyword">const</span> messages = body.messages;
+export const handlers = [
+  // Mock OpenAI Chat Completions
+  http.post('https://api.openai.com/v1/chat/completions', async ({ request }) => {
+    const body = await request.json();
+    const messages = body.messages;
 
-    <span class="comment">// Return deterministic responses based on input</span>
-    <span class="keyword">const</span> lastMessage = messages[messages.length - <span class="number">1</span>].content;
+    // Return deterministic responses based on input
+    const lastMessage = messages[messages.length - 1].content;
 
-    <span class="keyword">if</span> (lastMessage.includes(<span class="string">'summarize'</span>)) {
-      <span class="keyword">return</span> HttpResponse.json({
+    if (lastMessage.includes('summarize')) {
+      return HttpResponse.json({
         choices: [{
           message: {
-            role: <span class="string">'assistant'</span>,
-            content: <span class="string">'This is a mock summary of the document.'</span>
+            role: 'assistant',
+            content: 'This is a mock summary of the document.'
           }
         }],
-        usage: { prompt_tokens: <span class="number">100</span>, completion_tokens: <span class="number">50</span> }
+        usage: { prompt_tokens: 100, completion_tokens: 50 }
       });
     }
 
-    <span class="keyword">if</span> (lastMessage.includes(<span class="string">'translate'</span>)) {
-      <span class="keyword">return</span> HttpResponse.json({
+    if (lastMessage.includes('translate')) {
+      return HttpResponse.json({
         choices: [{
           message: {
-            role: <span class="string">'assistant'</span>,
-            content: <span class="string">'Traducción del texto al español.'</span>
+            role: 'assistant',
+            content: 'Traducción del texto al español.'
           }
         }],
-        usage: { prompt_tokens: <span class="number">80</span>, completion_tokens: <span class="number">40</span> }
+        usage: { prompt_tokens: 80, completion_tokens: 40 }
       });
     }
 
-    <span class="comment">// Default response</span>
-    <span class="keyword">return</span> HttpResponse.json({
+    // Default response
+    return HttpResponse.json({
       choices: [{
         message: {
-          role: <span class="string">'assistant'</span>,
-          content: <span class="string">'Mock response for testing.'</span>
+          role: 'assistant',
+          content: 'Mock response for testing.'
         }
       }],
-      usage: { prompt_tokens: <span class="number">50</span>, completion_tokens: <span class="number">25</span> }
+      usage: { prompt_tokens: 50, completion_tokens: 25 }
     });
   }),
 
-  <span class="comment">// Mock OpenAI Embeddings</span>
-  http.post(<span class="string">'https://api.openai.com/v1/embeddings'</span>, () => {
-    <span class="keyword">return</span> HttpResponse.json({
-      data: [{ embedding: Array(<span class="number">1536</span>).fill(<span class="number">0</span>).map(() => Math.random()) }],
-      usage: { prompt_tokens: <span class="number">10</span> }
+  // Mock OpenAI Embeddings
+  http.post('https://api.openai.com/v1/embeddings', () => {
+    return HttpResponse.json({
+      data: [{ embedding: Array(1536).fill(0).map(() => Math.random()) }],
+      usage: { prompt_tokens: 10 }
     });
   })
 ];
 
-<span class="comment">// mocks/server.ts</span>
-<span class="keyword">import</span> { setupServer } <span class="keyword">from</span> <span class="string">'msw/node'</span>;
-<span class="keyword">import</span> { handlers } <span class="keyword">from</span> <span class="string">'./handlers'</span>;
+// mocks/server.ts
+import { setupServer } from 'msw/node';
+import { handlers } from './handlers';
 
-<span class="keyword">export const</span> server = setupServer(...handlers);
+export const server = setupServer(...handlers);
 
-<span class="comment">// tests/setup.ts</span>
-<span class="keyword">import</span> { server } <span class="keyword">from</span> <span class="string">'../mocks/server'</span>;
+// tests/setup.ts
+import { server } from '../mocks/server';
 
-beforeAll(() => server.listen({ onUnhandledRequest: <span class="string">'error'</span> }));
+beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
 afterEach(() => server.resetHandlers());
 afterAll(() => server.close());</code></pre>
 
       <h3>Response Fixtures</h3>
 
-      <pre><code><span class="comment">// fixtures/llm-responses.ts</span>
-<span class="keyword">export const</span> fixtures = {
+      <pre><code class="language-typescript">// fixtures/llm-responses.ts
+export const fixtures = {
   summarization: {
     short: {
-      input: <span class="string">'Lorem ipsum dolor sit amet...'</span>,
-      expected: <span class="string">'Brief overview of the Latin placeholder text.'</span>
+      input: 'Lorem ipsum dolor sit amet...',
+      expected: 'Brief overview of the Latin placeholder text.'
     },
     long: {
-      input: <span class="string">'[10000 word document]'</span>,
-      expected: <span class="string">'Comprehensive summary covering main points...'</span>
+      input: '[10000 word document]',
+      expected: 'Comprehensive summary covering main points...'
     }
   },
 
   classification: {
     spam: {
-      input: <span class="string">'BUY NOW! Limited offer!'</span>,
-      expected: { label: <span class="string">'spam'</span>, confidence: <span class="number">0.95</span> }
+      input: 'BUY NOW! Limited offer!',
+      expected: { label: 'spam', confidence: 0.95 }
     },
     notSpam: {
-      input: <span class="string">'Meeting scheduled for tomorrow.'</span>,
-      expected: { label: <span class="string">'not_spam'</span>, confidence: <span class="number">0.92</span> }
+      input: 'Meeting scheduled for tomorrow.',
+      expected: { label: 'not_spam', confidence: 0.92 }
     }
   },
 
   extraction: {
     contact: {
-      input: <span class="string">'Contact John at john@example.com or 555-1234'</span>,
+      input: 'Contact John at john@example.com or 555-1234',
       expected: {
-        name: <span class="string">'John'</span>,
-        email: <span class="string">'john@example.com'</span>,
-        phone: <span class="string">'555-1234'</span>
+        name: 'John',
+        email: 'john@example.com',
+        phone: '555-1234'
       }
     }
   }
@@ -242,61 +249,61 @@ afterAll(() => server.close());</code></pre>
 
       <h2 id="unit-tests">Unit Testing Workers</h2>
 
-      <pre><code><span class="comment">// tests/workers/summarization.test.ts</span>
-<span class="keyword">import</span> { describe, it, expect, vi, beforeEach } <span class="keyword">from</span> <span class="string">'vitest'</span>;
-<span class="keyword">import</span> { summarizationProcessor } <span class="keyword">from</span> <span class="string">'../../workers/summarization'</span>;
-<span class="keyword">import</span> { fixtures } <span class="keyword">from</span> <span class="string">'../fixtures/llm-responses'</span>;
+      <pre><code class="language-typescript">// tests/workers/summarization.test.ts
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { summarizationProcessor } from '../../workers/summarization';
+import { fixtures } from '../fixtures/llm-responses';
 
-describe(<span class="string">'Summarization Worker'</span>, () => {
-  <span class="keyword">const</span> mockJob = (data: <span class="keyword">any</span>) => ({
-    id: <span class="string">'test-job-1'</span>,
+describe('Summarization Worker', () => {
+  const mockJob = (data: any) => ({
+    id: 'test-job-1',
     data,
-    attempts: <span class="number">1</span>,
+    attempts: 1,
     timestamp: Date.now()
   });
 
-  it(<span class="string">'should summarize short documents'</span>, <span class="keyword">async</span> () => {
-    <span class="keyword">const</span> job = mockJob({
+  it('should summarize short documents', async () => {
+    const job = mockJob({
       document: fixtures.summarization.short.input,
-      maxLength: <span class="number">100</span>
+      maxLength: 100
     });
 
-    <span class="keyword">const</span> result = <span class="keyword">await</span> summarizationProcessor(job);
+    const result = await summarizationProcessor(job);
 
     expect(result).toBeDefined();
-    expect(result.summary).toBeTypeOf(<span class="string">'string'</span>);
-    expect(result.summary.length).toBeLessThanOrEqual(<span class="number">500</span>);
+    expect(result.summary).toBeTypeOf('string');
+    expect(result.summary.length).toBeLessThanOrEqual(500);
   });
 
-  it(<span class="string">'should handle empty documents'</span>, <span class="keyword">async</span> () => {
-    <span class="keyword">const</span> job = mockJob({ document: <span class="string">''</span> });
+  it('should handle empty documents', async () => {
+    const job = mockJob({ document: '' });
 
-    <span class="keyword">await</span> expect(summarizationProcessor(job))
-      .rejects.toThrow(<span class="string">'Document cannot be empty'</span>);
+    await expect(summarizationProcessor(job))
+      .rejects.toThrow('Document cannot be empty');
   });
 
-  it(<span class="string">'should respect token limits'</span>, <span class="keyword">async</span> () => {
-    <span class="keyword">const</span> job = mockJob({
-      document: <span class="string">'A'</span>.repeat(<span class="number">100000</span>), <span class="comment">// Very long</span>
-      maxTokens: <span class="number">1000</span>
+  it('should respect token limits', async () => {
+    const job = mockJob({
+      document: 'A'.repeat(100000), // Very long
+      maxTokens: 1000
     });
 
-    <span class="keyword">const</span> result = <span class="keyword">await</span> summarizationProcessor(job);
+    const result = await summarizationProcessor(job);
 
-    expect(result.truncated).toBe(<span class="literal">true</span>);
-    expect(result.tokensUsed).toBeLessThanOrEqual(<span class="number">1000</span>);
+    expect(result.truncated).toBe(<span class="literal">true);
+    expect(result.tokensUsed).toBeLessThanOrEqual(1000);
   });
 
-  it(<span class="string">'should track token usage'</span>, <span class="keyword">async</span> () => {
-    <span class="keyword">const</span> job = mockJob({
+  it('should track token usage', async () => {
+    const job = mockJob({
       document: fixtures.summarization.short.input
     });
 
-    <span class="keyword">const</span> result = <span class="keyword">await</span> summarizationProcessor(job);
+    const result = await summarizationProcessor(job);
 
     expect(result.usage).toBeDefined();
-    expect(result.usage.promptTokens).toBeGreaterThan(<span class="number">0</span>);
-    expect(result.usage.completionTokens).toBeGreaterThan(<span class="number">0</span>);
+    expect(result.usage.promptTokens).toBeGreaterThan(0);
+    expect(result.usage.completionTokens).toBeGreaterThan(0);
   });
 });</code></pre>
 
@@ -304,245 +311,245 @@ describe(<span class="string">'Summarization Worker'</span>, () => {
 
       <h3>Test Containers for flashQ</h3>
 
-      <pre><code><span class="comment">// tests/integration/setup.ts</span>
-<span class="keyword">import</span> { GenericContainer, StartedTestContainer } <span class="keyword">from</span> <span class="string">'testcontainers'</span>;
-<span class="keyword">import</span> { FlashQ, Worker } <span class="keyword">from</span> <span class="string">'flashq'</span>;
+      <pre><code class="language-typescript">// tests/integration/setup.ts
+import { GenericContainer, StartedTestContainer } from 'testcontainers';
+import { FlashQ, Worker } from 'flashq';
 
-<span class="keyword">let</span> flashqContainer: StartedTestContainer;
-<span class="keyword">let</span> client: FlashQ;
+let flashqContainer: StartedTestContainer;
+let client: FlashQ;
 
-<span class="keyword">export async function</span> setupTestEnvironment() {
-  <span class="comment">// Start flashQ container</span>
-  flashqContainer = <span class="keyword">await new</span> GenericContainer(<span class="string">'flashq/flashq:latest'</span>)
-    .withExposedPorts(<span class="number">6789</span>, <span class="number">6790</span>)
-    .withEnvironment({ HTTP: <span class="string">'1'</span> })
+export async function setupTestEnvironment() {
+  // Start flashQ container
+  flashqContainer = await new GenericContainer('flashq/flashq:latest')
+    .withExposedPorts(6789, 6790)
+    .withEnvironment({ HTTP: '1' })
     .start();
 
-  <span class="keyword">const</span> host = flashqContainer.getHost();
-  <span class="keyword">const</span> port = flashqContainer.getMappedPort(<span class="number">6789</span>);
+  const host = flashqContainer.getHost();
+  const port = flashqContainer.getMappedPort(6789);
 
-  client = <span class="keyword">new</span> FlashQ({ host, port });
-  <span class="keyword">await</span> client.connect();
+  client = new FlashQ({ host, port });
+  await client.connect();
 
-  <span class="keyword">return</span> { client, host, port };
+  return { client, host, port };
 }
 
-<span class="keyword">export async function</span> teardownTestEnvironment() {
-  <span class="keyword">await</span> client?.close();
-  <span class="keyword">await</span> flashqContainer?.stop();
+export async function teardownTestEnvironment() {
+  await client?.close();
+  await flashqContainer?.stop();
 }</code></pre>
 
       <h3>Full Pipeline Test</h3>
 
-      <pre><code><span class="comment">// tests/integration/ai-pipeline.test.ts</span>
-<span class="keyword">import</span> { describe, it, expect, beforeAll, afterAll } <span class="keyword">from</span> <span class="string">'vitest'</span>;
-<span class="keyword">import</span> { setupTestEnvironment, teardownTestEnvironment } <span class="keyword">from</span> <span class="string">'./setup'</span>;
-<span class="keyword">import</span> { FlashQ, Worker } <span class="keyword">from</span> <span class="string">'flashq'</span>;
+      <pre><code class="language-typescript">// tests/integration/ai-pipeline.test.ts
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { setupTestEnvironment, teardownTestEnvironment } from './setup';
+import { FlashQ, Worker } from 'flashq';
 
-describe(<span class="string">'AI Pipeline Integration'</span>, () => {
-  <span class="keyword">let</span> client: FlashQ;
-  <span class="keyword">let</span> workers: Worker[] = [];
+describe('AI Pipeline Integration', () => {
+  let client: FlashQ;
+  let workers: Worker[] = [];
 
-  beforeAll(<span class="keyword">async</span> () => {
-    <span class="keyword">const</span> env = <span class="keyword">await</span> setupTestEnvironment();
+  beforeAll(async () => {
+    const env = await setupTestEnvironment();
     client = env.client;
 
-    <span class="comment">// Start workers</span>
+    // Start workers
     workers.push(
-      <span class="keyword">new</span> Worker(client, <span class="string">'embedding'</span>, <span class="keyword">async</span> (job) => {
-        <span class="comment">// Mock embedding generation</span>
-        <span class="keyword">return</span> { embedding: Array(<span class="number">1536</span>).fill(<span class="number">0.1</span>) };
+      new Worker(client, 'embedding', async (job) => {
+        // Mock embedding generation
+        return { embedding: Array(1536).fill(0.1) };
       }),
-      <span class="keyword">new</span> Worker(client, <span class="string">'completion'</span>, <span class="keyword">async</span> (job) => {
-        <span class="keyword">return</span> { response: <span class="string">'Test completion response'</span> };
+      new Worker(client, 'completion', async (job) => {
+        return { response: 'Test completion response' };
       })
     );
   });
 
-  afterAll(<span class="keyword">async</span> () => {
+  afterAll(async () => {
     workers.forEach(w => w.close());
-    <span class="keyword">await</span> teardownTestEnvironment();
+    await teardownTestEnvironment();
   });
 
-  it(<span class="string">'should process RAG pipeline end-to-end'</span>, <span class="keyword">async</span> () => {
-    <span class="comment">// Step 1: Create embedding job</span>
-    <span class="keyword">const</span> embeddingJob = <span class="keyword">await</span> client.push(<span class="string">'embedding'</span>, {
-      text: <span class="string">'What is flashQ?'</span>
+  it('should process RAG pipeline end-to-end', async () => {
+    // Step 1: Create embedding job
+    const embeddingJob = await client.push('embedding', {
+      text: 'What is flashQ?'
     });
 
-    <span class="comment">// Wait for embedding</span>
-    <span class="keyword">const</span> embeddingResult = <span class="keyword">await</span> client.finished(embeddingJob.id, <span class="number">10000</span>);
-    expect(embeddingResult.embedding).toHaveLength(<span class="number">1536</span>);
+    // Wait for embedding
+    const embeddingResult = await client.finished(embeddingJob.id, 10000);
+    expect(embeddingResult.embedding).toHaveLength(1536);
 
-    <span class="comment">// Step 2: Create completion job with context</span>
-    <span class="keyword">const</span> completionJob = <span class="keyword">await</span> client.push(<span class="string">'completion'</span>, {
-      query: <span class="string">'What is flashQ?'</span>,
-      context: [<span class="string">'flashQ is a high-performance job queue.'</span>]
+    // Step 2: Create completion job with context
+    const completionJob = await client.push('completion', {
+      query: 'What is flashQ?',
+      context: ['flashQ is a high-performance job queue.']
     });
 
-    <span class="keyword">const</span> completionResult = <span class="keyword">await</span> client.finished(completionJob.id, <span class="number">10000</span>);
+    const completionResult = await client.finished(completionJob.id, 10000);
     expect(completionResult.response).toBeDefined();
   });
 
-  it(<span class="string">'should handle job failures gracefully'</span>, <span class="keyword">async</span> () => {
-    <span class="comment">// Create failing worker</span>
-    <span class="keyword">const</span> failingWorker = <span class="keyword">new</span> Worker(client, <span class="string">'failing-task'</span>, <span class="keyword">async</span> () => {
-      <span class="keyword">throw new</span> Error(<span class="string">'Simulated API failure'</span>);
-    }, { concurrency: <span class="number">1</span> });
+  it('should handle job failures gracefully', async () => {
+    // Create failing worker
+    const failingWorker = new Worker(client, 'failing-task', async () => {
+      throw new Error('Simulated API failure');
+    }, { concurrency: 1 });
 
-    <span class="keyword">const</span> job = <span class="keyword">await</span> client.push(<span class="string">'failing-task'</span>, {}, {
-      max_attempts: <span class="number">3</span>,
-      backoff: <span class="number">100</span>
+    const job = await client.push('failing-task', {}, {
+      max_attempts: 3,
+      backoff: 100
     });
 
-    <span class="comment">// Wait for all retries</span>
-    <span class="keyword">await new</span> Promise(resolve => setTimeout(resolve, <span class="number">2000</span>));
+    // Wait for all retries
+    await new Promise(resolve => setTimeout(resolve, 2000));
 
-    <span class="keyword">const</span> state = <span class="keyword">await</span> client.getState(job.id);
-    expect(state).toBe(<span class="string">'failed'</span>);
+    const state = await client.getState(job.id);
+    expect(state).toBe('failed');
 
-    <span class="keyword">const</span> dlq = <span class="keyword">await</span> client.getDlq(<span class="string">'failing-task'</span>);
-    expect(dlq.some(j => j.id === job.id)).toBe(<span class="literal">true</span>);
+    const dlq = await client.getDlq('failing-task');
+    expect(dlq.some(j => j.id === job.id)).toBe(<span class="literal">true);
 
     failingWorker.close();
   });
 
-  it(<span class="string">'should process batch jobs efficiently'</span>, <span class="keyword">async</span> () => {
-    <span class="keyword">const</span> jobs = Array.from({ length: <span class="number">100</span> }, (_, i) => ({
-      data: { text: <span class="string">`Document </span>${i}<span class="string">`</span> }
+  it('should process batch jobs efficiently', async () => {
+    const jobs = Array.from({ length: 100 }, (_, i) => ({
+      data: { text: `Document ${i}` }
     }));
 
-    <span class="keyword">const</span> pushed = <span class="keyword">await</span> client.pushBatch(<span class="string">'embedding'</span>, jobs);
-    expect(pushed).toHaveLength(<span class="number">100</span>);
+    const pushed = await client.pushBatch('embedding', jobs);
+    expect(pushed).toHaveLength(100);
 
-    <span class="comment">// Wait for all to complete</span>
-    <span class="keyword">const</span> results = <span class="keyword">await</span> Promise.all(
-      pushed.map(j => client.finished(j.id, <span class="number">30000</span>))
+    // Wait for all to complete
+    const results = await Promise.all(
+      pushed.map(j => client.finished(j.id, 30000))
     );
 
-    expect(results.every(r => r.embedding)).toBe(<span class="literal">true</span>);
+    expect(results.every(r => r.embedding)).toBe(<span class="literal">true);
   });
 });</code></pre>
 
       <h2 id="quality">Output Quality Testing</h2>
 
-      <pre><code><span class="comment">// tests/quality/llm-output.test.ts</span>
-<span class="keyword">import</span> { describe, it, expect } <span class="keyword">from</span> <span class="string">'vitest'</span>;
+      <pre><code class="language-typescript">// tests/quality/llm-output.test.ts
+import { describe, it, expect } from 'vitest';
 
-<span class="comment">// Test output structure</span>
-describe(<span class="string">'LLM Output Quality'</span>, () => {
-  it(<span class="string">'should return valid JSON for structured output'</span>, <span class="keyword">async</span> () => {
-    <span class="keyword">const</span> result = <span class="keyword">await</span> processStructuredTask({
-      prompt: <span class="string">'Extract contact info'</span>,
-      input: <span class="string">'Email: test@example.com'</span>,
-      schema: { email: <span class="string">'string'</span> }
+// Test output structure
+describe('LLM Output Quality', () => {
+  it('should return valid JSON for structured output', async () => {
+    const result = await processStructuredTask({
+      prompt: 'Extract contact info',
+      input: 'Email: test@example.com',
+      schema: { email: 'string' }
     });
 
     expect(() => JSON.parse(result.output)).not.toThrow();
-    expect(result.output).toHaveProperty(<span class="string">'email'</span>);
+    expect(result.output).toHaveProperty('email');
   });
 
-  it(<span class="string">'should not hallucinate information'</span>, <span class="keyword">async</span> () => {
-    <span class="keyword">const</span> input = <span class="string">'The weather is sunny today.'</span>;
-    <span class="keyword">const</span> result = <span class="keyword">await</span> extractInfo(input);
+  it('should not hallucinate information', async () => {
+    const input = 'The weather is sunny today.';
+    const result = await extractInfo(input);
 
-    <span class="comment">// Should not invent details not in input</span>
+    // Should not invent details not in input
     expect(result.temperature).toBeUndefined();
     expect(result.location).toBeUndefined();
   });
 
-  it(<span class="string">'should respect length constraints'</span>, <span class="keyword">async</span> () => {
-    <span class="keyword">const</span> result = <span class="keyword">await</span> generateSummary({
+  it('should respect length constraints', async () => {
+    const result = await generateSummary({
       text: longDocument,
-      maxWords: <span class="number">50</span>
+      maxWords: 50
     });
 
-    <span class="keyword">const</span> wordCount = result.summary.split(/\s+/).length;
-    expect(wordCount).toBeLessThanOrEqual(<span class="number">60</span>); <span class="comment">// Allow 20% buffer</span>
+    const wordCount = result.summary.split(/\s+/).length;
+    expect(wordCount).toBeLessThanOrEqual(60); // Allow 20% buffer
   });
 });
 
-<span class="comment">// Semantic similarity testing</span>
-<span class="keyword">import</span> { cosineSimilarity } <span class="keyword">from</span> <span class="string">'../utils/similarity'</span>;
+// Semantic similarity testing
+import { cosineSimilarity } from '../utils/similarity';
 
-describe(<span class="string">'Semantic Consistency'</span>, () => {
-  it(<span class="string">'should produce consistent embeddings'</span>, <span class="keyword">async</span> () => {
-    <span class="keyword">const</span> text = <span class="string">'flashQ is a job queue'</span>;
+describe('Semantic Consistency', () => {
+  it('should produce consistent embeddings', async () => {
+    const text = 'flashQ is a job queue';
 
-    <span class="keyword">const</span> embedding1 = <span class="keyword">await</span> getEmbedding(text);
-    <span class="keyword">const</span> embedding2 = <span class="keyword">await</span> getEmbedding(text);
+    const embedding1 = await getEmbedding(text);
+    const embedding2 = await getEmbedding(text);
 
-    <span class="comment">// Same input should produce identical embeddings</span>
-    expect(cosineSimilarity(embedding1, embedding2)).toBeCloseTo(<span class="number">1.0</span>, <span class="number">5</span>);
+    // Same input should produce identical embeddings
+    expect(cosineSimilarity(embedding1, embedding2)).toBeCloseTo(1.0, 5);
   });
 
-  it(<span class="string">'should find semantically similar content'</span>, <span class="keyword">async</span> () => {
-    <span class="keyword">const</span> query = <span class="keyword">await</span> getEmbedding(<span class="string">'fast job processing'</span>);
-    <span class="keyword">const</span> relevant = <span class="keyword">await</span> getEmbedding(<span class="string">'high-speed task execution'</span>);
-    <span class="keyword">const</span> irrelevant = <span class="keyword">await</span> getEmbedding(<span class="string">'chocolate cake recipe'</span>);
+  it('should find semantically similar content', async () => {
+    const query = await getEmbedding('fast job processing');
+    const relevant = await getEmbedding('high-speed task execution');
+    const irrelevant = await getEmbedding('chocolate cake recipe');
 
-    expect(cosineSimilarity(query, relevant)).toBeGreaterThan(<span class="number">0.7</span>);
-    expect(cosineSimilarity(query, irrelevant)).toBeLessThan(<span class="number">0.3</span>);
+    expect(cosineSimilarity(query, relevant)).toBeGreaterThan(0.7);
+    expect(cosineSimilarity(query, irrelevant)).toBeLessThan(0.3);
   });
 });</code></pre>
 
       <h2 id="performance">Performance Testing</h2>
 
-      <pre><code><span class="comment">// tests/performance/throughput.test.ts</span>
-<span class="keyword">import</span> { describe, it, expect } <span class="keyword">from</span> <span class="string">'vitest'</span>;
+      <pre><code class="language-typescript">// tests/performance/throughput.test.ts
+import { describe, it, expect } from 'vitest';
 
-describe(<span class="string">'Pipeline Performance'</span>, () => {
-  it(<span class="string">'should meet throughput SLA'</span>, <span class="keyword">async</span> () => {
-    <span class="keyword">const</span> TARGET_THROUGHPUT = <span class="number">100</span>; <span class="comment">// jobs/second</span>
-    <span class="keyword">const</span> TEST_DURATION = <span class="number">10000</span>; <span class="comment">// 10 seconds</span>
+describe('Pipeline Performance', () => {
+  it('should meet throughput SLA', async () => {
+    const TARGET_THROUGHPUT = 100; // jobs/second
+    const TEST_DURATION = 10000; // 10 seconds
 
-    <span class="keyword">let</span> completed = <span class="number">0</span>;
-    <span class="keyword">const</span> start = Date.now();
+    let completed = 0;
+    const start = Date.now();
 
-    <span class="keyword">while</span> (Date.now() - start < TEST_DURATION) {
-      <span class="keyword">const</span> jobs = Array.from({ length: <span class="number">10</span> }, () => ({
-        data: { text: <span class="string">'test'</span> }
+    while (Date.now() - start < TEST_DURATION) {
+      const jobs = Array.from({ length: 10 }, () => ({
+        data: { text: 'test' }
       }));
 
-      <span class="keyword">const</span> results = <span class="keyword">await</span> client.pushBatch(<span class="string">'embedding'</span>, jobs);
-      <span class="keyword">await</span> Promise.all(results.map(j => client.finished(j.id, <span class="number">5000</span>)));
-      completed += <span class="number">10</span>;
+      const results = await client.pushBatch('embedding', jobs);
+      await Promise.all(results.map(j => client.finished(j.id, 5000)));
+      completed += 10;
     }
 
-    <span class="keyword">const</span> duration = (Date.now() - start) / <span class="number">1000</span>;
-    <span class="keyword">const</span> throughput = completed / duration;
+    const duration = (Date.now() - start) / 1000;
+    const throughput = completed / duration;
 
     expect(throughput).toBeGreaterThanOrEqual(TARGET_THROUGHPUT);
   });
 
-  it(<span class="string">'should meet latency P95 SLA'</span>, <span class="keyword">async</span> () => {
-    <span class="keyword">const</span> TARGET_P95_MS = <span class="number">500</span>;
-    <span class="keyword">const</span> latencies: number[] = [];
+  it('should meet latency P95 SLA', async () => {
+    const TARGET_P95_MS = 500;
+    const latencies: number[] = [];
 
-    <span class="keyword">for</span> (<span class="keyword">let</span> i = <span class="number">0</span>; i < <span class="number">100</span>; i++) {
-      <span class="keyword">const</span> start = Date.now();
-      <span class="keyword">const</span> job = <span class="keyword">await</span> client.push(<span class="string">'embedding'</span>, { text: <span class="string">'test'</span> });
-      <span class="keyword">await</span> client.finished(job.id, <span class="number">5000</span>);
+    for (let i = 0; i < 100; i++) {
+      const start = Date.now();
+      const job = await client.push('embedding', { text: 'test' });
+      await client.finished(job.id, 5000);
       latencies.push(Date.now() - start);
     }
 
     latencies.sort((a, b) => a - b);
-    <span class="keyword">const</span> p95 = latencies[Math.floor(latencies.length * <span class="number">0.95</span>)];
+    const p95 = latencies[Math.floor(latencies.length * 0.95)];
 
     expect(p95).toBeLessThanOrEqual(TARGET_P95_MS);
   });
 
-  it(<span class="string">'should handle concurrent load'</span>, <span class="keyword">async</span> () => {
-    <span class="keyword">const</span> CONCURRENT_JOBS = <span class="number">50</span>;
+  it('should handle concurrent load', async () => {
+    const CONCURRENT_JOBS = 50;
 
-    <span class="keyword">const</span> jobs = <span class="keyword">await</span> Promise.all(
+    const jobs = await Promise.all(
       Array.from({ length: CONCURRENT_JOBS }, () =>
-        client.push(<span class="string">'embedding'</span>, { text: <span class="string">'concurrent test'</span> })
+        client.push('embedding', { text: 'concurrent test' })
       )
     );
 
-    <span class="keyword">const</span> results = <span class="keyword">await</span> Promise.all(
-      jobs.map(j => client.finished(j.id, <span class="number">10000</span>))
+    const results = await Promise.all(
+      jobs.map(j => client.finished(j.id, 10000))
     );
 
     expect(results.filter(r => r.embedding)).toHaveLength(CONCURRENT_JOBS);
@@ -551,7 +558,7 @@ describe(<span class="string">'Pipeline Performance'</span>, () => {
 
       <h2 id="ci-cd">CI/CD Integration</h2>
 
-      <pre><code><span class="comment"># .github/workflows/ai-tests.yml</span>
+      <pre><code class="language-bash"># .github/workflows/ai-tests.yml
 name: AI Pipeline Tests
 
 on:
@@ -637,10 +644,10 @@ jobs:
 
       <h2 id="monitoring">Production Monitoring</h2>
 
-      <pre><code><span class="comment">// monitoring/ai-metrics.ts</span>
-<span class="keyword">import</span> { flashq } <span class="keyword">from</span> <span class="string">'./client'</span>;
+      <pre><code class="language-typescript">// monitoring/ai-metrics.ts
+import { flashq } from './client';
 
-<span class="keyword">interface</span> AIMetrics {
+interface AIMetrics {
   totalJobs: number;
   successRate: number;
   avgLatencyMs: number;
@@ -649,53 +656,53 @@ jobs:
   errorsByType: Record&lt;string, number&gt;;
 }
 
-<span class="keyword">async function</span> collectAIMetrics(): Promise&lt;AIMetrics&gt; {
-  <span class="keyword">const</span> metrics = <span class="keyword">await</span> flashq.metrics();
-  <span class="keyword">const</span> aiQueues = Object.entries(metrics.queues)
-    .filter(([name]) => name.startsWith(<span class="string">'ai:'</span>));
+async function collectAIMetrics(): Promise&lt;AIMetrics&gt; {
+  const metrics = await flashq.metrics();
+  const aiQueues = Object.entries(metrics.queues)
+    .filter(([name]) => name.startsWith('ai:'));
 
-  <span class="keyword">let</span> totalJobs = <span class="number">0</span>;
-  <span class="keyword">let</span> completed = <span class="number">0</span>;
-  <span class="keyword">let</span> totalLatency = <span class="number">0</span>;
+  let totalJobs = 0;
+  let completed = 0;
+  let totalLatency = 0;
 
-  <span class="keyword">for</span> (<span class="keyword">const</span> [, queue] <span class="keyword">of</span> aiQueues) {
+  for (const [, queue] of aiQueues) {
     totalJobs += queue.completed + queue.failed;
     completed += queue.completed;
     totalLatency += queue.avgProcessingTime * queue.completed;
   }
 
-  <span class="keyword">return</span> {
+  return {
     totalJobs,
     successRate: completed / totalJobs,
     avgLatencyMs: totalLatency / completed,
-    tokenUsage: <span class="keyword">await</span> getTokenUsage(),
-    costEstimate: <span class="keyword">await</span> estimateCost(),
-    errorsByType: <span class="keyword">await</span> getErrorBreakdown()
+    tokenUsage: await getTokenUsage(),
+    costEstimate: await estimateCost(),
+    errorsByType: await getErrorBreakdown()
   };
 }
 
-<span class="comment">// Alerting on anomalies</span>
-<span class="keyword">async function</span> checkHealthAndAlert() {
-  <span class="keyword">const</span> metrics = <span class="keyword">await</span> collectAIMetrics();
+// Alerting on anomalies
+async function checkHealthAndAlert() {
+  const metrics = await collectAIMetrics();
 
-  <span class="keyword">if</span> (metrics.successRate < <span class="number">0.95</span>) {
-    <span class="keyword">await</span> sendAlert({
-      severity: <span class="string">'warning'</span>,
-      message: <span class="string">`AI success rate dropped to </span>${(metrics.successRate * <span class="number">100</span>).toFixed(<span class="number">1</span>)}<span class="string">%`</span>
+  if (metrics.successRate < 0.95) {
+    await sendAlert({
+      severity: 'warning',
+      message: `AI success rate dropped to ${(metrics.successRate * 100).toFixed(1)}%`
     });
   }
 
-  <span class="keyword">if</span> (metrics.avgLatencyMs > <span class="number">5000</span>) {
-    <span class="keyword">await</span> sendAlert({
-      severity: <span class="string">'warning'</span>,
-      message: <span class="string">`AI latency elevated: </span>${metrics.avgLatencyMs}<span class="string">ms`</span>
+  if (metrics.avgLatencyMs > 5000) {
+    await sendAlert({
+      severity: 'warning',
+      message: `AI latency elevated: ${metrics.avgLatencyMs}ms`
     });
   }
 
-  <span class="keyword">if</span> (metrics.costEstimate > DAILY_BUDGET) {
-    <span class="keyword">await</span> sendAlert({
-      severity: <span class="string">'critical'</span>,
-      message: <span class="string">`AI cost exceeding budget: $</span>${metrics.costEstimate.toFixed(<span class="number">2</span>)}<span class="string">`</span>
+  if (metrics.costEstimate > DAILY_BUDGET) {
+    await sendAlert({
+      severity: 'critical',
+      message: `AI cost exceeding budget: $${metrics.costEstimate.toFixed(2)}`
     });
   }
 }</code></pre>
@@ -774,5 +781,6 @@ jobs:
     function closeSearch(e) { if (e?.target === document.getElementById('searchOverlay')) document.getElementById('searchOverlay').classList.remove('active'); }
     document.addEventListener('keydown', e => { if ((e.metaKey||e.ctrlKey) && e.key==='k') { e.preventDefault(); openSearch(); } if (e.key==='Escape') closeSearch({target:document.getElementById('searchOverlay')}); });
   </script>
+  <script>hljs.highlightAll();</script>
 </body>
 </html>

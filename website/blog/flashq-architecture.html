@@ -49,6 +49,13 @@
     ]
   }
   </script>
+  <!-- Highlight.js -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/typescript.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/bash.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/yaml.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/json.min.js"></script>
 </head>
 <body>
   <nav>
@@ -96,7 +103,7 @@
 
       <p>flashQ is written in Rust and follows a sharded, lock-free architecture designed for maximum concurrency:</p>
 
-      <pre><code>┌─────────────────────────────────────────────────────────────┐
+      <pre><code class="language-plaintext">┌─────────────────────────────────────────────────────────────┐
 │                      flashQ Server                          │
 ├─────────────────────────────────────────────────────────────┤
 │  ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────┐       │
@@ -126,10 +133,10 @@
 
       <p>At the heart of flashQ is a sharded architecture. We distribute queues across <strong>32 shards</strong> based on a hash of the queue name. This reduces lock contention by 97% compared to a single-lock design.</p>
 
-      <pre><code><span class="comment">// Queue name → Shard mapping</span>
-<span class="keyword">fn</span> <span class="function">get_shard</span>(queue_name: &<span class="keyword">str</span>) -> <span class="keyword">usize</span> {
-    <span class="keyword">let</span> <span class="variable">hash</span> = fxhash::<span class="function">hash64</span>(queue_name.as_bytes());
-    (hash <span class="keyword">as</span> <span class="keyword">usize</span>) % <span class="number">32</span>
+      <pre><code class="language-typescript">// Queue name → Shard mapping
+fn get_shard(queue_name: &str) -> usize {
+    let hash = fxhash::hash64(queue_name.as_bytes());
+    (hash as usize) % 32
 }</code></pre>
 
       <p>Each shard contains:</p>
@@ -146,18 +153,18 @@
 
       <p>One of our biggest performance wins came from using <code>DashMap</code> for the global job index. DashMap is a concurrent HashMap that uses fine-grained locking, allowing multiple threads to read and write simultaneously.</p>
 
-      <pre><code><span class="comment">// Global job index - O(1) lookups</span>
-<span class="keyword">pub struct</span> <span class="function">QueueManager</span> {
-    shards: [RwLock&lt;Shard&gt;; <span class="number">32</span>],
-    job_index: DashMap&lt;<span class="keyword">u64</span>, JobLocation&gt;,  <span class="comment">// Lock-free!</span>
+      <pre><code class="language-typescript">// Global job index - O(1) lookups
+pub struct QueueManager {
+    shards: [RwLock&lt;Shard&gt;; 32],
+    job_index: DashMap&lt;u64, JobLocation&gt;,  // Lock-free!
 }
 
-<span class="comment">// JobLocation tells us exactly where a job is</span>
-<span class="keyword">enum</span> <span class="function">JobLocation</span> {
-    Waiting { shard: <span class="keyword">u8</span>, queue: CompactString },
-    Processing { shard: <span class="keyword">u8</span> },
-    Completed { shard: <span class="keyword">u8</span> },
-    Failed { shard: <span class="keyword">u8</span> },
+// JobLocation tells us exactly where a job is
+enum JobLocation {
+    Waiting { shard: u8, queue: CompactString },
+    Processing { shard: u8 },
+    Completed { shard: u8 },
+    Failed { shard: u8 },
 }</code></pre>
 
       <p>This gives us <strong>O(1) job lookups</strong> regardless of how many queues or jobs exist. Operations like <code>getJob()</code>, <code>cancel()</code>, and <code>getState()</code> are blazing fast.</p>
@@ -166,17 +173,17 @@
 
       <p>Standard binary heaps don't support efficient removal of arbitrary elements. We built an <code>IndexedPriorityQueue</code> that maintains a secondary index:</p>
 
-      <pre><code><span class="keyword">pub struct</span> <span class="function">IndexedPriorityQueue</span>&lt;T&gt; {
+      <pre><code class="language-typescript">pub struct IndexedPriorityQueue&lt;T&gt; {
     heap: Vec&lt;T&gt;,
-    index: HashMap&lt;<span class="keyword">u64</span>, <span class="keyword">usize</span>&gt;,  <span class="comment">// job_id → heap position</span>
+    index: HashMap&lt;u64, usize&gt;,  // job_id → heap position
 }
 
-<span class="keyword">impl</span>&lt;T&gt; <span class="function">IndexedPriorityQueue</span>&lt;T&gt; {
-    <span class="comment">// All operations are O(log n)</span>
-    <span class="keyword">fn</span> <span class="function">push</span>(&<span class="keyword">mut self</span>, job: T) { ... }
-    <span class="keyword">fn</span> <span class="function">pop</span>(&<span class="keyword">mut self</span>) -> Option&lt;T&gt; { ... }
-    <span class="keyword">fn</span> <span class="function">remove</span>(&<span class="keyword">mut self</span>, job_id: <span class="keyword">u64</span>) -> Option&lt;T&gt; { ... }  <span class="comment">// Key!</span>
-    <span class="keyword">fn</span> <span class="function">update_priority</span>(&<span class="keyword">mut self</span>, job_id: <span class="keyword">u64</span>, priority: <span class="keyword">i32</span>) { ... }
+impl&lt;T&gt; IndexedPriorityQueue&lt;T&gt; {
+    // All operations are O(log n)
+    fn push(&mut self, job: T) { ... }
+    fn pop(&mut self) -> Option&lt;T&gt; { ... }
+    fn remove(&mut self, job_id: u64) -> Option&lt;T&gt; { ... }  // Key!
+    fn update_priority(&mut self, job_id: u64, priority: i32) { ... }
 }</code></pre>
 
       <p>This enables efficient <code>cancel()</code>, <code>promote()</code>, and <code>changePriority()</code> operations that would be O(n) with a standard heap.</p>
@@ -185,12 +192,12 @@
 
       <p>Queue names are accessed constantly. We use <code>CompactString</code> which stores strings up to 24 bytes inline (no heap allocation):</p>
 
-      <pre><code><span class="comment">// Most queue names fit in 24 bytes</span>
-<span class="keyword">use</span> compact_str::CompactString;
+      <pre><code class="language-typescript">// Most queue names fit in 24 bytes
+use compact_str::CompactString;
 
-<span class="comment">// "embeddings" - 10 bytes, stored inline ✓</span>
-<span class="comment">// "user-notifications" - 18 bytes, stored inline ✓</span>
-<span class="comment">// "very-long-queue-name-here" - 25 bytes, heap allocated</span></code></pre>
+// "embeddings" - 10 bytes, stored inline ✓
+// "user-notifications" - 18 bytes, stored inline ✓
+// "very-long-queue-name-here" - 25 bytes, heap allocated</code></pre>
 
       <p>This reduces memory allocations by ~60% for typical workloads.</p>
 
@@ -198,16 +205,16 @@
 
       <p>Jobs being processed are distributed across 32 shards (separate from queue shards). This reduces contention during <code>ack()</code> and <code>fail()</code> operations by 97%:</p>
 
-      <pre><code><span class="comment">// Processing is sharded by job_id</span>
-<span class="keyword">fn</span> <span class="function">get_processing_shard</span>(job_id: <span class="keyword">u64</span>) -> <span class="keyword">usize</span> {
-    (job_id <span class="keyword">as</span> <span class="keyword">usize</span>) % <span class="number">32</span>
+      <pre><code class="language-typescript">// Processing is sharded by job_id
+fn get_processing_shard(job_id: u64) -> usize {
+    (job_id as usize) % 32
 }
 
-<span class="comment">// ack() only locks one of 32 processing shards</span>
-<span class="keyword">fn</span> <span class="function">ack</span>(&<span class="keyword">self</span>, job_id: <span class="keyword">u64</span>) -> Result&lt;()&gt; {
-    <span class="keyword">let</span> <span class="variable">shard_idx</span> = <span class="function">get_processing_shard</span>(job_id);
-    <span class="keyword">let</span> <span class="keyword">mut</span> <span class="variable">processing</span> = <span class="keyword">self</span>.processing[shard_idx].<span class="function">write</span>();
-    <span class="comment">// ...</span>
+// ack() only locks one of 32 processing shards
+fn ack(&self, job_id: u64) -> Result&lt;()&gt; {
+    let shard_idx = get_processing_shard(job_id);
+    let mut processing = self.processing[shard_idx].write();
+    // ...
 }</code></pre>
 
       <h2>Binary Protocol with MessagePack</h2>
@@ -220,11 +227,11 @@
         <li>Full type safety and schema compatibility</li>
       </ul>
 
-      <pre><code><span class="comment">// TypeScript SDK - enable binary protocol</span>
-<span class="keyword">const</span> <span class="variable">client</span> = <span class="keyword">new</span> <span class="function">FlashQ</span>({
-  host: <span class="string">'localhost'</span>,
-  port: <span class="number">6789</span>,
-  useBinary: <span class="keyword">true</span>  <span class="comment">// Use MessagePack</span>
+      <pre><code class="language-typescript">// TypeScript SDK - enable binary protocol
+const client = new FlashQ({
+  host: 'localhost',
+  port: 6789,
+  useBinary: true  // Use MessagePack
 });</code></pre>
 
       <h2>Memory Management</h2>
@@ -232,29 +239,29 @@
       <p>We use several strategies to prevent unbounded memory growth:</p>
 
       <h3>Completed Jobs Cleanup</h3>
-      <pre><code><span class="comment">// When completed_jobs exceeds 50K, remove oldest 25K</span>
-<span class="keyword">if</span> completed_jobs.<span class="function">len</span>() > <span class="number">50_000</span> {
-    <span class="keyword">let</span> <span class="variable">to_remove</span>: Vec&lt;_&gt; = completed_jobs
-        .<span class="function">iter</span>()
-        .<span class="function">take</span>(<span class="number">25_000</span>)
-        .<span class="function">cloned</span>()
-        .<span class="function">collect</span>();
-    <span class="keyword">for</span> id <span class="keyword">in</span> to_remove {
-        completed_jobs.<span class="function">remove</span>(&id);
+      <pre><code class="language-typescript">// When completed_jobs exceeds 50K, remove oldest 25K
+if completed_jobs.len() > 50_000 {
+    let to_remove: Vec&lt;_&gt; = completed_jobs
+        .iter()
+        .take(25_000)
+        .cloned()
+        .collect();
+    for id in to_remove {
+        completed_jobs.remove(&id);
     }
 }</code></pre>
 
       <h3>Job Results TTL</h3>
-      <pre><code><span class="comment">// Results are cleaned up based on keepCompletedAge</span>
-<span class="keyword">await</span> client.<span class="function">push</span>(<span class="string">'queue'</span>, data, {
-  keepCompletedAge: <span class="number">86400000</span>,  <span class="comment">// Keep result for 24h</span>
-  keepCompletedCount: <span class="number">100</span>     <span class="comment">// Or keep in last 100</span>
+      <pre><code class="language-typescript">// Results are cleaned up based on keepCompletedAge
+await client.push('queue', data, {
+  keepCompletedAge: 86400000,  // Keep result for 24h
+  keepCompletedCount: 100     // Or keep in last 100
 });</code></pre>
 
       <h3>String Interning</h3>
-      <pre><code><span class="comment">// Queue names are interned to reduce allocations</span>
-<span class="comment">// Limited to 10K unique names to prevent memory exhaustion</span>
-<span class="keyword">static</span> INTERNED: DashMap&lt;String, CompactString&gt; = ...;</code></pre>
+      <pre><code class="language-typescript">// Queue names are interned to reduce allocations
+// Limited to 10K unique names to prevent memory exhaustion
+static INTERNED: DashMap&lt;String, CompactString&gt; = ...;</code></pre>
 
       <h2>Background Tasks</h2>
 
@@ -301,23 +308,23 @@
 
       <p>flashQ supports four connection methods simultaneously:</p>
 
-      <pre><code><span class="comment"># TCP (default) - lowest latency</span>
+      <pre><code class="language-bash"># TCP (default) - lowest latency
 PORT=6789 ./flashq-server
 
-<span class="comment"># HTTP REST API + WebSocket</span>
+# HTTP REST API + WebSocket
 HTTP=1 HTTP_PORT=6790 ./flashq-server
 
-<span class="comment"># gRPC API</span>
+# gRPC API
 GRPC=1 GRPC_PORT=6791 ./flashq-server
 
-<span class="comment"># Unix Socket - highest throughput for local</span>
+# Unix Socket - highest throughput for local
 UNIX_SOCKET=1 ./flashq-server</code></pre>
 
       <h2>Clustering Architecture</h2>
 
       <p>For high availability, flashQ supports clustering using PostgreSQL for coordination:</p>
 
-      <pre><code>┌──────────┐    ┌──────────┐    ┌──────────┐
+      <pre><code class="language-plaintext">┌──────────┐    ┌──────────┐    ┌──────────┐
 │  Node 1  │    │  Node 2  │    │  Node 3  │
 │ (Leader) │    │(Follower)│    │(Follower)│
 └────┬─────┘    └────┬─────┘    └────┬─────┘
@@ -459,5 +466,6 @@ UNIX_SOCKET=1 ./flashq-server</code></pre>
       });
     });
   </script>
+  <script>hljs.highlightAll();</script>
 </body>
 </html>

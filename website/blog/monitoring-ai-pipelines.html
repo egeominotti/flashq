@@ -49,6 +49,13 @@
     ]
   }
   </script>
+  <!-- Highlight.js -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/typescript.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/bash.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/yaml.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/json.min.js"></script>
 </head>
 <body>
   <nav>
@@ -107,7 +114,7 @@
 
       <p>flashQ exposes Prometheus metrics at <code>/metrics/prometheus</code> when running with HTTP enabled:</p>
 
-      <pre><code><span class="comment"># Start flashQ with HTTP API</span>
+      <pre><code class="language-bash"># Start flashQ with HTTP API
 HTTP=1 HTTP_PORT=6790 ./flashq-server</code></pre>
 
       <p>Available metrics include:</p>
@@ -158,18 +165,18 @@ HTTP=1 HTTP_PORT=6790 ./flashq-server</code></pre>
 
       <p>Create a <code>prometheus.yml</code> configuration:</p>
 
-      <pre><code><span class="variable">global</span>:
-  <span class="variable">scrape_interval</span>: <span class="number">15</span>s
+      <pre><code class="language-typescript">global:
+  scrape_interval: 15s
 
-<span class="variable">scrape_configs</span>:
-  - <span class="variable">job_name</span>: <span class="string">'flashq'</span>
-    <span class="variable">static_configs</span>:
-      - <span class="variable">targets</span>: [<span class="string">'localhost:6790'</span>]
-    <span class="variable">metrics_path</span>: <span class="string">'/metrics/prometheus'</span></code></pre>
+scrape_configs:
+  - job_name: 'flashq'
+    static_configs:
+      - targets: ['localhost:6790']
+    metrics_path: '/metrics/prometheus'</code></pre>
 
       <p>Run Prometheus with Docker:</p>
 
-      <pre><code>docker run -d \
+      <pre><code class="language-bash">docker run -d \
   --name prometheus \
   -p 9090:9090 \
   -v ./prometheus.yml:/etc/prometheus/prometheus.yml \
@@ -181,145 +188,145 @@ HTTP=1 HTTP_PORT=6790 ./flashq-server</code></pre>
 
       <p>Monitor the overall health of your queues:</p>
 
-      <pre><code><span class="comment"># Jobs per second (throughput)</span>
+      <pre><code class="language-bash"># Jobs per second (throughput)
 rate(flashq_jobs_total[5m])
 
-<span class="comment"># Queue depth (waiting jobs)</span>
+# Queue depth (waiting jobs)
 flashq_jobs_waiting
 
-<span class="comment"># Active jobs</span>
+# Active jobs
 flashq_jobs_active
 
-<span class="comment"># Error rate</span>
+# Error rate
 rate(flashq_jobs_failed[5m]) / rate(flashq_jobs_total[5m]) * 100</code></pre>
 
       <h3>2. Latency Dashboard</h3>
 
       <p>Track job processing times:</p>
 
-      <pre><code><span class="comment"># P50 latency</span>
+      <pre><code class="language-bash"># P50 latency
 histogram_quantile(0.5, rate(flashq_job_duration_seconds_bucket[5m]))
 
-<span class="comment"># P95 latency</span>
+# P95 latency
 histogram_quantile(0.95, rate(flashq_job_duration_seconds_bucket[5m]))
 
-<span class="comment"># P99 latency</span>
+# P99 latency
 histogram_quantile(0.99, rate(flashq_job_duration_seconds_bucket[5m]))</code></pre>
 
       <h3>3. AI Cost Dashboard</h3>
 
       <p>Track API costs with custom metrics:</p>
 
-      <pre><code><span class="keyword">import</span> { Counter, Histogram } <span class="keyword">from</span> <span class="string">'prom-client'</span>;
+      <pre><code class="language-typescript">import { Counter, Histogram } from 'prom-client';
 
-<span class="comment">// Custom metrics for AI costs</span>
-<span class="keyword">const</span> <span class="variable">tokenCounter</span> = <span class="keyword">new</span> <span class="function">Counter</span>({
-  name: <span class="string">'ai_tokens_total'</span>,
-  help: <span class="string">'Total tokens used'</span>,
-  labelNames: [<span class="string">'model'</span>, <span class="string">'type'</span>]  <span class="comment">// type: input/output</span>
+// Custom metrics for AI costs
+const tokenCounter = new Counter({
+  name: 'ai_tokens_total',
+  help: 'Total tokens used',
+  labelNames: ['model', 'type']  // type: input/output
 });
 
-<span class="keyword">const</span> <span class="variable">costCounter</span> = <span class="keyword">new</span> <span class="function">Counter</span>({
-  name: <span class="string">'ai_cost_dollars'</span>,
-  help: <span class="string">'Total API cost in dollars'</span>,
-  labelNames: [<span class="string">'model'</span>, <span class="string">'queue'</span>]
+const costCounter = new Counter({
+  name: 'ai_cost_dollars',
+  help: 'Total API cost in dollars',
+  labelNames: ['model', 'queue']
 });
 
-<span class="comment">// Track in worker</span>
-<span class="keyword">new</span> <span class="function">Worker</span>(<span class="string">'llm-calls'</span>, <span class="keyword">async</span> (job) => {
-  <span class="keyword">const</span> <span class="variable">response</span> = <span class="keyword">await</span> openai.chat.completions.<span class="function">create</span>(job.data);
+// Track in worker
+new Worker('llm-calls', async (job) => {
+  const response = await openai.chat.completions.create(job.data);
 
-  <span class="comment">// Record metrics</span>
-  tokenCounter.<span class="function">inc</span>(
-    { model: job.data.model, type: <span class="string">'input'</span> },
+  // Record metrics
+  tokenCounter.inc(
+    { model: job.data.model, type: 'input' },
     response.usage.prompt_tokens
   );
-  tokenCounter.<span class="function">inc</span>(
-    { model: job.data.model, type: <span class="string">'output'</span> },
+  tokenCounter.inc(
+    { model: job.data.model, type: 'output' },
     response.usage.completion_tokens
   );
 
-  <span class="keyword">const</span> <span class="variable">cost</span> = <span class="function">calculateCost</span>(job.data.model, response.usage);
-  costCounter.<span class="function">inc</span>({ model: job.data.model, queue: <span class="string">'llm-calls'</span> }, cost);
+  const cost = calculateCost(job.data.model, response.usage);
+  costCounter.inc({ model: job.data.model, queue: 'llm-calls' }, cost);
 
-  <span class="keyword">return</span> response;
+  return response;
 });</code></pre>
 
       <h2>Setting Up Alerts</h2>
 
       <p>Create alerting rules for critical conditions:</p>
 
-      <pre><code><span class="variable">groups</span>:
-  - <span class="variable">name</span>: flashq_alerts
-    <span class="variable">rules</span>:
-      <span class="comment"># High error rate</span>
-      - <span class="variable">alert</span>: HighErrorRate
-        <span class="variable">expr</span>: rate(flashq_jobs_failed[5m]) > 0.1
-        <span class="variable">for</span>: 5m
-        <span class="variable">labels</span>:
-          <span class="variable">severity</span>: critical
-        <span class="variable">annotations</span>:
-          <span class="variable">summary</span>: <span class="string">"High job failure rate"</span>
+      <pre><code class="language-typescript">groups:
+  - name: flashq_alerts
+    rules:
+      # High error rate
+      - alert: HighErrorRate
+        expr: rate(flashq_jobs_failed[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High job failure rate"
 
-      <span class="comment"># Queue backing up</span>
-      - <span class="variable">alert</span>: QueueBacklog
-        <span class="variable">expr</span>: flashq_jobs_waiting > 10000
-        <span class="variable">for</span>: 10m
-        <span class="variable">labels</span>:
-          <span class="variable">severity</span>: warning
-        <span class="variable">annotations</span>:
-          <span class="variable">summary</span>: <span class="string">"Queue has large backlog"</span>
+      # Queue backing up
+      - alert: QueueBacklog
+        expr: flashq_jobs_waiting > 10000
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Queue has large backlog"
 
-      <span class="comment"># High latency</span>
-      - <span class="variable">alert</span>: HighLatency
-        <span class="variable">expr</span>: histogram_quantile(0.95, rate(flashq_job_duration_seconds_bucket[5m])) > 30
-        <span class="variable">for</span>: 5m
-        <span class="variable">labels</span>:
-          <span class="variable">severity</span>: warning
-        <span class="variable">annotations</span>:
-          <span class="variable">summary</span>: <span class="string">"P95 latency above 30 seconds"</span>
+      # High latency
+      - alert: HighLatency
+        expr: histogram_quantile(0.95, rate(flashq_job_duration_seconds_bucket[5m])) > 30
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "P95 latency above 30 seconds"
 
-      <span class="comment"># Budget exceeded</span>
-      - <span class="variable">alert</span>: DailyBudgetExceeded
-        <span class="variable">expr</span>: increase(ai_cost_dollars[24h]) > 100
-        <span class="variable">labels</span>:
-          <span class="variable">severity</span>: critical
-        <span class="variable">annotations</span>:
-          <span class="variable">summary</span>: <span class="string">"Daily AI spend exceeded $100"</span></code></pre>
+      # Budget exceeded
+      - alert: DailyBudgetExceeded
+        expr: increase(ai_cost_dollars[24h]) > 100
+        labels:
+          severity: critical
+        annotations:
+          summary: "Daily AI spend exceeded $100"</code></pre>
 
       <h2>Application-Level Monitoring</h2>
 
       <p>Beyond infrastructure metrics, monitor application behavior:</p>
 
-      <pre><code><span class="keyword">const</span> <span class="variable">queue</span> = <span class="keyword">new</span> <span class="function">Queue</span>(<span class="string">'ai-pipeline'</span>);
+      <pre><code class="language-typescript">const queue = new Queue('ai-pipeline');
 
-<span class="comment">// Log all job completions</span>
-queue.<span class="function">on</span>(<span class="string">'completed'</span>, (job, result) => {
-  console.<span class="function">log</span>(JSON.<span class="function">stringify</span>({
-    event: <span class="string">'job_completed'</span>,
+// Log all job completions
+queue.on('completed', (job, result) => {
+  console.log(JSON.stringify({
+    event: 'job_completed',
     jobId: job.id,
-    queue: <span class="string">'ai-pipeline'</span>,
-    duration: Date.<span class="function">now</span>() - job.timestamp,
-    resultSize: JSON.<span class="function">stringify</span>(result).length
+    queue: 'ai-pipeline',
+    duration: Date.now() - job.timestamp,
+    resultSize: JSON.stringify(result).length
   }));
 });
 
-<span class="comment">// Track failures with context</span>
-queue.<span class="function">on</span>(<span class="string">'failed'</span>, (job, error) => {
-  console.<span class="function">error</span>(JSON.<span class="function">stringify</span>({
-    event: <span class="string">'job_failed'</span>,
+// Track failures with context
+queue.on('failed', (job, error) => {
+  console.error(JSON.stringify({
+    event: 'job_failed',
     jobId: job.id,
-    queue: <span class="string">'ai-pipeline'</span>,
+    queue: 'ai-pipeline',
     error: error.message,
     attempt: job.attemptsMade,
     data: job.data
   }));
 });
 
-<span class="comment">// Monitor progress for long jobs</span>
-queue.<span class="function">on</span>(<span class="string">'progress'</span>, (job, progress) => {
-  console.<span class="function">log</span>(JSON.<span class="function">stringify</span>({
-    event: <span class="string">'job_progress'</span>,
+// Monitor progress for long jobs
+queue.on('progress', (job, progress) => {
+  console.log(JSON.stringify({
+    event: 'job_progress',
     jobId: job.id,
     progress: progress.percent,
     message: progress.message
@@ -330,21 +337,21 @@ queue.<span class="function">on</span>(<span class="string">'progress'</span>, (
 
       <p>flashQ supports WebSocket for real-time updates:</p>
 
-      <pre><code><span class="keyword">const</span> <span class="variable">ws</span> = <span class="keyword">new</span> <span class="function">WebSocket</span>(<span class="string">'ws://localhost:6790/ws?token=YOUR_TOKEN'</span>);
+      <pre><code class="language-typescript">const ws = new WebSocket('ws://localhost:6790/ws?token=YOUR_TOKEN');
 
-ws.<span class="function">onmessage</span> = (event) => {
-  <span class="keyword">const</span> <span class="variable">data</span> = JSON.<span class="function">parse</span>(event.data);
+ws.onmessage = (event) => {
+  const data = JSON.parse(event.data);
 
-  <span class="keyword">switch</span> (data.type) {
-    <span class="keyword">case</span> <span class="string">'job:completed'</span>:
-      <span class="function">updateCompletedCount</span>(data.queue);
-      <span class="keyword">break</span>;
-    <span class="keyword">case</span> <span class="string">'job:failed'</span>:
-      <span class="function">showErrorAlert</span>(data.jobId, data.error);
-      <span class="keyword">break</span>;
-    <span class="keyword">case</span> <span class="string">'queue:stats'</span>:
-      <span class="function">updateDashboard</span>(data.stats);
-      <span class="keyword">break</span>;
+  switch (data.type) {
+    case 'job:completed':
+      updateCompletedCount(data.queue);
+      break;
+    case 'job:failed':
+      showErrorAlert(data.jobId, data.error);
+      break;
+    case 'queue:stats':
+      updateDashboard(data.stats);
+      break;
   }
 };</code></pre>
 
@@ -407,5 +414,6 @@ ws.<span class="function">onmessage</span> = (event) => {
       });
     });
   </script>
+  <script>hljs.highlightAll();</script>
 </body>
 </html>

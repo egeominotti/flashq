@@ -168,6 +168,13 @@
     ]
   }
   </script>
+  <!-- Highlight.js -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/typescript.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/bash.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/yaml.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/json.min.js"></script>
 </head>
 <body>
   <nav>
@@ -251,17 +258,17 @@
         </div>
       </div>
 
-      <pre><code><span class="comment">// producer.ts</span>
-<span class="keyword">const</span> <span class="variable">client</span> = <span class="keyword">new</span> <span class="function">FlashQ</span>();
-<span class="keyword">await</span> client.<span class="function">connect</span>();
+      <pre><code class="language-typescript">// producer.ts
+const client = new FlashQ();
+await client.connect();
 
-<span class="keyword">const</span> <span class="variable">job</span> = <span class="keyword">await</span> client.<span class="function">push</span>(<span class="string">'emails'</span>, {
-  to: <span class="string">'user@example.com'</span>,
-  subject: <span class="string">'Welcome!'</span>,
-  body: <span class="string">'Thanks for signing up.'</span>
+const job = await client.push('emails', {
+  to: 'user@example.com',
+  subject: 'Welcome!',
+  body: 'Thanks for signing up.'
 });
 
-console.<span class="function">log</span>(<span class="string">`Job created: #${job.id}`</span>);</code></pre>
+console.log(`Job created: #${job.id}`);</code></pre>
 
       <h2>⚡ 2. Priority Queues</h2>
 
@@ -291,14 +298,14 @@ console.<span class="function">log</span>(<span class="string">`Job created: #${
         </div>
       </div>
 
-      <pre><code><span class="comment">// Critical job - processed first</span>
-<span class="keyword">await</span> client.<span class="function">push</span>(<span class="string">'tasks'</span>, { type: <span class="string">'urgent'</span> }, { priority: <span class="number">100</span> });
+      <pre><code class="language-typescript">// Critical job - processed first
+await client.push('tasks', { type: 'urgent' }, { priority: 100 });
 
-<span class="comment">// Normal job</span>
-<span class="keyword">await</span> client.<span class="function">push</span>(<span class="string">'tasks'</span>, { type: <span class="string">'regular'</span> }, { priority: <span class="number">10</span> });
+// Normal job
+await client.push('tasks', { type: 'regular' }, { priority: 10 });
 
-<span class="comment">// Background job - processed last</span>
-<span class="keyword">await</span> client.<span class="function">push</span>(<span class="string">'tasks'</span>, { type: <span class="string">'cleanup'</span> }, { priority: <span class="number">1</span> });</code></pre>
+// Background job - processed last
+await client.push('tasks', { type: 'cleanup' }, { priority: 1 });</code></pre>
 
       <h2>⏱️ 3. Delayed Jobs</h2>
 
@@ -326,19 +333,19 @@ console.<span class="function">log</span>(<span class="string">`Job created: #${
         </div>
       </div>
 
-      <pre><code><span class="comment">// Send reminder in 5 seconds</span>
-<span class="keyword">await</span> client.<span class="function">push</span>(<span class="string">'reminders'</span>, {
-  message: <span class="string">"Don't forget your meeting!"</span>
+      <pre><code class="language-typescript">// Send reminder in 5 seconds
+await client.push('reminders', {
+  message: "Don't forget your meeting!"
 }, {
-  delay: <span class="number">5000</span>  <span class="comment">// 5000ms = 5 seconds</span>
+  delay: 5000  // 5000ms = 5 seconds
 });
 
-<span class="comment">// Schedule for specific time</span>
-<span class="keyword">const</span> <span class="variable">tomorrow</span> = <span class="keyword">new</span> <span class="function">Date</span>();
-tomorrow.<span class="function">setDate</span>(tomorrow.<span class="function">getDate</span>() + <span class="number">1</span>);
+// Schedule for specific time
+const tomorrow = new Date();
+tomorrow.setDate(tomorrow.getDate() + 1);
 
-<span class="keyword">await</span> client.<span class="function">push</span>(<span class="string">'reports'</span>, { type: <span class="string">'daily'</span> }, {
-  delay: tomorrow.<span class="function">getTime</span>() - Date.<span class="function">now</span>()
+await client.push('reports', { type: 'daily' }, {
+  delay: tomorrow.getTime() - Date.now()
 });</code></pre>
 
       <h2>🔄 4. Automatic Retries with Exponential Backoff</h2>
@@ -370,9 +377,9 @@ tomorrow.<span class="function">setDate</span>(tomorrow.<span class="function">g
         </div>
       </div>
 
-      <pre><code><span class="keyword">await</span> client.<span class="function">push</span>(<span class="string">'api-calls'</span>, { url: <span class="string">'https://api.example.com'</span> }, {
-  max_attempts: <span class="number">3</span>,   <span class="comment">// Try up to 3 times</span>
-  backoff: <span class="number">1000</span>      <span class="comment">// Start with 1s, then 2s, then 4s...</span>
+      <pre><code class="language-typescript">await client.push('api-calls', { url: 'https://api.example.com' }, {
+  max_attempts: 3,   // Try up to 3 times
+  backoff: 1000      // Start with 1s, then 2s, then 4s...
 });</code></pre>
 
       <h2>💀 5. Dead Letter Queue (DLQ)</h2>
@@ -404,18 +411,18 @@ tomorrow.<span class="function">setDate</span>(tomorrow.<span class="function">g
         </div>
       </div>
 
-      <pre><code><span class="comment">// Get failed jobs</span>
-<span class="keyword">const</span> <span class="variable">failedJobs</span> = <span class="keyword">await</span> client.<span class="function">getDlq</span>(<span class="string">'payments'</span>, <span class="number">10</span>);
+      <pre><code class="language-typescript">// Get failed jobs
+const failedJobs = await client.getDlq('payments', 10);
 
-<span class="keyword">for</span> (<span class="keyword">const</span> job <span class="keyword">of</span> failedJobs) {
-  console.<span class="function">log</span>(<span class="string">`Job #${job.id} failed: ${job.failedReason}`</span>);
+for (const job of failedJobs) {
+  console.log(`Job #${job.id} failed: ${job.failedReason}`);
 
-  <span class="comment">// Retry specific job</span>
-  <span class="keyword">await</span> client.<span class="function">retryDlq</span>(<span class="string">'payments'</span>, job.id);
+  // Retry specific job
+  await client.retryDlq('payments', job.id);
 }
 
-<span class="comment">// Retry all DLQ jobs</span>
-<span class="keyword">await</span> client.<span class="function">retryDlq</span>(<span class="string">'payments'</span>);</code></pre>
+// Retry all DLQ jobs
+await client.retryDlq('payments');</code></pre>
 
       <h2>🚦 6. Rate Limiting</h2>
 
@@ -444,16 +451,16 @@ tomorrow.<span class="function">setDate</span>(tomorrow.<span class="function">g
         </div>
       </div>
 
-      <pre><code><span class="comment">// Limit to 10 jobs per second</span>
-<span class="keyword">await</span> client.<span class="function">setRateLimit</span>(<span class="string">'openai'</span>, {
-  max: <span class="number">10</span>,
-  duration: <span class="number">1000</span>  <span class="comment">// 1 second</span>
+      <pre><code class="language-typescript">// Limit to 10 jobs per second
+await client.setRateLimit('openai', {
+  max: 10,
+  duration: 1000  // 1 second
 });
 
-<span class="comment">// Limit to 100 jobs per minute</span>
-<span class="keyword">await</span> client.<span class="function">setRateLimit</span>(<span class="string">'emails'</span>, {
-  max: <span class="number">100</span>,
-  duration: <span class="number">60000</span>  <span class="comment">// 60 seconds</span>
+// Limit to 100 jobs per minute
+await client.setRateLimit('emails', {
+  max: 100,
+  duration: 60000  // 60 seconds
 });</code></pre>
 
       <h2>📊 7. Progress Tracking</h2>
@@ -483,25 +490,25 @@ tomorrow.<span class="function">setDate</span>(tomorrow.<span class="function">g
         </div>
       </div>
 
-      <pre><code><span class="comment">// Worker updates progress</span>
-<span class="keyword">new</span> <span class="function">Worker</span>(<span class="string">'documents'</span>, <span class="keyword">async</span> (job) => {
-  <span class="keyword">const</span> <span class="variable">docs</span> = job.data.documents;
-  <span class="keyword">const</span> <span class="variable">batchSize</span> = <span class="number">100</span>;
+      <pre><code class="language-typescript">// Worker updates progress
+new Worker('documents', async (job) => {
+  const docs = job.data.documents;
+  const batchSize = 100;
 
-  <span class="keyword">for</span> (<span class="keyword">let</span> i = <span class="number">0</span>; i < docs.length; i += batchSize) {
-    <span class="keyword">await</span> <span class="function">processBatch</span>(docs.<span class="function">slice</span>(i, i + batchSize));
+  for (let i = 0; i < docs.length; i += batchSize) {
+    await processBatch(docs.slice(i, i + batchSize));
 
-    <span class="comment">// Update progress</span>
-    <span class="keyword">const</span> <span class="variable">percent</span> = Math.<span class="function">round</span>((i + batchSize) / docs.length * <span class="number">100</span>);
-    <span class="keyword">await</span> job.<span class="function">updateProgress</span>(percent, <span class="string">`Processing batch ${i/batchSize + 1}`</span>);
+    // Update progress
+    const percent = Math.round((i + batchSize) / docs.length * 100);
+    await job.updateProgress(percent, `Processing batch ${i/batchSize + 1}`);
   }
 
-  <span class="keyword">return</span> { processed: docs.length };
+  return { processed: docs.length };
 });
 
-<span class="comment">// Monitor progress from another process</span>
-<span class="keyword">const</span> <span class="variable">progress</span> = <span class="keyword">await</span> client.<span class="function">getProgress</span>(jobId);
-console.<span class="function">log</span>(<span class="string">`${progress.percent}% - ${progress.message}`</span>);</code></pre>
+// Monitor progress from another process
+const progress = await client.getProgress(jobId);
+console.log(`${progress.percent}% - ${progress.message}`);</code></pre>
 
       <h2>⏰ 8. Cron Jobs</h2>
 
@@ -533,23 +540,23 @@ console.<span class="function">log</span>(<span class="string">`${progress.perce
         </div>
       </div>
 
-      <pre><code><span class="comment">// Daily report at 9 AM</span>
-<span class="keyword">await</span> client.<span class="function">addCron</span>(<span class="string">'daily-report'</span>, {
-  queue: <span class="string">'reports'</span>,
-  schedule: <span class="string">'0 9 * * *'</span>,
-  data: { type: <span class="string">'daily'</span> }
+      <pre><code class="language-typescript">// Daily report at 9 AM
+await client.addCron('daily-report', {
+  queue: 'reports',
+  schedule: '0 9 * * *',
+  data: { type: 'daily' }
 });
 
-<span class="comment">// Every 5 minutes</span>
-<span class="keyword">await</span> client.<span class="function">addCron</span>(<span class="string">'cleanup'</span>, {
-  queue: <span class="string">'maintenance'</span>,
-  schedule: <span class="string">'*/5 * * * *'</span>,
-  data: { action: <span class="string">'cleanup'</span> }
+// Every 5 minutes
+await client.addCron('cleanup', {
+  queue: 'maintenance',
+  schedule: '*/5 * * * *',
+  data: { action: 'cleanup' }
 });
 
-<span class="comment">// List all cron jobs</span>
-<span class="keyword">const</span> <span class="variable">crons</span> = <span class="keyword">await</span> client.<span class="function">listCrons</span>();
-crons.<span class="function">forEach</span>(c => console.<span class="function">log</span>(<span class="string">`${c.name}: ${c.schedule}`</span>));</code></pre>
+// List all cron jobs
+const crons = await client.listCrons();
+crons.forEach(c => console.log(`${c.name}: ${c.schedule}`));</code></pre>
 
       <h2>🔗 9. Job Dependencies (Workflows)</h2>
 
@@ -587,27 +594,27 @@ crons.<span class="function">forEach</span>(c => console.<span class="function">
         </div>
       </div>
 
-      <pre><code><span class="comment">// Create workflow with dependencies</span>
-<span class="keyword">const</span> <span class="variable">extract</span> = <span class="keyword">await</span> client.<span class="function">push</span>(<span class="string">'pipeline'</span>, {
-  step: <span class="string">'extract'</span>,
-  file: <span class="string">'document.pdf'</span>
+      <pre><code class="language-typescript">// Create workflow with dependencies
+const extract = await client.push('pipeline', {
+  step: 'extract',
+  file: 'document.pdf'
 });
 
-<span class="keyword">const</span> <span class="variable">embed</span> = <span class="keyword">await</span> client.<span class="function">push</span>(<span class="string">'pipeline'</span>, {
-  step: <span class="string">'embed'</span>
+const embed = await client.push('pipeline', {
+  step: 'embed'
 }, {
-  depends_on: [extract.id]  <span class="comment">// Wait for extract</span>
+  depends_on: [extract.id]  // Wait for extract
 });
 
-<span class="keyword">const</span> <span class="variable">store</span> = <span class="keyword">await</span> client.<span class="function">push</span>(<span class="string">'pipeline'</span>, {
-  step: <span class="string">'store'</span>
+const store = await client.push('pipeline', {
+  step: 'store'
 }, {
-  depends_on: [embed.id]  <span class="comment">// Wait for embed</span>
+  depends_on: [embed.id]  // Wait for embed
 });
 
-<span class="comment">// Wait for entire workflow</span>
-<span class="keyword">const</span> <span class="variable">result</span> = <span class="keyword">await</span> client.<span class="function">finished</span>(store.id);
-console.<span class="function">log</span>(<span class="string">'Workflow complete!'</span>, result);</code></pre>
+// Wait for entire workflow
+const result = await client.finished(store.id);
+console.log('Workflow complete!', result);</code></pre>
 
       <h2>📈 10. Real-Time Monitoring</h2>
 
@@ -661,21 +668,21 @@ console.<span class="function">log</span>(<span class="string">'Workflow complet
         </div>
       </div>
 
-      <pre><code><span class="comment">// Get queue statistics</span>
-<span class="keyword">const</span> <span class="variable">stats</span> = <span class="keyword">await</span> client.<span class="function">stats</span>();
-console.<span class="function">log</span>(<span class="string">`Total queues: ${stats.queues}`</span>);
-console.<span class="function">log</span>(<span class="string">`Jobs waiting: ${stats.waiting}`</span>);
-console.<span class="function">log</span>(<span class="string">`Jobs active: ${stats.active}`</span>);
+      <pre><code class="language-typescript">// Get queue statistics
+const stats = await client.stats();
+console.log(`Total queues: ${stats.queues}`);
+console.log(`Jobs waiting: ${stats.waiting}`);
+console.log(`Jobs active: ${stats.active}`);
 
-<span class="comment">// Get detailed metrics</span>
-<span class="keyword">const</span> <span class="variable">metrics</span> = <span class="keyword">await</span> client.<span class="function">metrics</span>();
-console.<span class="function">log</span>(<span class="string">`Throughput: ${metrics.throughput}/min`</span>);
-console.<span class="function">log</span>(<span class="string">`Avg latency: ${metrics.avgLatency}ms`</span>);
+// Get detailed metrics
+const metrics = await client.metrics();
+console.log(`Throughput: ${metrics.throughput}/min`);
+console.log(`Avg latency: ${metrics.avgLatency}ms`);
 
-<span class="comment">// Get job counts by state</span>
-<span class="keyword">const</span> <span class="variable">counts</span> = <span class="keyword">await</span> client.<span class="function">getJobCounts</span>(<span class="string">'emails'</span>);
-console.<span class="function">log</span>(counts);
-<span class="comment">// { waiting: 23, active: 5, completed: 12847, failed: 2 }</span></code></pre>
+// Get job counts by state
+const counts = await client.getJobCounts('emails');
+console.log(counts);
+// { waiting: 23, active: 5, completed: 12847, failed: 2 }</code></pre>
 
       <h2>🎯 Summary</h2>
 
@@ -766,5 +773,6 @@ console.<span class="function">log</span>(counts);
       });
     });
   </script>
+  <script>hljs.highlightAll();</script>
 </body>
 </html>

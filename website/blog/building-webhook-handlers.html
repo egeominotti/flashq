@@ -51,6 +51,13 @@
     ]
   }
   </script>
+  <!-- Highlight.js -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/typescript.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/bash.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/yaml.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/json.min.js"></script>
 </head>
 <body>
   <nav>
@@ -94,7 +101,7 @@
 
       <p>Webhook providers expect fast responses (typically under 3 seconds). If processing takes longer, you risk timeouts and retries. The solution: immediately queue webhook payloads and process them asynchronously.</p>
 
-      <pre><code>┌─────────────┐     POST /webhook      ┌──────────────┐
+      <pre><code class="language-typescript">┌─────────────┐     POST /webhook      ┌──────────────┐
 │   Stripe    │ ─────────────────────→ │  Your API    │
 │   (sender)  │                        │              │
 └─────────────┘                        │  1. Verify   │
@@ -114,156 +121,156 @@
 
       <h2>Basic Webhook Handler</h2>
 
-      <pre><code><span class="keyword">import</span> express <span class="keyword">from</span> <span class="string">'express'</span>;
-<span class="keyword">import</span> { FlashQ, Worker } <span class="keyword">from</span> <span class="string">'flashq'</span>;
+      <pre><code class="language-typescript">import express from 'express';
+import { FlashQ, Worker } from 'flashq';
 
-<span class="keyword">const</span> app = <span class="function">express</span>();
-<span class="keyword">const</span> client = <span class="keyword">new</span> <span class="function">FlashQ</span>({ host: <span class="string">'localhost'</span>, port: <span class="number">6789</span> });
+const app = express();
+const client = new FlashQ({ host: 'localhost', port: 6789 });
 
-<span class="keyword">await</span> client.<span class="function">connect</span>();
+await client.connect();
 
-<span class="comment">// Webhook endpoint - fast response, async processing</span>
-app.<span class="function">post</span>(<span class="string">'/webhook'</span>, express.<span class="function">raw</span>({ type: <span class="string">'application/json'</span> }), <span class="keyword">async</span> (req, res) => {
-  <span class="keyword">try</span> {
-    <span class="keyword">const</span> payload = JSON.<span class="function">parse</span>(req.body.<span class="function">toString</span>());
+// Webhook endpoint - fast response, async processing
+app.post('/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
+  try {
+    const payload = JSON.parse(req.body.toString());
 
-    <span class="comment">// Queue for async processing</span>
-    <span class="keyword">await</span> client.<span class="function">push</span>(<span class="string">'webhooks'</span>, {
-      source: <span class="string">'generic'</span>,
+    // Queue for async processing
+    await client.push('webhooks', {
+      source: 'generic',
       payload,
-      receivedAt: Date.<span class="function">now</span>()
+      receivedAt: Date.now()
     });
 
-    res.<span class="function">status</span>(<span class="number">200</span>).<span class="function">send</span>(<span class="string">'OK'</span>);
-  } <span class="keyword">catch</span> (error) {
-    res.<span class="function">status</span>(<span class="number">400</span>).<span class="function">send</span>(<span class="string">'Invalid payload'</span>);
+    res.status(200).send('OK');
+  } catch (error) {
+    res.status(400).send('Invalid payload');
   }
 });
 
-<span class="comment">// Worker processes webhooks asynchronously</span>
-<span class="keyword">const</span> worker = <span class="keyword">new</span> <span class="function">Worker</span>(<span class="string">'webhooks'</span>, <span class="keyword">async</span> (job) => {
-  <span class="keyword">const</span> { source, payload } = job.data;
-  console.<span class="function">log</span>(<span class="string">`Processing webhook from </span>${source}<span class="string">`</span>);
-  <span class="keyword">await</span> <span class="function">processWebhook</span>(payload);
+// Worker processes webhooks asynchronously
+const worker = new Worker('webhooks', async (job) => {
+  const { source, payload } = job.data;
+  console.log(`Processing webhook from ${source}`);
+  await processWebhook(payload);
 });
 
-app.<span class="function">listen</span>(<span class="number">3000</span>);</code></pre>
+app.listen(3000);</code></pre>
 
       <h2>Stripe Webhook Handler</h2>
 
       <p>Stripe webhooks require signature verification using their <code>stripe-signature</code> header:</p>
 
-      <pre><code><span class="keyword">import</span> Stripe <span class="keyword">from</span> <span class="string">'stripe'</span>;
-<span class="keyword">import</span> { FlashQ, Worker } <span class="keyword">from</span> <span class="string">'flashq'</span>;
+      <pre><code class="language-typescript">import Stripe from 'stripe';
+import { FlashQ, Worker } from 'flashq';
 
-<span class="keyword">const</span> stripe = <span class="keyword">new</span> <span class="function">Stripe</span>(process.env.STRIPE_SECRET_KEY);
-<span class="keyword">const</span> client = <span class="keyword">new</span> <span class="function">FlashQ</span>({ host: <span class="string">'localhost'</span>, port: <span class="number">6789</span> });
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+const client = new FlashQ({ host: 'localhost', port: 6789 });
 
-<span class="keyword">await</span> client.<span class="function">connect</span>();
+await client.connect();
 
-app.<span class="function">post</span>(<span class="string">'/webhook/stripe'</span>, express.<span class="function">raw</span>({ type: <span class="string">'application/json'</span> }), <span class="keyword">async</span> (req, res) => {
-  <span class="keyword">const</span> signature = req.headers[<span class="string">'stripe-signature'</span>];
+app.post('/webhook/stripe', express.raw({ type: 'application/json' }), async (req, res) => {
+  const signature = req.headers['stripe-signature'];
 
-  <span class="keyword">try</span> {
-    <span class="comment">// 1. Verify signature</span>
-    <span class="keyword">const</span> event = stripe.webhooks.<span class="function">constructEvent</span>(
+  try {
+    // 1. Verify signature
+    const event = stripe.webhooks.constructEvent(
       req.body,
       signature,
       process.env.STRIPE_WEBHOOK_SECRET
     );
 
-    <span class="comment">// 2. Queue with idempotency key (Stripe event ID)</span>
-    <span class="keyword">await</span> client.<span class="function">push</span>(<span class="string">'stripe-webhooks'</span>, {
+    // 2. Queue with idempotency key (Stripe event ID)
+    await client.push('stripe-webhooks', {
       eventId: event.id,
       type: event.type,
       data: event.data.object
     }, {
-      unique_key: event.id  <span class="comment">// Prevents duplicate processing</span>
+      unique_key: event.id  // Prevents duplicate processing
     });
 
-    <span class="comment">// 3. Acknowledge immediately</span>
-    res.<span class="function">status</span>(<span class="number">200</span>).<span class="function">json</span>({ received: <span class="keyword">true</span> });
+    // 3. Acknowledge immediately
+    res.status(200).json({ received: true });
 
-  } <span class="keyword">catch</span> (error) {
-    console.<span class="function">error</span>(<span class="string">'Webhook error:'</span>, error.message);
-    res.<span class="function">status</span>(<span class="number">400</span>).<span class="function">send</span>(<span class="string">`Webhook Error: </span>${error.message}<span class="string">`</span>);
+  } catch (error) {
+    console.error('Webhook error:', error.message);
+    res.status(400).send(`Webhook Error: ${error.message}`);
   }
 });
 
-<span class="comment">// Stripe webhook worker</span>
-<span class="keyword">const</span> stripeWorker = <span class="keyword">new</span> <span class="function">Worker</span>(<span class="string">'stripe-webhooks'</span>, <span class="keyword">async</span> (job) => {
-  <span class="keyword">const</span> { eventId, type, data } = job.data;
+// Stripe webhook worker
+const stripeWorker = new Worker('stripe-webhooks', async (job) => {
+  const { eventId, type, data } = job.data;
 
-  <span class="keyword">switch</span> (type) {
-    <span class="keyword">case</span> <span class="string">'payment_intent.succeeded'</span>:
-      <span class="keyword">await</span> <span class="function">handlePaymentSuccess</span>(data);
-      <span class="keyword">break</span>;
-    <span class="keyword">case</span> <span class="string">'customer.subscription.created'</span>:
-      <span class="keyword">await</span> <span class="function">handleNewSubscription</span>(data);
-      <span class="keyword">break</span>;
-    <span class="keyword">case</span> <span class="string">'invoice.payment_failed'</span>:
-      <span class="keyword">await</span> <span class="function">handleFailedPayment</span>(data);
-      <span class="keyword">break</span>;
-    <span class="keyword">default</span>:
-      console.<span class="function">log</span>(<span class="string">`Unhandled event type: </span>${type}<span class="string">`</span>);
+  switch (type) {
+    case 'payment_intent.succeeded':
+      await handlePaymentSuccess(data);
+      break;
+    case 'customer.subscription.created':
+      await handleNewSubscription(data);
+      break;
+    case 'invoice.payment_failed':
+      await handleFailedPayment(data);
+      break;
+    default:
+      console.log(`Unhandled event type: ${type}`);
   }
-}, { concurrency: <span class="number">5</span> });</code></pre>
+}, { concurrency: 5 });</code></pre>
 
       <h2>GitHub Webhook Handler</h2>
 
       <p>GitHub uses HMAC-SHA256 signatures in the <code>x-hub-signature-256</code> header:</p>
 
-      <pre><code><span class="keyword">import</span> { createHmac } <span class="keyword">from</span> <span class="string">'crypto'</span>;
-<span class="keyword">import</span> { FlashQ, Worker } <span class="keyword">from</span> <span class="string">'flashq'</span>;
+      <pre><code class="language-typescript">import { createHmac } from 'crypto';
+import { FlashQ, Worker } from 'flashq';
 
-<span class="keyword">const</span> client = <span class="keyword">new</span> <span class="function">FlashQ</span>({ host: <span class="string">'localhost'</span>, port: <span class="number">6789</span> });
+const client = new FlashQ({ host: 'localhost', port: 6789 });
 
-<span class="keyword">function</span> <span class="function">verifyGitHubSignature</span>(payload, signature, secret) {
-  <span class="keyword">const</span> expected = <span class="string">'sha256='</span> + <span class="function">createHmac</span>(<span class="string">'sha256'</span>, secret)
-    .<span class="function">update</span>(payload)
-    .<span class="function">digest</span>(<span class="string">'hex'</span>);
+function verifyGitHubSignature(payload, signature, secret) {
+  const expected = 'sha256=' + createHmac('sha256', secret)
+    .update(payload)
+    .digest('hex');
 
-  <span class="keyword">return</span> signature === expected;
+  return signature === expected;
 }
 
-app.<span class="function">post</span>(<span class="string">'/webhook/github'</span>, express.<span class="function">raw</span>({ type: <span class="string">'application/json'</span> }), <span class="keyword">async</span> (req, res) => {
-  <span class="keyword">const</span> signature = req.headers[<span class="string">'x-hub-signature-256'</span>];
-  <span class="keyword">const</span> event = req.headers[<span class="string">'x-github-event'</span>];
-  <span class="keyword">const</span> deliveryId = req.headers[<span class="string">'x-github-delivery'</span>];
+app.post('/webhook/github', express.raw({ type: 'application/json' }), async (req, res) => {
+  const signature = req.headers['x-hub-signature-256'];
+  const event = req.headers['x-github-event'];
+  const deliveryId = req.headers['x-github-delivery'];
 
-  <span class="comment">// 1. Verify signature</span>
-  <span class="keyword">if</span> (!<span class="function">verifyGitHubSignature</span>(req.body, signature, process.env.GITHUB_WEBHOOK_SECRET)) {
-    <span class="keyword">return</span> res.<span class="function">status</span>(<span class="number">401</span>).<span class="function">send</span>(<span class="string">'Invalid signature'</span>);
+  // 1. Verify signature
+  if (!verifyGitHubSignature(req.body, signature, process.env.GITHUB_WEBHOOK_SECRET)) {
+    return res.status(401).send('Invalid signature');
   }
 
-  <span class="keyword">const</span> payload = JSON.<span class="function">parse</span>(req.body.<span class="function">toString</span>());
+  const payload = JSON.parse(req.body.toString());
 
-  <span class="comment">// 2. Queue with delivery ID as unique key</span>
-  <span class="keyword">await</span> client.<span class="function">push</span>(<span class="string">'github-webhooks'</span>, {
+  // 2. Queue with delivery ID as unique key
+  await client.push('github-webhooks', {
     deliveryId,
     event,
     payload
   }, {
-    unique_key: deliveryId  <span class="comment">// Idempotency</span>
+    unique_key: deliveryId  // Idempotency
   });
 
-  res.<span class="function">status</span>(<span class="number">200</span>).<span class="function">send</span>(<span class="string">'OK'</span>);
+  res.status(200).send('OK');
 });
 
-<span class="comment">// GitHub webhook worker</span>
-<span class="keyword">const</span> githubWorker = <span class="keyword">new</span> <span class="function">Worker</span>(<span class="string">'github-webhooks'</span>, <span class="keyword">async</span> (job) => {
-  <span class="keyword">const</span> { event, payload } = job.data;
+// GitHub webhook worker
+const githubWorker = new Worker('github-webhooks', async (job) => {
+  const { event, payload } = job.data;
 
-  <span class="keyword">switch</span> (event) {
-    <span class="keyword">case</span> <span class="string">'push'</span>:
-      <span class="keyword">await</span> <span class="function">handlePush</span>(payload);
-      <span class="keyword">break</span>;
-    <span class="keyword">case</span> <span class="string">'pull_request'</span>:
-      <span class="keyword">await</span> <span class="function">handlePullRequest</span>(payload);
-      <span class="keyword">break</span>;
-    <span class="keyword">case</span> <span class="string">'issues'</span>:
-      <span class="keyword">await</span> <span class="function">handleIssue</span>(payload);
-      <span class="keyword">break</span>;
+  switch (event) {
+    case 'push':
+      await handlePush(payload);
+      break;
+    case 'pull_request':
+      await handlePullRequest(payload);
+      break;
+    case 'issues':
+      await handleIssue(payload);
+      break;
   }
 });</code></pre>
 
@@ -271,24 +278,24 @@ app.<span class="function">post</span>(<span class="string">'/webhook/github'</s
 
       <p>For services using standard HMAC-SHA256:</p>
 
-      <pre><code><span class="keyword">import</span> { createHmac, timingSafeEqual } <span class="keyword">from</span> <span class="string">'crypto'</span>;
+      <pre><code class="language-typescript">import { createHmac, timingSafeEqual } from 'crypto';
 
-<span class="keyword">function</span> <span class="function">verifyHmacSignature</span>(payload, signature, secret) {
-  <span class="keyword">const</span> expected = <span class="function">createHmac</span>(<span class="string">'sha256'</span>, secret)
-    .<span class="function">update</span>(payload)
-    .<span class="function">digest</span>(<span class="string">'hex'</span>);
+function verifyHmacSignature(payload, signature, secret) {
+  const expected = createHmac('sha256', secret)
+    .update(payload)
+    .digest('hex');
 
-  <span class="comment">// Extract hex part if prefixed (e.g., "sha256=...")</span>
-  <span class="keyword">const</span> received = signature.<span class="function">replace</span>(<span class="string">'sha256='</span>, <span class="string">''</span>);
+  // Extract hex part if prefixed (e.g., "sha256=...")
+  const received = signature.replace('sha256=', '');
 
-  <span class="comment">// Use timing-safe comparison to prevent timing attacks</span>
-  <span class="keyword">try</span> {
-    <span class="keyword">return</span> <span class="function">timingSafeEqual</span>(
-      Buffer.<span class="function">from</span>(expected, <span class="string">'hex'</span>),
-      Buffer.<span class="function">from</span>(received, <span class="string">'hex'</span>)
+  // Use timing-safe comparison to prevent timing attacks
+  try {
+    return timingSafeEqual(
+      Buffer.from(expected, 'hex'),
+      Buffer.from(received, 'hex')
     );
-  } <span class="keyword">catch</span> {
-    <span class="keyword">return</span> <span class="keyword">false</span>;
+  } catch {
+    return false;
   }
 }</code></pre>
 
@@ -296,62 +303,62 @@ app.<span class="function">post</span>(<span class="string">'/webhook/github'</s
 
       <p>Webhook providers often retry on failures. Use flashQ's <code>unique_key</code> to prevent duplicate processing:</p>
 
-      <pre><code><span class="comment">// Stripe: Use event ID</span>
-<span class="keyword">await</span> client.<span class="function">push</span>(<span class="string">'stripe'</span>, data, {
+      <pre><code class="language-typescript">// Stripe: Use event ID
+await client.push('stripe', data, {
   unique_key: event.id
 });
 
-<span class="comment">// GitHub: Use delivery ID</span>
-<span class="keyword">await</span> client.<span class="function">push</span>(<span class="string">'github'</span>, data, {
+// GitHub: Use delivery ID
+await client.push('github', data, {
   unique_key: deliveryId
 });
 
-<span class="comment">// Custom: Generate from payload</span>
-<span class="keyword">const</span> idempotencyKey = <span class="function">createHash</span>(<span class="string">'sha256'</span>)
-  .<span class="function">update</span>(JSON.<span class="function">stringify</span>(payload))
-  .<span class="function">digest</span>(<span class="string">'hex'</span>);
+// Custom: Generate from payload
+const idempotencyKey = createHash('sha256')
+  .update(JSON.stringify(payload))
+  .digest('hex');
 
-<span class="keyword">await</span> client.<span class="function">push</span>(<span class="string">'webhooks'</span>, data, {
+await client.push('webhooks', data, {
   unique_key: idempotencyKey
 });</code></pre>
 
       <h2>Error Handling & Retries</h2>
 
-      <pre><code><span class="keyword">const</span> worker = <span class="keyword">new</span> <span class="function">Worker</span>(<span class="string">'webhooks'</span>, <span class="keyword">async</span> (job) => {
-  <span class="keyword">const</span> { eventId, type, data } = job.data;
+      <pre><code class="language-typescript">const worker = new Worker('webhooks', async (job) => {
+  const { eventId, type, data } = job.data;
 
-  <span class="keyword">try</span> {
-    <span class="keyword">await</span> <span class="function">processWebhook</span>(type, data);
-  } <span class="keyword">catch</span> (error) {
-    <span class="comment">// Log for debugging</span>
-    console.<span class="function">error</span>(<span class="string">`Webhook </span>${eventId}<span class="string"> failed:`</span>, error);
+  try {
+    await processWebhook(type, data);
+  } catch (error) {
+    // Log for debugging
+    console.error(`Webhook ${eventId} failed:`, error);
 
-    <span class="comment">// Check if we should retry</span>
-    <span class="keyword">if</span> (<span class="function">isRetryableError</span>(error)) {
-      <span class="keyword">throw</span> error; <span class="comment">// Triggers automatic retry</span>
+    // Check if we should retry
+    if (isRetryableError(error)) {
+      throw error; // Triggers automatic retry
     }
 
-    <span class="comment">// Non-retryable: log and complete</span>
-    <span class="keyword">await</span> <span class="function">logFailedWebhook</span>(eventId, error);
+    // Non-retryable: log and complete
+    await logFailedWebhook(eventId, error);
   }
 });
 
-<span class="keyword">function</span> <span class="function">isRetryableError</span>(error) {
-  <span class="keyword">const</span> retryableCodes = [<span class="number">408</span>, <span class="number">429</span>, <span class="number">500</span>, <span class="number">502</span>, <span class="number">503</span>, <span class="number">504</span>];
-  <span class="keyword">return</span> error.message.<span class="function">includes</span>(<span class="string">'ECONNREFUSED'</span>) ||
-         error.message.<span class="function">includes</span>(<span class="string">'ETIMEDOUT'</span>) ||
-         retryableCodes.<span class="function">some</span>(code => error.message.<span class="function">includes</span>(String(code)));
+function isRetryableError(error) {
+  const retryableCodes = [408, 429, 500, 502, 503, 504];
+  return error.message.includes('ECONNREFUSED') ||
+         error.message.includes('ETIMEDOUT') ||
+         retryableCodes.some(code => error.message.includes(String(code)));
 }</code></pre>
 
       <h2>Webhook Configuration Options</h2>
 
-      <pre><code><span class="comment">// Configure retry behavior</span>
-<span class="keyword">await</span> client.<span class="function">push</span>(<span class="string">'webhooks'</span>, payload, {
-  unique_key: eventId,        <span class="comment">// Idempotency</span>
-  max_attempts: <span class="number">5</span>,            <span class="comment">// Retry 5 times</span>
-  backoff: <span class="number">1000</span>,              <span class="comment">// Start with 1s delay</span>
-  timeout: <span class="number">30000</span>,             <span class="comment">// 30s processing timeout</span>
-  priority: <span class="number">10</span>                <span class="comment">// Higher priority</span>
+      <pre><code class="language-typescript">// Configure retry behavior
+await client.push('webhooks', payload, {
+  unique_key: eventId,        // Idempotency
+  max_attempts: 5,            // Retry 5 times
+  backoff: 1000,              // Start with 1s delay
+  timeout: 30000,             // 30s processing timeout
+  priority: 10                // Higher priority
 });</code></pre>
 
       <div class="callout callout-success">
@@ -387,5 +394,6 @@ app.<span class="function">post</span>(<span class="string">'/webhook/github'</s
   </footer>
 
   <script src="../script.js"></script>
+  <script>hljs.highlightAll();</script>
 </body>
 </html>

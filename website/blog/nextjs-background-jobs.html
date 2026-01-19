@@ -53,6 +53,13 @@
     ]
   }
   </script>
+  <!-- Highlight.js -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/typescript.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/bash.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/yaml.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/json.min.js"></script>
 </head>
 <body>
   <nav>
@@ -105,7 +112,7 @@
 
       <p>Here's how the pieces fit together:</p>
 
-      <pre><code>┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+      <pre><code class="language-plaintext">┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
 │    Next.js      │     │    flashQ       │     │    Worker       │
 │    (Vercel)     │────▶│    Server       │◀────│    (Railway)    │
 │                 │     │    (Railway)    │     │                 │
@@ -120,45 +127,45 @@
 
       <h3>1. Create a Next.js App</h3>
 
-      <pre><code><span class="comment"># Create new Next.js project</span>
+      <pre><code class="language-bash"># Create new Next.js project
 npx create-next-app@latest my-app --typescript --tailwind --app
-<span class="keyword">cd</span> my-app
+cd my-app
 
-<span class="comment"># Install flashQ</span>
+# Install flashQ
 npm install flashq</code></pre>
 
       <h3>2. Environment Variables</h3>
 
       <p>Create a <code>.env.local</code> file:</p>
 
-      <pre><code><span class="comment"># flashQ server connection</span>
+      <pre><code class="language-bash"># flashQ server connection
 FLASHQ_HOST=your-flashq-server.railway.app
 FLASHQ_PORT=6789
 FLASHQ_TOKEN=your-secret-token
 
-<span class="comment"># Or use HTTP for serverless environments</span>
+# Or use HTTP for serverless environments
 FLASHQ_HTTP_URL=https://your-flashq-server.railway.app</code></pre>
 
       <h3>3. Create the Queue Client</h3>
 
-      <pre><code><span class="comment">// lib/queue.ts</span>
-<span class="keyword">import</span> { Queue } <span class="keyword">from</span> <span class="string">'flashq'</span>;
+      <pre><code class="language-typescript">// lib/queue.ts
+import { Queue } from 'flashq';
 
-<span class="keyword">let</span> queue: Queue | <span class="keyword">null</span> = <span class="keyword">null</span>;
+let queue: Queue | null = null;
 
-<span class="keyword">export</span> <span class="keyword">function</span> <span class="function">getQueue</span>(): Queue {
-  <span class="keyword">if</span> (!queue) {
-    queue = <span class="keyword">new</span> <span class="function">Queue</span>(<span class="string">'tasks'</span>, {
+export function getQueue(): Queue {
+  if (!queue) {
+    queue = new Queue('tasks', {
       connection: {
         host: process.env.FLASHQ_HOST!,
-        port: <span class="function">parseInt</span>(process.env.FLASHQ_PORT || <span class="string">'6789'</span>),
+        port: parseInt(process.env.FLASHQ_PORT || '6789'),
         token: process.env.FLASHQ_TOKEN,
       },
-      <span class="comment">// Use HTTP mode for serverless (no persistent TCP connections)</span>
-      useHttp: <span class="keyword">true</span>,
+      // Use HTTP mode for serverless (no persistent TCP connections)
+      useHttp: true,
     });
   }
-  <span class="keyword">return</span> queue;
+  return queue;
 }</code></pre>
 
       <div class="callout callout-info">
@@ -170,70 +177,70 @@ FLASHQ_HTTP_URL=https://your-flashq-server.railway.app</code></pre>
 
       <h3>Example 1: AI Content Generation</h3>
 
-      <pre><code><span class="comment">// app/api/generate/route.ts</span>
-<span class="keyword">import</span> { NextRequest, NextResponse } <span class="keyword">from</span> <span class="string">'next/server'</span>;
-<span class="keyword">import</span> { getQueue } <span class="keyword">from</span> <span class="string">'@/lib/queue'</span>;
+      <pre><code class="language-typescript">// app/api/generate/route.ts
+import { NextRequest, NextResponse } from 'next/server';
+import { getQueue } from '@/lib/queue';
 
-<span class="keyword">export</span> <span class="keyword">async</span> <span class="keyword">function</span> <span class="function">POST</span>(request: NextRequest) {
-  <span class="keyword">const</span> { prompt, userId } = <span class="keyword">await</span> request.<span class="function">json</span>();
+export async function POST(request: NextRequest) {
+  const { prompt, userId } = await request.json();
 
-  <span class="comment">// Validate input</span>
-  <span class="keyword">if</span> (!prompt || !userId) {
-    <span class="keyword">return</span> NextResponse.<span class="function">json</span>(
-      { error: <span class="string">'Missing required fields'</span> },
-      { status: <span class="number">400</span> }
+  // Validate input
+  if (!prompt || !userId) {
+    return NextResponse.json(
+      { error: 'Missing required fields' },
+      { status: 400 }
     );
   }
 
-  <span class="comment">// Enqueue the job (returns immediately)</span>
-  <span class="keyword">const</span> <span class="variable">queue</span> = <span class="function">getQueue</span>();
-  <span class="keyword">const</span> <span class="variable">job</span> = <span class="keyword">await</span> queue.<span class="function">add</span>(<span class="string">'generate-content'</span>, {
+  // Enqueue the job (returns immediately)
+  const queue = getQueue();
+  const job = await queue.add('generate-content', {
     prompt,
     userId,
-    createdAt: <span class="keyword">new</span> <span class="function">Date</span>().<span class="function">toISOString</span>(),
+    createdAt: new Date().toISOString(),
   }, {
-    <span class="comment">// Job options</span>
-    priority: <span class="number">10</span>,
-    attempts: <span class="number">3</span>,
-    backoff: { type: <span class="string">'exponential'</span>, delay: <span class="number">1000</span> },
+    // Job options
+    priority: 10,
+    attempts: 3,
+    backoff: { type: 'exponential', delay: 1000 },
   });
 
-  <span class="comment">// Return job ID for tracking</span>
-  <span class="keyword">return</span> NextResponse.<span class="function">json</span>({
-    success: <span class="keyword">true</span>,
+  // Return job ID for tracking
+  return NextResponse.json({
+    success: true,
     jobId: job.id,
-    message: <span class="string">'Content generation started'</span>,
+    message: 'Content generation started',
   });
 }</code></pre>
 
       <h3>Example 2: Check Job Status</h3>
 
-      <pre><code><span class="comment">// app/api/jobs/[id]/route.ts</span>
-<span class="keyword">import</span> { NextRequest, NextResponse } <span class="keyword">from</span> <span class="string">'next/server'</span>;
-<span class="keyword">import</span> { getQueue } <span class="keyword">from</span> <span class="string">'@/lib/queue'</span>;
+      <pre><code class="language-typescript">// app/api/jobs/[id]/route.ts
+import { NextRequest, NextResponse } from 'next/server';
+import { getQueue } from '@/lib/queue';
 
-<span class="keyword">export</span> <span class="keyword">async</span> <span class="keyword">function</span> <span class="function">GET</span>(
+export async function GET(
   request: NextRequest,
-  { params }: { params: { id: <span class="keyword">string</span> } }
+  { params }: { params: { id: string } }
 ) {
-  <span class="keyword">const</span> <span class="variable">queue</span> = <span class="function">getQueue</span>();
+  const queue = getQueue();
 
-  <span class="comment">// Get job status</span>
-  <span class="keyword">const</span> <span class="variable">job</span> = <span class="keyword">await</span> queue.<span class="function">getJob</span>(params.id);
+  // Get job status
+  const job = await queue.getJob(params.id);
 
-  <span class="keyword">if</span> (!job) {
-    <span class="keyword">return</span> NextResponse.<span class="function">json</span>(
-      { error: <span class="string">'Job not found'</span> },
-      { status: <span class="number">404</span> }
+  if (!job) {
+    return NextResponse.json(
+      { error: 'Job not found' },
+      { status: 404 }
     );
   }
 
-  <span class="comment">// Get progress and result</span>
-  <span class="keyword">const</span> <span class="variable">state</span> = <span class="keyword">await</span> queue.<span class="function">getState</span>(params.id);
-  <span class="keyword">const</span> <span class="variable">progress</span> = <span class="keyword">await</span> queue.<span class="function">getProgress</span>(params.id);
-  <span class="keyword">const</span> <span class="variable">result</span> = state === <span class="string">'completed'</span> ? <span class="keyword">await</span> queue.<span class="function">getResult</span>(params.id) : <span class="keyword">null</span>;
+  // Get progress and result
+  const state = await queue.getState(params.id);
+  const progress = await queue.getProgress(params.id);
+  const result = state === 'completed' ? await queue.getResult(params.id) : null;
 
-  <span class="keyword">return</span> NextResponse.<span class="function">json</span>({
+  return NextResponse.json({
     id: job.id,
     state,
     progress,
@@ -244,168 +251,168 @@ FLASHQ_HTTP_URL=https://your-flashq-server.railway.app</code></pre>
 
       <h3>Example 3: Send Email Endpoint</h3>
 
-      <pre><code><span class="comment">// app/api/email/route.ts</span>
-<span class="keyword">import</span> { NextRequest, NextResponse } <span class="keyword">from</span> <span class="string">'next/server'</span>;
-<span class="keyword">import</span> { getQueue } <span class="keyword">from</span> <span class="string">'@/lib/queue'</span>;
+      <pre><code class="language-typescript">// app/api/email/route.ts
+import { NextRequest, NextResponse } from 'next/server';
+import { getQueue } from '@/lib/queue';
 
-<span class="keyword">export</span> <span class="keyword">async</span> <span class="keyword">function</span> <span class="function">POST</span>(request: NextRequest) {
-  <span class="keyword">const</span> { to, subject, template, data } = <span class="keyword">await</span> request.<span class="function">json</span>();
+export async function POST(request: NextRequest) {
+  const { to, subject, template, data } = await request.json();
 
-  <span class="keyword">const</span> <span class="variable">queue</span> = <span class="function">getQueue</span>();
-  <span class="keyword">const</span> <span class="variable">job</span> = <span class="keyword">await</span> queue.<span class="function">add</span>(<span class="string">'send-email'</span>, {
+  const queue = getQueue();
+  const job = await queue.add('send-email', {
     to,
     subject,
     template,
     data,
   }, {
-    attempts: <span class="number">5</span>,  <span class="comment">// Email delivery can be flaky</span>
-    backoff: { type: <span class="string">'exponential'</span>, delay: <span class="number">5000</span> },
+    attempts: 5,  // Email delivery can be flaky
+    backoff: { type: 'exponential', delay: 5000 },
   });
 
-  <span class="keyword">return</span> NextResponse.<span class="function">json</span>({ queued: <span class="keyword">true</span>, jobId: job.id });
+  return NextResponse.json({ queued: true, jobId: job.id });
 }</code></pre>
 
       <h2 id="worker">Creating the Worker</h2>
 
       <p>The worker runs separately from your Next.js app. You can deploy it on Railway, Fly.io, or any server that supports long-running processes.</p>
 
-      <pre><code><span class="comment">// worker/index.ts</span>
-<span class="keyword">import</span> { Worker } <span class="keyword">from</span> <span class="string">'flashq'</span>;
-<span class="keyword">import</span> OpenAI <span class="keyword">from</span> <span class="string">'openai'</span>;
-<span class="keyword">import</span> { Resend } <span class="keyword">from</span> <span class="string">'resend'</span>;
+      <pre><code class="language-typescript">// worker/index.ts
+import { Worker } from 'flashq';
+import OpenAI from 'openai';
+import { Resend } from 'resend';
 
-<span class="keyword">const</span> <span class="variable">openai</span> = <span class="keyword">new</span> <span class="function">OpenAI</span>();
-<span class="keyword">const</span> <span class="variable">resend</span> = <span class="keyword">new</span> <span class="function">Resend</span>(process.env.RESEND_API_KEY);
+const openai = new OpenAI();
+const resend = new Resend(process.env.RESEND_API_KEY);
 
-<span class="comment">// Create worker for the tasks queue</span>
-<span class="keyword">const</span> <span class="variable">worker</span> = <span class="keyword">new</span> <span class="function">Worker</span>(<span class="string">'tasks'</span>, <span class="keyword">async</span> (job) => {
-  console.<span class="function">log</span>(<span class="string">`Processing job ${job.id}: ${job.name}`</span>);
+// Create worker for the tasks queue
+const worker = new Worker('tasks', async (job) => {
+  console.log(`Processing job ${job.id}: ${job.name}`);
 
-  <span class="keyword">switch</span> (job.name) {
-    <span class="keyword">case</span> <span class="string">'generate-content'</span>:
-      <span class="keyword">return</span> <span class="keyword">await</span> <span class="function">handleContentGeneration</span>(job);
+  switch (job.name) {
+    case 'generate-content':
+      return await handleContentGeneration(job);
 
-    <span class="keyword">case</span> <span class="string">'send-email'</span>:
-      <span class="keyword">return</span> <span class="keyword">await</span> <span class="function">handleSendEmail</span>(job);
+    case 'send-email':
+      return await handleSendEmail(job);
 
-    <span class="keyword">default</span>:
-      <span class="keyword">throw</span> <span class="keyword">new</span> <span class="function">Error</span>(<span class="string">`Unknown job type: ${job.name}`</span>);
+    default:
+      throw new Error(`Unknown job type: ${job.name}`);
   }
 }, {
   connection: {
     host: process.env.FLASHQ_HOST,
-    port: <span class="function">parseInt</span>(process.env.FLASHQ_PORT || <span class="string">'6789'</span>),
+    port: parseInt(process.env.FLASHQ_PORT || '6789'),
     token: process.env.FLASHQ_TOKEN,
   },
-  concurrency: <span class="number">5</span>,
+  concurrency: 5,
 });
 
-<span class="comment">// Handler: AI Content Generation</span>
-<span class="keyword">async</span> <span class="keyword">function</span> <span class="function">handleContentGeneration</span>(job) {
-  <span class="keyword">const</span> { prompt, userId } = job.data;
+// Handler: AI Content Generation
+async function handleContentGeneration(job) {
+  const { prompt, userId } = job.data;
 
-  <span class="comment">// Update progress</span>
-  <span class="keyword">await</span> job.<span class="function">updateProgress</span>(<span class="number">10</span>, <span class="string">'Starting generation...'</span>);
+  // Update progress
+  await job.updateProgress(10, 'Starting generation...');
 
-  <span class="comment">// Call OpenAI</span>
-  <span class="keyword">const</span> <span class="variable">response</span> = <span class="keyword">await</span> openai.chat.completions.<span class="function">create</span>({
-    model: <span class="string">'gpt-4'</span>,
-    messages: [{ role: <span class="string">'user'</span>, content: prompt }],
-    max_tokens: <span class="number">2000</span>,
+  // Call OpenAI
+  const response = await openai.chat.completions.create({
+    model: 'gpt-4',
+    messages: [{ role: 'user', content: prompt }],
+    max_tokens: 2000,
   });
 
-  <span class="keyword">await</span> job.<span class="function">updateProgress</span>(<span class="number">90</span>, <span class="string">'Saving result...'</span>);
+  await job.updateProgress(90, 'Saving result...');
 
-  <span class="comment">// Save to database (pseudo-code)</span>
-  <span class="keyword">await</span> db.content.<span class="function">create</span>({
+  // Save to database (pseudo-code)
+  await db.content.create({
     userId,
-    content: response.choices[<span class="number">0</span>].message.content,
+    content: response.choices[0].message.content,
     jobId: job.id,
   });
 
-  <span class="keyword">await</span> job.<span class="function">updateProgress</span>(<span class="number">100</span>, <span class="string">'Complete!'</span>);
+  await job.updateProgress(100, 'Complete!');
 
-  <span class="keyword">return</span> {
-    content: response.choices[<span class="number">0</span>].message.content,
+  return {
+    content: response.choices[0].message.content,
     tokens: response.usage?.total_tokens,
   };
 }
 
-<span class="comment">// Handler: Send Email</span>
-<span class="keyword">async</span> <span class="keyword">function</span> <span class="function">handleSendEmail</span>(job) {
-  <span class="keyword">const</span> { to, subject, template, data } = job.data;
+// Handler: Send Email
+async function handleSendEmail(job) {
+  const { to, subject, template, data } = job.data;
 
-  <span class="keyword">const</span> <span class="variable">result</span> = <span class="keyword">await</span> resend.emails.<span class="function">send</span>({
-    from: <span class="string">'noreply@example.com'</span>,
+  const result = await resend.emails.send({
+    from: 'noreply@example.com',
     to,
     subject,
-    html: <span class="function">renderTemplate</span>(template, data),
+    html: renderTemplate(template, data),
   });
 
-  <span class="keyword">return</span> { emailId: result.id };
+  return { emailId: result.id };
 }
 
-<span class="comment">// Event handlers</span>
-worker.<span class="function">on</span>(<span class="string">'completed'</span>, (job, result) => {
-  console.<span class="function">log</span>(<span class="string">`✓ Job ${job.id} completed`</span>);
+// Event handlers
+worker.on('completed', (job, result) => {
+  console.log(`✓ Job ${job.id} completed`);
 });
 
-worker.<span class="function">on</span>(<span class="string">'failed'</span>, (job, error) => {
-  console.<span class="function">error</span>(<span class="string">`✗ Job ${job.id} failed:`</span>, error.message);
+worker.on('failed', (job, error) => {
+  console.error(`✗ Job ${job.id} failed:`, error.message);
 });
 
-console.<span class="function">log</span>(<span class="string">'Worker started, waiting for jobs...'</span>);</code></pre>
+console.log('Worker started, waiting for jobs...');</code></pre>
 
       <h2 id="frontend">Frontend Integration</h2>
 
       <h3>React Hook for Job Tracking</h3>
 
-      <pre><code><span class="comment">// hooks/useJob.ts</span>
-<span class="keyword">import</span> { useState, useEffect } <span class="keyword">from</span> <span class="string">'react'</span>;
+      <pre><code class="language-typescript">// hooks/useJob.ts
+import { useState, useEffect } from 'react';
 
-<span class="keyword">export</span> <span class="keyword">function</span> <span class="function">useJob</span>(jobId: <span class="keyword">string</span> | <span class="keyword">null</span>) {
-  <span class="keyword">const</span> [status, setStatus] = <span class="function">useState</span>&lt;{
-    state: <span class="keyword">string</span>;
-    progress: <span class="keyword">number</span>;
-    result: <span class="keyword">any</span>;
-  } | <span class="keyword">null</span>&gt;(<span class="keyword">null</span>);
+export function useJob(jobId: string | null) {
+  const [status, setStatus] = useState&lt;{
+    state: string;
+    progress: number;
+    result: any;
+  } | null&gt;(null);
 
-  <span class="function">useEffect</span>(() => {
-    <span class="keyword">if</span> (!jobId) <span class="keyword">return</span>;
+  useEffect(() => {
+    if (!jobId) return;
 
-    <span class="keyword">const</span> <span class="variable">pollStatus</span> = <span class="keyword">async</span> () => {
-      <span class="keyword">const</span> <span class="variable">res</span> = <span class="keyword">await</span> <span class="function">fetch</span>(<span class="string">`/api/jobs/${jobId}`</span>);
-      <span class="keyword">const</span> <span class="variable">data</span> = <span class="keyword">await</span> res.<span class="function">json</span>();
-      <span class="function">setStatus</span>(data);
+    const pollStatus = async () => {
+      const res = await fetch(`/api/jobs/${jobId}`);
+      const data = await res.json();
+      setStatus(data);
 
-      <span class="comment">// Keep polling until completed or failed</span>
-      <span class="keyword">if</span> (data.state !== <span class="string">'completed'</span> && data.state !== <span class="string">'failed'</span>) {
-        <span class="function">setTimeout</span>(pollStatus, <span class="number">1000</span>);
+      // Keep polling until completed or failed
+      if (data.state !== 'completed' && data.state !== 'failed') {
+        setTimeout(pollStatus, 1000);
       }
     };
 
-    <span class="function">pollStatus</span>();
+    pollStatus();
   }, [jobId]);
 
-  <span class="keyword">return</span> status;
+  return status;
 }
 
-<span class="comment">// Usage in component</span>
-<span class="keyword">function</span> <span class="function">GenerateButton</span>() {
-  <span class="keyword">const</span> [jobId, setJobId] = <span class="function">useState</span>&lt;<span class="keyword">string</span> | <span class="keyword">null</span>&gt;(<span class="keyword">null</span>);
-  <span class="keyword">const</span> <span class="variable">job</span> = <span class="function">useJob</span>(jobId);
+// Usage in component
+function GenerateButton() {
+  const [jobId, setJobId] = useState&lt;string | null&gt;(null);
+  const job = useJob(jobId);
 
-  <span class="keyword">const</span> <span class="function">handleGenerate</span> = <span class="keyword">async</span> () => {
-    <span class="keyword">const</span> <span class="variable">res</span> = <span class="keyword">await</span> <span class="function">fetch</span>(<span class="string">'/api/generate'</span>, {
-      method: <span class="string">'POST'</span>,
-      headers: { <span class="string">'Content-Type'</span>: <span class="string">'application/json'</span> },
-      body: JSON.<span class="function">stringify</span>({ prompt: <span class="string">'Write a poem'</span>, userId: <span class="string">'123'</span> }),
+  const handleGenerate = async () => {
+    const res = await fetch('/api/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt: 'Write a poem', userId: '123' }),
     });
-    <span class="keyword">const</span> { jobId } = <span class="keyword">await</span> res.<span class="function">json</span>();
-    <span class="function">setJobId</span>(jobId);
+    const { jobId } = await res.json();
+    setJobId(jobId);
   };
 
-  <span class="keyword">return</span> (
+  return (
     &lt;div&gt;
       &lt;button onClick={handleGenerate}&gt;Generate Content&lt;/button&gt;
       {job && (
@@ -423,7 +430,7 @@ console.<span class="function">log</span>(<span class="string">'Worker started, 
 
       <h3>Deploy flashQ Server to Railway</h3>
 
-      <pre><code><span class="comment"># railway.toml</span>
+      <pre><code class="language-bash"># railway.toml
 [build]
 builder = "dockerfile"
 
@@ -432,7 +439,7 @@ startCommand = "./flashq-server"
 healthcheckPath = "/health"
 healthcheckTimeout = 30</code></pre>
 
-      <pre><code><span class="comment"># Dockerfile</span>
+      <pre><code class="language-bash"># Dockerfile
 FROM debian:bookworm-slim
 WORKDIR /app
 COPY flashq-server .
@@ -442,7 +449,7 @@ CMD ["./flashq-server"]</code></pre>
 
       <h3>Deploy Worker to Railway</h3>
 
-      <pre><code><span class="comment"># worker/Dockerfile</span>
+      <pre><code class="language-bash"># worker/Dockerfile
 FROM node:20-alpine
 WORKDIR /app
 COPY package*.json ./
@@ -455,7 +462,7 @@ CMD ["node", "dist/index.js"]</code></pre>
 
       <p>In your Vercel dashboard, add these environment variables:</p>
 
-      <pre><code>FLASHQ_HOST=your-flashq.railway.app
+      <pre><code class="language-typescript">FLASHQ_HOST=your-flashq.railway.app
 FLASHQ_PORT=6789
 FLASHQ_TOKEN=your-secret-token</code></pre>
 
@@ -463,31 +470,31 @@ FLASHQ_TOKEN=your-secret-token</code></pre>
 
       <h3>Webhook Processing</h3>
 
-      <pre><code><span class="comment">// app/api/webhook/stripe/route.ts</span>
-<span class="keyword">export</span> <span class="keyword">async</span> <span class="keyword">function</span> <span class="function">POST</span>(request: NextRequest) {
-  <span class="keyword">const</span> <span class="variable">event</span> = <span class="keyword">await</span> request.<span class="function">json</span>();
+      <pre><code class="language-typescript">// app/api/webhook/stripe/route.ts
+export async function POST(request: NextRequest) {
+  const event = await request.json();
 
-  <span class="comment">// Enqueue for processing (respond to Stripe quickly!)</span>
-  <span class="keyword">await</span> <span class="function">getQueue</span>().<span class="function">add</span>(<span class="string">'stripe-webhook'</span>, event, {
-    jobId: event.id,  <span class="comment">// Idempotency</span>
+  // Enqueue for processing (respond to Stripe quickly!)
+  await getQueue().add('stripe-webhook', event, {
+    jobId: event.id,  // Idempotency
   });
 
-  <span class="keyword">return</span> NextResponse.<span class="function">json</span>({ received: <span class="keyword">true</span> });
+  return NextResponse.json({ received: true });
 }</code></pre>
 
       <h3>Scheduled Tasks with Cron</h3>
 
-      <pre><code><span class="comment">// Set up cron jobs when worker starts</span>
-<span class="keyword">await</span> queue.<span class="function">addCron</span>(<span class="string">'daily-report'</span>, {
-  queue: <span class="string">'tasks'</span>,
-  schedule: <span class="string">'0 0 9 * * *'</span>,  <span class="comment">// 9 AM daily</span>
-  data: { type: <span class="string">'daily-report'</span> },
+      <pre><code class="language-typescript">// Set up cron jobs when worker starts
+await queue.addCron('daily-report', {
+  queue: 'tasks',
+  schedule: '0 0 9 * * *',  // 9 AM daily
+  data: { type: 'daily-report' },
 });
 
-<span class="keyword">await</span> queue.<span class="function">addCron</span>(<span class="string">'cleanup'</span>, {
-  queue: <span class="string">'tasks'</span>,
-  schedule: <span class="string">'0 0 0 * * 0'</span>,  <span class="comment">// Weekly on Sunday</span>
-  data: { type: <span class="string">'cleanup'</span> },
+await queue.addCron('cleanup', {
+  queue: 'tasks',
+  schedule: '0 0 0 * * 0',  // Weekly on Sunday
+  data: { type: 'cleanup' },
 });</code></pre>
 
       <div class="callout callout-success">
@@ -573,5 +580,6 @@ FLASHQ_TOKEN=your-secret-token</code></pre>
     document.getElementById('searchInput').addEventListener('input', e => renderResults(e.target.value));
     document.addEventListener('keydown', e => { if ((e.metaKey||e.ctrlKey) && e.key==='k') { e.preventDefault(); openSearch(); } if (e.key==='Escape') closeSearch({target:document.getElementById('searchOverlay')}); });
   </script>
+  <script>hljs.highlightAll();</script>
 </body>
 </html>

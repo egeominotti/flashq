@@ -63,6 +63,13 @@
     ]
   }
   </script>
+  <!-- Highlight.js -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/typescript.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/bash.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/yaml.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/json.min.js"></script>
 </head>
 <body>
   <nav>
@@ -118,13 +125,13 @@
 
       <p>A RAG system has two main flows:</p>
 
-      <pre><code><span class="comment">INDEXING FLOW (one-time or periodic)</span>
+      <pre><code class="language-plaintext">INDEXING FLOW (one-time or periodic)
 ┌──────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐
 │ Document │───▶│  Chunk   │───▶│  Embed   │───▶│  Store   │
 │  Upload  │    │  Split   │    │  (OpenAI)│    │(Pinecone)│
 └──────────┘    └──────────┘    └──────────┘    └──────────┘
 
-<span class="comment">QUERY FLOW (per user message)</span>
+QUERY FLOW (per user message)
 ┌──────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐
 │   User   │───▶│  Embed   │───▶│  Search  │───▶│ Generate │
 │  Query   │    │  Query   │    │  Context │    │ Response │
@@ -134,15 +141,15 @@
 
       <h2 id="setup">Project Setup</h2>
 
-      <pre><code><span class="comment"># Initialize project</span>
+      <pre><code class="language-bash"># Initialize project
 mkdir rag-chatbot && cd rag-chatbot
 npm init -y
 
-<span class="comment"># Install dependencies</span>
+# Install dependencies
 npm install flashq openai @pinecone-database/pinecone
 npm install -D typescript @types/node tsx</code></pre>
 
-      <pre><code><span class="comment">// .env</span>
+      <pre><code class="language-typescript">// .env
 FLASHQ_HOST=localhost
 FLASHQ_PORT=6789
 
@@ -152,60 +159,60 @@ PINECONE_INDEX=knowledge-base</code></pre>
 
       <h2 id="indexing">Document Indexing Pipeline</h2>
 
-      <pre><code><span class="comment">// src/indexing.ts</span>
-<span class="keyword">import</span> { Queue, Worker } <span class="keyword">from</span> <span class="string">'flashq'</span>;
-<span class="keyword">import</span> OpenAI <span class="keyword">from</span> <span class="string">'openai'</span>;
-<span class="keyword">import</span> { Pinecone } <span class="keyword">from</span> <span class="string">'@pinecone-database/pinecone'</span>;
+      <pre><code class="language-typescript">// src/indexing.ts
+import { Queue, Worker } from 'flashq';
+import OpenAI from 'openai';
+import { Pinecone } from '@pinecone-database/pinecone';
 
-<span class="keyword">const</span> <span class="variable">openai</span> = <span class="keyword">new</span> <span class="function">OpenAI</span>();
-<span class="keyword">const</span> <span class="variable">pinecone</span> = <span class="keyword">new</span> <span class="function">Pinecone</span>();
-<span class="keyword">const</span> <span class="variable">index</span> = pinecone.<span class="function">index</span>(process.env.PINECONE_INDEX!);
+const openai = new OpenAI();
+const pinecone = new Pinecone();
+const index = pinecone.index(process.env.PINECONE_INDEX!);
 
-<span class="keyword">const</span> <span class="variable">queue</span> = <span class="keyword">new</span> <span class="function">Queue</span>(<span class="string">'rag-indexing'</span>);
+const queue = new Queue('rag-indexing');
 
-<span class="comment">// Rate limit to stay within OpenAI limits</span>
-<span class="keyword">await</span> queue.<span class="function">setRateLimit</span>(<span class="number">500</span>); <span class="comment">// 500 embeddings/minute</span>
+// Rate limit to stay within OpenAI limits
+await queue.setRateLimit(500); // 500 embeddings/minute
 
-<span class="comment">// Step 1: Chunk the document</span>
-<span class="keyword">async</span> <span class="keyword">function</span> <span class="function">chunkDocument</span>(text: <span class="keyword">string</span>, chunkSize = <span class="number">500</span>, overlap = <span class="number">50</span>) {
-  <span class="keyword">const</span> <span class="variable">chunks</span>: <span class="keyword">string</span>[] = [];
-  <span class="keyword">let</span> start = <span class="number">0</span>;
+// Step 1: Chunk the document
+async function chunkDocument(text: string, chunkSize = 500, overlap = 50) {
+  const chunks: string[] = [];
+  let start = 0;
 
-  <span class="keyword">while</span> (start < text.length) {
-    <span class="keyword">const</span> <span class="variable">end</span> = Math.<span class="function">min</span>(start + chunkSize, text.length);
-    chunks.<span class="function">push</span>(text.<span class="function">slice</span>(start, end));
+  while (start < text.length) {
+    const end = Math.min(start + chunkSize, text.length);
+    chunks.push(text.slice(start, end));
     start += chunkSize - overlap;
   }
 
-  <span class="keyword">return</span> chunks;
+  return chunks;
 }
 
-<span class="comment">// Main indexing function</span>
-<span class="keyword">export</span> <span class="keyword">async</span> <span class="keyword">function</span> <span class="function">indexDocument</span>(documentId: <span class="keyword">string</span>, content: <span class="keyword">string</span>, metadata: <span class="keyword">any</span>) {
-  <span class="comment">// Step 1: Chunk</span>
-  <span class="keyword">const</span> <span class="variable">chunkJob</span> = <span class="keyword">await</span> queue.<span class="function">add</span>(<span class="string">'chunk'</span>, {
+// Main indexing function
+export async function indexDocument(documentId: string, content: string, metadata: any) {
+  // Step 1: Chunk
+  const chunkJob = await queue.add('chunk', {
     documentId,
     content,
     metadata,
   });
 
-  <span class="comment">// Wait for completion</span>
-  <span class="keyword">const</span> <span class="variable">result</span> = <span class="keyword">await</span> queue.<span class="function">finished</span>(chunkJob.id);
-  <span class="keyword">return</span> result;
+  // Wait for completion
+  const result = await queue.finished(chunkJob.id);
+  return result;
 }
 
-<span class="comment">// Worker for chunking</span>
-<span class="keyword">new</span> <span class="function">Worker</span>(<span class="string">'rag-indexing'</span>, <span class="keyword">async</span> (job) => {
-  <span class="keyword">if</span> (job.name === <span class="string">'chunk'</span>) {
-    <span class="keyword">const</span> { documentId, content, metadata } = job.data;
+// Worker for chunking
+new Worker('rag-indexing', async (job) => {
+  if (job.name === 'chunk') {
+    const { documentId, content, metadata } = job.data;
 
-    <span class="keyword">await</span> job.<span class="function">updateProgress</span>(<span class="number">10</span>, <span class="string">'Chunking document...'</span>);
-    <span class="keyword">const</span> <span class="variable">chunks</span> = <span class="keyword">await</span> <span class="function">chunkDocument</span>(content);
+    await job.updateProgress(10, 'Chunking document...');
+    const chunks = await chunkDocument(content);
 
-    <span class="comment">// Create embedding jobs for each chunk</span>
-    <span class="keyword">const</span> <span class="variable">embedJobs</span> = <span class="keyword">await</span> Promise.<span class="function">all</span>(
-      chunks.<span class="function">map</span>((chunk, i) =>
-        queue.<span class="function">add</span>(<span class="string">'embed'</span>, {
+    // Create embedding jobs for each chunk
+    const embedJobs = await Promise.all(
+      chunks.map((chunk, i) =>
+        queue.add('embed', {
           documentId,
           chunkIndex: i,
           text: chunk,
@@ -214,198 +221,198 @@ PINECONE_INDEX=knowledge-base</code></pre>
       )
     );
 
-    <span class="comment">// Create store job that depends on all embeddings</span>
-    <span class="keyword">const</span> <span class="variable">storeJob</span> = <span class="keyword">await</span> queue.<span class="function">add</span>(<span class="string">'store'</span>, {
+    // Create store job that depends on all embeddings
+    const storeJob = await queue.add('store', {
       documentId,
       totalChunks: chunks.length,
     }, {
-      depends_on: embedJobs.<span class="function">map</span>(j => j.id),
+      depends_on: embedJobs.map(j => j.id),
     });
 
-    <span class="keyword">return</span> { storeJobId: storeJob.id, totalChunks: chunks.length };
+    return { storeJobId: storeJob.id, totalChunks: chunks.length };
   }
 
-  <span class="keyword">if</span> (job.name === <span class="string">'embed'</span>) {
-    <span class="keyword">const</span> { text, documentId, chunkIndex, metadata } = job.data;
+  if (job.name === 'embed') {
+    const { text, documentId, chunkIndex, metadata } = job.data;
 
-    <span class="keyword">const</span> <span class="variable">response</span> = <span class="keyword">await</span> openai.embeddings.<span class="function">create</span>({
-      model: <span class="string">'text-embedding-3-small'</span>,
+    const response = await openai.embeddings.create({
+      model: 'text-embedding-3-small',
       input: text,
     });
 
-    <span class="keyword">return</span> {
-      id: <span class="string">`${documentId}-${chunkIndex}`</span>,
-      embedding: response.data[<span class="number">0</span>].embedding,
+    return {
+      id: `${documentId}-${chunkIndex}`,
+      embedding: response.data[0].embedding,
       text,
       metadata,
     };
   }
 
-  <span class="keyword">if</span> (job.name === <span class="string">'store'</span>) {
-    <span class="keyword">const</span> { documentId, totalChunks } = job.data;
+  if (job.name === 'store') {
+    const { documentId, totalChunks } = job.data;
 
-    <span class="comment">// Get all embedding results from parent jobs</span>
-    <span class="keyword">const</span> <span class="variable">vectors</span> = [];
-    <span class="keyword">for</span> (<span class="keyword">let</span> i = <span class="number">0</span>; i < totalChunks; i++) {
-      <span class="keyword">const</span> <span class="variable">result</span> = <span class="keyword">await</span> queue.<span class="function">getResult</span>(<span class="string">`${documentId}-embed-${i}`</span>);
-      vectors.<span class="function">push</span>({
+    // Get all embedding results from parent jobs
+    const vectors = [];
+    for (let i = 0; i < totalChunks; i++) {
+      const result = await queue.getResult(`${documentId}-embed-${i}`);
+      vectors.push({
         id: result.id,
         values: result.embedding,
         metadata: { ...result.metadata, text: result.text },
       });
     }
 
-    <span class="comment">// Upsert to Pinecone in batches</span>
-    <span class="keyword">const</span> <span class="variable">batchSize</span> = <span class="number">100</span>;
-    <span class="keyword">for</span> (<span class="keyword">let</span> i = <span class="number">0</span>; i < vectors.length; i += batchSize) {
-      <span class="keyword">await</span> index.<span class="function">upsert</span>(vectors.<span class="function">slice</span>(i, i + batchSize));
+    // Upsert to Pinecone in batches
+    const batchSize = 100;
+    for (let i = 0; i < vectors.length; i += batchSize) {
+      await index.upsert(vectors.slice(i, i + batchSize));
     }
 
-    <span class="keyword">return</span> { indexed: vectors.length, documentId };
+    return { indexed: vectors.length, documentId };
   }
 });</code></pre>
 
       <h2 id="query">Query Pipeline</h2>
 
-      <pre><code><span class="comment">// src/query.ts</span>
-<span class="keyword">import</span> { Queue, Worker } <span class="keyword">from</span> <span class="string">'flashq'</span>;
-<span class="keyword">import</span> OpenAI <span class="keyword">from</span> <span class="string">'openai'</span>;
-<span class="keyword">import</span> { Pinecone } <span class="keyword">from</span> <span class="string">'@pinecone-database/pinecone'</span>;
+      <pre><code class="language-typescript">// src/query.ts
+import { Queue, Worker } from 'flashq';
+import OpenAI from 'openai';
+import { Pinecone } from '@pinecone-database/pinecone';
 
-<span class="keyword">const</span> <span class="variable">openai</span> = <span class="keyword">new</span> <span class="function">OpenAI</span>();
-<span class="keyword">const</span> <span class="variable">pinecone</span> = <span class="keyword">new</span> <span class="function">Pinecone</span>();
-<span class="keyword">const</span> <span class="variable">index</span> = pinecone.<span class="function">index</span>(process.env.PINECONE_INDEX!);
+const openai = new OpenAI();
+const pinecone = new Pinecone();
+const index = pinecone.index(process.env.PINECONE_INDEX!);
 
-<span class="keyword">const</span> <span class="variable">queue</span> = <span class="keyword">new</span> <span class="function">Queue</span>(<span class="string">'rag-query'</span>);
+const queue = new Queue('rag-query');
 
-<span class="comment">// Main query function</span>
-<span class="keyword">export</span> <span class="keyword">async</span> <span class="keyword">function</span> <span class="function">askQuestion</span>(question: <span class="keyword">string</span>, conversationHistory: <span class="keyword">any</span>[] = []) {
-  <span class="comment">// Step 1: Embed the question</span>
-  <span class="keyword">const</span> <span class="variable">embedJob</span> = <span class="keyword">await</span> queue.<span class="function">add</span>(<span class="string">'embed-query'</span>, { question });
+// Main query function
+export async function askQuestion(question: string, conversationHistory: any[] = []) {
+  // Step 1: Embed the question
+  const embedJob = await queue.add('embed-query', { question });
 
-  <span class="comment">// Step 2: Search (depends on embed)</span>
-  <span class="keyword">const</span> <span class="variable">searchJob</span> = <span class="keyword">await</span> queue.<span class="function">add</span>(<span class="string">'search'</span>, {
+  // Step 2: Search (depends on embed)
+  const searchJob = await queue.add('search', {
     question,
-    topK: <span class="number">5</span>,
+    topK: 5,
   }, {
     depends_on: [embedJob.id],
   });
 
-  <span class="comment">// Step 3: Generate response (depends on search)</span>
-  <span class="keyword">const</span> <span class="variable">generateJob</span> = <span class="keyword">await</span> queue.<span class="function">add</span>(<span class="string">'generate'</span>, {
+  // Step 3: Generate response (depends on search)
+  const generateJob = await queue.add('generate', {
     question,
     conversationHistory,
   }, {
     depends_on: [searchJob.id],
   });
 
-  <span class="comment">// Wait for final result</span>
-  <span class="keyword">return</span> <span class="keyword">await</span> queue.<span class="function">finished</span>(generateJob.id);
+  // Wait for final result
+  return await queue.finished(generateJob.id);
 }
 
-<span class="comment">// Query workers</span>
-<span class="keyword">new</span> <span class="function">Worker</span>(<span class="string">'rag-query'</span>, <span class="keyword">async</span> (job) => {
-  <span class="keyword">if</span> (job.name === <span class="string">'embed-query'</span>) {
-    <span class="keyword">const</span> { question } = job.data;
+// Query workers
+new Worker('rag-query', async (job) => {
+  if (job.name === 'embed-query') {
+    const { question } = job.data;
 
-    <span class="keyword">const</span> <span class="variable">response</span> = <span class="keyword">await</span> openai.embeddings.<span class="function">create</span>({
-      model: <span class="string">'text-embedding-3-small'</span>,
+    const response = await openai.embeddings.create({
+      model: 'text-embedding-3-small',
       input: question,
     });
 
-    <span class="keyword">return</span> { embedding: response.data[<span class="number">0</span>].embedding };
+    return { embedding: response.data[0].embedding };
   }
 
-  <span class="keyword">if</span> (job.name === <span class="string">'search'</span>) {
-    <span class="keyword">const</span> { question, topK } = job.data;
+  if (job.name === 'search') {
+    const { question, topK } = job.data;
 
-    <span class="comment">// Get embedding from parent job</span>
-    <span class="keyword">const</span> <span class="variable">embedResult</span> = <span class="keyword">await</span> queue.<span class="function">getResult</span>(job.opts.depends_on[<span class="number">0</span>]);
+    // Get embedding from parent job
+    const embedResult = await queue.getResult(job.opts.depends_on[0]);
 
-    <span class="comment">// Search Pinecone</span>
-    <span class="keyword">const</span> <span class="variable">results</span> = <span class="keyword">await</span> index.<span class="function">query</span>({
+    // Search Pinecone
+    const results = await index.query({
       vector: embedResult.embedding,
       topK,
-      includeMetadata: <span class="keyword">true</span>,
+      includeMetadata: true,
     });
 
-    <span class="keyword">const</span> <span class="variable">context</span> = results.matches
-      .<span class="function">map</span>(m => m.metadata?.text)
-      .<span class="function">filter</span>(Boolean)
-      .<span class="function">join</span>(<span class="string">'\n\n---\n\n'</span>);
+    const context = results.matches
+      .map(m => m.metadata?.text)
+      .filter(Boolean)
+      .join('\n\n---\n\n');
 
-    <span class="keyword">return</span> { context, sources: results.matches };
+    return { context, sources: results.matches };
   }
 
-  <span class="keyword">if</span> (job.name === <span class="string">'generate'</span>) {
-    <span class="keyword">const</span> { question, conversationHistory } = job.data;
+  if (job.name === 'generate') {
+    const { question, conversationHistory } = job.data;
 
-    <span class="comment">// Get context from search job</span>
-    <span class="keyword">const</span> <span class="variable">searchResult</span> = <span class="keyword">await</span> queue.<span class="function">getResult</span>(job.opts.depends_on[<span class="number">0</span>]);
+    // Get context from search job
+    const searchResult = await queue.getResult(job.opts.depends_on[0]);
 
-    <span class="keyword">const</span> <span class="variable">systemPrompt</span> = <span class="string">`You are a helpful assistant. Answer questions based on the provided context.
+    const systemPrompt = `You are a helpful assistant. Answer questions based on the provided context.
 If you cannot find the answer in the context, say "I don't have information about that."
 Always cite which part of the context you used.
 
 Context:
-${searchResult.context}`</span>;
+${searchResult.context}`;
 
-    <span class="keyword">const</span> <span class="variable">messages</span> = [
-      { role: <span class="string">'system'</span>, content: systemPrompt },
+    const messages = [
+      { role: 'system', content: systemPrompt },
       ...conversationHistory,
-      { role: <span class="string">'user'</span>, content: question },
+      { role: 'user', content: question },
     ];
 
-    <span class="keyword">const</span> <span class="variable">response</span> = <span class="keyword">await</span> openai.chat.completions.<span class="function">create</span>({
-      model: <span class="string">'gpt-4'</span>,
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4',
       messages,
-      temperature: <span class="number">0.7</span>,
-      max_tokens: <span class="number">1000</span>,
+      temperature: 0.7,
+      max_tokens: 1000,
     });
 
-    <span class="keyword">return</span> {
-      answer: response.choices[<span class="number">0</span>].message.content,
+    return {
+      answer: response.choices[0].message.content,
       sources: searchResult.sources,
       usage: response.usage,
     };
   }
 }, {
-  concurrency: <span class="number">10</span>,
+  concurrency: 10,
 });</code></pre>
 
       <h2 id="api">REST API</h2>
 
-      <pre><code><span class="comment">// src/server.ts</span>
-<span class="keyword">import</span> express <span class="keyword">from</span> <span class="string">'express'</span>;
-<span class="keyword">import</span> { indexDocument } <span class="keyword">from</span> <span class="string">'./indexing'</span>;
-<span class="keyword">import</span> { askQuestion } <span class="keyword">from</span> <span class="string">'./query'</span>;
+      <pre><code class="language-typescript">// src/server.ts
+import express from 'express';
+import { indexDocument } from './indexing';
+import { askQuestion } from './query';
 
-<span class="keyword">const</span> <span class="variable">app</span> = <span class="function">express</span>();
-app.<span class="function">use</span>(express.<span class="function">json</span>({ limit: <span class="string">'10mb'</span> }));
+const app = express();
+app.use(express.json({ limit: '10mb' }));
 
-<span class="comment">// Index a document</span>
-app.<span class="function">post</span>(<span class="string">'/api/index'</span>, <span class="keyword">async</span> (req, res) => {
-  <span class="keyword">const</span> { documentId, content, metadata } = req.body;
+// Index a document
+app.post('/api/index', async (req, res) => {
+  const { documentId, content, metadata } = req.body;
 
-  <span class="keyword">const</span> <span class="variable">result</span> = <span class="keyword">await</span> <span class="function">indexDocument</span>(documentId, content, metadata);
-  res.<span class="function">json</span>(result);
+  const result = await indexDocument(documentId, content, metadata);
+  res.json(result);
 });
 
-<span class="comment">// Ask a question</span>
-app.<span class="function">post</span>(<span class="string">'/api/chat'</span>, <span class="keyword">async</span> (req, res) => {
-  <span class="keyword">const</span> { question, history } = req.body;
+// Ask a question
+app.post('/api/chat', async (req, res) => {
+  const { question, history } = req.body;
 
-  <span class="keyword">const</span> <span class="variable">result</span> = <span class="keyword">await</span> <span class="function">askQuestion</span>(question, history || []);
-  res.<span class="function">json</span>(result);
+  const result = await askQuestion(question, history || []);
+  res.json(result);
 });
 
-app.<span class="function">listen</span>(<span class="number">3000</span>, () => {
-  console.<span class="function">log</span>(<span class="string">'RAG Chatbot API running on port 3000'</span>);
+app.listen(3000, () => {
+  console.log('RAG Chatbot API running on port 3000');
 });</code></pre>
 
       <h2 id="usage">Using the Chatbot</h2>
 
-      <pre><code><span class="comment"># Index a document</span>
+      <pre><code class="language-bash"># Index a document
 curl -X POST http://localhost:3000/api/index \
   -H "Content-Type: application/json" \
   -d '{
@@ -414,14 +421,14 @@ curl -X POST http://localhost:3000/api/index \
     "metadata": { "source": "docs", "title": "flashQ Overview" }
   }'
 
-<span class="comment"># Ask a question</span>
+# Ask a question
 curl -X POST http://localhost:3000/api/chat \
   -H "Content-Type: application/json" \
   -d '{
     "question": "What is flashQ and how fast is it?"
   }'
 
-<span class="comment"># Response</span>
+# Response
 {
   "answer": "flashQ is a high-performance job queue that can process up to 1.9 million jobs per second...",
   "sources": [{ "id": "doc-1-0", "score": 0.92 }],
@@ -507,5 +514,6 @@ curl -X POST http://localhost:3000/api/chat \
     function closeSearch(e) { if (e?.target === document.getElementById('searchOverlay')) document.getElementById('searchOverlay').classList.remove('active'); }
     document.addEventListener('keydown', e => { if ((e.metaKey||e.ctrlKey) && e.key==='k') { e.preventDefault(); openSearch(); } if (e.key==='Escape') closeSearch({target:document.getElementById('searchOverlay')}); });
   </script>
+  <script>hljs.highlightAll();</script>
 </body>
 </html>

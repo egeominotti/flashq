@@ -59,6 +59,13 @@
     ]
   }
   </script>
+  <!-- Highlight.js -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/typescript.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/bash.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/yaml.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/json.min.js"></script>
 </head>
 <body>
   <!-- Navigation -->
@@ -230,7 +237,7 @@
 
       <p>Every job operation requires a network round-trip:</p>
 
-      <pre><code>Your App → Network → Redis → Network → Your App
+      <pre><code class="language-typescript">Your App → Network → Redis → Network → Your App
          ~0.5ms     ~0.1ms    ~0.5ms
                     Total: ~1-2ms per operation</code></pre>
 
@@ -246,7 +253,7 @@
 
       <p>flashQ is a single binary. Download it, run it, done:</p>
 
-      <pre><code><span class="comment"># That's it. No Redis, no Docker, no configuration.</span>
+      <pre><code class="language-bash"># That's it. No Redis, no Docker, no configuration.
 ./flashq-server</code></pre>
 
       <p>For persistence, you can optionally connect to PostgreSQL. But for development or smaller workloads, the in-memory mode works perfectly.</p>
@@ -279,32 +286,32 @@
 
       <p>We designed flashQ's API to be compatible with BullMQ. If you're migrating, most code works unchanged:</p>
 
-      <pre><code><span class="comment">// BullMQ</span>
-<span class="keyword">import</span> { Queue, Worker } <span class="keyword">from</span> <span class="string">'bullmq'</span>;
-<span class="keyword">import</span> Redis <span class="keyword">from</span> <span class="string">'ioredis'</span>;
+      <pre><code class="language-typescript">// BullMQ
+import { Queue, Worker } from 'bullmq';
+import Redis from 'ioredis';
 
-<span class="keyword">const</span> <span class="variable">connection</span> = <span class="keyword">new</span> <span class="function">Redis</span>();
-<span class="keyword">const</span> <span class="variable">queue</span> = <span class="keyword">new</span> <span class="function">Queue</span>(<span class="string">'my-queue'</span>, { connection });
+const connection = new Redis();
+const queue = new Queue('my-queue', { connection });
 
-<span class="comment">// flashQ</span>
-<span class="keyword">import</span> { Queue, Worker } <span class="keyword">from</span> <span class="string">'flashq'</span>;
+// flashQ
+import { Queue, Worker } from 'flashq';
 
-<span class="keyword">const</span> <span class="variable">queue</span> = <span class="keyword">new</span> <span class="function">Queue</span>(<span class="string">'my-queue'</span>); <span class="comment">// No connection needed!</span></code></pre>
+const queue = new Queue('my-queue'); // No connection needed!</code></pre>
 
       <p>The Queue and Worker APIs are nearly identical:</p>
 
-      <pre><code><span class="comment">// Adding jobs (same API)</span>
-<span class="keyword">await</span> queue.<span class="function">add</span>(<span class="string">'task-name'</span>, { data: <span class="string">'value'</span> }, {
-  priority: <span class="number">1</span>,
-  delay: <span class="number">5000</span>,
-  attempts: <span class="number">3</span>,
-  backoff: { type: <span class="string">'exponential'</span>, delay: <span class="number">1000</span> }
+      <pre><code class="language-typescript">// Adding jobs (same API)
+await queue.add('task-name', { data: 'value' }, {
+  priority: 1,
+  delay: 5000,
+  attempts: 3,
+  backoff: { type: 'exponential', delay: 1000 }
 });
 
-<span class="comment">// Processing jobs (same API)</span>
-<span class="keyword">const</span> <span class="variable">worker</span> = <span class="keyword">new</span> <span class="function">Worker</span>(<span class="string">'my-queue'</span>, <span class="keyword">async</span> (job) => {
-  console.<span class="function">log</span>(job.name, job.data);
-  <span class="keyword">return</span> { result: <span class="string">'done'</span> };
+// Processing jobs (same API)
+const worker = new Worker('my-queue', async (job) => {
+  console.log(job.name, job.data);
+  return { result: 'done' };
 });</code></pre>
 
       <h2>Feature Parity</h2>
@@ -412,27 +419,27 @@
 
       <h3>1. Install flashQ</h3>
 
-      <pre><code>npm install flashq</code></pre>
+      <pre><code class="language-bash">npm install flashq</code></pre>
 
       <h3>2. Start the flashQ server</h3>
 
-      <pre><code>docker run -d -p 6789:6789 flashq/flashq</code></pre>
+      <pre><code class="language-bash">docker run -d -p 6789:6789 flashq/flashq</code></pre>
 
       <h3>3. Update your imports</h3>
 
-      <pre><code><span class="comment">// Before</span>
-<span class="keyword">import</span> { Queue, Worker } <span class="keyword">from</span> <span class="string">'bullmq'</span>;
+      <pre><code class="language-typescript">// Before
+import { Queue, Worker } from 'bullmq';
 
-<span class="comment">// After</span>
-<span class="keyword">import</span> { Queue, Worker } <span class="keyword">from</span> <span class="string">'flashq'</span>;</code></pre>
+// After
+import { Queue, Worker } from 'flashq';</code></pre>
 
       <h3>4. Remove Redis connection</h3>
 
-      <pre><code><span class="comment">// Before</span>
-<span class="keyword">const</span> <span class="variable">queue</span> = <span class="keyword">new</span> <span class="function">Queue</span>(<span class="string">'my-queue'</span>, { connection: redis });
+      <pre><code class="language-typescript">// Before
+const queue = new Queue('my-queue', { connection: redis });
 
-<span class="comment">// After</span>
-<span class="keyword">const</span> <span class="variable">queue</span> = <span class="keyword">new</span> <span class="function">Queue</span>(<span class="string">'my-queue'</span>);</code></pre>
+// After
+const queue = new Queue('my-queue');</code></pre>
 
       <p>That's it! Most of your code should work unchanged.</p>
 
@@ -490,5 +497,6 @@
       });
     });
   </script>
+  <script>hljs.highlightAll();</script>
 </body>
 </html>

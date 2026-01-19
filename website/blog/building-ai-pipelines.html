@@ -60,6 +60,13 @@
     ]
   }
   </script>
+  <!-- Highlight.js -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/typescript.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/bash.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/yaml.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/json.min.js"></script>
 </head>
 <body>
   <!-- Navigation -->
@@ -140,15 +147,15 @@
 
       <p>First, let's set up flashQ:</p>
 
-      <pre><code><span class="comment"># Install flashQ SDK</span>
+      <pre><code class="language-bash"># Install flashQ SDK
 npm install flashq
 
-<span class="comment"># Start the server</span>
+# Start the server
 docker run -d -p 6789:6789 flashq/flashq</code></pre>
 
       <p>And install the AI SDKs we'll use:</p>
 
-      <pre><code>npm install openai @anthropic-ai/sdk</code></pre>
+      <pre><code class="language-bash">npm install openai @anthropic-ai/sdk</code></pre>
 
       <h2 id="rag-pipeline">Pipeline 1: RAG (Retrieval-Augmented Generation)</h2>
 
@@ -160,140 +167,140 @@ docker run -d -p 6789:6789 flashq/flashq</code></pre>
         <li>Generating a response using the retrieved context</li>
       </ol>
 
-      <pre><code>┌─────────┐     ┌─────────┐     ┌──────────┐
+      <pre><code class="language-plaintext">┌─────────┐     ┌─────────┐     ┌──────────┐
 │  Embed  │ ──▶ │ Search  │ ──▶ │ Generate │
 └─────────┘     └─────────┘     └──────────┘</code></pre>
 
       <p>With flashQ, we can model this as a job flow with dependencies:</p>
 
-      <pre><code><span class="keyword">import</span> { Queue, Worker } <span class="keyword">from</span> <span class="string">'flashq'</span>;
-<span class="keyword">import</span> OpenAI <span class="keyword">from</span> <span class="string">'openai'</span>;
+      <pre><code class="language-typescript">import { Queue, Worker } from 'flashq';
+import OpenAI from 'openai';
 
-<span class="keyword">const</span> <span class="variable">openai</span> = <span class="keyword">new</span> <span class="function">OpenAI</span>();
-<span class="keyword">const</span> <span class="variable">queue</span> = <span class="keyword">new</span> <span class="function">Queue</span>(<span class="string">'rag-pipeline'</span>);
+const openai = new OpenAI();
+const queue = new Queue('rag-pipeline');
 
-<span class="comment">// Step 1: Embed the query</span>
-<span class="keyword">const</span> <span class="variable">embedJob</span> = <span class="keyword">await</span> queue.<span class="function">add</span>(<span class="string">'embed'</span>, {
-  text: <span class="string">'What is the capital of France?'</span>,
-  model: <span class="string">'text-embedding-3-small'</span>
+// Step 1: Embed the query
+const embedJob = await queue.add('embed', {
+  text: 'What is the capital of France?',
+  model: 'text-embedding-3-small'
 });
 
-<span class="comment">// Step 2: Search (depends on embed)</span>
-<span class="keyword">const</span> <span class="variable">searchJob</span> = <span class="keyword">await</span> queue.<span class="function">add</span>(<span class="string">'search'</span>, {
-  collection: <span class="string">'knowledge-base'</span>,
-  topK: <span class="number">5</span>
+// Step 2: Search (depends on embed)
+const searchJob = await queue.add('search', {
+  collection: 'knowledge-base',
+  topK: 5
 }, {
   depends_on: [embedJob.id]
 });
 
-<span class="comment">// Step 3: Generate (depends on search)</span>
-<span class="keyword">const</span> <span class="variable">generateJob</span> = <span class="keyword">await</span> queue.<span class="function">add</span>(<span class="string">'generate'</span>, {
-  model: <span class="string">'gpt-4'</span>,
-  systemPrompt: <span class="string">'Answer based on the provided context.'</span>
+// Step 3: Generate (depends on search)
+const generateJob = await queue.add('generate', {
+  model: 'gpt-4',
+  systemPrompt: 'Answer based on the provided context.'
 }, {
   depends_on: [searchJob.id]
 });
 
-<span class="comment">// Wait for the final result</span>
-<span class="keyword">const</span> <span class="variable">result</span> = <span class="keyword">await</span> queue.<span class="function">finished</span>(generateJob.id);
-console.<span class="function">log</span>(result); <span class="comment">// "The capital of France is Paris."</span></code></pre>
+// Wait for the final result
+const result = await queue.finished(generateJob.id);
+console.log(result); // "The capital of France is Paris."</code></pre>
 
       <p>Now let's implement the workers:</p>
 
-      <pre><code><span class="comment">// Embed Worker</span>
-<span class="keyword">new</span> <span class="function">Worker</span>(<span class="string">'rag-pipeline'</span>, <span class="keyword">async</span> (job) => {
-  <span class="keyword">if</span> (job.name !== <span class="string">'embed'</span>) <span class="keyword">return</span>;
+      <pre><code class="language-typescript">// Embed Worker
+new Worker('rag-pipeline', async (job) => {
+  if (job.name !== 'embed') return;
 
-  <span class="keyword">const</span> { text, model } = job.data;
+  const { text, model } = job.data;
 
-  <span class="keyword">const</span> <span class="variable">response</span> = <span class="keyword">await</span> openai.embeddings.<span class="function">create</span>({
+  const response = await openai.embeddings.create({
     input: text,
     model: model
   });
 
-  <span class="keyword">return</span> {
-    embedding: response.data[<span class="number">0</span>].embedding,
+  return {
+    embedding: response.data[0].embedding,
     originalText: text
   };
 });
 
-<span class="comment">// Search Worker</span>
-<span class="keyword">new</span> <span class="function">Worker</span>(<span class="string">'rag-pipeline'</span>, <span class="keyword">async</span> (job) => {
-  <span class="keyword">if</span> (job.name !== <span class="string">'search'</span>) <span class="keyword">return</span>;
+// Search Worker
+new Worker('rag-pipeline', async (job) => {
+  if (job.name !== 'search') return;
 
-  <span class="comment">// Get embedding from parent job</span>
-  <span class="keyword">const</span> <span class="variable">embedResult</span> = <span class="keyword">await</span> queue.<span class="function">getResult</span>(job.data.parentId);
+  // Get embedding from parent job
+  const embedResult = await queue.getResult(job.data.parentId);
 
-  <span class="comment">// Search vector database (using your preferred DB)</span>
-  <span class="keyword">const</span> <span class="variable">results</span> = <span class="keyword">await</span> vectorDB.<span class="function">search</span>({
+  // Search vector database (using your preferred DB)
+  const results = await vectorDB.search({
     vector: embedResult.embedding,
     topK: job.data.topK
   });
 
-  <span class="keyword">return</span> {
+  return {
     documents: results,
     query: embedResult.originalText
   };
 });
 
-<span class="comment">// Generate Worker</span>
-<span class="keyword">new</span> <span class="function">Worker</span>(<span class="string">'rag-pipeline'</span>, <span class="keyword">async</span> (job) => {
-  <span class="keyword">if</span> (job.name !== <span class="string">'generate'</span>) <span class="keyword">return</span>;
+// Generate Worker
+new Worker('rag-pipeline', async (job) => {
+  if (job.name !== 'generate') return;
 
-  <span class="keyword">const</span> <span class="variable">searchResult</span> = <span class="keyword">await</span> queue.<span class="function">getResult</span>(job.data.parentId);
+  const searchResult = await queue.getResult(job.data.parentId);
 
-  <span class="keyword">const</span> <span class="variable">context</span> = searchResult.documents
-    .<span class="function">map</span>(d => d.content)
-    .<span class="function">join</span>(<span class="string">'\n\n'</span>);
+  const context = searchResult.documents
+    .map(d => d.content)
+    .join('\n\n');
 
-  <span class="keyword">const</span> <span class="variable">response</span> = <span class="keyword">await</span> openai.chat.completions.<span class="function">create</span>({
+  const response = await openai.chat.completions.create({
     model: job.data.model,
     messages: [
-      { role: <span class="string">'system'</span>, content: job.data.systemPrompt },
-      { role: <span class="string">'user'</span>, content: <span class="string">`Context:\n${context}\n\nQuestion: ${searchResult.query}`</span> }
+      { role: 'system', content: job.data.systemPrompt },
+      { role: 'user', content: `Context:\n${context}\n\nQuestion: ${searchResult.query}` }
     ]
   });
 
-  <span class="keyword">return</span> response.choices[<span class="number">0</span>].message.content;
+  return response.choices[0].message.content;
 });</code></pre>
 
       <h2 id="document-processing">Pipeline 2: Document Processing</h2>
 
       <p>Processing documents for a knowledge base involves multiple steps:</p>
 
-      <pre><code>┌───────┐     ┌───────┐     ┌───────┐     ┌───────┐
+      <pre><code class="language-plaintext">┌───────┐     ┌───────┐     ┌───────┐     ┌───────┐
 │ Parse │ ──▶ │ Chunk │ ──▶ │ Embed │ ──▶ │ Store │
 └───────┘     └───────┘     └───────┘     └───────┘</code></pre>
 
       <p>Here's how to implement it with rate limiting to avoid hitting API quotas:</p>
 
-      <pre><code><span class="keyword">const</span> <span class="variable">queue</span> = <span class="keyword">new</span> <span class="function">Queue</span>(<span class="string">'document-processing'</span>);
+      <pre><code class="language-typescript">const queue = new Queue('document-processing');
 
-<span class="comment">// Set rate limit: 100 requests per minute for embeddings</span>
-<span class="keyword">await</span> queue.<span class="function">setRateLimit</span>(<span class="number">100</span>);
+// Set rate limit: 100 requests per minute for embeddings
+await queue.setRateLimit(100);
 
-<span class="comment">// Process a document</span>
-<span class="keyword">async</span> <span class="keyword">function</span> <span class="function">processDocument</span>(documentUrl) {
-  <span class="comment">// Step 1: Parse</span>
-  <span class="keyword">const</span> <span class="variable">parseJob</span> = <span class="keyword">await</span> queue.<span class="function">add</span>(<span class="string">'parse'</span>, {
+// Process a document
+async function processDocument(documentUrl) {
+  // Step 1: Parse
+  const parseJob = await queue.add('parse', {
     url: documentUrl
   });
 
-  <span class="comment">// Step 2: Chunk (depends on parse)</span>
-  <span class="keyword">const</span> <span class="variable">chunkJob</span> = <span class="keyword">await</span> queue.<span class="function">add</span>(<span class="string">'chunk'</span>, {
-    chunkSize: <span class="number">500</span>,
-    overlap: <span class="number">50</span>
+  // Step 2: Chunk (depends on parse)
+  const chunkJob = await queue.add('chunk', {
+    chunkSize: 500,
+    overlap: 50
   }, {
     depends_on: [parseJob.id]
   });
 
-  <span class="comment">// Wait for chunks to be ready</span>
-  <span class="keyword">const</span> <span class="variable">chunks</span> = <span class="keyword">await</span> queue.<span class="function">finished</span>(chunkJob.id);
+  // Wait for chunks to be ready
+  const chunks = await queue.finished(chunkJob.id);
 
-  <span class="comment">// Step 3: Embed each chunk (rate limited!)</span>
-  <span class="keyword">const</span> <span class="variable">embedJobs</span> = <span class="keyword">await</span> Promise.<span class="function">all</span>(
-    chunks.<span class="function">map</span>((chunk, i) =>
-      queue.<span class="function">add</span>(<span class="string">'embed-chunk'</span>, {
+  // Step 3: Embed each chunk (rate limited!)
+  const embedJobs = await Promise.all(
+    chunks.map((chunk, i) =>
+      queue.add('embed-chunk', {
         text: chunk.text,
         metadata: chunk.metadata,
         index: i
@@ -301,128 +308,128 @@ console.<span class="function">log</span>(result); <span class="comment">// "The
     )
   );
 
-  <span class="comment">// Step 4: Store (depends on all embeddings)</span>
-  <span class="keyword">const</span> <span class="variable">storeJob</span> = <span class="keyword">await</span> queue.<span class="function">add</span>(<span class="string">'store'</span>, {
+  // Step 4: Store (depends on all embeddings)
+  const storeJob = await queue.add('store', {
     documentUrl,
     totalChunks: chunks.length
   }, {
-    depends_on: embedJobs.<span class="function">map</span>(j => j.id)
+    depends_on: embedJobs.map(j => j.id)
   });
 
-  <span class="keyword">return</span> queue.<span class="function">finished</span>(storeJob.id);
+  return queue.finished(storeJob.id);
 }</code></pre>
 
       <h2 id="batch-inference">Pipeline 3: Batch Inference</h2>
 
       <p>For batch processing millions of items, flashQ's high throughput really shines:</p>
 
-      <pre><code><span class="keyword">const</span> <span class="variable">queue</span> = <span class="keyword">new</span> <span class="function">Queue</span>(<span class="string">'batch-inference'</span>);
+      <pre><code class="language-typescript">const queue = new Queue('batch-inference');
 
-<span class="comment">// Process 1 million items</span>
-<span class="keyword">async</span> <span class="keyword">function</span> <span class="function">batchProcess</span>(items) {
-  console.<span class="function">log</span>(<span class="string">`Processing ${items.length} items...`</span>);
+// Process 1 million items
+async function batchProcess(items) {
+  console.log(`Processing ${items.length} items...`);
 
-  <span class="comment">// Push all jobs in batches of 1000</span>
-  <span class="keyword">const</span> <span class="variable">batchSize</span> = <span class="number">1000</span>;
-  <span class="keyword">const</span> <span class="variable">jobIds</span> = [];
+  // Push all jobs in batches of 1000
+  const batchSize = 1000;
+  const jobIds = [];
 
-  <span class="keyword">for</span> (<span class="keyword">let</span> i = <span class="number">0</span>; i < items.length; i += batchSize) {
-    <span class="keyword">const</span> <span class="variable">batch</span> = items.<span class="function">slice</span>(i, i + batchSize);
+  for (let i = 0; i < items.length; i += batchSize) {
+    const batch = items.slice(i, i + batchSize);
 
-    <span class="comment">// Batch push for maximum throughput</span>
-    <span class="keyword">const</span> <span class="variable">jobs</span> = <span class="keyword">await</span> queue.<span class="function">addBulk</span>(
-      batch.<span class="function">map</span>(item => ({
-        name: <span class="string">'predict'</span>,
+    // Batch push for maximum throughput
+    const jobs = await queue.addBulk(
+      batch.map(item => ({
+        name: 'predict',
         data: item
       }))
     );
 
-    jobIds.<span class="function">push</span>(...jobs.<span class="function">map</span>(j => j.id));
+    jobIds.push(...jobs.map(j => j.id));
 
-    <span class="comment">// Report progress</span>
-    console.<span class="function">log</span>(<span class="string">`Queued ${Math.min(i + batchSize, items.length)} / ${items.length}`</span>);
+    // Report progress
+    console.log(`Queued ${Math.min(i + batchSize, items.length)} / ${items.length}`);
   }
 
-  console.<span class="function">log</span>(<span class="string">'All jobs queued. Processing...'</span>);
+  console.log('All jobs queued. Processing...');
 }
 
-<span class="comment">// Worker with concurrency control</span>
-<span class="keyword">new</span> <span class="function">Worker</span>(<span class="string">'batch-inference'</span>, <span class="keyword">async</span> (job) => {
-  <span class="keyword">const</span> <span class="variable">prediction</span> = <span class="keyword">await</span> model.<span class="function">predict</span>(job.data);
+// Worker with concurrency control
+new Worker('batch-inference', async (job) => {
+  const prediction = await model.predict(job.data);
 
-  <span class="comment">// Update progress</span>
-  <span class="keyword">await</span> job.<span class="function">updateProgress</span>(<span class="number">100</span>);
+  // Update progress
+  await job.updateProgress(100);
 
-  <span class="keyword">return</span> prediction;
+  return prediction;
 }, {
-  concurrency: <span class="number">10</span> <span class="comment">// Process 10 jobs in parallel</span>
+  concurrency: 10 // Process 10 jobs in parallel
 });</code></pre>
 
       <h2 id="handling-failures">Handling Failures</h2>
 
       <p>AI APIs are unreliable. Here's how to handle failures gracefully:</p>
 
-      <pre><code><span class="comment">// Configure retries with exponential backoff</span>
-<span class="keyword">await</span> queue.<span class="function">add</span>(<span class="string">'llm-call'</span>, { prompt }, {
-  attempts: <span class="number">5</span>,
+      <pre><code class="language-typescript">// Configure retries with exponential backoff
+await queue.add('llm-call', { prompt }, {
+  attempts: 5,
   backoff: {
-    type: <span class="string">'exponential'</span>,
-    delay: <span class="number">1000</span>  <span class="comment">// 1s, 2s, 4s, 8s, 16s</span>
+    type: 'exponential',
+    delay: 1000  // 1s, 2s, 4s, 8s, 16s
   }
 });
 
-<span class="comment">// Handle specific errors in worker</span>
-<span class="keyword">new</span> <span class="function">Worker</span>(<span class="string">'llm-call'</span>, <span class="keyword">async</span> (job) => {
-  <span class="keyword">try</span> {
-    <span class="keyword">return</span> <span class="keyword">await</span> openai.chat.completions.<span class="function">create</span>({...});
-  } <span class="keyword">catch</span> (error) {
-    <span class="keyword">if</span> (error.status === <span class="number">429</span>) {
-      <span class="comment">// Rate limited - throw to retry</span>
-      <span class="keyword">throw</span> <span class="keyword">new</span> <span class="function">Error</span>(<span class="string">'Rate limited, will retry'</span>);
+// Handle specific errors in worker
+new Worker('llm-call', async (job) => {
+  try {
+    return await openai.chat.completions.create({...});
+  } catch (error) {
+    if (error.status === 429) {
+      // Rate limited - throw to retry
+      throw new Error('Rate limited, will retry');
     }
-    <span class="keyword">if</span> (error.status === <span class="number">400</span>) {
-      <span class="comment">// Bad request - don't retry</span>
-      <span class="keyword">return</span> { error: <span class="string">'Invalid request'</span>, skip: <span class="keyword">true</span> };
+    if (error.status === 400) {
+      // Bad request - don't retry
+      return { error: 'Invalid request', skip: true };
     }
-    <span class="keyword">throw</span> error;
+    throw error;
   }
 });
 
-<span class="comment">// Monitor the dead letter queue</span>
-<span class="keyword">const</span> <span class="variable">failedJobs</span> = <span class="keyword">await</span> queue.<span class="function">getDlq</span>(<span class="number">100</span>);
-console.<span class="function">log</span>(<span class="string">`${failedJobs.length} jobs in DLQ`</span>);
+// Monitor the dead letter queue
+const failedJobs = await queue.getDlq(100);
+console.log(`${failedJobs.length} jobs in DLQ`);
 
-<span class="comment">// Retry failed jobs</span>
-<span class="keyword">await</span> queue.<span class="function">retryDlq</span>();</code></pre>
+// Retry failed jobs
+await queue.retryDlq();</code></pre>
 
       <h2 id="monitoring">Monitoring and Observability</h2>
 
       <p>Track your pipelines in real-time:</p>
 
-      <pre><code><span class="comment">// Get queue stats</span>
-<span class="keyword">const</span> <span class="variable">stats</span> = <span class="keyword">await</span> queue.<span class="function">getJobCounts</span>();
-console.<span class="function">log</span>(stats);
-<span class="comment">// {
+      <pre><code class="language-typescript">// Get queue stats
+const stats = await queue.getJobCounts();
+console.log(stats);
+// {
 //   waiting: 1523,
 //   active: 10,
 //   completed: 45230,
 //   failed: 12,
 //   delayed: 0
-// }</span>
+// }
 
-<span class="comment">// Track progress of a specific job</span>
-<span class="keyword">const</span> <span class="variable">progress</span> = <span class="keyword">await</span> queue.<span class="function">getProgress</span>(jobId);
-console.<span class="function">log</span>(<span class="string">`Job ${jobId}: ${progress.percent}% - ${progress.message}`</span>);
+// Track progress of a specific job
+const progress = await queue.getProgress(jobId);
+console.log(`Job ${jobId}: ${progress.percent}% - ${progress.message}`);
 
-<span class="comment">// Listen to events</span>
-queue.<span class="function">on</span>(<span class="string">'completed'</span>, (job, result) => {
-  console.<span class="function">log</span>(<span class="string">`Job ${job.id} completed`</span>);
-  metrics.<span class="function">increment</span>(<span class="string">'jobs.completed'</span>);
+// Listen to events
+queue.on('completed', (job, result) => {
+  console.log(`Job ${job.id} completed`);
+  metrics.increment('jobs.completed');
 });
 
-queue.<span class="function">on</span>(<span class="string">'failed'</span>, (job, error) => {
-  console.<span class="function">error</span>(<span class="string">`Job ${job.id} failed: ${error.message}`</span>);
-  metrics.<span class="function">increment</span>(<span class="string">'jobs.failed'</span>);
+queue.on('failed', (job, error) => {
+  console.error(`Job ${job.id} failed: ${error.message}`);
+  metrics.increment('jobs.failed');
 });</code></pre>
 
       <div class="callout callout-success">
@@ -440,28 +447,28 @@ queue.<span class="function">on</span>(<span class="string">'failed'</span>, (jo
 
       <p>LLM calls can be slow. Set timeouts that match your use case:</p>
 
-      <pre><code><span class="keyword">await</span> queue.<span class="function">add</span>(<span class="string">'generate'</span>, data, {
-  timeout: <span class="number">60000</span>  <span class="comment">// 60 seconds for LLM calls</span>
+      <pre><code class="language-typescript">await queue.add('generate', data, {
+  timeout: 60000  // 60 seconds for LLM calls
 });</code></pre>
 
       <h3>3. Use Rate Limiting to Control Costs</h3>
 
       <p>Rate limiting isn't just for API compliance—it's for budget control:</p>
 
-      <pre><code><span class="comment">// Limit to $10/hour in API calls</span>
-<span class="comment">// GPT-4 ≈ $0.03 per 1K tokens ≈ 333 calls per $10</span>
-<span class="keyword">await</span> queue.<span class="function">setRateLimit</span>(<span class="number">333</span>); <span class="comment">// 333 per hour = ~6 per minute</span></code></pre>
+      <pre><code class="language-typescript">// Limit to $10/hour in API calls
+// GPT-4 ≈ $0.03 per 1K tokens ≈ 333 calls per $10
+await queue.setRateLimit(333); // 333 per hour = ~6 per minute</code></pre>
 
       <h3>4. Track Costs Per Job</h3>
 
       <p>Store token usage in job results for cost tracking:</p>
 
-      <pre><code><span class="keyword">return</span> {
-  result: response.choices[<span class="number">0</span>].message.content,
+      <pre><code class="language-typescript">return {
+  result: response.choices[0].message.content,
   usage: {
     promptTokens: response.usage.prompt_tokens,
     completionTokens: response.usage.completion_tokens,
-    cost: <span class="function">calculateCost</span>(response.usage)
+    cost: calculateCost(response.usage)
   }
 };</code></pre>
 
@@ -469,12 +476,12 @@ queue.<span class="function">on</span>(<span class="string">'failed'</span>, (jo
 
       <p>Match concurrency to your API limits and system resources:</p>
 
-      <pre><code><span class="keyword">new</span> <span class="function">Worker</span>(<span class="string">'embeddings'</span>, processor, {
-  concurrency: <span class="number">5</span>  <span class="comment">// 5 parallel embedding calls</span>
+      <pre><code class="language-typescript">new Worker('embeddings', processor, {
+  concurrency: 5  // 5 parallel embedding calls
 });
 
-<span class="comment">// Or set at queue level</span>
-<span class="keyword">await</span> queue.<span class="function">setConcurrency</span>(<span class="number">10</span>);</code></pre>
+// Or set at queue level
+await queue.setConcurrency(10);</code></pre>
 
       <h2 id="conclusion">Conclusion</h2>
 
@@ -676,5 +683,6 @@ queue.<span class="function">on</span>(<span class="string">'failed'</span>, (jo
       }
     });
   </script>
+  <script>hljs.highlightAll();</script>
 </body>
 </html>

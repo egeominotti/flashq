@@ -54,6 +54,13 @@
     ]
   }
   </script>
+  <!-- Highlight.js -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/typescript.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/bash.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/yaml.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/json.min.js"></script>
 </head>
 <body>
   <nav>
@@ -99,7 +106,7 @@
 
       <h3>Basic Docker Run</h3>
 
-      <pre><code><span class="comment"># Simple deployment</span>
+      <pre><code class="language-bash"># Simple deployment
 docker run -d \
   --name flashq \
   -p 6789:6789 \
@@ -107,7 +114,7 @@ docker run -d \
   -e HTTP=1 \
   flashq/flashq
 
-<span class="comment"># With PostgreSQL persistence</span>
+# With PostgreSQL persistence
 docker run -d \
   --name flashq \
   -p 6789:6789 \
@@ -118,15 +125,15 @@ docker run -d \
 
       <h3>Docker Compose</h3>
 
-      <pre><code><span class="comment"># docker-compose.yml</span>
-version: <span class="string">'3.8'</span>
+      <pre><code class="language-bash"># docker-compose.yml
+version: '3.8'
 
 services:
   flashq:
     image: flashq/flashq:latest
     ports:
-      - <span class="string">"6789:6789"</span>   <span class="comment"># TCP</span>
-      - <span class="string">"6790:6790"</span>   <span class="comment"># HTTP</span>
+      - "6789:6789"   # TCP
+      - "6790:6790"   # HTTP
     environment:
       - HTTP=1
       - DATABASE_URL=postgres://flashq:flashq@postgres:5432/flashq
@@ -135,7 +142,7 @@ services:
       postgres:
         condition: service_healthy
     healthcheck:
-      test: [<span class="string">"CMD"</span>, <span class="string">"curl"</span>, <span class="string">"-f"</span>, <span class="string">"http://localhost:6790/health"</span>]
+      test: ["CMD", "curl", "-f", "http://localhost:6790/health"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -150,7 +157,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: [<span class="string">"CMD-SHELL"</span>, <span class="string">"pg_isready -U flashq"</span>]
+      test: ["CMD-SHELL", "pg_isready -U flashq"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -174,27 +181,27 @@ volumes:
 
       <h3>Namespace and ConfigMap</h3>
 
-      <pre><code><span class="comment"># k8s/namespace.yaml</span>
+      <pre><code class="language-bash"># k8s/namespace.yaml
 apiVersion: v1
 kind: Namespace
 metadata:
   name: flashq
 
 ---
-<span class="comment"># k8s/configmap.yaml</span>
+# k8s/configmap.yaml
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: flashq-config
   namespace: flashq
 data:
-  HTTP: <span class="string">"1"</span>
-  GRPC: <span class="string">"0"</span>
-  LOG_LEVEL: <span class="string">"info"</span></code></pre>
+  HTTP: "1"
+  GRPC: "0"
+  LOG_LEVEL: "info"</code></pre>
 
       <h3>Secret</h3>
 
-      <pre><code><span class="comment"># k8s/secret.yaml</span>
+      <pre><code class="language-bash"># k8s/secret.yaml
 apiVersion: v1
 kind: Secret
 metadata:
@@ -207,7 +214,7 @@ stringData:
 
       <h3>Deployment</h3>
 
-      <pre><code><span class="comment"># k8s/deployment.yaml</span>
+      <pre><code class="language-bash"># k8s/deployment.yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -238,11 +245,11 @@ spec:
                 name: flashq-secrets
           resources:
             requests:
-              memory: <span class="string">"256Mi"</span>
-              cpu: <span class="string">"250m"</span>
+              memory: "256Mi"
+              cpu: "250m"
             limits:
-              memory: <span class="string">"1Gi"</span>
-              cpu: <span class="string">"1000m"</span>
+              memory: "1Gi"
+              cpu: "1000m"
           livenessProbe:
             httpGet:
               path: /health
@@ -267,7 +274,7 @@ spec:
 
       <h3>Service</h3>
 
-      <pre><code><span class="comment"># k8s/service.yaml</span>
+      <pre><code class="language-bash"># k8s/service.yaml
 apiVersion: v1
 kind: Service
 metadata:
@@ -286,14 +293,14 @@ spec:
   type: ClusterIP
 
 ---
-<span class="comment"># External access via Ingress</span>
+# External access via Ingress
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: flashq-ingress
   namespace: flashq
   annotations:
-    nginx.ingress.kubernetes.io/ssl-redirect: <span class="string">"true"</span>
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
 spec:
   ingressClassName: nginx
   tls:
@@ -316,7 +323,7 @@ spec:
 
       <h3>Horizontal Pod Autoscaler</h3>
 
-      <pre><code><span class="comment"># k8s/hpa.yaml</span>
+      <pre><code class="language-bash"># k8s/hpa.yaml
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
@@ -347,7 +354,7 @@ spec:
 
       <h3>Prometheus ServiceMonitor</h3>
 
-      <pre><code><span class="comment"># k8s/servicemonitor.yaml</span>
+      <pre><code class="language-bash"># k8s/servicemonitor.yaml
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
@@ -443,5 +450,6 @@ spec:
     function closeSearch(e) { if (e?.target === document.getElementById('searchOverlay')) document.getElementById('searchOverlay').classList.remove('active'); }
     document.addEventListener('keydown', e => { if ((e.metaKey||e.ctrlKey) && e.key==='k') { e.preventDefault(); openSearch(); } if (e.key==='Escape') closeSearch({target:document.getElementById('searchOverlay')}); });
   </script>
+  <script>hljs.highlightAll();</script>
 </body>
 </html>

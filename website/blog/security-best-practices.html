@@ -55,6 +55,13 @@
     ]
   }
   </script>
+  <!-- Highlight.js -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/typescript.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/bash.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/yaml.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/json.min.js"></script>
 </head>
 <body>
   <nav>
@@ -107,84 +114,84 @@
 
       <p>flashQ uses bearer token authentication. Configure tokens via environment variables.</p>
 
-      <pre><code><span class="comment"># Server configuration</span>
+      <pre><code class="language-bash"># Server configuration
 AUTH_TOKENS=token1,token2,token3
 
-<span class="comment"># Or a single secure token</span>
+# Or a single secure token
 AUTH_TOKENS=$(openssl rand -hex 32)</code></pre>
 
-      <pre><code><span class="comment">// Client authentication</span>
-<span class="keyword">import</span> { FlashQ } <span class="keyword">from</span> <span class="string">'flashq'</span>;
+      <pre><code class="language-typescript">// Client authentication
+import { FlashQ } from 'flashq';
 
-<span class="keyword">const</span> client = <span class="keyword">new</span> FlashQ({
-  host: <span class="string">'flashq.internal'</span>,
-  port: <span class="number">6789</span>,
-  token: process.env.FLASHQ_TOKEN <span class="comment">// Never hardcode!</span>
+const client = new FlashQ({
+  host: 'flashq.internal',
+  port: 6789,
+  token: process.env.FLASHQ_TOKEN // Never hardcode!
 });
 
-<span class="keyword">await</span> client.connect();</code></pre>
+await client.connect();</code></pre>
 
       <h3>Token Rotation</h3>
 
-      <pre><code><span class="comment">// Implement token rotation without downtime</span>
-<span class="comment">// 1. Add new token while keeping old ones</span>
+      <pre><code class="language-typescript">// Implement token rotation without downtime
+// 1. Add new token while keeping old ones
 AUTH_TOKENS=old_token,new_token
 
-<span class="comment">// 2. Update all clients to use new token</span>
-<span class="keyword">const</span> client = <span class="keyword">new</span> FlashQ({
+// 2. Update all clients to use new token
+const client = new FlashQ({
   token: process.env.FLASHQ_TOKEN_NEW
 });
 
-<span class="comment">// 3. After all clients updated, remove old token</span>
+// 3. After all clients updated, remove old token
 AUTH_TOKENS=new_token</code></pre>
 
       <h3>Per-Queue Authorization</h3>
 
-      <pre><code><span class="comment">// Implement role-based queue access</span>
-<span class="keyword">interface</span> TokenPermissions {
+      <pre><code class="language-typescript">// Implement role-based queue access
+interface TokenPermissions {
   token: string;
-  queues: string[];        <span class="comment">// Allowed queue patterns</span>
-  operations: string[];    <span class="comment">// push, pull, admin, etc.</span>
+  queues: string[];        // Allowed queue patterns
+  operations: string[];    // push, pull, admin, etc.
 }
 
-<span class="keyword">const</span> permissions: TokenPermissions[] = [
+const permissions: TokenPermissions[] = [
   {
-    token: <span class="string">'worker-token-xxx'</span>,
-    queues: [<span class="string">'jobs:*'</span>, <span class="string">'tasks:*'</span>],
-    operations: [<span class="string">'pull'</span>, <span class="string">'ack'</span>, <span class="string">'fail'</span>, <span class="string">'progress'</span>]
+    token: 'worker-token-xxx',
+    queues: ['jobs:*', 'tasks:*'],
+    operations: ['pull', 'ack', 'fail', 'progress']
   },
   {
-    token: <span class="string">'producer-token-xxx'</span>,
-    queues: [<span class="string">'jobs:*'</span>],
-    operations: [<span class="string">'push'</span>, <span class="string">'getJob'</span>, <span class="string">'cancel'</span>]
+    token: 'producer-token-xxx',
+    queues: ['jobs:*'],
+    operations: ['push', 'getJob', 'cancel']
   },
   {
-    token: <span class="string">'admin-token-xxx'</span>,
-    queues: [<span class="string">'*'</span>],
-    operations: [<span class="string">'*'</span>]
+    token: 'admin-token-xxx',
+    queues: ['*'],
+    operations: ['*']
   }
 ];
 
-<span class="comment">// Middleware to check permissions</span>
-<span class="keyword">function</span> checkPermission(token: string, queue: string, op: string): <span class="keyword">boolean</span> {
-  <span class="keyword">const</span> perm = permissions.find(p => p.token === token);
-  <span class="keyword">if</span> (!perm) <span class="keyword">return false</span>;
+// Middleware to check permissions
+function checkPermission(token: string, queue: string, op: string): boolean {
+  const perm = permissions.find(p => p.token === token);
+  if (!perm) return false;
 
-  <span class="keyword">const</span> queueAllowed = perm.queues.some(pattern =>
+  const queueAllowed = perm.queues.some(pattern =>
     matchPattern(pattern, queue)
   );
-  <span class="keyword">const</span> opAllowed = perm.operations.includes(<span class="string">'*'</span>) ||
+  const opAllowed = perm.operations.includes('*') ||
                     perm.operations.includes(op);
 
-  <span class="keyword">return</span> queueAllowed && opAllowed;
+  return queueAllowed && opAllowed;
 }</code></pre>
 
       <h2 id="encryption">Encryption</h2>
 
       <h3>TLS/SSL for Transport</h3>
 
-      <pre><code><span class="comment"># Enable TLS with nginx reverse proxy</span>
-<span class="comment"># nginx.conf</span>
+      <pre><code class="language-bash"># Enable TLS with nginx reverse proxy
+# nginx.conf
 server {
     listen 443 ssl;
     server_name flashq.example.com;
@@ -202,7 +209,7 @@ server {
     }
 }
 
-<span class="comment"># TCP passthrough for binary protocol</span>
+# TCP passthrough for binary protocol
 stream {
     server {
         listen 6789 ssl;
@@ -214,230 +221,230 @@ stream {
 
       <h3>Encrypting Job Data</h3>
 
-      <pre><code><span class="comment">// encryption/job-encryption.ts</span>
-<span class="keyword">import</span> { createCipheriv, createDecipheriv, randomBytes } <span class="keyword">from</span> <span class="string">'crypto'</span>;
+      <pre><code class="language-typescript">// encryption/job-encryption.ts
+import { createCipheriv, createDecipheriv, randomBytes } from 'crypto';
 
-<span class="keyword">const</span> ALGORITHM = <span class="string">'aes-256-gcm'</span>;
-<span class="keyword">const</span> KEY = Buffer.from(process.env.ENCRYPTION_KEY!, <span class="string">'hex'</span>); <span class="comment">// 32 bytes</span>
+const ALGORITHM = 'aes-256-gcm';
+const KEY = Buffer.from(process.env.ENCRYPTION_KEY!, 'hex'); // 32 bytes
 
-<span class="keyword">interface</span> EncryptedData {
+interface EncryptedData {
   iv: string;
   tag: string;
   data: string;
 }
 
-<span class="keyword">function</span> encryptJobData(data: <span class="keyword">any</span>): EncryptedData {
-  <span class="keyword">const</span> iv = randomBytes(<span class="number">16</span>);
-  <span class="keyword">const</span> cipher = createCipheriv(ALGORITHM, KEY, iv);
+function encryptJobData(data: any): EncryptedData {
+  const iv = randomBytes(16);
+  const cipher = createCipheriv(ALGORITHM, KEY, iv);
 
-  <span class="keyword">const</span> plaintext = JSON.stringify(data);
-  <span class="keyword">let</span> encrypted = cipher.update(plaintext, <span class="string">'utf8'</span>, <span class="string">'base64'</span>);
-  encrypted += cipher.final(<span class="string">'base64'</span>);
+  const plaintext = JSON.stringify(data);
+  let encrypted = cipher.update(plaintext, 'utf8', 'base64');
+  encrypted += cipher.final('base64');
 
-  <span class="keyword">return</span> {
-    iv: iv.toString(<span class="string">'base64'</span>),
-    tag: cipher.getAuthTag().toString(<span class="string">'base64'</span>),
+  return {
+    iv: iv.toString('base64'),
+    tag: cipher.getAuthTag().toString('base64'),
     data: encrypted
   };
 }
 
-<span class="keyword">function</span> decryptJobData(encrypted: EncryptedData): <span class="keyword">any</span> {
-  <span class="keyword">const</span> iv = Buffer.from(encrypted.iv, <span class="string">'base64'</span>);
-  <span class="keyword">const</span> tag = Buffer.from(encrypted.tag, <span class="string">'base64'</span>);
-  <span class="keyword">const</span> decipher = createDecipheriv(ALGORITHM, KEY, iv);
+function decryptJobData(encrypted: EncryptedData): any {
+  const iv = Buffer.from(encrypted.iv, 'base64');
+  const tag = Buffer.from(encrypted.tag, 'base64');
+  const decipher = createDecipheriv(ALGORITHM, KEY, iv);
   decipher.setAuthTag(tag);
 
-  <span class="keyword">let</span> decrypted = decipher.update(encrypted.data, <span class="string">'base64'</span>, <span class="string">'utf8'</span>);
-  decrypted += decipher.final(<span class="string">'utf8'</span>);
+  let decrypted = decipher.update(encrypted.data, 'base64', 'utf8');
+  decrypted += decipher.final('utf8');
 
-  <span class="keyword">return</span> JSON.parse(decrypted);
+  return JSON.parse(decrypted);
 }
 
-<span class="comment">// Usage with flashQ</span>
-<span class="keyword">async function</span> pushEncryptedJob(queue: string, data: <span class="keyword">any</span>) {
-  <span class="keyword">const</span> encrypted = encryptJobData(data);
-  <span class="keyword">return</span> flashq.push(queue, { encrypted });
+// Usage with flashQ
+async function pushEncryptedJob(queue: string, data: any) {
+  const encrypted = encryptJobData(data);
+  return flashq.push(queue, { encrypted });
 }
 
-<span class="comment">// Worker decryption</span>
-<span class="keyword">const</span> worker = <span class="keyword">new</span> Worker(flashq, <span class="string">'secure-jobs'</span>, <span class="keyword">async</span> (job) => {
-  <span class="keyword">const</span> data = decryptJobData(job.data.encrypted);
-  <span class="comment">// Process decrypted data</span>
-  <span class="keyword">return</span> processJob(data);
+// Worker decryption
+const worker = new Worker(flashq, 'secure-jobs', async (job) => {
+  const data = decryptJobData(job.data.encrypted);
+  // Process decrypted data
+  return processJob(data);
 });</code></pre>
 
       <h3>Field-Level Encryption</h3>
 
-      <pre><code><span class="comment">// Encrypt only sensitive fields</span>
-<span class="keyword">const</span> SENSITIVE_FIELDS = [<span class="string">'ssn'</span>, <span class="string">'creditCard'</span>, <span class="string">'password'</span>, <span class="string">'apiKey'</span>];
+      <pre><code class="language-typescript">// Encrypt only sensitive fields
+const SENSITIVE_FIELDS = ['ssn', 'creditCard', 'password', 'apiKey'];
 
-<span class="keyword">function</span> encryptSensitiveFields(data: Record&lt;string, <span class="keyword">any</span>&gt;): Record&lt;string, <span class="keyword">any</span>&gt; {
-  <span class="keyword">const</span> result = { ...data };
+function encryptSensitiveFields(data: Record&lt;string, any&gt;): Record&lt;string, any&gt; {
+  const result = { ...data };
 
-  <span class="keyword">for</span> (<span class="keyword">const</span> field <span class="keyword">of</span> SENSITIVE_FIELDS) {
-    <span class="keyword">if</span> (field <span class="keyword">in</span> result) {
-      result[<span class="string">`_encrypted_</span>${field}<span class="string">`</span>] = encryptJobData(result[field]);
-      <span class="keyword">delete</span> result[field];
+  for (const field of SENSITIVE_FIELDS) {
+    if (field in result) {
+      result[`_encrypted_${field}`] = encryptJobData(result[field]);
+      delete result[field];
     }
   }
 
-  <span class="keyword">return</span> result;
+  return result;
 }
 
-<span class="keyword">function</span> decryptSensitiveFields(data: Record&lt;string, <span class="keyword">any</span>&gt;): Record&lt;string, <span class="keyword">any</span>&gt; {
-  <span class="keyword">const</span> result = { ...data };
+function decryptSensitiveFields(data: Record&lt;string, any&gt;): Record&lt;string, any&gt; {
+  const result = { ...data };
 
-  <span class="keyword">for</span> (<span class="keyword">const</span> key <span class="keyword">of</span> Object.keys(result)) {
-    <span class="keyword">if</span> (key.startsWith(<span class="string">'_encrypted_'</span>)) {
-      <span class="keyword">const</span> field = key.replace(<span class="string">'_encrypted_'</span>, <span class="string">''</span>);
+  for (const key of Object.keys(result)) {
+    if (key.startsWith('_encrypted_')) {
+      const field = key.replace('_encrypted_', '');
       result[field] = decryptJobData(result[key]);
-      <span class="keyword">delete</span> result[key];
+      delete result[key];
     }
   }
 
-  <span class="keyword">return</span> result;
+  return result;
 }</code></pre>
 
       <h2 id="input-validation">Input Validation</h2>
 
       <h3>Schema Validation with Zod</h3>
 
-      <pre><code><span class="comment">// validation/job-schemas.ts</span>
-<span class="keyword">import</span> { z } <span class="keyword">from</span> <span class="string">'zod'</span>;
+      <pre><code class="language-typescript">// validation/job-schemas.ts
+import { z } from 'zod';
 
-<span class="comment">// Define strict schemas for each job type</span>
-<span class="keyword">const</span> EmailJobSchema = z.object({
-  to: z.string().email().max(<span class="number">254</span>),
-  subject: z.string().max(<span class="number">998</span>), <span class="comment">// RFC 5322 limit</span>
-  body: z.string().max(<span class="number">1048576</span>), <span class="comment">// 1MB max</span>
+// Define strict schemas for each job type
+const EmailJobSchema = z.object({
+  to: z.string().email().max(254),
+  subject: z.string().max(998), // RFC 5322 limit
+  body: z.string().max(1048576), // 1MB max
   attachments: z.array(z.object({
-    filename: z.string().max(<span class="number">255</span>).regex(/^[a-zA-Z0-9._-]+$/),
-    contentType: z.string().max(<span class="number">100</span>),
-    size: z.number().max(<span class="number">10485760</span>) <span class="comment">// 10MB max</span>
-  })).max(<span class="number">10</span>).optional()
+    filename: z.string().max(255).regex(/^[a-zA-Z0-9._-]+$/),
+    contentType: z.string().max(100),
+    size: z.number().max(10485760) // 10MB max
+  })).max(10).optional()
 });
 
-<span class="keyword">const</span> PaymentJobSchema = z.object({
+const PaymentJobSchema = z.object({
   orderId: z.string().uuid(),
-  amount: z.number().positive().max(<span class="number">999999.99</span>),
-  currency: z.enum([<span class="string">'USD'</span>, <span class="string">'EUR'</span>, <span class="string">'GBP'</span>]),
+  amount: z.number().positive().max(999999.99),
+  currency: z.enum(['USD', 'EUR', 'GBP']),
   customerId: z.string().uuid()
 });
 
-<span class="keyword">const</span> ImageProcessingSchema = z.object({
-  imageUrl: z.string().url().startsWith(<span class="string">'https://'</span>),
+const ImageProcessingSchema = z.object({
+  imageUrl: z.string().url().startsWith('https://'),
   operations: z.array(z.enum([
-    <span class="string">'resize'</span>, <span class="string">'crop'</span>, <span class="string">'rotate'</span>, <span class="string">'compress'</span>
-  ])).max(<span class="number">10</span>),
-  outputFormat: z.enum([<span class="string">'jpeg'</span>, <span class="string">'png'</span>, <span class="string">'webp'</span>])
+    'resize', 'crop', 'rotate', 'compress'
+  ])).max(10),
+  outputFormat: z.enum(['jpeg', 'png', 'webp'])
 });
 
-<span class="comment">// Validate before pushing</span>
-<span class="keyword">async function</span> pushValidatedJob&lt;T&gt;(
+// Validate before pushing
+async function pushValidatedJob&lt;T&gt;(
   queue: string,
   schema: z.Schema&lt;T&gt;,
-  data: <span class="keyword">unknown</span>
+  data: unknown
 ) {
-  <span class="keyword">const</span> validated = schema.parse(data);
-  <span class="keyword">return</span> flashq.push(queue, validated);
+  const validated = schema.parse(data);
+  return flashq.push(queue, validated);
 }
 
-<span class="comment">// Usage</span>
-<span class="keyword">await</span> pushValidatedJob(<span class="string">'emails'</span>, EmailJobSchema, {
-  to: <span class="string">'user@example.com'</span>,
-  subject: <span class="string">'Hello'</span>,
-  body: <span class="string">'Content here'</span>
+// Usage
+await pushValidatedJob('emails', EmailJobSchema, {
+  to: 'user@example.com',
+  subject: 'Hello',
+  body: 'Content here'
 });</code></pre>
 
       <h3>Sanitization</h3>
 
-      <pre><code><span class="comment">// validation/sanitize.ts</span>
-<span class="keyword">import</span> DOMPurify <span class="keyword">from</span> <span class="string">'isomorphic-dompurify'</span>;
+      <pre><code class="language-typescript">// validation/sanitize.ts
+import DOMPurify from 'isomorphic-dompurify';
 
-<span class="comment">// Sanitize HTML content</span>
-<span class="keyword">function</span> sanitizeHtml(html: string): string {
-  <span class="keyword">return</span> DOMPurify.sanitize(html, {
-    ALLOWED_TAGS: [<span class="string">'b'</span>, <span class="string">'i'</span>, <span class="string">'em'</span>, <span class="string">'strong'</span>, <span class="string">'p'</span>, <span class="string">'br'</span>],
+// Sanitize HTML content
+function sanitizeHtml(html: string): string {
+  return DOMPurify.sanitize(html, {
+    ALLOWED_TAGS: ['b', 'i', 'em', 'strong', 'p', 'br'],
     ALLOWED_ATTR: []
   });
 }
 
-<span class="comment">// Remove potential injection characters</span>
-<span class="keyword">function</span> sanitizeString(str: string): string {
-  <span class="keyword">return</span> str
-    .replace(/[<>'"&]/g, <span class="string">''</span>) <span class="comment">// Remove dangerous chars</span>
+// Remove potential injection characters
+function sanitizeString(str: string): string {
+  return str
+    .replace(/[<>'"&]/g, '') // Remove dangerous chars
     .trim()
-    .slice(<span class="number">0</span>, <span class="number">10000</span>); <span class="comment">// Limit length</span>
+    .slice(0, 10000); // Limit length
 }
 
-<span class="comment">// Sanitize file paths (prevent path traversal)</span>
-<span class="keyword">function</span> sanitizePath(path: string): string {
-  <span class="keyword">return</span> path
-    .replace(/\.\./g, <span class="string">''</span>) <span class="comment">// Remove parent directory refs</span>
-    .replace(/^\//, <span class="string">''</span>)   <span class="comment">// Remove leading slash</span>
-    .replace(/[^a-zA-Z0-9._/-]/g, <span class="string">''</span>); <span class="comment">// Whitelist chars</span>
+// Sanitize file paths (prevent path traversal)
+function sanitizePath(path: string): string {
+  return path
+    .replace(/\.\./g, '') // Remove parent directory refs
+    .replace(/^\//, '')   // Remove leading slash
+    .replace(/[^a-zA-Z0-9._/-]/g, ''); // Whitelist chars
 }
 
-<span class="comment">// Sanitize SQL (for dynamic queries, prefer parameterized)</span>
-<span class="keyword">function</span> sanitizeSqlIdentifier(identifier: string): string {
-  <span class="keyword">if</span> (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(identifier)) {
-    <span class="keyword">throw new</span> Error(<span class="string">'Invalid SQL identifier'</span>);
+// Sanitize SQL (for dynamic queries, prefer parameterized)
+function sanitizeSqlIdentifier(identifier: string): string {
+  if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(identifier)) {
+    throw new Error('Invalid SQL identifier');
   }
-  <span class="keyword">return</span> identifier;
+  return identifier;
 }</code></pre>
 
       <h2 id="rate-limiting">Rate Limiting</h2>
 
       <h3>Queue-Level Rate Limits</h3>
 
-      <pre><code><span class="comment">// Set rate limits per queue</span>
-<span class="keyword">await</span> flashq.setRateLimit(<span class="string">'api-calls'</span>, {
-  max: <span class="number">100</span>,        <span class="comment">// 100 jobs</span>
-  duration: <span class="number">60000</span> <span class="comment">// per minute</span>
+      <pre><code class="language-typescript">// Set rate limits per queue
+await flashq.setRateLimit('api-calls', {
+  max: 100,        // 100 jobs
+  duration: 60000 // per minute
 });
 
-<span class="comment">// Different limits for different queues</span>
-<span class="keyword">const</span> rateLimits = {
-  <span class="string">'emails'</span>: { max: <span class="number">1000</span>, duration: <span class="number">3600000</span> },    <span class="comment">// 1000/hour</span>
-  <span class="string">'payments'</span>: { max: <span class="number">100</span>, duration: <span class="number">60000</span> },       <span class="comment">// 100/minute</span>
-  <span class="string">'notifications'</span>: { max: <span class="number">10000</span>, duration: <span class="number">60000</span> } <span class="comment">// 10000/minute</span>
+// Different limits for different queues
+const rateLimits = {
+  'emails': { max: 1000, duration: 3600000 },    // 1000/hour
+  'payments': { max: 100, duration: 60000 },       // 100/minute
+  'notifications': { max: 10000, duration: 60000 } // 10000/minute
 };
 
-<span class="keyword">for</span> (<span class="keyword">const</span> [queue, limit] <span class="keyword">of</span> Object.entries(rateLimits)) {
-  <span class="keyword">await</span> flashq.setRateLimit(queue, limit);
+for (const [queue, limit] of Object.entries(rateLimits)) {
+  await flashq.setRateLimit(queue, limit);
 }</code></pre>
 
       <h3>Client-Level Rate Limiting</h3>
 
-      <pre><code><span class="comment">// Implement client-side rate limiting</span>
-<span class="keyword">import</span> { RateLimiter } <span class="keyword">from</span> <span class="string">'limiter'</span>;
+      <pre><code class="language-typescript">// Implement client-side rate limiting
+import { RateLimiter } from 'limiter';
 
-<span class="keyword">class</span> RateLimitedClient {
-  <span class="keyword">private</span> client: FlashQ;
-  <span class="keyword">private</span> limiters: Map&lt;string, RateLimiter&gt; = <span class="keyword">new</span> Map();
+class RateLimitedClient {
+  private client: FlashQ;
+  private limiters: Map&lt;string, RateLimiter&gt; = new Map();
 
-  <span class="keyword">constructor</span>(client: FlashQ) {
-    <span class="keyword">this</span>.client = client;
+  constructor(client: FlashQ) {
+    this.client = client;
   }
 
-  <span class="keyword">private</span> getLimiter(queue: string): RateLimiter {
-    <span class="keyword">if</span> (!<span class="keyword">this</span>.limiters.has(queue)) {
-      <span class="keyword">this</span>.limiters.set(queue, <span class="keyword">new</span> RateLimiter({
-        tokensPerInterval: <span class="number">100</span>,
-        interval: <span class="string">'minute'</span>
+  private getLimiter(queue: string): RateLimiter {
+    if (!this.limiters.has(queue)) {
+      this.limiters.set(queue, new RateLimiter({
+        tokensPerInterval: 100,
+        interval: 'minute'
       }));
     }
-    <span class="keyword">return this</span>.limiters.get(queue)!;
+    return this.limiters.get(queue)!;
   }
 
-  <span class="keyword">async</span> push(queue: string, data: <span class="keyword">any</span>, options?: <span class="keyword">any</span>) {
-    <span class="keyword">const</span> limiter = <span class="keyword">this</span>.getLimiter(queue);
+  async push(queue: string, data: any, options?: any) {
+    const limiter = this.getLimiter(queue);
 
-    <span class="keyword">if</span> (!limiter.tryRemoveTokens(<span class="number">1</span>)) {
-      <span class="keyword">throw new</span> Error(<span class="string">`Rate limit exceeded for queue: </span>${queue}<span class="string">`</span>);
+    if (!limiter.tryRemoveTokens(1)) {
+      throw new Error(`Rate limit exceeded for queue: ${queue}`);
     }
 
-    <span class="keyword">return this</span>.client.push(queue, data, options);
+    return this.client.push(queue, data, options);
   }
 }</code></pre>
 
@@ -445,8 +452,8 @@ stream {
 
       <h3>Firewall Configuration</h3>
 
-      <pre><code><span class="comment"># Only allow internal network access to flashQ</span>
-<span class="comment"># iptables rules</span>
+      <pre><code class="language-bash"># Only allow internal network access to flashQ
+# iptables rules
 iptables -A INPUT -p tcp --dport 6789 -s 10.0.0.0/8 -j ACCEPT
 iptables -A INPUT -p tcp --dport 6789 -j DROP
 
@@ -455,7 +462,7 @@ iptables -A INPUT -p tcp --dport 6790 -j DROP</code></pre>
 
       <h3>Kubernetes Network Policy</h3>
 
-      <pre><code><span class="comment"># k8s/network-policy.yaml</span>
+      <pre><code class="language-bash"># k8s/network-policy.yaml
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -469,7 +476,7 @@ spec:
     - Ingress
     - Egress
   ingress:
-    <span class="comment"># Only allow from workers namespace</span>
+    # Only allow from workers namespace
     - from:
         - namespaceSelector:
             matchLabels:
@@ -480,15 +487,15 @@ spec:
       ports:
         - port: 6789
         - port: 6790
-    <span class="comment"># Allow from monitoring</span>
+    # Allow from monitoring
     - from:
         - namespaceSelector:
             matchLabels:
               name: monitoring
       ports:
-        - port: 6790 <span class="comment"># Metrics only</span>
+        - port: 6790 # Metrics only
   egress:
-    <span class="comment"># Only allow PostgreSQL</span>
+    # Only allow PostgreSQL
     - to:
         - namespaceSelector:
             matchLabels:
@@ -498,7 +505,7 @@ spec:
 
       <h3>Private VPC Deployment</h3>
 
-      <pre><code><span class="comment"># terraform/vpc.tf</span>
+      <pre><code class="language-bash"># terraform/vpc.tf
 resource "aws_vpc" "flashq" {
   cidr_block           = "10.0.0.0/16"
   enable_dns_hostnames = true
@@ -518,7 +525,7 @@ resource "aws_subnet" "private" {
   }
 }
 
-<span class="comment"># No internet gateway - truly private</span>
+# No internet gateway - truly private
 resource "aws_security_group" "flashq" {
   vpc_id = aws_vpc.flashq.id
 
@@ -533,175 +540,175 @@ resource "aws_security_group" "flashq" {
     from_port   = 5432
     to_port     = 5432
     protocol    = "tcp"
-    cidr_blocks = ["10.0.2.0/24"] <span class="comment"># Database subnet</span>
+    cidr_blocks = ["10.0.2.0/24"] # Database subnet
   }
 }</code></pre>
 
       <h2 id="audit-logging">Audit Logging</h2>
 
-      <pre><code><span class="comment">// audit/logger.ts</span>
-<span class="keyword">interface</span> AuditLog {
+      <pre><code class="language-typescript">// audit/logger.ts
+interface AuditLog {
   timestamp: string;
   action: string;
   queue: string;
   jobId?: string;
   userId?: string;
   ip?: string;
-  success: <span class="keyword">boolean</span>;
-  details?: Record&lt;string, <span class="keyword">any</span>&gt;;
+  success: boolean;
+  details?: Record&lt;string, any&gt;;
 }
 
-<span class="keyword">class</span> AuditLogger {
-  <span class="keyword">private</span> logs: AuditLog[] = [];
+class AuditLogger {
+  private logs: AuditLog[] = [];
 
-  log(entry: Omit&lt;AuditLog, <span class="string">'timestamp'</span>&gt;) {
-    <span class="keyword">const</span> auditEntry: AuditLog = {
+  log(entry: Omit&lt;AuditLog, 'timestamp'&gt;) {
+    const auditEntry: AuditLog = {
       ...entry,
-      timestamp: <span class="keyword">new</span> Date().toISOString()
+      timestamp: new Date().toISOString()
     };
 
-    <span class="comment">// Log to stdout (for log aggregation)</span>
+    // Log to stdout (for log aggregation)
     console.log(JSON.stringify(auditEntry));
 
-    <span class="comment">// Also push to audit queue for persistence</span>
-    flashq.push(<span class="string">'audit:logs'</span>, auditEntry, {
-      ttl: <span class="number">86400000</span> * <span class="number">90</span> <span class="comment">// Keep for 90 days</span>
+    // Also push to audit queue for persistence
+    flashq.push('audit:logs', auditEntry, {
+      ttl: 86400000 * 90 // Keep for 90 days
     });
   }
 }
 
-<span class="keyword">const</span> audit = <span class="keyword">new</span> AuditLogger();
+const audit = new AuditLogger();
 
-<span class="comment">// Wrap flashQ operations with audit logging</span>
-<span class="keyword">class</span> AuditedFlashQ {
-  <span class="keyword">private</span> client: FlashQ;
-  <span class="keyword">private</span> userId: string;
-  <span class="keyword">private</span> ip: string;
+// Wrap flashQ operations with audit logging
+class AuditedFlashQ {
+  private client: FlashQ;
+  private userId: string;
+  private ip: string;
 
-  <span class="keyword">constructor</span>(client: FlashQ, userId: string, ip: string) {
-    <span class="keyword">this</span>.client = client;
-    <span class="keyword">this</span>.userId = userId;
-    <span class="keyword">this</span>.ip = ip;
+  constructor(client: FlashQ, userId: string, ip: string) {
+    this.client = client;
+    this.userId = userId;
+    this.ip = ip;
   }
 
-  <span class="keyword">async</span> push(queue: string, data: <span class="keyword">any</span>, options?: <span class="keyword">any</span>) {
-    <span class="keyword">try</span> {
-      <span class="keyword">const</span> result = <span class="keyword">await this</span>.client.push(queue, data, options);
+  async push(queue: string, data: any, options?: any) {
+    try {
+      const result = await this.client.push(queue, data, options);
       audit.log({
-        action: <span class="string">'push'</span>,
+        action: 'push',
         queue,
         jobId: result.id,
-        userId: <span class="keyword">this</span>.userId,
-        ip: <span class="keyword">this</span>.ip,
-        success: <span class="literal">true</span>
+        userId: this.userId,
+        ip: this.ip,
+        success: <span class="literal">true
       });
-      <span class="keyword">return</span> result;
-    } <span class="keyword">catch</span> (error) {
+      return result;
+    } catch (error) {
       audit.log({
-        action: <span class="string">'push'</span>,
+        action: 'push',
         queue,
-        userId: <span class="keyword">this</span>.userId,
-        ip: <span class="keyword">this</span>.ip,
-        success: <span class="literal">false</span>,
+        userId: this.userId,
+        ip: this.ip,
+        success: <span class="literal">false,
         details: { error: error.message }
       });
-      <span class="keyword">throw</span> error;
+      throw error;
     }
   }
 }</code></pre>
 
       <h2 id="secrets">Secrets Management</h2>
 
-      <pre><code><span class="comment">// Never store secrets in code or environment directly</span>
-<span class="comment">// Use a secrets manager</span>
+      <pre><code class="language-typescript">// Never store secrets in code or environment directly
+// Use a secrets manager
 
-<span class="comment">// AWS Secrets Manager</span>
-<span class="keyword">import</span> { SecretsManager } <span class="keyword">from</span> <span class="string">'@aws-sdk/client-secrets-manager'</span>;
+// AWS Secrets Manager
+import { SecretsManager } from '@aws-sdk/client-secrets-manager';
 
-<span class="keyword">async function</span> getFlashQToken(): Promise&lt;string&gt; {
-  <span class="keyword">const</span> client = <span class="keyword">new</span> SecretsManager({ region: <span class="string">'us-east-1'</span> });
-  <span class="keyword">const</span> response = <span class="keyword">await</span> client.getSecretValue({
-    SecretId: <span class="string">'flashq/production/token'</span>
+async function getFlashQToken(): Promise&lt;string&gt; {
+  const client = new SecretsManager({ region: 'us-east-1' });
+  const response = await client.getSecretValue({
+    SecretId: 'flashq/production/token'
   });
-  <span class="keyword">return</span> response.SecretString!;
+  return response.SecretString!;
 }
 
-<span class="comment">// HashiCorp Vault</span>
-<span class="keyword">import</span> Vault <span class="keyword">from</span> <span class="string">'node-vault'</span>;
+// HashiCorp Vault
+import Vault from 'node-vault';
 
-<span class="keyword">async function</span> getSecretsFromVault() {
-  <span class="keyword">const</span> vault = Vault({
-    apiVersion: <span class="string">'v1'</span>,
+async function getSecretsFromVault() {
+  const vault = Vault({
+    apiVersion: 'v1',
     endpoint: process.env.VAULT_ADDR
   });
 
-  <span class="keyword">await</span> vault.approleLogin({
+  await vault.approleLogin({
     role_id: process.env.VAULT_ROLE_ID,
     secret_id: process.env.VAULT_SECRET_ID
   });
 
-  <span class="keyword">const</span> secrets = <span class="keyword">await</span> vault.read(<span class="string">'secret/data/flashq'</span>);
-  <span class="keyword">return</span> secrets.data.data;
+  const secrets = await vault.read('secret/data/flashq');
+  return secrets.data.data;
 }
 
-<span class="comment">// Kubernetes secrets</span>
-<span class="comment">// Mount as files, not environment variables</span>
-<span class="keyword">const</span> token = readFileSync(<span class="string">'/etc/secrets/flashq-token'</span>, <span class="string">'utf8'</span>).trim();</code></pre>
+// Kubernetes secrets
+// Mount as files, not environment variables
+const token = readFileSync('/etc/secrets/flashq-token', 'utf8').trim();</code></pre>
 
       <h2 id="compliance">Compliance Considerations</h2>
 
       <h3>GDPR / Data Privacy</h3>
 
-      <pre><code><span class="comment">// Implement data retention policies</span>
-<span class="keyword">async function</span> cleanupUserData(userId: string) {
-  <span class="comment">// Find all jobs for user</span>
-  <span class="keyword">const</span> queues = <span class="keyword">await</span> flashq.listQueues();
+      <pre><code class="language-typescript">// Implement data retention policies
+async function cleanupUserData(userId: string) {
+  // Find all jobs for user
+  const queues = await flashq.listQueues();
 
-  <span class="keyword">for</span> (<span class="keyword">const</span> queue <span class="keyword">of</span> queues) {
-    <span class="keyword">const</span> jobs = <span class="keyword">await</span> flashq.getJobs(queue, <span class="string">'completed'</span>, <span class="number">10000</span>);
+  for (const queue of queues) {
+    const jobs = await flashq.getJobs(queue, 'completed', 10000);
 
-    <span class="keyword">for</span> (<span class="keyword">const</span> job <span class="keyword">of</span> jobs) {
-      <span class="keyword">if</span> (job.data?.userId === userId) {
-        <span class="comment">// Anonymize or delete</span>
-        <span class="keyword">await</span> flashq.update(job.id, {
+    for (const job of jobs) {
+      if (job.data?.userId === userId) {
+        // Anonymize or delete
+        await flashq.update(job.id, {
           ...job.data,
-          email: <span class="string">'[REDACTED]'</span>,
-          name: <span class="string">'[REDACTED]'</span>,
-          personalData: <span class="literal">null</span>
+          email: '[REDACTED]',
+          name: '[REDACTED]',
+          personalData: <span class="literal">null
         });
       }
     }
   }
 }
 
-<span class="comment">// Auto-cleanup old completed jobs</span>
-<span class="keyword">await</span> flashq.clean(<span class="string">'*'</span>, <span class="number">86400000</span> * <span class="number">30</span>, <span class="string">'completed'</span>); <span class="comment">// 30 days</span></code></pre>
+// Auto-cleanup old completed jobs
+await flashq.clean('*', 86400000 * 30, 'completed'); // 30 days</code></pre>
 
       <h3>PCI-DSS (Payment Data)</h3>
 
-      <pre><code><span class="comment">// Never store raw card data in jobs</span>
-<span class="comment">// Only store tokenized references</span>
+      <pre><code class="language-typescript">// Never store raw card data in jobs
+// Only store tokenized references
 
-<span class="keyword">interface</span> PaymentJob {
-  paymentTokenId: string;  <span class="comment">// Token from payment processor</span>
+interface PaymentJob {
+  paymentTokenId: string;  // Token from payment processor
   orderId: string;
   amount: number;
-  <span class="comment">// NO: cardNumber, cvv, expiryDate</span>
+  // NO: cardNumber, cvv, expiryDate
 }
 
-<span class="comment">// Worker fetches actual payment data from secure vault</span>
-<span class="keyword">const</span> worker = <span class="keyword">new</span> Worker(flashq, <span class="string">'payments'</span>, <span class="keyword">async</span> (job) => {
-  <span class="keyword">const</span> { paymentTokenId, orderId, amount } = job.data;
+// Worker fetches actual payment data from secure vault
+const worker = new Worker(flashq, 'payments', async (job) => {
+  const { paymentTokenId, orderId, amount } = job.data;
 
-  <span class="comment">// Retrieve from payment processor</span>
-  <span class="keyword">const</span> result = <span class="keyword">await</span> stripe.paymentIntents.create({
+  // Retrieve from payment processor
+  const result = await stripe.paymentIntents.create({
     payment_method: paymentTokenId,
     amount,
-    currency: <span class="string">'usd'</span>,
-    confirm: <span class="literal">true</span>
+    currency: 'usd',
+    confirm: <span class="literal">true
   });
 
-  <span class="keyword">return</span> { success: <span class="literal">true</span>, transactionId: result.id };
+  return { success: <span class="literal">true, transactionId: result.id };
 });</code></pre>
 
       <div class="callout callout-success">
@@ -777,5 +784,6 @@ resource "aws_security_group" "flashq" {
     function closeSearch(e) { if (e?.target === document.getElementById('searchOverlay')) document.getElementById('searchOverlay').classList.remove('active'); }
     document.addEventListener('keydown', e => { if ((e.metaKey||e.ctrlKey) && e.key==='k') { e.preventDefault(); openSearch(); } if (e.key==='Escape') closeSearch({target:document.getElementById('searchOverlay')}); });
   </script>
+  <script>hljs.highlightAll();</script>
 </body>
 </html>

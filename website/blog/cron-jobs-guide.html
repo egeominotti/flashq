@@ -55,6 +55,13 @@
     ]
   }
   </script>
+  <!-- Highlight.js -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/typescript.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/bash.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/yaml.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/json.min.js"></script>
 </head>
 <body>
   <nav>
@@ -100,7 +107,7 @@
 
       <p>flashQ uses a 6-field cron expression that includes seconds:</p>
 
-      <pre><code>┌──────────── second (0-59)
+      <pre><code class="language-plaintext">┌──────────── second (0-59)
 │ ┌────────── minute (0-59)
 │ │ ┌──────── hour (0-23)
 │ │ │ ┌────── day of month (1-31)
@@ -129,126 +136,126 @@
 
       <h2 id="creating-cron">Creating Cron Jobs</h2>
 
-      <pre><code><span class="keyword">import</span> { Queue } <span class="keyword">from</span> <span class="string">'flashq'</span>;
+      <pre><code class="language-typescript">import { Queue } from 'flashq';
 
-<span class="keyword">const</span> <span class="variable">queue</span> = <span class="keyword">new</span> <span class="function">Queue</span>(<span class="string">'scheduled-tasks'</span>);
+const queue = new Queue('scheduled-tasks');
 
-<span class="comment">// Daily report at 9 AM</span>
-<span class="keyword">await</span> queue.<span class="function">addCron</span>(<span class="string">'daily-report'</span>, {
-  queue: <span class="string">'scheduled-tasks'</span>,
-  schedule: <span class="string">'0 0 9 * * *'</span>,
+// Daily report at 9 AM
+await queue.addCron('daily-report', {
+  queue: 'scheduled-tasks',
+  schedule: '0 0 9 * * *',
   data: {
-    type: <span class="string">'daily-report'</span>,
-    recipients: [<span class="string">'team@company.com'</span>],
+    type: 'daily-report',
+    recipients: ['team@company.com'],
   },
 });
 
-<span class="comment">// Cleanup every Sunday at midnight</span>
-<span class="keyword">await</span> queue.<span class="function">addCron</span>(<span class="string">'weekly-cleanup'</span>, {
-  queue: <span class="string">'scheduled-tasks'</span>,
-  schedule: <span class="string">'0 0 0 * * 0'</span>,
+// Cleanup every Sunday at midnight
+await queue.addCron('weekly-cleanup', {
+  queue: 'scheduled-tasks',
+  schedule: '0 0 0 * * 0',
   data: {
-    type: <span class="string">'cleanup'</span>,
-    olderThanDays: <span class="number">30</span>,
+    type: 'cleanup',
+    olderThanDays: 30,
   },
 });
 
-<span class="comment">// Health check every 5 minutes</span>
-<span class="keyword">await</span> queue.<span class="function">addCron</span>(<span class="string">'health-check'</span>, {
-  queue: <span class="string">'scheduled-tasks'</span>,
-  schedule: <span class="string">'0 */5 * * * *'</span>,
+// Health check every 5 minutes
+await queue.addCron('health-check', {
+  queue: 'scheduled-tasks',
+  schedule: '0 */5 * * * *',
   data: {
-    type: <span class="string">'health-check'</span>,
-    endpoints: [<span class="string">'/api/health'</span>, <span class="string">'/api/db'</span>],
+    type: 'health-check',
+    endpoints: ['/api/health', '/api/db'],
   },
 });</code></pre>
 
       <h2 id="managing-cron">Managing Cron Jobs</h2>
 
-      <pre><code><span class="comment">// List all cron jobs</span>
-<span class="keyword">const</span> <span class="variable">crons</span> = <span class="keyword">await</span> queue.<span class="function">listCrons</span>();
-console.<span class="function">log</span>(crons);
-<span class="comment">// [
+      <pre><code class="language-typescript">// List all cron jobs
+const crons = await queue.listCrons();
+console.log(crons);
+// [
 //   { name: 'daily-report', schedule: '0 0 9 * * *', ... },
 //   { name: 'weekly-cleanup', schedule: '0 0 0 * * 0', ... },
-// ]</span>
+// ]
 
-<span class="comment">// Delete a cron job</span>
-<span class="keyword">await</span> queue.<span class="function">deleteCron</span>(<span class="string">'health-check'</span>);
+// Delete a cron job
+await queue.deleteCron('health-check');
 
-<span class="comment">// Update a cron job (delete + recreate)</span>
-<span class="keyword">await</span> queue.<span class="function">deleteCron</span>(<span class="string">'daily-report'</span>);
-<span class="keyword">await</span> queue.<span class="function">addCron</span>(<span class="string">'daily-report'</span>, {
-  queue: <span class="string">'scheduled-tasks'</span>,
-  schedule: <span class="string">'0 0 8 * * *'</span>, <span class="comment">// Changed to 8 AM</span>
-  data: { type: <span class="string">'daily-report'</span> },
+// Update a cron job (delete + recreate)
+await queue.deleteCron('daily-report');
+await queue.addCron('daily-report', {
+  queue: 'scheduled-tasks',
+  schedule: '0 0 8 * * *', // Changed to 8 AM
+  data: { type: 'daily-report' },
 });</code></pre>
 
       <h2 id="use-cases">Real-World Use Cases</h2>
 
       <h3>1. Daily Analytics Report</h3>
 
-      <pre><code><span class="keyword">await</span> queue.<span class="function">addCron</span>(<span class="string">'analytics-report'</span>, {
-  queue: <span class="string">'reports'</span>,
-  schedule: <span class="string">'0 0 6 * * *'</span>, <span class="comment">// 6 AM daily</span>
+      <pre><code class="language-typescript">await queue.addCron('analytics-report', {
+  queue: 'reports',
+  schedule: '0 0 6 * * *', // 6 AM daily
   data: {
-    type: <span class="string">'analytics'</span>,
-    metrics: [<span class="string">'users'</span>, <span class="string">'revenue'</span>, <span class="string">'conversions'</span>],
-    format: <span class="string">'pdf'</span>,
+    type: 'analytics',
+    metrics: ['users', 'revenue', 'conversions'],
+    format: 'pdf',
   },
 });
 
-<span class="comment">// Worker</span>
-<span class="keyword">new</span> <span class="function">Worker</span>(<span class="string">'reports'</span>, <span class="keyword">async</span> (job) => {
-  <span class="keyword">const</span> { metrics, format } = job.data;
+// Worker
+new Worker('reports', async (job) => {
+  const { metrics, format } = job.data;
 
-  <span class="comment">// Generate report</span>
-  <span class="keyword">const</span> <span class="variable">report</span> = <span class="keyword">await</span> <span class="function">generateAnalyticsReport</span>(metrics);
-  <span class="keyword">const</span> <span class="variable">pdf</span> = <span class="keyword">await</span> <span class="function">convertToPDF</span>(report);
+  // Generate report
+  const report = await generateAnalyticsReport(metrics);
+  const pdf = await convertToPDF(report);
 
-  <span class="comment">// Send via email</span>
-  <span class="keyword">await</span> <span class="function">sendEmail</span>({
-    to: <span class="string">'executives@company.com'</span>,
-    subject: <span class="string">`Daily Analytics - ${new Date().toDateString()}`</span>,
+  // Send via email
+  await sendEmail({
+    to: 'executives@company.com',
+    subject: `Daily Analytics - ${new Date().toDateString()}`,
     attachments: [pdf],
   });
 });</code></pre>
 
       <h3>2. Database Cleanup</h3>
 
-      <pre><code><span class="keyword">await</span> queue.<span class="function">addCron</span>(<span class="string">'db-cleanup'</span>, {
-  queue: <span class="string">'maintenance'</span>,
-  schedule: <span class="string">'0 0 3 * * *'</span>, <span class="comment">// 3 AM daily (low traffic)</span>
+      <pre><code class="language-typescript">await queue.addCron('db-cleanup', {
+  queue: 'maintenance',
+  schedule: '0 0 3 * * *', // 3 AM daily (low traffic)
   data: {
     tasks: [
-      { table: <span class="string">'sessions'</span>, olderThan: <span class="string">'7 days'</span> },
-      { table: <span class="string">'logs'</span>, olderThan: <span class="string">'30 days'</span> },
-      { table: <span class="string">'temp_files'</span>, olderThan: <span class="string">'1 day'</span> },
+      { table: 'sessions', olderThan: '7 days' },
+      { table: 'logs', olderThan: '30 days' },
+      { table: 'temp_files', olderThan: '1 day' },
     ],
   },
 });</code></pre>
 
       <h3>3. API Sync</h3>
 
-      <pre><code><span class="keyword">await</span> queue.<span class="function">addCron</span>(<span class="string">'sync-stripe'</span>, {
-  queue: <span class="string">'integrations'</span>,
-  schedule: <span class="string">'0 */30 * * * *'</span>, <span class="comment">// Every 30 minutes</span>
+      <pre><code class="language-typescript">await queue.addCron('sync-stripe', {
+  queue: 'integrations',
+  schedule: '0 */30 * * * *', // Every 30 minutes
   data: {
-    provider: <span class="string">'stripe'</span>,
-    syncTypes: [<span class="string">'subscriptions'</span>, <span class="string">'invoices'</span>],
+    provider: 'stripe',
+    syncTypes: ['subscriptions', 'invoices'],
   },
 });</code></pre>
 
       <h3>4. Cache Warming</h3>
 
-      <pre><code><span class="keyword">await</span> queue.<span class="function">addCron</span>(<span class="string">'warm-cache'</span>, {
-  queue: <span class="string">'cache'</span>,
-  schedule: <span class="string">'0 55 * * * *'</span>, <span class="comment">// 5 min before each hour</span>
+      <pre><code class="language-typescript">await queue.addCron('warm-cache', {
+  queue: 'cache',
+  schedule: '0 55 * * * *', // 5 min before each hour
   data: {
     endpoints: [
-      <span class="string">'/api/products'</span>,
-      <span class="string">'/api/categories'</span>,
-      <span class="string">'/api/homepage'</span>,
+      '/api/products',
+      '/api/categories',
+      '/api/homepage',
     ],
   },
 });</code></pre>
@@ -263,48 +270,48 @@ console.<span class="function">log</span>(crons);
       <h3>1. Idempotent Jobs</h3>
       <p>Design cron jobs to be idempotent—running them twice shouldn't cause issues:</p>
 
-      <pre><code><span class="comment">// Good: Check before processing</span>
-<span class="keyword">async</span> <span class="keyword">function</span> <span class="function">processDaily</span>() {
-  <span class="keyword">const</span> <span class="variable">lastRun</span> = <span class="keyword">await</span> db.settings.<span class="function">get</span>(<span class="string">'lastDailyRun'</span>);
-  <span class="keyword">const</span> <span class="variable">today</span> = <span class="keyword">new</span> <span class="function">Date</span>().<span class="function">toDateString</span>();
+      <pre><code class="language-typescript">// Good: Check before processing
+async function processDaily() {
+  const lastRun = await db.settings.get('lastDailyRun');
+  const today = new Date().toDateString();
 
-  <span class="keyword">if</span> (lastRun === today) {
-    console.<span class="function">log</span>(<span class="string">'Already ran today, skipping'</span>);
-    <span class="keyword">return</span>;
+  if (lastRun === today) {
+    console.log('Already ran today, skipping');
+    return;
   }
 
-  <span class="comment">// Process...</span>
-  <span class="keyword">await</span> db.settings.<span class="function">set</span>(<span class="string">'lastDailyRun'</span>, today);
+  // Process...
+  await db.settings.set('lastDailyRun', today);
 }</code></pre>
 
       <h3>2. Overlap Prevention</h3>
       <p>Prevent jobs from overlapping if they take longer than expected:</p>
 
-      <pre><code><span class="keyword">new</span> <span class="function">Worker</span>(<span class="string">'maintenance'</span>, <span class="keyword">async</span> (job) => {
-  <span class="keyword">const</span> <span class="variable">lockKey</span> = <span class="string">`lock:${job.name}`</span>;
+      <pre><code class="language-typescript">new Worker('maintenance', async (job) => {
+  const lockKey = `lock:${job.name}`;
 
-  <span class="comment">// Try to acquire lock</span>
-  <span class="keyword">const</span> <span class="variable">acquired</span> = <span class="keyword">await</span> redis.<span class="function">set</span>(lockKey, <span class="string">'1'</span>, <span class="string">'NX'</span>, <span class="string">'EX'</span>, <span class="number">3600</span>);
+  // Try to acquire lock
+  const acquired = await redis.set(lockKey, '1', 'NX', 'EX', 3600);
 
-  <span class="keyword">if</span> (!acquired) {
-    console.<span class="function">log</span>(<span class="string">'Job already running, skipping'</span>);
-    <span class="keyword">return</span>;
+  if (!acquired) {
+    console.log('Job already running, skipping');
+    return;
   }
 
-  <span class="keyword">try</span> {
-    <span class="comment">// Process job...</span>
-  } <span class="keyword">finally</span> {
-    <span class="keyword">await</span> redis.<span class="function">del</span>(lockKey);
+  try {
+    // Process job...
+  } finally {
+    await redis.del(lockKey);
   }
 });</code></pre>
 
       <h3>3. Error Alerting</h3>
 
-      <pre><code>worker.<span class="function">on</span>(<span class="string">'failed'</span>, <span class="keyword">async</span> (job, error) => {
-  <span class="keyword">if</span> (job.name.<span class="function">startsWith</span>(<span class="string">'cron:'</span>)) {
-    <span class="keyword">await</span> <span class="function">sendSlackAlert</span>({
-      channel: <span class="string">'#ops-alerts'</span>,
-      message: <span class="string">`Cron job failed: ${job.name}\nError: ${error.message}`</span>,
+      <pre><code class="language-typescript">worker.on('failed', async (job, error) => {
+  if (job.name.startsWith('cron:')) {
+    await sendSlackAlert({
+      channel: '#ops-alerts',
+      message: `Cron job failed: ${job.name}\nError: ${error.message}`,
     });
   }
 });</code></pre>
@@ -381,5 +388,6 @@ console.<span class="function">log</span>(crons);
     function closeSearch(e) { if (e?.target === document.getElementById('searchOverlay')) document.getElementById('searchOverlay').classList.remove('active'); }
     document.addEventListener('keydown', e => { if ((e.metaKey||e.ctrlKey) && e.key==='k') { e.preventDefault(); openSearch(); } if (e.key==='Escape') closeSearch({target:document.getElementById('searchOverlay')}); });
   </script>
+  <script>hljs.highlightAll();</script>
 </body>
 </html>

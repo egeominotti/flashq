@@ -54,6 +54,13 @@
     ]
   }
   </script>
+  <!-- Highlight.js -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/typescript.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/bash.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/yaml.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/json.min.js"></script>
 </head>
 <body>
   <nav>
@@ -115,176 +122,176 @@
 
       <p>Control throughput to match your budget:</p>
 
-      <pre><code><span class="comment">// Set budget-based rate limit</span>
-<span class="comment">// Budget: $100/day for GPT-4</span>
-<span class="comment">// Average cost per call: ~$0.10</span>
-<span class="comment">// Max calls: 1000/day ≈ 42/hour ≈ 0.7/minute</span>
+      <pre><code class="language-typescript">// Set budget-based rate limit
+// Budget: $100/day for GPT-4
+// Average cost per call: ~$0.10
+// Max calls: 1000/day ≈ 42/hour ≈ 0.7/minute
 
-<span class="keyword">const</span> <span class="variable">queue</span> = <span class="keyword">new</span> <span class="function">Queue</span>(<span class="string">'ai-tasks'</span>);
+const queue = new Queue('ai-tasks');
 
-<span class="comment">// Conservative rate limit</span>
-<span class="keyword">await</span> queue.<span class="function">setRateLimit</span>(<span class="number">40</span>);  <span class="comment">// 40 calls per minute max</span>
+// Conservative rate limit
+await queue.setRateLimit(40);  // 40 calls per minute max
 
-<span class="comment">// Or use hourly rate for smoother distribution</span>
-<span class="keyword">await</span> queue.<span class="function">setRateLimit</span>(<span class="number">42</span>);  <span class="comment">// Matches $100/day budget</span></code></pre>
+// Or use hourly rate for smoother distribution
+await queue.setRateLimit(42);  // Matches $100/day budget</code></pre>
 
       <h2 id="tracking">Strategy 2: Token Tracking</h2>
 
-      <pre><code><span class="comment">// Track costs per job</span>
-<span class="keyword">new</span> <span class="function">Worker</span>(<span class="string">'ai-tasks'</span>, <span class="keyword">async</span> (job) => {
-  <span class="keyword">const</span> <span class="variable">response</span> = <span class="keyword">await</span> openai.chat.completions.<span class="function">create</span>({
-    model: job.data.model || <span class="string">'gpt-4'</span>,
+      <pre><code class="language-typescript">// Track costs per job
+new Worker('ai-tasks', async (job) => {
+  const response = await openai.chat.completions.create({
+    model: job.data.model || 'gpt-4',
     messages: job.data.messages,
   });
 
-  <span class="keyword">const</span> <span class="variable">usage</span> = response.usage;
-  <span class="keyword">const</span> <span class="variable">cost</span> = <span class="function">calculateCost</span>(job.data.model, usage);
+  const usage = response.usage;
+  const cost = calculateCost(job.data.model, usage);
 
-  <span class="comment">// Log cost for tracking</span>
-  <span class="keyword">await</span> db.costs.<span class="function">create</span>({
+  // Log cost for tracking
+  await db.costs.create({
     jobId: job.id,
     userId: job.data.userId,
     model: job.data.model,
     promptTokens: usage.prompt_tokens,
     completionTokens: usage.completion_tokens,
     cost,
-    timestamp: <span class="keyword">new</span> <span class="function">Date</span>(),
+    timestamp: new Date(),
   });
 
-  <span class="keyword">return</span> {
-    result: response.choices[<span class="number">0</span>].message.content,
+  return {
+    result: response.choices[0].message.content,
     usage,
     cost,
   };
 });
 
-<span class="keyword">function</span> <span class="function">calculateCost</span>(model, usage) {
-  <span class="keyword">const</span> <span class="variable">pricing</span> = {
-    <span class="string">'gpt-4'</span>: { input: <span class="number">0.03</span>, output: <span class="number">0.06</span> },
-    <span class="string">'gpt-4-turbo'</span>: { input: <span class="number">0.01</span>, output: <span class="number">0.03</span> },
-    <span class="string">'gpt-3.5-turbo'</span>: { input: <span class="number">0.0005</span>, output: <span class="number">0.0015</span> },
+function calculateCost(model, usage) {
+  const pricing = {
+    'gpt-4': { input: 0.03, output: 0.06 },
+    'gpt-4-turbo': { input: 0.01, output: 0.03 },
+    'gpt-3.5-turbo': { input: 0.0005, output: 0.0015 },
   };
 
-  <span class="keyword">const</span> <span class="variable">p</span> = pricing[model] || pricing[<span class="string">'gpt-4'</span>];
-  <span class="keyword">return</span> (
-    (usage.prompt_tokens / <span class="number">1000</span>) * p.input +
-    (usage.completion_tokens / <span class="number">1000</span>) * p.output
+  const p = pricing[model] || pricing['gpt-4'];
+  return (
+    (usage.prompt_tokens / 1000) * p.input +
+    (usage.completion_tokens / 1000) * p.output
   );
 }</code></pre>
 
       <h2 id="budgets">Strategy 3: Budget Alerts</h2>
 
-      <pre><code><span class="comment">// Check budget before processing</span>
-<span class="keyword">new</span> <span class="function">Worker</span>(<span class="string">'ai-tasks'</span>, <span class="keyword">async</span> (job) => {
-  <span class="keyword">const</span> { userId } = job.data;
+      <pre><code class="language-typescript">// Check budget before processing
+new Worker('ai-tasks', async (job) => {
+  const { userId } = job.data;
 
-  <span class="comment">// Check user's daily spend</span>
-  <span class="keyword">const</span> <span class="variable">today</span> = <span class="keyword">new</span> <span class="function">Date</span>().<span class="function">toISOString</span>().<span class="function">split</span>(<span class="string">'T'</span>)[<span class="number">0</span>];
-  <span class="keyword">const</span> <span class="variable">dailySpend</span> = <span class="keyword">await</span> db.costs.<span class="function">sum</span>({
+  // Check user's daily spend
+  const today = new Date().toISOString().split('T')[0];
+  const dailySpend = await db.costs.sum({
     where: { userId, date: today },
   });
 
-  <span class="keyword">const</span> <span class="variable">userBudget</span> = <span class="keyword">await</span> db.users.<span class="function">get</span>(userId).<span class="function">then</span>(u => u.dailyBudget);
+  const userBudget = await db.users.get(userId).then(u => u.dailyBudget);
 
-  <span class="keyword">if</span> (dailySpend >= userBudget) {
-    <span class="comment">// Pause user's jobs instead of failing</span>
-    <span class="keyword">await</span> queue.<span class="function">pause</span>(<span class="string">`user-${userId}`</span>);
+  if (dailySpend >= userBudget) {
+    // Pause user's jobs instead of failing
+    await queue.pause(`user-${userId}`);
 
-    <span class="comment">// Notify user</span>
-    <span class="keyword">await</span> <span class="function">sendEmail</span>({
+    // Notify user
+    await sendEmail({
       to: user.email,
-      subject: <span class="string">'Daily AI budget reached'</span>,
-      body: <span class="string">`You've reached your $${userBudget} daily limit.`</span>,
+      subject: 'Daily AI budget reached',
+      body: `You've reached your $${userBudget} daily limit.`,
     });
 
-    <span class="keyword">throw</span> <span class="keyword">new</span> <span class="function">Error</span>(<span class="string">'Budget exceeded'</span>);
+    throw new Error('Budget exceeded');
   }
 
-  <span class="comment">// Process normally</span>
-  <span class="keyword">return</span> <span class="keyword">await</span> <span class="function">processAITask</span>(job);
+  // Process normally
+  return await processAITask(job);
 });</code></pre>
 
       <h2 id="model-routing">Strategy 4: Smart Model Routing</h2>
 
-      <pre><code><span class="comment">// Route to cheaper models when appropriate</span>
-<span class="keyword">function</span> <span class="function">selectModel</span>(task) {
-  <span class="comment">// Simple tasks → GPT-3.5</span>
-  <span class="keyword">if</span> (task.type === <span class="string">'summarize'</span> || task.type === <span class="string">'extract'</span>) {
-    <span class="keyword">return</span> <span class="string">'gpt-3.5-turbo'</span>;
+      <pre><code class="language-typescript">// Route to cheaper models when appropriate
+function selectModel(task) {
+  // Simple tasks → GPT-3.5
+  if (task.type === 'summarize' || task.type === 'extract') {
+    return 'gpt-3.5-turbo';
   }
 
-  <span class="comment">// Complex reasoning → GPT-4</span>
-  <span class="keyword">if</span> (task.type === <span class="string">'analyze'</span> || task.type === <span class="string">'code'</span>) {
-    <span class="keyword">return</span> <span class="string">'gpt-4-turbo'</span>;
+  // Complex reasoning → GPT-4
+  if (task.type === 'analyze' || task.type === 'code') {
+    return 'gpt-4-turbo';
   }
 
-  <span class="comment">// Default</span>
-  <span class="keyword">return</span> <span class="string">'gpt-3.5-turbo'</span>;
+  // Default
+  return 'gpt-3.5-turbo';
 }
 
-<span class="comment">// Add jobs with optimal model</span>
-<span class="keyword">await</span> queue.<span class="function">add</span>(<span class="string">'process'</span>, {
+// Add jobs with optimal model
+await queue.add('process', {
   ...taskData,
-  model: <span class="function">selectModel</span>(taskData),
+  model: selectModel(taskData),
 });</code></pre>
 
       <h2 id="batching">Strategy 5: Smart Batching</h2>
 
-      <pre><code><span class="comment">// Batch similar requests for embeddings</span>
-<span class="keyword">let</span> batchBuffer = [];
-<span class="keyword">let</span> batchTimeout = <span class="keyword">null</span>;
+      <pre><code class="language-typescript">// Batch similar requests for embeddings
+let batchBuffer = [];
+let batchTimeout = null;
 
-<span class="keyword">async</span> <span class="keyword">function</span> <span class="function">queueEmbedding</span>(text, callback) {
-  batchBuffer.<span class="function">push</span>({ text, callback });
+async function queueEmbedding(text, callback) {
+  batchBuffer.push({ text, callback });
 
-  <span class="keyword">if</span> (!batchTimeout) {
-    batchTimeout = <span class="function">setTimeout</span>(<span class="keyword">async</span> () => {
-      <span class="keyword">const</span> <span class="variable">batch</span> = batchBuffer;
+  if (!batchTimeout) {
+    batchTimeout = setTimeout(async () => {
+      const batch = batchBuffer;
       batchBuffer = [];
-      batchTimeout = <span class="keyword">null</span>;
+      batchTimeout = null;
 
-      <span class="comment">// One API call for entire batch (up to 2048 inputs)</span>
-      <span class="keyword">const</span> <span class="variable">response</span> = <span class="keyword">await</span> openai.embeddings.<span class="function">create</span>({
-        model: <span class="string">'text-embedding-3-small'</span>,
-        input: batch.<span class="function">map</span>(b => b.text),
+      // One API call for entire batch (up to 2048 inputs)
+      const response = await openai.embeddings.create({
+        model: 'text-embedding-3-small',
+        input: batch.map(b => b.text),
       });
 
-      <span class="comment">// Distribute results</span>
-      response.data.<span class="function">forEach</span>((emb, i) => {
-        batch[i].<span class="function">callback</span>(emb.embedding);
+      // Distribute results
+      response.data.forEach((emb, i) => {
+        batch[i].callback(emb.embedding);
       });
-    }, <span class="number">100</span>); <span class="comment">// Wait 100ms to collect batch</span>
+    }, 100); // Wait 100ms to collect batch
   }
 }</code></pre>
 
       <h2 id="caching">Strategy 6: Response Caching</h2>
 
-      <pre><code><span class="comment">// Cache identical requests</span>
-<span class="keyword">import</span> crypto <span class="keyword">from</span> <span class="string">'crypto'</span>;
+      <pre><code class="language-typescript">// Cache identical requests
+import crypto from 'crypto';
 
-<span class="keyword">new</span> <span class="function">Worker</span>(<span class="string">'ai-tasks'</span>, <span class="keyword">async</span> (job) => {
-  <span class="comment">// Create cache key from request</span>
-  <span class="keyword">const</span> <span class="variable">cacheKey</span> = crypto
-    .<span class="function">createHash</span>(<span class="string">'sha256'</span>)
-    .<span class="function">update</span>(JSON.<span class="function">stringify</span>({
+new Worker('ai-tasks', async (job) => {
+  // Create cache key from request
+  const cacheKey = crypto
+    .createHash('sha256')
+    .update(JSON.stringify({
       model: job.data.model,
       messages: job.data.messages,
     }))
-    .<span class="function">digest</span>(<span class="string">'hex'</span>);
+    .digest('hex');
 
-  <span class="comment">// Check cache</span>
-  <span class="keyword">const</span> <span class="variable">cached</span> = <span class="keyword">await</span> redis.<span class="function">get</span>(<span class="string">`ai:${cacheKey}`</span>);
-  <span class="keyword">if</span> (cached) {
-    <span class="keyword">return</span> JSON.<span class="function">parse</span>(cached);
+  // Check cache
+  const cached = await redis.get(`ai:${cacheKey}`);
+  if (cached) {
+    return JSON.parse(cached);
   }
 
-  <span class="comment">// Call API</span>
-  <span class="keyword">const</span> <span class="variable">result</span> = <span class="keyword">await</span> <span class="function">callOpenAI</span>(job.data);
+  // Call API
+  const result = await callOpenAI(job.data);
 
-  <span class="comment">// Cache for 1 hour</span>
-  <span class="keyword">await</span> redis.<span class="function">set</span>(<span class="string">`ai:${cacheKey}`</span>, JSON.<span class="function">stringify</span>(result), <span class="string">'EX'</span>, <span class="number">3600</span>);
+  // Cache for 1 hour
+  await redis.set(`ai:${cacheKey}`, JSON.stringify(result), 'EX', 3600);
 
-  <span class="keyword">return</span> result;
+  return result;
 });</code></pre>
 
       <div class="callout callout-success">
@@ -364,5 +371,6 @@
     function closeSearch(e) { if (e?.target === document.getElementById('searchOverlay')) document.getElementById('searchOverlay').classList.remove('active'); }
     document.addEventListener('keydown', e => { if ((e.metaKey||e.ctrlKey) && e.key==='k') { e.preventDefault(); openSearch(); } if (e.key==='Escape') closeSearch({target:document.getElementById('searchOverlay')}); });
   </script>
+  <script>hljs.highlightAll();</script>
 </body>
 </html>

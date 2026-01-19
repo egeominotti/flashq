@@ -51,6 +51,13 @@
     ]
   }
   </script>
+  <!-- Highlight.js -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/typescript.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/bash.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/yaml.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/json.min.js"></script>
 </head>
 <body>
   <nav>
@@ -130,20 +137,20 @@
 
       <h3>Basic Retry Configuration</h3>
 
-      <pre><code><span class="keyword">import</span> { FlashQ } <span class="keyword">from</span> <span class="string">'flashq'</span>;
+      <pre><code class="language-typescript">import { FlashQ } from 'flashq';
 
-<span class="keyword">const</span> client = <span class="keyword">new</span> <span class="function">FlashQ</span>({ host: <span class="string">'localhost'</span>, port: <span class="number">6789</span> });
+const client = new FlashQ({ host: 'localhost', port: 6789 });
 
-<span class="comment">// Configure retries when pushing a job</span>
-<span class="keyword">await</span> client.<span class="function">push</span>(<span class="string">'process-order'</span>, orderData, {
-  max_attempts: <span class="number">5</span>,    <span class="comment">// Maximum retry attempts</span>
-  backoff: <span class="number">1000</span>,      <span class="comment">// Initial backoff delay (ms)</span>
-  timeout: <span class="number">30000</span>      <span class="comment">// Processing timeout per attempt</span>
+// Configure retries when pushing a job
+await client.push('process-order', orderData, {
+  max_attempts: 5,    // Maximum retry attempts
+  backoff: 1000,      // Initial backoff delay (ms)
+  timeout: 30000      // Processing timeout per attempt
 });</code></pre>
 
       <h3>Retry Timeline Visualization</h3>
 
-      <pre><code>Attempt 1: Immediate
+      <pre><code class="language-typescript">Attempt 1: Immediate
     ↓ (fail)
     └── Wait 1s (backoff)
 
@@ -165,78 +172,78 @@ Attempt 5: After 15s total
 
       <h3>Custom Retry Logic in Worker</h3>
 
-      <pre><code><span class="keyword">import</span> { Worker } <span class="keyword">from</span> <span class="string">'flashq'</span>;
+      <pre><code class="language-typescript">import { Worker } from 'flashq';
 
-<span class="keyword">const</span> worker = <span class="keyword">new</span> <span class="function">Worker</span>(<span class="string">'process-order'</span>, <span class="keyword">async</span> (job) => {
-  <span class="keyword">try</span> {
-    <span class="keyword">await</span> <span class="function">processOrder</span>(job.data);
-  } <span class="keyword">catch</span> (error) {
-    <span class="comment">// Check if we should retry</span>
-    <span class="keyword">if</span> (<span class="function">isTransientError</span>(error) && job.attempts < <span class="number">5</span>) {
-      <span class="keyword">throw</span> error; <span class="comment">// Throw to trigger automatic retry</span>
+const worker = new Worker('process-order', async (job) => {
+  try {
+    await processOrder(job.data);
+  } catch (error) {
+    // Check if we should retry
+    if (isTransientError(error) && job.attempts < 5) {
+      throw error; // Throw to trigger automatic retry
     }
 
-    <span class="comment">// Permanent error - log and don't retry</span>
-    <span class="keyword">if</span> (<span class="function">isPermanentError</span>(error)) {
-      console.<span class="function">error</span>(<span class="string">`Permanent error for job </span>${job.id}<span class="string">:`</span>, error);
-      <span class="keyword">return</span> { success: <span class="keyword">false</span>, error: error.message };
+    // Permanent error - log and don't retry
+    if (isPermanentError(error)) {
+      console.error(`Permanent error for job ${job.id}:`, error);
+      return { success: false, error: error.message };
     }
 
-    <span class="keyword">throw</span> error; <span class="comment">// Unknown error - retry</span>
+    throw error; // Unknown error - retry
   }
 });
 
-<span class="keyword">function</span> <span class="function">isTransientError</span>(error) {
-  <span class="keyword">const</span> transientCodes = [<span class="number">408</span>, <span class="number">429</span>, <span class="number">500</span>, <span class="number">502</span>, <span class="number">503</span>, <span class="number">504</span>];
-  <span class="keyword">return</span> error.message.<span class="function">includes</span>(<span class="string">'ECONNREFUSED'</span>) ||
-         error.message.<span class="function">includes</span>(<span class="string">'ETIMEDOUT'</span>) ||
-         transientCodes.<span class="function">some</span>(code => error.message.<span class="function">includes</span>(String(code)));
+function isTransientError(error) {
+  const transientCodes = [408, 429, 500, 502, 503, 504];
+  return error.message.includes('ECONNREFUSED') ||
+         error.message.includes('ETIMEDOUT') ||
+         transientCodes.some(code => error.message.includes(String(code)));
 }
 
-<span class="keyword">function</span> <span class="function">isPermanentError</span>(error) {
-  <span class="keyword">const</span> permanentCodes = [<span class="number">400</span>, <span class="number">401</span>, <span class="number">403</span>, <span class="number">404</span>, <span class="number">422</span>];
-  <span class="keyword">return</span> permanentCodes.<span class="function">some</span>(code => error.message.<span class="function">includes</span>(String(code)));
+function isPermanentError(error) {
+  const permanentCodes = [400, 401, 403, 404, 422];
+  return permanentCodes.some(code => error.message.includes(String(code)));
 }</code></pre>
 
       <h2>Exponential Backoff</h2>
 
       <p>flashQ implements exponential backoff automatically. The delay between retries doubles each time:</p>
 
-      <pre><code><span class="comment">// Backoff formula: delay = backoff * (2 ^ (attempt - 1))</span>
+      <pre><code class="language-typescript">// Backoff formula: delay = backoff * (2 ^ (attempt - 1))
 
-<span class="keyword">await</span> client.<span class="function">push</span>(<span class="string">'api-call'</span>, data, {
-  max_attempts: <span class="number">6</span>,
-  backoff: <span class="number">1000</span>  <span class="comment">// 1 second base</span>
+await client.push('api-call', data, {
+  max_attempts: 6,
+  backoff: 1000  // 1 second base
 });
 
-<span class="comment">// Retry delays:</span>
-<span class="comment">// Attempt 1 → 2: 1s</span>
-<span class="comment">// Attempt 2 → 3: 2s</span>
-<span class="comment">// Attempt 3 → 4: 4s</span>
-<span class="comment">// Attempt 4 → 5: 8s</span>
-<span class="comment">// Attempt 5 → 6: 16s</span>
-<span class="comment">// Total wait time: 31 seconds</span></code></pre>
+// Retry delays:
+// Attempt 1 → 2: 1s
+// Attempt 2 → 3: 2s
+// Attempt 3 → 4: 4s
+// Attempt 4 → 5: 8s
+// Attempt 5 → 6: 16s
+// Total wait time: 31 seconds</code></pre>
 
       <h3>Backoff with Jitter</h3>
 
       <p>For high-concurrency scenarios, add jitter to prevent thundering herd:</p>
 
-      <pre><code><span class="keyword">const</span> worker = <span class="keyword">new</span> <span class="function">Worker</span>(<span class="string">'high-concurrency'</span>, <span class="keyword">async</span> (job) => {
-  <span class="keyword">try</span> {
-    <span class="keyword">await</span> <span class="function">processJob</span>(job.data);
-  } <span class="keyword">catch</span> (error) {
-    <span class="keyword">if</span> (<span class="function">isTransientError</span>(error)) {
-      <span class="comment">// Add random jitter before throwing</span>
-      <span class="keyword">const</span> jitter = Math.<span class="function">random</span>() * <span class="number">1000</span>; <span class="comment">// 0-1s random delay</span>
-      <span class="keyword">await</span> <span class="function">sleep</span>(jitter);
-      <span class="keyword">throw</span> error;
+      <pre><code class="language-typescript">const worker = new Worker('high-concurrency', async (job) => {
+  try {
+    await processJob(job.data);
+  } catch (error) {
+    if (isTransientError(error)) {
+      // Add random jitter before throwing
+      const jitter = Math.random() * 1000; // 0-1s random delay
+      await sleep(jitter);
+      throw error;
     }
-    <span class="keyword">throw</span> error;
+    throw error;
   }
 });
 
-<span class="keyword">function</span> <span class="function">sleep</span>(ms) {
-  <span class="keyword">return</span> <span class="keyword">new</span> <span class="function">Promise</span>(resolve => <span class="function">setTimeout</span>(resolve, ms));
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
 }</code></pre>
 
       <h2>Dead Letter Queue (DLQ)</h2>
@@ -245,13 +252,13 @@ Attempt 5: After 15s total
 
       <h3>Viewing DLQ Jobs</h3>
 
-      <pre><code><span class="comment">// Get jobs from DLQ</span>
-<span class="keyword">const</span> dlqJobs = <span class="keyword">await</span> client.<span class="function">getDlq</span>(<span class="string">'process-order'</span>, <span class="number">100</span>);
+      <pre><code class="language-typescript">// Get jobs from DLQ
+const dlqJobs = await client.getDlq('process-order', 100);
 
-console.<span class="function">log</span>(<span class="string">`</span>${dlqJobs.length}<span class="string"> jobs in DLQ`</span>);
+console.log(`${dlqJobs.length} jobs in DLQ`);
 
-dlqJobs.<span class="function">forEach</span>(job => {
-  console.<span class="function">log</span>({
+dlqJobs.forEach(job => {
+  console.log({
     id: job.id,
     attempts: job.attempts,
     error: job.error,
@@ -262,89 +269,89 @@ dlqJobs.<span class="function">forEach</span>(job => {
 
       <h3>Retrying DLQ Jobs</h3>
 
-      <pre><code><span class="comment">// Retry all jobs in DLQ</span>
-<span class="keyword">const</span> retried = <span class="keyword">await</span> client.<span class="function">retryDlq</span>(<span class="string">'process-order'</span>);
-console.<span class="function">log</span>(<span class="string">`Retried </span>${retried}<span class="string"> jobs`</span>);
+      <pre><code class="language-typescript">// Retry all jobs in DLQ
+const retried = await client.retryDlq('process-order');
+console.log(`Retried ${retried} jobs`);
 
-<span class="comment">// Retry specific job</span>
-<span class="keyword">await</span> client.<span class="function">retryDlq</span>(<span class="string">'process-order'</span>, jobId);
+// Retry specific job
+await client.retryDlq('process-order', jobId);
 
-<span class="comment">// Selective retry based on error type</span>
-<span class="keyword">const</span> dlqJobs = <span class="keyword">await</span> client.<span class="function">getDlq</span>(<span class="string">'my-queue'</span>, <span class="number">100</span>);
+// Selective retry based on error type
+const dlqJobs = await client.getDlq('my-queue', 100);
 
-<span class="keyword">for</span> (<span class="keyword">const</span> job <span class="keyword">of</span> dlqJobs) {
-  <span class="comment">// Only retry rate limit errors (now that limit is lifted)</span>
-  <span class="keyword">if</span> (job.error?.<span class="function">includes</span>(<span class="string">'429'</span>) || job.error?.<span class="function">includes</span>(<span class="string">'rate limit'</span>)) {
-    <span class="keyword">await</span> client.<span class="function">retryDlq</span>(<span class="string">'my-queue'</span>, job.id);
+for (const job of dlqJobs) {
+  // Only retry rate limit errors (now that limit is lifted)
+  if (job.error?.includes('429') || job.error?.includes('rate limit')) {
+    await client.retryDlq('my-queue', job.id);
   }
 }</code></pre>
 
       <h3>DLQ Webhooks</h3>
 
-      <pre><code><span class="comment">// Get notified when jobs hit DLQ</span>
-<span class="keyword">await</span> client.<span class="function">push</span>(<span class="string">'critical-task'</span>, data, {
-  max_attempts: <span class="number">3</span>,
+      <pre><code class="language-typescript">// Get notified when jobs hit DLQ
+await client.push('critical-task', data, {
+  max_attempts: 3,
   webhook: {
-    url: <span class="string">'https://your-api.com/dlq-alert'</span>,
-    events: [<span class="string">'failed'</span>],  <span class="comment">// Trigger on final failure</span>
+    url: 'https://your-api.com/dlq-alert',
+    events: ['failed'],  // Trigger on final failure
     secret: process.env.WEBHOOK_SECRET
   }
 });
 
-<span class="comment">// Webhook handler</span>
-app.<span class="function">post</span>(<span class="string">'/dlq-alert'</span>, (req, res) => {
-  <span class="keyword">const</span> { jobId, queue, error, attempts } = req.body;
+// Webhook handler
+app.post('/dlq-alert', (req, res) => {
+  const { jobId, queue, error, attempts } = req.body;
 
-  <span class="comment">// Send alert to Slack</span>
-  slack.<span class="function">send</span>({
-    channel: <span class="string">'#alerts'</span>,
-    text: <span class="string">`Job </span>${jobId}<span class="string"> failed after </span>${attempts}<span class="string"> attempts: </span>${error}<span class="string">`</span>
+  // Send alert to Slack
+  slack.send({
+    channel: '#alerts',
+    text: `Job ${jobId} failed after ${attempts} attempts: ${error}`
   });
 
-  res.<span class="function">status</span>(<span class="number">200</span>).<span class="function">send</span>(<span class="string">'OK'</span>);
+  res.status(200).send('OK');
 });</code></pre>
 
       <h2>Circuit Breaker Pattern</h2>
 
       <p>Prevent cascading failures when external services are down:</p>
 
-      <pre><code><span class="keyword">import</span> CircuitBreaker <span class="keyword">from</span> <span class="string">'opossum'</span>;
-<span class="keyword">import</span> { Worker } <span class="keyword">from</span> <span class="string">'flashq'</span>;
+      <pre><code class="language-typescript">import CircuitBreaker from 'opossum';
+import { Worker } from 'flashq';
 
-<span class="comment">// Create circuit breaker for external API</span>
-<span class="keyword">const</span> apiBreaker = <span class="keyword">new</span> <span class="function">CircuitBreaker</span>(callExternalAPI, {
-  timeout: <span class="number">10000</span>,              <span class="comment">// 10s timeout</span>
-  errorThresholdPercentage: <span class="number">50</span>, <span class="comment">// Open after 50% failures</span>
-  resetTimeout: <span class="number">30000</span>,          <span class="comment">// Try again after 30s</span>
-  volumeThreshold: <span class="number">10</span>           <span class="comment">// Minimum 10 requests before tripping</span>
+// Create circuit breaker for external API
+const apiBreaker = new CircuitBreaker(callExternalAPI, {
+  timeout: 10000,              // 10s timeout
+  errorThresholdPercentage: 50, // Open after 50% failures
+  resetTimeout: 30000,          // Try again after 30s
+  volumeThreshold: 10           // Minimum 10 requests before tripping
 });
 
-<span class="comment">// Event handlers for monitoring</span>
-apiBreaker.<span class="function">on</span>(<span class="string">'open'</span>, () => {
-  console.<span class="function">warn</span>(<span class="string">'Circuit breaker OPENED - external API is down'</span>);
-  <span class="function">alertOps</span>(<span class="string">'External API circuit breaker opened'</span>);
+// Event handlers for monitoring
+apiBreaker.on('open', () => {
+  console.warn('Circuit breaker OPENED - external API is down');
+  alertOps('External API circuit breaker opened');
 });
 
-apiBreaker.<span class="function">on</span>(<span class="string">'close'</span>, () => {
-  console.<span class="function">info</span>(<span class="string">'Circuit breaker CLOSED - API recovered'</span>);
+apiBreaker.on('close', () => {
+  console.info('Circuit breaker CLOSED - API recovered');
 });
 
-<span class="comment">// Worker with circuit breaker</span>
-<span class="keyword">const</span> worker = <span class="keyword">new</span> <span class="function">Worker</span>(<span class="string">'external-api'</span>, <span class="keyword">async</span> (job) => {
-  <span class="keyword">try</span> {
-    <span class="keyword">return</span> <span class="keyword">await</span> apiBreaker.<span class="function">fire</span>(job.data);
-  } <span class="keyword">catch</span> (error) {
-    <span class="keyword">if</span> (apiBreaker.opened) {
-      <span class="comment">// Circuit is open - fail fast, retry later</span>
-      <span class="keyword">throw</span> <span class="keyword">new</span> <span class="function">Error</span>(<span class="string">'Circuit breaker open: service unavailable'</span>);
+// Worker with circuit breaker
+const worker = new Worker('external-api', async (job) => {
+  try {
+    return await apiBreaker.fire(job.data);
+  } catch (error) {
+    if (apiBreaker.opened) {
+      // Circuit is open - fail fast, retry later
+      throw new Error('Circuit breaker open: service unavailable');
     }
-    <span class="keyword">throw</span> error;
+    throw error;
   }
 });</code></pre>
 
       <h3>Circuit Breaker States</h3>
 
-      <pre><code>┌─────────┐    Failures exceed threshold    ┌─────────┐
+      <pre><code class="language-plaintext">┌─────────┐    Failures exceed threshold    ┌─────────┐
 │ CLOSED  │ ─────────────────────────────→ │  OPEN   │
 │(normal) │                                 │ (fail   │
 └────┬────┘                                 │  fast)  │
@@ -361,80 +368,80 @@ apiBreaker.<span class="function">on</span>(<span class="string">'close'</span>,
 
       <p>Return partial results when some operations fail:</p>
 
-      <pre><code><span class="keyword">const</span> worker = <span class="keyword">new</span> <span class="function">Worker</span>(<span class="string">'enrich-data'</span>, <span class="keyword">async</span> (job) => {
-  <span class="keyword">const</span> results = {
-    primary: <span class="keyword">null</span>,
+      <pre><code class="language-typescript">const worker = new Worker('enrich-data', async (job) => {
+  const results = {
+    primary: null,
     enrichments: {}
   };
 
-  <span class="comment">// Primary operation - must succeed</span>
-  results.primary = <span class="keyword">await</span> <span class="function">fetchPrimaryData</span>(job.data.id);
+  // Primary operation - must succeed
+  results.primary = await fetchPrimaryData(job.data.id);
 
-  <span class="comment">// Optional enrichments - fail gracefully</span>
-  <span class="keyword">const</span> enrichmentTasks = [
-    { name: <span class="string">'social'</span>, fn: <span class="function">fetchSocialData</span> },
-    { name: <span class="string">'analytics'</span>, fn: <span class="function">fetchAnalytics</span> },
-    { name: <span class="string">'recommendations'</span>, fn: <span class="function">fetchRecommendations</span> }
+  // Optional enrichments - fail gracefully
+  const enrichmentTasks = [
+    { name: 'social', fn: fetchSocialData },
+    { name: 'analytics', fn: fetchAnalytics },
+    { name: 'recommendations', fn: fetchRecommendations }
   ];
 
-  <span class="keyword">await</span> Promise.<span class="function">all</span>(
-    enrichmentTasks.<span class="function">map</span>(<span class="keyword">async</span> (task) => {
-      <span class="keyword">try</span> {
-        results.enrichments[task.name] = <span class="keyword">await</span> task.<span class="function">fn</span>(job.data.id);
-      } <span class="keyword">catch</span> (error) {
-        console.<span class="function">warn</span>(<span class="string">`Enrichment </span>${task.name}<span class="string"> failed:`</span>, error.message);
-        results.enrichments[task.name] = <span class="keyword">null</span>; <span class="comment">// Graceful degradation</span>
+  await Promise.all(
+    enrichmentTasks.map(async (task) => {
+      try {
+        results.enrichments[task.name] = await task.fn(job.data.id);
+      } catch (error) {
+        console.warn(`Enrichment ${task.name} failed:`, error.message);
+        results.enrichments[task.name] = null; // Graceful degradation
       }
     })
   );
 
-  <span class="keyword">return</span> results;
+  return results;
 });</code></pre>
 
       <h2>Complete Error Handling Pattern</h2>
 
-      <pre><code><span class="keyword">import</span> { FlashQ, Worker } <span class="keyword">from</span> <span class="string">'flashq'</span>;
-<span class="keyword">import</span> CircuitBreaker <span class="keyword">from</span> <span class="string">'opossum'</span>;
+      <pre><code class="language-typescript">import { FlashQ, Worker } from 'flashq';
+import CircuitBreaker from 'opossum';
 
-<span class="keyword">const</span> client = <span class="keyword">new</span> <span class="function">FlashQ</span>({ host: <span class="string">'localhost'</span>, port: <span class="number">6789</span> });
+const client = new FlashQ({ host: 'localhost', port: 6789 });
 
-<span class="comment">// Circuit breaker for external service</span>
-<span class="keyword">const</span> breaker = <span class="keyword">new</span> <span class="function">CircuitBreaker</span>(callAPI, {
-  timeout: <span class="number">10000</span>,
-  errorThresholdPercentage: <span class="number">50</span>,
-  resetTimeout: <span class="number">30000</span>
+// Circuit breaker for external service
+const breaker = new CircuitBreaker(callAPI, {
+  timeout: 10000,
+  errorThresholdPercentage: 50,
+  resetTimeout: 30000
 });
 
-<span class="keyword">const</span> worker = <span class="keyword">new</span> <span class="function">Worker</span>(<span class="string">'resilient-queue'</span>, <span class="keyword">async</span> (job) => {
-  <span class="keyword">try</span> {
-    <span class="comment">// 1. Validate input</span>
-    <span class="keyword">if</span> (!job.data.userId) {
-      <span class="keyword">await</span> client.<span class="function">discard</span>(job.id);
-      <span class="keyword">return</span> { error: <span class="string">'Invalid data'</span> };
+const worker = new Worker('resilient-queue', async (job) => {
+  try {
+    // 1. Validate input
+    if (!job.data.userId) {
+      await client.discard(job.id);
+      return { error: 'Invalid data' };
     }
 
-    <span class="comment">// 2. Process with circuit breaker</span>
-    <span class="keyword">const</span> result = <span class="keyword">await</span> breaker.<span class="function">fire</span>(job.data);
+    // 2. Process with circuit breaker
+    const result = await breaker.fire(job.data);
 
-    <span class="comment">// 3. Report progress for long jobs</span>
-    <span class="keyword">await</span> client.<span class="function">progress</span>(job.id, <span class="number">100</span>, <span class="string">'Complete'</span>);
+    // 3. Report progress for long jobs
+    await client.progress(job.id, 100, 'Complete');
 
-    <span class="keyword">return</span> result;
+    return result;
 
-  } <span class="keyword">catch</span> (error) {
-    <span class="comment">// 4. Classify error</span>
-    <span class="keyword">if</span> (<span class="function">isPermanentError</span>(error)) {
-      <span class="keyword">await</span> client.<span class="function">discard</span>(job.id);
-      <span class="keyword">return</span> { error: error.message };
+  } catch (error) {
+    // 4. Classify error
+    if (isPermanentError(error)) {
+      await client.discard(job.id);
+      return { error: error.message };
     }
 
-    <span class="keyword">if</span> (breaker.opened) {
-      console.<span class="function">log</span>(<span class="string">'Circuit open, will retry later'</span>);
+    if (breaker.opened) {
+      console.log('Circuit open, will retry later');
     }
 
-    <span class="keyword">throw</span> error; <span class="comment">// Retry for transient errors</span>
+    throw error; // Retry for transient errors
   }
-}, { concurrency: <span class="number">10</span> });</code></pre>
+}, { concurrency: 10 });</code></pre>
 
       <div class="callout callout-success">
         <strong>Key Takeaways:</strong> Classify errors, use exponential backoff, implement circuit breakers, and always have a DLQ strategy for failed jobs.
@@ -469,5 +476,6 @@ apiBreaker.<span class="function">on</span>(<span class="string">'close'</span>,
   </footer>
 
   <script src="../script.js"></script>
+  <script>hljs.highlightAll();</script>
 </body>
 </html>

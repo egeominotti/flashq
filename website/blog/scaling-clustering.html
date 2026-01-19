@@ -51,6 +51,13 @@
     ]
   }
   </script>
+  <!-- Highlight.js -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/typescript.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/bash.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/yaml.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/json.min.js"></script>
 </head>
 <body>
   <nav>
@@ -94,7 +101,7 @@
 
       <p>flashQ clustering uses PostgreSQL as the coordination layer for leader election and shared state:</p>
 
-      <pre><code>┌──────────────┐     ┌──────────────┐     ┌──────────────┐
+      <pre><code class="language-plaintext">┌──────────────┐     ┌──────────────┐     ┌──────────────┐
 │   Node 1     │     │   Node 2     │     │   Node 3     │
 │  (Leader)    │     │ (Follower)   │     │ (Follower)   │
 │              │     │              │     │              │
@@ -161,21 +168,21 @@
 
       <h3>Starting a Cluster</h3>
 
-      <pre><code><span class="comment"># Node 1 - Will become leader (first to acquire lock)</span>
+      <pre><code class="language-bash"># Node 1 - Will become leader (first to acquire lock)
 CLUSTER_MODE=1 \
 NODE_ID=node-1 \
 DATABASE_URL=postgres://user:pass@db:5432/flashq \
 HTTP=1 HTTP_PORT=6790 PORT=6789 \
 ./flashq-server
 
-<span class="comment"># Node 2 - Follower</span>
+# Node 2 - Follower
 CLUSTER_MODE=1 \
 NODE_ID=node-2 \
 DATABASE_URL=postgres://user:pass@db:5432/flashq \
 HTTP=1 HTTP_PORT=6792 PORT=6793 \
 ./flashq-server
 
-<span class="comment"># Node 3 - Follower</span>
+# Node 3 - Follower
 CLUSTER_MODE=1 \
 NODE_ID=node-3 \
 DATABASE_URL=postgres://user:pass@db:5432/flashq \
@@ -186,15 +193,15 @@ HTTP=1 HTTP_PORT=6794 PORT=6795 \
 
       <p>flashQ uses PostgreSQL advisory locks for leader election:</p>
 
-      <pre><code><span class="comment">-- Leader election query (internal)</span>
-<span class="keyword">SELECT</span> pg_try_advisory_lock(12345);
+      <pre><code class="language-typescript">-- Leader election query (internal)
+SELECT pg_try_advisory_lock(12345);
 
-<span class="comment">-- Returns TRUE if lock acquired (becomes leader)</span>
-<span class="comment">-- Returns FALSE if another node holds the lock</span></code></pre>
+-- Returns TRUE if lock acquired (becomes leader)
+-- Returns FALSE if another node holds the lock</code></pre>
 
       <h3>Automatic Failover</h3>
 
-      <pre><code>Timeline:
+      <pre><code class="language-plaintext">Timeline:
 ┌─────────────────────────────────────────────────────────────┐
 │ T+0s    Node 1 is leader, holds advisory lock               │
 │ T+5s    Node 1 crashes                                      │
@@ -203,11 +210,11 @@ HTTP=1 HTTP_PORT=6794 PORT=6795 \
 │ T+6s    Node 2 starts running background tasks              │
 └─────────────────────────────────────────────────────────────┘
 
-<span class="comment"># Failover happens within ~1 second of leader failure</span></code></pre>
+# Failover happens within ~1 second of leader failure</code></pre>
 
       <h3>Checking Cluster Status</h3>
 
-      <pre><code><span class="comment"># Check node health and leader status</span>
+      <pre><code class="language-bash"># Check node health and leader status
 curl http://localhost:6790/health
 {
   "status": "healthy",
@@ -216,7 +223,7 @@ curl http://localhost:6790/health
   "uptime_seconds": 3600
 }
 
-<span class="comment"># List all nodes in cluster</span>
+# List all nodes in cluster
 curl http://localhost:6790/cluster/nodes
 {
   "nodes": [
@@ -233,7 +240,7 @@ curl http://localhost:6790/cluster/nodes
 
       <h3>nginx Configuration</h3>
 
-      <pre><code><span class="comment"># nginx.conf</span>
+      <pre><code class="language-bash"># nginx.conf
 upstream flashq_tcp {
     least_conn;
     server node1:6789;
@@ -264,7 +271,7 @@ server {
 
       <h3>StatefulSet for flashQ Nodes</h3>
 
-      <pre><code>apiVersion: apps/v1
+      <pre><code class="language-yaml">apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: flashq
@@ -314,7 +321,7 @@ spec:
 
       <h3>Service for Load Balancing</h3>
 
-      <pre><code>apiVersion: v1
+      <pre><code class="language-yaml">apiVersion: v1
 kind: Service
 metadata:
   name: flashq
@@ -334,19 +341,19 @@ spec:
 
       <p>Connect clients to the load balancer:</p>
 
-      <pre><code><span class="keyword">import</span> { FlashQ } <span class="keyword">from</span> <span class="string">'flashq'</span>;
+      <pre><code class="language-typescript">import { FlashQ } from 'flashq';
 
-<span class="comment">// Connect to load balancer</span>
-<span class="keyword">const</span> client = <span class="keyword">new</span> <span class="function">FlashQ</span>({
-  host: <span class="string">'flashq-lb.internal'</span>,  <span class="comment">// Load balancer address</span>
-  port: <span class="number">6789</span>,
+// Connect to load balancer
+const client = new FlashQ({
+  host: 'flashq-lb.internal',  // Load balancer address
+  port: 6789,
   token: process.env.FLASHQ_TOKEN
 });
 
-<span class="keyword">await</span> client.<span class="function">connect</span>();
+await client.connect();
 
-<span class="comment">// All operations work transparently</span>
-<span class="keyword">await</span> client.<span class="function">push</span>(<span class="string">'my-queue'</span>, { data: <span class="string">'test'</span> });</code></pre>
+// All operations work transparently
+await client.push('my-queue', { data: 'test' });</code></pre>
 
       <div class="callout callout-info">
         <strong>Best Practice:</strong> Always use an odd number of nodes (3, 5, 7) to prevent split-brain scenarios during network partitions.
@@ -381,5 +388,6 @@ spec:
   </footer>
 
   <script src="../script.js"></script>
+  <script>hljs.highlightAll();</script>
 </body>
 </html>

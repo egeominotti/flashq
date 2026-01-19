@@ -49,6 +49,13 @@
     ]
   }
   </script>
+  <!-- Highlight.js -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/typescript.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/bash.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/yaml.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/json.min.js"></script>
 </head>
 <body>
   <nav>
@@ -92,7 +99,7 @@
     <div class="container">
       <p>If you've worked with OpenAI's API, you've probably seen this error:</p>
 
-      <pre><code>Error 429: Rate limit reached for gpt-4 in organization org-xxx
+      <pre><code class="language-typescript">Error 429: Rate limit reached for gpt-4 in organization org-xxx
 on requests per min (RPM): Limit 500, Used 500, Requested 1.</code></pre>
 
       <p>Rate limits are a fact of life when working with AI APIs. OpenAI, Anthropic, Cohere, and every other provider enforces them. Without proper handling, your application will crash, users will see errors, and you'll waste money on failed requests.</p>
@@ -138,25 +145,25 @@ on requests per min (RPM): Limit 500, Used 500, Requested 1.</code></pre>
 
       <p>flashQ has built-in token bucket rate limiting. Here's the simplest setup:</p>
 
-      <pre><code><span class="keyword">import</span> { Queue, Worker } <span class="keyword">from</span> <span class="string">'flashq'</span>;
-<span class="keyword">import</span> OpenAI <span class="keyword">from</span> <span class="string">'openai'</span>;
+      <pre><code class="language-typescript">import { Queue, Worker } from 'flashq';
+import OpenAI from 'openai';
 
-<span class="keyword">const</span> <span class="variable">openai</span> = <span class="keyword">new</span> <span class="function">OpenAI</span>();
-<span class="keyword">const</span> <span class="variable">queue</span> = <span class="keyword">new</span> <span class="function">Queue</span>(<span class="string">'openai-calls'</span>);
+const openai = new OpenAI();
+const queue = new Queue('openai-calls');
 
-<span class="comment">// Set rate limit: 400 requests per minute (leaving buffer)</span>
-<span class="keyword">await</span> queue.<span class="function">setRateLimit</span>(<span class="number">400</span>);
+// Set rate limit: 400 requests per minute (leaving buffer)
+await queue.setRateLimit(400);
 
-<span class="comment">// Add jobs</span>
-<span class="keyword">await</span> queue.<span class="function">add</span>(<span class="string">'chat'</span>, {
-  model: <span class="string">'gpt-4'</span>,
-  messages: [{ role: <span class="string">'user'</span>, content: <span class="string">'Hello!'</span> }]
+// Add jobs
+await queue.add('chat', {
+  model: 'gpt-4',
+  messages: [{ role: 'user', content: 'Hello!' }]
 });
 
-<span class="comment">// Worker processes at controlled rate</span>
-<span class="keyword">new</span> <span class="function">Worker</span>(<span class="string">'openai-calls'</span>, <span class="keyword">async</span> (job) => {
-  <span class="keyword">const</span> <span class="variable">response</span> = <span class="keyword">await</span> openai.chat.completions.<span class="function">create</span>(job.data);
-  <span class="keyword">return</span> response.choices[<span class="number">0</span>].message.content;
+// Worker processes at controlled rate
+new Worker('openai-calls', async (job) => {
+  const response = await openai.chat.completions.create(job.data);
+  return response.choices[0].message.content;
 });</code></pre>
 
       <p>The queue will now process at most 400 jobs per minute, regardless of how many jobs you add.</p>
@@ -165,36 +172,36 @@ on requests per min (RPM): Limit 500, Used 500, Requested 1.</code></pre>
 
       <p>Even with rate limiting, you might still hit 429 errors during traffic spikes. Configure automatic retries:</p>
 
-      <pre><code><span class="comment">// Add job with retry configuration</span>
-<span class="keyword">await</span> queue.<span class="function">add</span>(<span class="string">'chat'</span>, {
-  model: <span class="string">'gpt-4'</span>,
-  messages: [{ role: <span class="string">'user'</span>, content: <span class="string">'Explain quantum computing'</span> }]
+      <pre><code class="language-typescript">// Add job with retry configuration
+await queue.add('chat', {
+  model: 'gpt-4',
+  messages: [{ role: 'user', content: 'Explain quantum computing' }]
 }, {
-  attempts: <span class="number">5</span>,
+  attempts: 5,
   backoff: {
-    type: <span class="string">'exponential'</span>,
-    delay: <span class="number">2000</span>  <span class="comment">// 2s, 4s, 8s, 16s, 32s</span>
+    type: 'exponential',
+    delay: 2000  // 2s, 4s, 8s, 16s, 32s
   }
 });
 
-<span class="comment">// Worker with error handling</span>
-<span class="keyword">new</span> <span class="function">Worker</span>(<span class="string">'openai-calls'</span>, <span class="keyword">async</span> (job) => {
-  <span class="keyword">try</span> {
-    <span class="keyword">const</span> <span class="variable">response</span> = <span class="keyword">await</span> openai.chat.completions.<span class="function">create</span>(job.data);
-    <span class="keyword">return</span> {
-      content: response.choices[<span class="number">0</span>].message.content,
+// Worker with error handling
+new Worker('openai-calls', async (job) => {
+  try {
+    const response = await openai.chat.completions.create(job.data);
+    return {
+      content: response.choices[0].message.content,
       usage: response.usage
     };
-  } <span class="keyword">catch</span> (error) {
-    <span class="keyword">if</span> (error.status === <span class="number">429</span>) {
-      <span class="comment">// Rate limited - throw to trigger retry</span>
-      <span class="keyword">throw</span> <span class="keyword">new</span> <span class="function">Error</span>(<span class="string">'Rate limited by OpenAI'</span>);
+  } catch (error) {
+    if (error.status === 429) {
+      // Rate limited - throw to trigger retry
+      throw new Error('Rate limited by OpenAI');
     }
-    <span class="keyword">if</span> (error.status === <span class="number">400</span>) {
-      <span class="comment">// Bad request - don't retry, return error</span>
-      <span class="keyword">return</span> { error: error.message };
+    if (error.status === 400) {
+      // Bad request - don't retry, return error
+      return { error: error.message };
     }
-    <span class="keyword">throw</span> error; <span class="comment">// Other errors - retry</span>
+    throw error; // Other errors - retry
   }
 });</code></pre>
 
@@ -202,139 +209,139 @@ on requests per min (RPM): Limit 500, Used 500, Requested 1.</code></pre>
 
       <p>Each OpenAI model has different rate limits. Create separate queues:</p>
 
-      <pre><code><span class="comment">// GPT-4: Lower limits, higher cost</span>
-<span class="keyword">const</span> <span class="variable">gpt4Queue</span> = <span class="keyword">new</span> <span class="function">Queue</span>(<span class="string">'openai-gpt4'</span>);
-<span class="keyword">await</span> gpt4Queue.<span class="function">setRateLimit</span>(<span class="number">400</span>); <span class="comment">// 400 RPM</span>
+      <pre><code class="language-typescript">// GPT-4: Lower limits, higher cost
+const gpt4Queue = new Queue('openai-gpt4');
+await gpt4Queue.setRateLimit(400); // 400 RPM
 
-<span class="comment">// GPT-3.5: Higher limits, lower cost</span>
-<span class="keyword">const</span> <span class="variable">gpt35Queue</span> = <span class="keyword">new</span> <span class="function">Queue</span>(<span class="string">'openai-gpt35'</span>);
-<span class="keyword">await</span> gpt35Queue.<span class="function">setRateLimit</span>(<span class="number">3000</span>); <span class="comment">// 3000 RPM</span>
+// GPT-3.5: Higher limits, lower cost
+const gpt35Queue = new Queue('openai-gpt35');
+await gpt35Queue.setRateLimit(3000); // 3000 RPM
 
-<span class="comment">// Embeddings: Very high limits</span>
-<span class="keyword">const</span> <span class="variable">embeddingsQueue</span> = <span class="keyword">new</span> <span class="function">Queue</span>(<span class="string">'openai-embeddings'</span>);
-<span class="keyword">await</span> embeddingsQueue.<span class="function">setRateLimit</span>(<span class="number">5000</span>); <span class="comment">// 5000 RPM</span>
+// Embeddings: Very high limits
+const embeddingsQueue = new Queue('openai-embeddings');
+await embeddingsQueue.setRateLimit(5000); // 5000 RPM
 
-<span class="comment">// Route requests to appropriate queue</span>
-<span class="keyword">function</span> <span class="function">getQueue</span>(model) {
-  <span class="keyword">if</span> (model.<span class="function">startsWith</span>(<span class="string">'gpt-4'</span>)) <span class="keyword">return</span> gpt4Queue;
-  <span class="keyword">if</span> (model.<span class="function">startsWith</span>(<span class="string">'gpt-3.5'</span>)) <span class="keyword">return</span> gpt35Queue;
-  <span class="keyword">if</span> (model.<span class="function">includes</span>(<span class="string">'embedding'</span>)) <span class="keyword">return</span> embeddingsQueue;
-  <span class="keyword">return</span> gpt35Queue;
+// Route requests to appropriate queue
+function getQueue(model) {
+  if (model.startsWith('gpt-4')) return gpt4Queue;
+  if (model.startsWith('gpt-3.5')) return gpt35Queue;
+  if (model.includes('embedding')) return embeddingsQueue;
+  return gpt35Queue;
 }</code></pre>
 
       <h2>Tracking Costs</h2>
 
       <p>AI API costs can spiral quickly. Track them per job:</p>
 
-      <pre><code><span class="comment">// Pricing per 1K tokens (as of 2024)</span>
-<span class="keyword">const</span> <span class="variable">PRICING</span> = {
-  <span class="string">'gpt-4'</span>: { input: <span class="number">0.03</span>, output: <span class="number">0.06</span> },
-  <span class="string">'gpt-4-turbo'</span>: { input: <span class="number">0.01</span>, output: <span class="number">0.03</span> },
-  <span class="string">'gpt-3.5-turbo'</span>: { input: <span class="number">0.0005</span>, output: <span class="number">0.0015</span> },
-  <span class="string">'text-embedding-3-small'</span>: { input: <span class="number">0.00002</span>, output: <span class="number">0</span> }
+      <pre><code class="language-typescript">// Pricing per 1K tokens (as of 2024)
+const PRICING = {
+  'gpt-4': { input: 0.03, output: 0.06 },
+  'gpt-4-turbo': { input: 0.01, output: 0.03 },
+  'gpt-3.5-turbo': { input: 0.0005, output: 0.0015 },
+  'text-embedding-3-small': { input: 0.00002, output: 0 }
 };
 
-<span class="keyword">function</span> <span class="function">calculateCost</span>(model, usage) {
-  <span class="keyword">const</span> <span class="variable">prices</span> = PRICING[model] || PRICING[<span class="string">'gpt-3.5-turbo'</span>];
-  <span class="keyword">const</span> <span class="variable">inputCost</span> = (usage.prompt_tokens / <span class="number">1000</span>) * prices.input;
-  <span class="keyword">const</span> <span class="variable">outputCost</span> = (usage.completion_tokens / <span class="number">1000</span>) * prices.output;
-  <span class="keyword">return</span> inputCost + outputCost;
+function calculateCost(model, usage) {
+  const prices = PRICING[model] || PRICING['gpt-3.5-turbo'];
+  const inputCost = (usage.prompt_tokens / 1000) * prices.input;
+  const outputCost = (usage.completion_tokens / 1000) * prices.output;
+  return inputCost + outputCost;
 }
 
-<span class="comment">// Worker with cost tracking</span>
-<span class="keyword">new</span> <span class="function">Worker</span>(<span class="string">'openai-gpt4'</span>, <span class="keyword">async</span> (job) => {
-  <span class="keyword">const</span> <span class="variable">response</span> = <span class="keyword">await</span> openai.chat.completions.<span class="function">create</span>(job.data);
-  <span class="keyword">const</span> <span class="variable">cost</span> = <span class="function">calculateCost</span>(job.data.model, response.usage);
+// Worker with cost tracking
+new Worker('openai-gpt4', async (job) => {
+  const response = await openai.chat.completions.create(job.data);
+  const cost = calculateCost(job.data.model, response.usage);
 
-  <span class="keyword">return</span> {
-    content: response.choices[<span class="number">0</span>].message.content,
+  return {
+    content: response.choices[0].message.content,
     usage: response.usage,
     cost: cost
   };
 });
 
-<span class="comment">// Aggregate costs</span>
-<span class="keyword">let</span> <span class="variable">totalCost</span> = <span class="number">0</span>;
-gpt4Queue.<span class="function">on</span>(<span class="string">'completed'</span>, (job, result) => {
+// Aggregate costs
+let totalCost = 0;
+gpt4Queue.on('completed', (job, result) => {
   totalCost += result.cost;
-  console.<span class="function">log</span>(<span class="string">`Job cost: $${result.cost.toFixed(4)}, Total: $${totalCost.toFixed(2)}`</span>);
+  console.log(`Job cost: $${result.cost.toFixed(4)}, Total: $${totalCost.toFixed(2)}`);
 });</code></pre>
 
       <h2>Budget Controls</h2>
 
       <p>Stop processing when you hit a budget limit:</p>
 
-      <pre><code><span class="keyword">const</span> <span class="variable">DAILY_BUDGET</span> = <span class="number">100</span>; <span class="comment">// $100/day</span>
-<span class="keyword">let</span> <span class="variable">dailySpend</span> = <span class="number">0</span>;
+      <pre><code class="language-typescript">const DAILY_BUDGET = 100; // $100/day
+let dailySpend = 0;
 
-gpt4Queue.<span class="function">on</span>(<span class="string">'completed'</span>, <span class="keyword">async</span> (job, result) => {
+gpt4Queue.on('completed', async (job, result) => {
   dailySpend += result.cost;
 
-  <span class="keyword">if</span> (dailySpend >= DAILY_BUDGET) {
-    console.<span class="function">log</span>(<span class="string">'Daily budget reached! Pausing queue.'</span>);
-    <span class="keyword">await</span> gpt4Queue.<span class="function">pause</span>();
+  if (dailySpend >= DAILY_BUDGET) {
+    console.log('Daily budget reached! Pausing queue.');
+    await gpt4Queue.pause();
 
-    <span class="comment">// Alert team</span>
-    <span class="keyword">await</span> <span class="function">sendSlackAlert</span>(<span class="string">`OpenAI daily budget of $${DAILY_BUDGET} reached`</span>);
+    // Alert team
+    await sendSlackAlert(`OpenAI daily budget of $${DAILY_BUDGET} reached`);
   }
 });
 
-<span class="comment">// Reset daily spend at midnight</span>
-<span class="function">setInterval</span>(<span class="keyword">async</span> () => {
-  <span class="keyword">const</span> <span class="variable">now</span> = <span class="keyword">new</span> <span class="function">Date</span>();
-  <span class="keyword">if</span> (now.<span class="function">getHours</span>() === <span class="number">0</span> && now.<span class="function">getMinutes</span>() === <span class="number">0</span>) {
-    dailySpend = <span class="number">0</span>;
-    <span class="keyword">await</span> gpt4Queue.<span class="function">resume</span>();
-    console.<span class="function">log</span>(<span class="string">'Daily budget reset. Queue resumed.'</span>);
+// Reset daily spend at midnight
+setInterval(async () => {
+  const now = new Date();
+  if (now.getHours() === 0 && now.getMinutes() === 0) {
+    dailySpend = 0;
+    await gpt4Queue.resume();
+    console.log('Daily budget reset. Queue resumed.');
   }
-}, <span class="number">60000</span>); <span class="comment">// Check every minute</span></code></pre>
+}, 60000); // Check every minute</code></pre>
 
       <h2>Handling Multiple Providers</h2>
 
       <p>Most teams use multiple AI providers. Here's a pattern for that:</p>
 
-      <pre><code><span class="keyword">import</span> OpenAI <span class="keyword">from</span> <span class="string">'openai'</span>;
-<span class="keyword">import</span> Anthropic <span class="keyword">from</span> <span class="string">'@anthropic-ai/sdk'</span>;
+      <pre><code class="language-typescript">import OpenAI from 'openai';
+import Anthropic from '@anthropic-ai/sdk';
 
-<span class="keyword">const</span> <span class="variable">openai</span> = <span class="keyword">new</span> <span class="function">OpenAI</span>();
-<span class="keyword">const</span> <span class="variable">anthropic</span> = <span class="keyword">new</span> <span class="function">Anthropic</span>();
+const openai = new OpenAI();
+const anthropic = new Anthropic();
 
-<span class="comment">// Separate queues per provider</span>
-<span class="keyword">const</span> <span class="variable">openaiQueue</span> = <span class="keyword">new</span> <span class="function">Queue</span>(<span class="string">'llm-openai'</span>);
-<span class="keyword">const</span> <span class="variable">anthropicQueue</span> = <span class="keyword">new</span> <span class="function">Queue</span>(<span class="string">'llm-anthropic'</span>);
+// Separate queues per provider
+const openaiQueue = new Queue('llm-openai');
+const anthropicQueue = new Queue('llm-anthropic');
 
-<span class="keyword">await</span> openaiQueue.<span class="function">setRateLimit</span>(<span class="number">500</span>);
-<span class="keyword">await</span> anthropicQueue.<span class="function">setRateLimit</span>(<span class="number">1000</span>);
+await openaiQueue.setRateLimit(500);
+await anthropicQueue.setRateLimit(1000);
 
-<span class="comment">// Unified interface</span>
-<span class="keyword">async</span> <span class="keyword">function</span> <span class="function">chat</span>(provider, messages, options = {}) {
-  <span class="keyword">const</span> <span class="variable">queue</span> = provider === <span class="string">'anthropic'</span> ? anthropicQueue : openaiQueue;
+// Unified interface
+async function chat(provider, messages, options = {}) {
+  const queue = provider === 'anthropic' ? anthropicQueue : openaiQueue;
 
-  <span class="keyword">const</span> <span class="variable">job</span> = <span class="keyword">await</span> queue.<span class="function">add</span>(<span class="string">'chat'</span>, {
+  const job = await queue.add('chat', {
     provider,
     messages,
     ...options
   });
 
-  <span class="keyword">return</span> queue.<span class="function">finished</span>(job.id);
+  return queue.finished(job.id);
 }
 
-<span class="comment">// Workers</span>
-<span class="keyword">new</span> <span class="function">Worker</span>(<span class="string">'llm-openai'</span>, <span class="keyword">async</span> (job) => {
-  <span class="keyword">const</span> <span class="variable">response</span> = <span class="keyword">await</span> openai.chat.completions.<span class="function">create</span>({
-    model: job.data.model || <span class="string">'gpt-4'</span>,
+// Workers
+new Worker('llm-openai', async (job) => {
+  const response = await openai.chat.completions.create({
+    model: job.data.model || 'gpt-4',
     messages: job.data.messages
   });
-  <span class="keyword">return</span> response.choices[<span class="number">0</span>].message.content;
+  return response.choices[0].message.content;
 });
 
-<span class="keyword">new</span> <span class="function">Worker</span>(<span class="string">'llm-anthropic'</span>, <span class="keyword">async</span> (job) => {
-  <span class="keyword">const</span> <span class="variable">response</span> = <span class="keyword">await</span> anthropic.messages.<span class="function">create</span>({
-    model: job.data.model || <span class="string">'claude-3-opus-20240229'</span>,
-    max_tokens: <span class="number">1024</span>,
+new Worker('llm-anthropic', async (job) => {
+  const response = await anthropic.messages.create({
+    model: job.data.model || 'claude-3-opus-20240229',
+    max_tokens: 1024,
     messages: job.data.messages
   });
-  <span class="keyword">return</span> response.content[<span class="number">0</span>].text;
+  return response.content[0].text;
 });</code></pre>
 
       <h2>Production Checklist</h2>
@@ -397,5 +404,6 @@ gpt4Queue.<span class="function">on</span>(<span class="string">'completed'</spa
       });
     });
   </script>
+  <script>hljs.highlightAll();</script>
 </body>
 </html>

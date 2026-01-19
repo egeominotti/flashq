@@ -60,6 +60,13 @@
     ]
   }
   </script>
+  <!-- Highlight.js -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/typescript.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/bash.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/yaml.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/json.min.js"></script>
 </head>
 <body>
   <!-- Navigation -->
@@ -177,15 +184,15 @@
 
       <p>First, you'll need the flashQ server running. Unlike Redis, flashQ is a single binary:</p>
 
-      <pre><code><span class="comment"># Option 1: Docker (recommended)</span>
+      <pre><code class="language-bash"># Option 1: Docker (recommended)
 docker run -d --name flashq -p 6789:6789 flashq/flashq
 
-<span class="comment"># Option 2: Download binary</span>
+# Option 2: Download binary
 curl -L https://github.com/egeominotti/flashq/releases/latest/download/flashq-linux -o flashq
 chmod +x flashq
 ./flashq
 
-<span class="comment"># Option 3: With persistence (PostgreSQL)</span>
+# Option 3: With persistence (PostgreSQL)
 docker run -d --name flashq \
   -p 6789:6789 \
   -e DATABASE_URL=postgres://user:pass@host/db \
@@ -193,62 +200,62 @@ docker run -d --name flashq \
 
       <p>Verify it's running:</p>
 
-      <pre><code>curl http://localhost:6790/health
-<span class="comment"># {"status":"healthy","version":"0.1.5"}</span></code></pre>
+      <pre><code class="language-bash">curl http://localhost:6790/health
+# {"status":"healthy","version":"0.1.5"}</code></pre>
 
       <h2 id="step-2-dependencies">Step 2: Update Dependencies</h2>
 
       <p>Replace BullMQ with flashQ in your package.json:</p>
 
-      <pre><code><span class="comment"># Remove BullMQ</span>
+      <pre><code class="language-bash"># Remove BullMQ
 npm uninstall bullmq
 
-<span class="comment"># Install flashQ</span>
+# Install flashQ
 npm install flashq</code></pre>
 
       <p>If you were using ioredis directly for Redis connections, you can remove that too:</p>
 
-      <pre><code>npm uninstall ioredis</code></pre>
+      <pre><code class="language-bash">npm uninstall ioredis</code></pre>
 
       <h2 id="step-3-imports">Step 3: Update Import Statements</h2>
 
       <p>This is often the only code change needed. Find and replace your imports:</p>
 
-      <pre><code><span class="comment">// Before (BullMQ)</span>
-<span class="keyword">import</span> { Queue, Worker, QueueEvents } <span class="keyword">from</span> <span class="string">'bullmq'</span>;
+      <pre><code class="language-typescript">// Before (BullMQ)
+import { Queue, Worker, QueueEvents } from 'bullmq';
 
-<span class="comment">// After (flashQ)</span>
-<span class="keyword">import</span> { Queue, Worker } <span class="keyword">from</span> <span class="string">'flashq'</span>;</code></pre>
+// After (flashQ)
+import { Queue, Worker } from 'flashq';</code></pre>
 
       <p>For TypeScript projects, update your types too:</p>
 
-      <pre><code><span class="comment">// Before</span>
-<span class="keyword">import</span> <span class="keyword">type</span> { Job, JobsOptions } <span class="keyword">from</span> <span class="string">'bullmq'</span>;
+      <pre><code class="language-typescript">// Before
+import type { Job, JobsOptions } from 'bullmq';
 
-<span class="comment">// After</span>
-<span class="keyword">import</span> <span class="keyword">type</span> { Job, JobOptions } <span class="keyword">from</span> <span class="string">'flashq'</span>;</code></pre>
+// After
+import type { Job, JobOptions } from 'flashq';</code></pre>
 
       <h2 id="step-4-queue">Step 4: Migrate Queue Instances</h2>
 
       <p>Queue initialization is almost identical, but connection options differ:</p>
 
-      <pre><code><span class="comment">// Before (BullMQ)</span>
-<span class="keyword">import</span> { Queue } <span class="keyword">from</span> <span class="string">'bullmq'</span>;
+      <pre><code class="language-typescript">// Before (BullMQ)
+import { Queue } from 'bullmq';
 
-<span class="keyword">const</span> <span class="variable">queue</span> = <span class="keyword">new</span> <span class="function">Queue</span>(<span class="string">'my-queue'</span>, {
+const queue = new Queue('my-queue', {
   connection: {
-    host: <span class="string">'localhost'</span>,
-    port: <span class="number">6379</span>,
+    host: 'localhost',
+    port: 6379,
   }
 });
 
-<span class="comment">// After (flashQ)</span>
-<span class="keyword">import</span> { Queue } <span class="keyword">from</span> <span class="string">'flashq'</span>;
+// After (flashQ)
+import { Queue } from 'flashq';
 
-<span class="keyword">const</span> <span class="variable">queue</span> = <span class="keyword">new</span> <span class="function">Queue</span>(<span class="string">'my-queue'</span>, {
+const queue = new Queue('my-queue', {
   connection: {
-    host: <span class="string">'localhost'</span>,
-    port: <span class="number">6789</span>,  <span class="comment">// flashQ default port</span>
+    host: 'localhost',
+    port: 6789,  // flashQ default port
   }
 });</code></pre>
 
@@ -256,76 +263,76 @@ npm install flashq</code></pre>
 
       <p>The <code>add()</code> method is compatible:</p>
 
-      <pre><code><span class="comment">// Works the same in both!</span>
-<span class="keyword">await</span> queue.<span class="function">add</span>(<span class="string">'process-order'</span>, {
-  orderId: <span class="string">'12345'</span>,
+      <pre><code class="language-typescript">// Works the same in both!
+await queue.add('process-order', {
+  orderId: '12345',
   items: [...]
 }, {
-  priority: <span class="number">10</span>,
-  delay: <span class="number">5000</span>,
-  attempts: <span class="number">3</span>,
+  priority: 10,
+  delay: 5000,
+  attempts: 3,
   backoff: {
-    type: <span class="string">'exponential'</span>,
-    delay: <span class="number">1000</span>
+    type: 'exponential',
+    delay: 1000
   }
 });</code></pre>
 
       <h3>Bulk Operations</h3>
 
-      <pre><code><span class="comment">// BullMQ</span>
-<span class="keyword">await</span> queue.<span class="function">addBulk</span>([
-  { name: <span class="string">'job1'</span>, data: {...} },
-  { name: <span class="string">'job2'</span>, data: {...} }
+      <pre><code class="language-typescript">// BullMQ
+await queue.addBulk([
+  { name: 'job1', data: {...} },
+  { name: 'job2', data: {...} }
 ]);
 
-<span class="comment">// flashQ - same API!</span>
-<span class="keyword">await</span> queue.<span class="function">addBulk</span>([
-  { name: <span class="string">'job1'</span>, data: {...} },
-  { name: <span class="string">'job2'</span>, data: {...} }
+// flashQ - same API!
+await queue.addBulk([
+  { name: 'job1', data: {...} },
+  { name: 'job2', data: {...} }
 ]);</code></pre>
 
       <h2 id="step-5-worker">Step 5: Migrate Worker Instances</h2>
 
       <p>Workers are also compatible:</p>
 
-      <pre><code><span class="comment">// Before (BullMQ)</span>
-<span class="keyword">import</span> { Worker } <span class="keyword">from</span> <span class="string">'bullmq'</span>;
+      <pre><code class="language-typescript">// Before (BullMQ)
+import { Worker } from 'bullmq';
 
-<span class="keyword">const</span> <span class="variable">worker</span> = <span class="keyword">new</span> <span class="function">Worker</span>(<span class="string">'my-queue'</span>, <span class="keyword">async</span> (job) => {
-  console.<span class="function">log</span>(<span class="string">`Processing ${job.id}`</span>);
-  <span class="keyword">await</span> job.<span class="function">updateProgress</span>(<span class="number">50</span>);
-  <span class="keyword">return</span> { success: <span class="keyword">true</span> };
+const worker = new Worker('my-queue', async (job) => {
+  console.log(`Processing ${job.id}`);
+  await job.updateProgress(50);
+  return { success: true };
 }, {
-  connection: { host: <span class="string">'localhost'</span>, port: <span class="number">6379</span> },
-  concurrency: <span class="number">5</span>
+  connection: { host: 'localhost', port: 6379 },
+  concurrency: 5
 });
 
-<span class="comment">// After (flashQ)</span>
-<span class="keyword">import</span> { Worker } <span class="keyword">from</span> <span class="string">'flashq'</span>;
+// After (flashQ)
+import { Worker } from 'flashq';
 
-<span class="keyword">const</span> <span class="variable">worker</span> = <span class="keyword">new</span> <span class="function">Worker</span>(<span class="string">'my-queue'</span>, <span class="keyword">async</span> (job) => {
-  console.<span class="function">log</span>(<span class="string">`Processing ${job.id}`</span>);
-  <span class="keyword">await</span> job.<span class="function">updateProgress</span>(<span class="number">50</span>);
-  <span class="keyword">return</span> { success: <span class="keyword">true</span> };
+const worker = new Worker('my-queue', async (job) => {
+  console.log(`Processing ${job.id}`);
+  await job.updateProgress(50);
+  return { success: true };
 }, {
-  connection: { host: <span class="string">'localhost'</span>, port: <span class="number">6789</span> },
-  concurrency: <span class="number">5</span>
+  connection: { host: 'localhost', port: 6789 },
+  concurrency: 5
 });</code></pre>
 
       <h3>Worker Events</h3>
 
       <p>Event handling works the same way:</p>
 
-      <pre><code>worker.<span class="function">on</span>(<span class="string">'completed'</span>, (job, result) => {
-  console.<span class="function">log</span>(<span class="string">`Job ${job.id} completed with result:`</span>, result);
+      <pre><code class="language-typescript">worker.on('completed', (job, result) => {
+  console.log(`Job ${job.id} completed with result:`, result);
 });
 
-worker.<span class="function">on</span>(<span class="string">'failed'</span>, (job, error) => {
-  console.<span class="function">error</span>(<span class="string">`Job ${job.id} failed:`</span>, error.message);
+worker.on('failed', (job, error) => {
+  console.error(`Job ${job.id} failed:`, error.message);
 });
 
-worker.<span class="function">on</span>(<span class="string">'progress'</span>, (job, progress) => {
-  console.<span class="function">log</span>(<span class="string">`Job ${job.id} progress: ${progress}%`</span>);
+worker.on('progress', (job, progress) => {
+  console.log(`Job ${job.id} progress: ${progress}%`);
 });</code></pre>
 
       <h2 id="step-6-differences">Step 6: Handle API Differences</h2>
@@ -336,31 +343,31 @@ worker.<span class="function">on</span>(<span class="string">'progress'</span>, 
 
       <p>BullMQ uses a separate <code>QueueEvents</code> class for global events. In flashQ, events are built into the Queue class:</p>
 
-      <pre><code><span class="comment">// BullMQ - separate QueueEvents instance</span>
-<span class="keyword">const</span> <span class="variable">queueEvents</span> = <span class="keyword">new</span> <span class="function">QueueEvents</span>(<span class="string">'my-queue'</span>, { connection });
-queueEvents.<span class="function">on</span>(<span class="string">'completed'</span>, ({ jobId, returnvalue }) => {...});
+      <pre><code class="language-typescript">// BullMQ - separate QueueEvents instance
+const queueEvents = new QueueEvents('my-queue', { connection });
+queueEvents.on('completed', ({ jobId, returnvalue }) => {...});
 
-<span class="comment">// flashQ - events on Queue instance</span>
-queue.<span class="function">on</span>(<span class="string">'completed'</span>, (job, result) => {...});</code></pre>
+// flashQ - events on Queue instance
+queue.on('completed', (job, result) => {...});</code></pre>
 
       <h3>Flow Producer</h3>
 
       <p>flashQ has a different syntax for job dependencies:</p>
 
-      <pre><code><span class="comment">// BullMQ FlowProducer</span>
-<span class="keyword">const</span> <span class="variable">flow</span> = <span class="keyword">new</span> <span class="function">FlowProducer</span>({ connection });
-<span class="keyword">await</span> flow.<span class="function">add</span>({
-  name: <span class="string">'parent'</span>,
-  queueName: <span class="string">'my-queue'</span>,
+      <pre><code class="language-typescript">// BullMQ FlowProducer
+const flow = new FlowProducer({ connection });
+await flow.add({
+  name: 'parent',
+  queueName: 'my-queue',
   data: {...},
   children: [
-    { name: <span class="string">'child1'</span>, queueName: <span class="string">'my-queue'</span>, data: {...} }
+    { name: 'child1', queueName: 'my-queue', data: {...} }
   ]
 });
 
-<span class="comment">// flashQ - use depends_on option</span>
-<span class="keyword">const</span> <span class="variable">child1</span> = <span class="keyword">await</span> queue.<span class="function">add</span>(<span class="string">'child1'</span>, {...});
-<span class="keyword">const</span> <span class="variable">parent</span> = <span class="keyword">await</span> queue.<span class="function">add</span>(<span class="string">'parent'</span>, {...}, {
+// flashQ - use depends_on option
+const child1 = await queue.add('child1', {...});
+const parent = await queue.add('parent', {...}, {
   depends_on: [child1.id]
 });</code></pre>
 
@@ -368,15 +375,15 @@ queue.<span class="function">on</span>(<span class="string">'completed'</span>, 
 
       <p>flashQ uses a dedicated cron API:</p>
 
-      <pre><code><span class="comment">// BullMQ - repeat option</span>
-<span class="keyword">await</span> queue.<span class="function">add</span>(<span class="string">'cleanup'</span>, {}, {
-  repeat: { cron: <span class="string">'0 0 * * *'</span> }
+      <pre><code class="language-typescript">// BullMQ - repeat option
+await queue.add('cleanup', {}, {
+  repeat: { cron: '0 0 * * *' }
 });
 
-<span class="comment">// flashQ - cron API</span>
-<span class="keyword">await</span> queue.<span class="function">addCron</span>(<span class="string">'daily-cleanup'</span>, {
-  queue: <span class="string">'my-queue'</span>,
-  schedule: <span class="string">'0 0 0 * * *'</span>,  <span class="comment">// 6-field cron (includes seconds)</span>
+// flashQ - cron API
+await queue.addCron('daily-cleanup', {
+  queue: 'my-queue',
+  schedule: '0 0 0 * * *',  // 6-field cron (includes seconds)
   data: {}
 });</code></pre>
 
@@ -384,66 +391,66 @@ queue.<span class="function">on</span>(<span class="string">'completed'</span>, 
 
       <p>Rate limiting is simpler in flashQ:</p>
 
-      <pre><code><span class="comment">// BullMQ - limiter option on worker</span>
-<span class="keyword">const</span> <span class="variable">worker</span> = <span class="keyword">new</span> <span class="function">Worker</span>(<span class="string">'my-queue'</span>, processor, {
-  limiter: { max: <span class="number">100</span>, duration: <span class="number">60000</span> }
+      <pre><code class="language-typescript">// BullMQ - limiter option on worker
+const worker = new Worker('my-queue', processor, {
+  limiter: { max: 100, duration: 60000 }
 });
 
-<span class="comment">// flashQ - queue-level rate limit</span>
-<span class="keyword">await</span> queue.<span class="function">setRateLimit</span>(<span class="number">100</span>);  <span class="comment">// 100 jobs per minute</span></code></pre>
+// flashQ - queue-level rate limit
+await queue.setRateLimit(100);  // 100 jobs per minute</code></pre>
 
       <h2 id="step-7-testing">Step 7: Test the Migration</h2>
 
       <p>Before going to production, test thoroughly:</p>
 
-      <pre><code><span class="comment">// test/queue.test.ts</span>
-<span class="keyword">import</span> { Queue, Worker } <span class="keyword">from</span> <span class="string">'flashq'</span>;
+      <pre><code class="language-typescript">// test/queue.test.ts
+import { Queue, Worker } from 'flashq';
 
-<span class="function">describe</span>(<span class="string">'Queue Migration'</span>, () => {
-  <span class="keyword">let</span> queue: Queue;
-  <span class="keyword">let</span> worker: Worker;
+describe('Queue Migration', () => {
+  let queue: Queue;
+  let worker: Worker;
 
-  <span class="function">beforeAll</span>(<span class="keyword">async</span> () => {
-    queue = <span class="keyword">new</span> <span class="function">Queue</span>(<span class="string">'test-queue'</span>);
-    <span class="keyword">await</span> queue.<span class="function">connect</span>();
+  beforeAll(async () => {
+    queue = new Queue('test-queue');
+    await queue.connect();
   });
 
-  <span class="function">afterAll</span>(<span class="keyword">async</span> () => {
-    <span class="keyword">await</span> worker?.<span class="function">close</span>();
-    <span class="keyword">await</span> queue.<span class="function">close</span>();
+  afterAll(async () => {
+    await worker?.close();
+    await queue.close();
   });
 
-  <span class="function">it</span>(<span class="string">'should process jobs'</span>, <span class="keyword">async</span> () => {
-    <span class="keyword">const</span> <span class="variable">results</span>: <span class="keyword">any</span>[] = [];
+  it('should process jobs', async () => {
+    const results: any[] = [];
 
-    worker = <span class="keyword">new</span> <span class="function">Worker</span>(<span class="string">'test-queue'</span>, <span class="keyword">async</span> (job) => {
-      results.<span class="function">push</span>(job.data);
-      <span class="keyword">return</span> { processed: <span class="keyword">true</span> };
+    worker = new Worker('test-queue', async (job) => {
+      results.push(job.data);
+      return { processed: true };
     });
 
-    <span class="keyword">await</span> queue.<span class="function">add</span>(<span class="string">'test'</span>, { value: <span class="number">1</span> });
-    <span class="keyword">await</span> queue.<span class="function">add</span>(<span class="string">'test'</span>, { value: <span class="number">2</span> });
+    await queue.add('test', { value: 1 });
+    await queue.add('test', { value: 2 });
 
-    <span class="comment">// Wait for processing</span>
-    <span class="keyword">await</span> <span class="keyword">new</span> <span class="function">Promise</span>(r => <span class="function">setTimeout</span>(r, <span class="number">1000</span>));
+    // Wait for processing
+    await new Promise(r => setTimeout(r, 1000));
 
-    <span class="function">expect</span>(results).<span class="function">toHaveLength</span>(<span class="number">2</span>);
+    expect(results).toHaveLength(2);
   });
 
-  <span class="function">it</span>(<span class="string">'should handle retries'</span>, <span class="keyword">async</span> () => {
-    <span class="keyword">let</span> attempts = <span class="number">0</span>;
+  it('should handle retries', async () => {
+    let attempts = 0;
 
-    worker = <span class="keyword">new</span> <span class="function">Worker</span>(<span class="string">'test-queue'</span>, <span class="keyword">async</span> (job) => {
+    worker = new Worker('test-queue', async (job) => {
       attempts++;
-      <span class="keyword">if</span> (attempts < <span class="number">3</span>) <span class="keyword">throw</span> <span class="keyword">new</span> <span class="function">Error</span>(<span class="string">'Retry me'</span>);
-      <span class="keyword">return</span> { success: <span class="keyword">true</span> };
+      if (attempts < 3) throw new Error('Retry me');
+      return { success: true };
     });
 
-    <span class="keyword">await</span> queue.<span class="function">add</span>(<span class="string">'retry-test'</span>, {}, { attempts: <span class="number">3</span> });
+    await queue.add('retry-test', {}, { attempts: 3 });
 
-    <span class="keyword">await</span> <span class="keyword">new</span> <span class="function">Promise</span>(r => <span class="function">setTimeout</span>(r, <span class="number">3000</span>));
+    await new Promise(r => setTimeout(r, 3000));
 
-    <span class="function">expect</span>(attempts).<span class="function">toBe</span>(<span class="number">3</span>);
+    expect(attempts).toBe(3);
   });
 });</code></pre>
 
@@ -453,41 +460,41 @@ queue.<span class="function">on</span>(<span class="string">'completed'</span>, 
 
       <h3>Strategy 1: Blue-Green Deployment</h3>
 
-      <pre><code><span class="comment">// 1. Deploy flashQ server alongside existing Redis</span>
-<span class="comment">// 2. Update application to use flashQ</span>
-<span class="comment">// 3. Let existing BullMQ jobs drain</span>
-<span class="comment">// 4. Switch traffic to new deployment</span>
-<span class="comment">// 5. Decommission Redis when empty</span></code></pre>
+      <pre><code class="language-typescript">// 1. Deploy flashQ server alongside existing Redis
+// 2. Update application to use flashQ
+// 3. Let existing BullMQ jobs drain
+// 4. Switch traffic to new deployment
+// 5. Decommission Redis when empty</code></pre>
 
       <h3>Strategy 2: Gradual Migration</h3>
 
       <p>Migrate queue by queue:</p>
 
-      <pre><code><span class="comment">// config/queues.ts</span>
-<span class="keyword">const</span> <span class="variable">USE_FLASHQ</span> = {
-  <span class="string">'email-queue'</span>: <span class="keyword">true</span>,      <span class="comment">// Migrated</span>
-  <span class="string">'payment-queue'</span>: <span class="keyword">false</span>,   <span class="comment">// Still on BullMQ</span>
-  <span class="string">'analytics-queue'</span>: <span class="keyword">true</span>,  <span class="comment">// Migrated</span>
+      <pre><code class="language-typescript">// config/queues.ts
+const USE_FLASHQ = {
+  'email-queue': true,      // Migrated
+  'payment-queue': false,   // Still on BullMQ
+  'analytics-queue': true,  // Migrated
 };
 
-<span class="keyword">export</span> <span class="keyword">function</span> <span class="function">createQueue</span>(name: <span class="keyword">string</span>) {
-  <span class="keyword">if</span> (USE_FLASHQ[name]) {
-    <span class="keyword">return</span> <span class="keyword">new</span> FlashQueue(name, { connection: flashQConfig });
+export function createQueue(name: string) {
+  if (USE_FLASHQ[name]) {
+    return new FlashQueue(name, { connection: flashQConfig });
   }
-  <span class="keyword">return</span> <span class="keyword">new</span> BullMQQueue(name, { connection: redisConfig });
+  return new BullMQQueue(name, { connection: redisConfig });
 }</code></pre>
 
       <h3>Monitoring the Migration</h3>
 
-      <pre><code><span class="comment">// Monitor both systems during migration</span>
-<span class="keyword">const</span> <span class="variable">flashQStats</span> = <span class="keyword">await</span> flashQueue.<span class="function">getJobCounts</span>();
-<span class="keyword">const</span> <span class="variable">bullMQStats</span> = <span class="keyword">await</span> bullQueue.<span class="function">getJobCounts</span>();
+      <pre><code class="language-typescript">// Monitor both systems during migration
+const flashQStats = await flashQueue.getJobCounts();
+const bullMQStats = await bullQueue.getJobCounts();
 
-console.<span class="function">log</span>(<span class="string">'flashQ:'</span>, flashQStats);
-<span class="comment">// { waiting: 45, active: 5, completed: 1230, failed: 2 }</span>
+console.log('flashQ:', flashQStats);
+// { waiting: 45, active: 5, completed: 1230, failed: 2 }
 
-console.<span class="function">log</span>(<span class="string">'BullMQ:'</span>, bullMQStats);
-<span class="comment">// { waiting: 0, active: 0, completed: 5000, failed: 10 }</span></code></pre>
+console.log('BullMQ:', bullMQStats);
+// { waiting: 0, active: 0, completed: 5000, failed: 10 }</code></pre>
 
       <div class="callout callout-info">
         <div class="callout-title">💡 Pro Tip</div>
@@ -498,25 +505,25 @@ console.<span class="function">log</span>(<span class="string">'BullMQ:'</span>,
 
       <h3>Connection Errors</h3>
 
-      <pre><code><span class="comment">// Ensure flashQ server is running</span>
-<span class="keyword">const</span> <span class="variable">queue</span> = <span class="keyword">new</span> <span class="function">Queue</span>(<span class="string">'my-queue'</span>, {
+      <pre><code class="language-typescript">// Ensure flashQ server is running
+const queue = new Queue('my-queue', {
   connection: {
-    host: process.env.FLASHQ_HOST || <span class="string">'localhost'</span>,
-    port: <span class="function">parseInt</span>(process.env.FLASHQ_PORT || <span class="string">'6789'</span>),
+    host: process.env.FLASHQ_HOST || 'localhost',
+    port: parseInt(process.env.FLASHQ_PORT || '6789'),
   }
 });
 
-<span class="comment">// Add connection error handling</span>
-queue.<span class="function">on</span>(<span class="string">'error'</span>, (err) => {
-  console.<span class="function">error</span>(<span class="string">'Queue connection error:'</span>, err);
+// Add connection error handling
+queue.on('error', (err) => {
+  console.error('Queue connection error:', err);
 });</code></pre>
 
       <h3>TypeScript Errors</h3>
 
       <p>If you encounter type errors, ensure you're using the correct imports:</p>
 
-      <pre><code><span class="comment">// Correct type imports</span>
-<span class="keyword">import</span> <span class="keyword">type</span> { Job, JobOptions, QueueOptions } <span class="keyword">from</span> <span class="string">'flashq'</span>;</code></pre>
+      <pre><code class="language-typescript">// Correct type imports
+import type { Job, JobOptions, QueueOptions } from 'flashq';</code></pre>
 
       <h2 id="conclusion">Conclusion</h2>
 
@@ -682,5 +689,6 @@ queue.<span class="function">on</span>(<span class="string">'error'</span>, (err
       }
     });
   </script>
+  <script>hljs.highlightAll();</script>
 </body>
 </html>

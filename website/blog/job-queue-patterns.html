@@ -49,6 +49,13 @@
     ]
   }
   </script>
+  <!-- Highlight.js -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/typescript.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/bash.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/yaml.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/json.min.js"></script>
 </head>
 <body>
   <nav>
@@ -96,7 +103,7 @@
 
       <p>The fan-out pattern distributes work across multiple workers. It's perfect for batch processing where you need to process many items independently.</p>
 
-      <pre><code>┌─────────┐     ┌──────────┐     ┌──────────┐
+      <pre><code class="language-plaintext">┌─────────┐     ┌──────────┐     ┌──────────┐
 │ Source  │ ──▶ │ Worker 1 │ ──▶ │ Results  │
 │  Job    │ ──▶ │ Worker 2 │ ──▶ │ Collector│
 │         │ ──▶ │ Worker 3 │ ──▶ │          │
@@ -104,33 +111,33 @@
 
       <p><strong>Use case:</strong> Processing 10,000 documents for embedding generation.</p>
 
-      <pre><code><span class="keyword">async</span> <span class="keyword">function</span> <span class="function">fanOutEmbeddings</span>(documents) {
-  <span class="keyword">const</span> <span class="variable">queue</span> = <span class="keyword">new</span> <span class="function">Queue</span>(<span class="string">'embeddings'</span>);
+      <pre><code class="language-typescript">async function fanOutEmbeddings(documents) {
+  const queue = new Queue('embeddings');
 
-  <span class="comment">// Fan out: Create a job for each document</span>
-  <span class="keyword">const</span> <span class="variable">jobs</span> = <span class="keyword">await</span> queue.<span class="function">addBulk</span>(
-    documents.<span class="function">map</span>(doc => ({
-      name: <span class="string">'embed'</span>,
+  // Fan out: Create a job for each document
+  const jobs = await queue.addBulk(
+    documents.map(doc => ({
+      name: 'embed',
       data: { id: doc.id, text: doc.content }
     }))
   );
 
-  <span class="comment">// Fan in: Collect results</span>
-  <span class="keyword">const</span> <span class="variable">collector</span> = <span class="keyword">await</span> queue.<span class="function">add</span>(<span class="string">'collect'</span>, {
-    jobIds: jobs.<span class="function">map</span>(j => j.id),
+  // Fan in: Collect results
+  const collector = await queue.add('collect', {
+    jobIds: jobs.map(j => j.id),
     totalCount: documents.length
   }, {
-    depends_on: jobs.<span class="function">map</span>(j => j.id)
+    depends_on: jobs.map(j => j.id)
   });
 
-  <span class="keyword">return</span> queue.<span class="function">finished</span>(collector.id);
+  return queue.finished(collector.id);
 }</code></pre>
 
       <h2>2. Saga Pattern</h2>
 
       <p>The saga pattern manages distributed transactions by breaking them into steps, each with a compensating action for rollback.</p>
 
-      <pre><code>┌───────┐     ┌───────┐     ┌───────┐
+      <pre><code class="language-plaintext">┌───────┐     ┌───────┐     ┌───────┐
 │Step 1 │ ──▶ │Step 2 │ ──▶ │Step 3 │
 │       │     │       │     │       │
 │Comp 1 │ ◀── │Comp 2 │ ◀── │Comp 3 │
@@ -139,43 +146,43 @@
 
       <p><strong>Use case:</strong> AI-powered document processing with external API calls.</p>
 
-      <pre><code><span class="keyword">const</span> <span class="variable">saga</span> = {
+      <pre><code class="language-typescript">const saga = {
   steps: [
     {
-      name: <span class="string">'extract'</span>,
-      execute: <span class="keyword">async</span> (data) => <span class="keyword">await</span> <span class="function">extractText</span>(data.file),
-      compensate: <span class="keyword">async</span> (data) => <span class="keyword">await</span> <span class="function">deleteExtraction</span>(data.extractionId)
+      name: 'extract',
+      execute: async (data) => await extractText(data.file),
+      compensate: async (data) => await deleteExtraction(data.extractionId)
     },
     {
-      name: <span class="string">'analyze'</span>,
-      execute: <span class="keyword">async</span> (data) => <span class="keyword">await</span> openai.chat.completions.<span class="function">create</span>({...}),
-      compensate: <span class="keyword">async</span> (data) => { <span class="comment">/* no-op, API call can't be undone */</span> }
+      name: 'analyze',
+      execute: async (data) => await openai.chat.completions.create({...}),
+      compensate: async (data) => { /* no-op, API call can't be undone */ }
     },
     {
-      name: <span class="string">'store'</span>,
-      execute: <span class="keyword">async</span> (data) => <span class="keyword">await</span> db.<span class="function">insert</span>(data.analysis),
-      compensate: <span class="keyword">async</span> (data) => <span class="keyword">await</span> db.<span class="function">delete</span>(data.recordId)
+      name: 'store',
+      execute: async (data) => await db.insert(data.analysis),
+      compensate: async (data) => await db.delete(data.recordId)
     }
   ]
 };
 
-<span class="comment">// Execute saga with automatic rollback on failure</span>
-<span class="keyword">async</span> <span class="keyword">function</span> <span class="function">executeSaga</span>(saga, initialData) {
-  <span class="keyword">const</span> <span class="variable">completedSteps</span> = [];
+// Execute saga with automatic rollback on failure
+async function executeSaga(saga, initialData) {
+  const completedSteps = [];
 
-  <span class="keyword">try</span> {
-    <span class="keyword">let</span> <span class="variable">data</span> = initialData;
-    <span class="keyword">for</span> (<span class="keyword">const</span> step <span class="keyword">of</span> saga.steps) {
-      data = <span class="keyword">await</span> step.<span class="function">execute</span>(data);
-      completedSteps.<span class="function">push</span>({ step, data });
+  try {
+    let data = initialData;
+    for (const step of saga.steps) {
+      data = await step.execute(data);
+      completedSteps.push({ step, data });
     }
-    <span class="keyword">return</span> data;
-  } <span class="keyword">catch</span> (error) {
-    <span class="comment">// Rollback in reverse order</span>
-    <span class="keyword">for</span> (<span class="keyword">const</span> { step, data } <span class="keyword">of</span> completedSteps.<span class="function">reverse</span>()) {
-      <span class="keyword">await</span> step.<span class="function">compensate</span>(data);
+    return data;
+  } catch (error) {
+    // Rollback in reverse order
+    for (const { step, data } of completedSteps.reverse()) {
+      await step.compensate(data);
     }
-    <span class="keyword">throw</span> error;
+    throw error;
   }
 }</code></pre>
 
@@ -183,7 +190,7 @@
 
       <p>The circuit breaker prevents cascading failures by stopping requests to a failing service.</p>
 
-      <pre><code>        ┌─────────────────────────────────────┐
+      <pre><code class="language-plaintext">        ┌─────────────────────────────────────┐
         │         Circuit Breaker             │
         │  ┌───────┐ ┌───────┐ ┌───────────┐ │
         │  │Closed │→│ Open  │→│Half-Open  │ │
@@ -192,53 +199,53 @@
 
       <p><strong>Use case:</strong> Protecting against OpenAI API outages.</p>
 
-      <pre><code><span class="keyword">class</span> <span class="function">CircuitBreaker</span> {
-  <span class="keyword">constructor</span>(threshold = <span class="number">5</span>, timeout = <span class="number">60000</span>) {
-    <span class="keyword">this</span>.failures = <span class="number">0</span>;
-    <span class="keyword">this</span>.threshold = threshold;
-    <span class="keyword">this</span>.timeout = timeout;
-    <span class="keyword">this</span>.state = <span class="string">'CLOSED'</span>;
-    <span class="keyword">this</span>.nextAttempt = <span class="number">0</span>;
+      <pre><code class="language-typescript">class CircuitBreaker {
+  constructor(threshold = 5, timeout = 60000) {
+    this.failures = 0;
+    this.threshold = threshold;
+    this.timeout = timeout;
+    this.state = 'CLOSED';
+    this.nextAttempt = 0;
   }
 
-  <span class="keyword">async</span> <span class="function">execute</span>(fn) {
-    <span class="keyword">if</span> (<span class="keyword">this</span>.state === <span class="string">'OPEN'</span>) {
-      <span class="keyword">if</span> (Date.<span class="function">now</span>() < <span class="keyword">this</span>.nextAttempt) {
-        <span class="keyword">throw</span> <span class="keyword">new</span> <span class="function">Error</span>(<span class="string">'Circuit breaker is OPEN'</span>);
+  async execute(fn) {
+    if (this.state === 'OPEN') {
+      if (Date.now() < this.nextAttempt) {
+        throw new Error('Circuit breaker is OPEN');
       }
-      <span class="keyword">this</span>.state = <span class="string">'HALF-OPEN'</span>;
+      this.state = 'HALF-OPEN';
     }
 
-    <span class="keyword">try</span> {
-      <span class="keyword">const</span> <span class="variable">result</span> = <span class="keyword">await</span> <span class="function">fn</span>();
-      <span class="keyword">this</span>.<span class="function">onSuccess</span>();
-      <span class="keyword">return</span> result;
-    } <span class="keyword">catch</span> (error) {
-      <span class="keyword">this</span>.<span class="function">onFailure</span>();
-      <span class="keyword">throw</span> error;
+    try {
+      const result = await fn();
+      this.onSuccess();
+      return result;
+    } catch (error) {
+      this.onFailure();
+      throw error;
     }
   }
 
-  <span class="function">onSuccess</span>() {
-    <span class="keyword">this</span>.failures = <span class="number">0</span>;
-    <span class="keyword">this</span>.state = <span class="string">'CLOSED'</span>;
+  onSuccess() {
+    this.failures = 0;
+    this.state = 'CLOSED';
   }
 
-  <span class="function">onFailure</span>() {
-    <span class="keyword">this</span>.failures++;
-    <span class="keyword">if</span> (<span class="keyword">this</span>.failures >= <span class="keyword">this</span>.threshold) {
-      <span class="keyword">this</span>.state = <span class="string">'OPEN'</span>;
-      <span class="keyword">this</span>.nextAttempt = Date.<span class="function">now</span>() + <span class="keyword">this</span>.timeout;
+  onFailure() {
+    this.failures++;
+    if (this.failures >= this.threshold) {
+      this.state = 'OPEN';
+      this.nextAttempt = Date.now() + this.timeout;
     }
   }
 }
 
-<span class="comment">// Usage in worker</span>
-<span class="keyword">const</span> <span class="variable">breaker</span> = <span class="keyword">new</span> <span class="function">CircuitBreaker</span>();
+// Usage in worker
+const breaker = new CircuitBreaker();
 
-<span class="keyword">new</span> <span class="function">Worker</span>(<span class="string">'openai-calls'</span>, <span class="keyword">async</span> (job) => {
-  <span class="keyword">return</span> breaker.<span class="function">execute</span>(<span class="keyword">async</span> () => {
-    <span class="keyword">return</span> openai.chat.completions.<span class="function">create</span>(job.data);
+new Worker('openai-calls', async (job) => {
+  return breaker.execute(async () => {
+    return openai.chat.completions.create(job.data);
   });
 });</code></pre>
 
@@ -246,21 +253,21 @@
 
       <p>Process important jobs first while still handling lower-priority work.</p>
 
-      <pre><code><span class="comment">// Priority levels</span>
-<span class="keyword">const</span> <span class="variable">PRIORITY</span> = {
-  CRITICAL: <span class="number">100</span>,  <span class="comment">// Processed immediately</span>
-  HIGH: <span class="number">50</span>,       <span class="comment">// Next in line</span>
-  NORMAL: <span class="number">10</span>,     <span class="comment">// Default</span>
-  LOW: <span class="number">1</span>          <span class="comment">// When nothing else is pending</span>
+      <pre><code class="language-typescript">// Priority levels
+const PRIORITY = {
+  CRITICAL: 100,  // Processed immediately
+  HIGH: 50,       // Next in line
+  NORMAL: 10,     // Default
+  LOW: 1          // When nothing else is pending
 };
 
-<span class="comment">// Real-time user request (high priority)</span>
-<span class="keyword">await</span> queue.<span class="function">add</span>(<span class="string">'generate'</span>, { prompt, userId }, {
+// Real-time user request (high priority)
+await queue.add('generate', { prompt, userId }, {
   priority: PRIORITY.HIGH
 });
 
-<span class="comment">// Background batch job (low priority)</span>
-<span class="keyword">await</span> queue.<span class="function">add</span>(<span class="string">'generate'</span>, { prompt, batchId }, {
+// Background batch job (low priority)
+await queue.add('generate', { prompt, batchId }, {
   priority: PRIORITY.LOW
 });</code></pre>
 
@@ -268,137 +275,137 @@
 
       <p>Handle transient failures by retrying with increasing delays.</p>
 
-      <pre><code><span class="comment">// Retry delays: 1s, 2s, 4s, 8s, 16s</span>
-<span class="keyword">await</span> queue.<span class="function">add</span>(<span class="string">'api-call'</span>, data, {
-  attempts: <span class="number">5</span>,
+      <pre><code class="language-typescript">// Retry delays: 1s, 2s, 4s, 8s, 16s
+await queue.add('api-call', data, {
+  attempts: 5,
   backoff: {
-    type: <span class="string">'exponential'</span>,
-    delay: <span class="number">1000</span>
+    type: 'exponential',
+    delay: 1000
   }
 });
 
-<span class="comment">// Custom backoff with jitter (prevents thundering herd)</span>
-<span class="keyword">function</span> <span class="function">calculateBackoff</span>(attempt, baseDelay = <span class="number">1000</span>) {
-  <span class="keyword">const</span> <span class="variable">exponentialDelay</span> = baseDelay * Math.<span class="function">pow</span>(<span class="number">2</span>, attempt);
-  <span class="keyword">const</span> <span class="variable">jitter</span> = Math.<span class="function">random</span>() * <span class="number">1000</span>;
-  <span class="keyword">return</span> exponentialDelay + jitter;
+// Custom backoff with jitter (prevents thundering herd)
+function calculateBackoff(attempt, baseDelay = 1000) {
+  const exponentialDelay = baseDelay * Math.pow(2, attempt);
+  const jitter = Math.random() * 1000;
+  return exponentialDelay + jitter;
 }</code></pre>
 
       <h2>6. Dead Letter Queue (DLQ) Pattern</h2>
 
       <p>Capture failed jobs for investigation and reprocessing.</p>
 
-      <pre><code><span class="comment">// Jobs move to DLQ after max attempts</span>
-<span class="keyword">await</span> queue.<span class="function">add</span>(<span class="string">'process'</span>, data, {
-  attempts: <span class="number">3</span>
+      <pre><code class="language-typescript">// Jobs move to DLQ after max attempts
+await queue.add('process', data, {
+  attempts: 3
 });
 
-<span class="comment">// Monitor DLQ</span>
-<span class="keyword">const</span> <span class="variable">failedJobs</span> = <span class="keyword">await</span> queue.<span class="function">getDlq</span>(<span class="number">100</span>);
+// Monitor DLQ
+const failedJobs = await queue.getDlq(100);
 
-<span class="keyword">for</span> (<span class="keyword">const</span> job <span class="keyword">of</span> failedJobs) {
-  console.<span class="function">log</span>(<span class="string">`Failed job ${job.id}:`</span>, job.failedReason);
+for (const job of failedJobs) {
+  console.log(`Failed job ${job.id}:`, job.failedReason);
 
-  <span class="comment">// Decide action based on error</span>
-  <span class="keyword">if</span> (job.failedReason.<span class="function">includes</span>(<span class="string">'rate limit'</span>)) {
-    <span class="comment">// Retry rate-limited jobs</span>
-    <span class="keyword">await</span> queue.<span class="function">retryDlq</span>(job.id);
-  } <span class="keyword">else</span> <span class="keyword">if</span> (job.failedReason.<span class="function">includes</span>(<span class="string">'invalid'</span>)) {
-    <span class="comment">// Log and skip invalid jobs</span>
-    <span class="keyword">await</span> <span class="function">logToSlack</span>(<span class="string">`Invalid job: ${job.id}`</span>);
+  // Decide action based on error
+  if (job.failedReason.includes('rate limit')) {
+    // Retry rate-limited jobs
+    await queue.retryDlq(job.id);
+  } else if (job.failedReason.includes('invalid')) {
+    // Log and skip invalid jobs
+    await logToSlack(`Invalid job: ${job.id}`);
   }
 }
 
-<span class="comment">// Alert on DLQ growth</span>
-<span class="keyword">if</span> (failedJobs.length > <span class="number">100</span>) {
-  <span class="keyword">await</span> <span class="function">sendAlert</span>(<span class="string">'DLQ has over 100 jobs!'</span>);
+// Alert on DLQ growth
+if (failedJobs.length > 100) {
+  await sendAlert('DLQ has over 100 jobs!');
 }</code></pre>
 
       <h2>7. Idempotency Pattern</h2>
 
       <p>Ensure jobs can be safely retried without side effects.</p>
 
-      <pre><code><span class="comment">// Use custom job ID for idempotency</span>
-<span class="keyword">await</span> queue.<span class="function">add</span>(<span class="string">'charge'</span>, { userId, amount }, {
-  jobId: <span class="string">`charge-${userId}-${orderId}`</span>  <span class="comment">// Unique per operation</span>
+      <pre><code class="language-typescript">// Use custom job ID for idempotency
+await queue.add('charge', { userId, amount }, {
+  jobId: `charge-${userId}-${orderId}`  // Unique per operation
 });
 
-<span class="comment">// Worker checks idempotency</span>
-<span class="keyword">new</span> <span class="function">Worker</span>(<span class="string">'payments'</span>, <span class="keyword">async</span> (job) => {
-  <span class="comment">// Check if already processed</span>
-  <span class="keyword">const</span> <span class="variable">existing</span> = <span class="keyword">await</span> db.payments.<span class="function">findOne</span>({
+// Worker checks idempotency
+new Worker('payments', async (job) => {
+  // Check if already processed
+  const existing = await db.payments.findOne({
     idempotencyKey: job.id
   });
 
-  <span class="keyword">if</span> (existing) {
-    <span class="keyword">return</span> existing.result; <span class="comment">// Return cached result</span>
+  if (existing) {
+    return existing.result; // Return cached result
   }
 
-  <span class="comment">// Process and store with idempotency key</span>
-  <span class="keyword">const</span> <span class="variable">result</span> = <span class="keyword">await</span> <span class="function">processPayment</span>(job.data);
-  <span class="keyword">await</span> db.payments.<span class="function">insert</span>({
+  // Process and store with idempotency key
+  const result = await processPayment(job.data);
+  await db.payments.insert({
     idempotencyKey: job.id,
     result
   });
 
-  <span class="keyword">return</span> result;
+  return result;
 });</code></pre>
 
       <h2>8. Scheduled Job Pattern</h2>
 
       <p>Run jobs at specific times using cron expressions.</p>
 
-      <pre><code><span class="comment">// Daily report at 9 AM</span>
-<span class="keyword">await</span> queue.<span class="function">addCron</span>(<span class="string">'daily-report'</span>, {
-  queue: <span class="string">'reports'</span>,
-  schedule: <span class="string">'0 9 * * *'</span>,
-  data: { type: <span class="string">'daily'</span> }
+      <pre><code class="language-typescript">// Daily report at 9 AM
+await queue.addCron('daily-report', {
+  queue: 'reports',
+  schedule: '0 9 * * *',
+  data: { type: 'daily' }
 });
 
-<span class="comment">// Hourly model retraining</span>
-<span class="keyword">await</span> queue.<span class="function">addCron</span>(<span class="string">'retrain-model'</span>, {
-  queue: <span class="string">'ml-training'</span>,
-  schedule: <span class="string">'0 * * * *'</span>,
-  data: { modelId: <span class="string">'recommendations'</span> }
+// Hourly model retraining
+await queue.addCron('retrain-model', {
+  queue: 'ml-training',
+  schedule: '0 * * * *',
+  data: { modelId: 'recommendations' }
 });
 
-<span class="comment">// Every 5 minutes - cache refresh</span>
-<span class="keyword">await</span> queue.<span class="function">addCron</span>(<span class="string">'refresh-cache'</span>, {
-  queue: <span class="string">'maintenance'</span>,
-  schedule: <span class="string">'*/5 * * * *'</span>,
-  data: { cache: <span class="string">'embeddings'</span> }
+// Every 5 minutes - cache refresh
+await queue.addCron('refresh-cache', {
+  queue: 'maintenance',
+  schedule: '*/5 * * * *',
+  data: { cache: 'embeddings' }
 });</code></pre>
 
       <h2>9. Batch Processing Pattern</h2>
 
       <p>Group multiple items into a single job for efficiency.</p>
 
-      <pre><code><span class="comment">// Instead of 1000 individual jobs...</span>
-<span class="keyword">const</span> <span class="variable">BATCH_SIZE</span> = <span class="number">100</span>;
-<span class="keyword">const</span> <span class="variable">batches</span> = [];
+      <pre><code class="language-typescript">// Instead of 1000 individual jobs...
+const BATCH_SIZE = 100;
+const batches = [];
 
-<span class="keyword">for</span> (<span class="keyword">let</span> i = <span class="number">0</span>; i < items.length; i += BATCH_SIZE) {
-  batches.<span class="function">push</span>(items.<span class="function">slice</span>(i, i + BATCH_SIZE));
+for (let i = 0; i < items.length; i += BATCH_SIZE) {
+  batches.push(items.slice(i, i + BATCH_SIZE));
 }
 
-<span class="comment">// Create 10 batch jobs instead</span>
-<span class="keyword">for</span> (<span class="keyword">const</span> batch <span class="keyword">of</span> batches) {
-  <span class="keyword">await</span> queue.<span class="function">add</span>(<span class="string">'process-batch'</span>, {
+// Create 10 batch jobs instead
+for (const batch of batches) {
+  await queue.add('process-batch', {
     items: batch
   });
 }
 
-<span class="comment">// Worker processes batch efficiently</span>
-<span class="keyword">new</span> <span class="function">Worker</span>(<span class="string">'embeddings'</span>, <span class="keyword">async</span> (job) => {
-  <span class="keyword">const</span> { items } = job.data;
+// Worker processes batch efficiently
+new Worker('embeddings', async (job) => {
+  const { items } = job.data;
 
-  <span class="comment">// OpenAI supports batch embeddings</span>
-  <span class="keyword">const</span> <span class="variable">response</span> = <span class="keyword">await</span> openai.embeddings.<span class="function">create</span>({
-    input: items.<span class="function">map</span>(i => i.text),
-    model: <span class="string">'text-embedding-3-small'</span>
+  // OpenAI supports batch embeddings
+  const response = await openai.embeddings.create({
+    input: items.map(i => i.text),
+    model: 'text-embedding-3-small'
   });
 
-  <span class="keyword">return</span> response.data;
+  return response.data;
 });</code></pre>
 
       <h2>Choosing the Right Pattern</h2>
@@ -491,5 +498,6 @@
       });
     });
   </script>
+  <script>hljs.highlightAll();</script>
 </body>
 </html>

@@ -1038,12 +1038,34 @@ nav .container {
 }
 
 /* Syntax highlighting */
-.keyword { color: #c084fc; font-weight: 500; }
-.string { color: #4ade80; }
-.comment { color: #71717a; font-style: italic; }
-.function { color: #60a5fa; font-weight: 500; }
-.variable { color: #fbbf24; }
-.number { color: #f472b6; }
+/* Highlight.js theme overrides */
+.hljs {
+  background: transparent !important;
+  padding: 0 !important;
+}
+
+.hljs-keyword,
+.hljs-built_in { color: #c084fc; font-weight: 500; }
+.hljs-string,
+.hljs-template-variable { color: #4ade80; }
+.hljs-comment { color: #71717a; font-style: italic; }
+.hljs-function,
+.hljs-title.function_ { color: #60a5fa; font-weight: 500; }
+.hljs-variable,
+.hljs-params { color: #fbbf24; }
+.hljs-number { color: #f472b6; }
+.hljs-operator,
+.hljs-punctuation { color: #94a3b8; }
+.hljs-class,
+.hljs-title.class_ { color: #22d3ee; }
+.hljs-property,
+.hljs-attr { color: #fb923c; }
+.hljs-literal { color: #f472b6; }
+.hljs-type { color: #22d3ee; }
+.hljs-name { color: #f472b6; }
+.hljs-selector-tag { color: #c084fc; }
+.hljs-attribute { color: #fb923c; }
+.hljs-section { color: #60a5fa; font-weight: 600; }
 
 /* Callout */
 .callout {

@@ -51,6 +51,13 @@
     ]
   }
   </script>
+  <!-- Highlight.js -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/typescript.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/bash.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/yaml.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/json.min.js"></script>
 </head>
 <body>
   <nav>
@@ -95,86 +102,86 @@
       <h3>1. HTTP API Endpoints</h3>
       <p>The HTTP API provides essential debugging endpoints:</p>
 
-      <pre><code><span class="comment"># Health check - basic server status</span>
+      <pre><code class="language-bash"># Health check - basic server status
 curl http://localhost:6790/health
 
-<span class="comment"># Detailed statistics</span>
+# Detailed statistics
 curl http://localhost:6790/stats
 
-<span class="comment"># Prometheus metrics</span>
+# Prometheus metrics
 curl http://localhost:6790/metrics/prometheus
 
-<span class="comment"># List all queues</span>
+# List all queues
 curl http://localhost:6790/queues
 
-<span class="comment"># Get specific queue info</span>
+# Get specific queue info
 curl http://localhost:6790/queue/my-queue/stats</code></pre>
 
       <h3>2. SDK Debugging Methods</h3>
-      <pre><code><span class="keyword">import</span> { FlashQ } <span class="keyword">from</span> <span class="string">'flashq'</span>;
+      <pre><code class="language-typescript">import { FlashQ } from 'flashq';
 
-<span class="keyword">const</span> client = <span class="keyword">new</span> <span class="function">FlashQ</span>({ host: <span class="string">'localhost'</span>, port: <span class="number">6789</span> });
+const client = new FlashQ({ host: 'localhost', port: 6789 });
 
-<span class="comment">// Get server-wide statistics</span>
-<span class="keyword">const</span> stats = <span class="keyword">await</span> client.<span class="function">stats</span>();
-console.<span class="function">log</span>(<span class="string">'Server Stats:'</span>, JSON.<span class="function">stringify</span>(stats, <span class="keyword">null</span>, <span class="number">2</span>));
+// Get server-wide statistics
+const stats = await client.stats();
+console.log('Server Stats:', JSON.stringify(stats, null, 2));
 
-<span class="comment">// Get metrics with history</span>
-<span class="keyword">const</span> metrics = <span class="keyword">await</span> client.<span class="function">metrics</span>();
-console.<span class="function">log</span>(<span class="string">'Metrics:'</span>, metrics);
+// Get metrics with history
+const metrics = await client.metrics();
+console.log('Metrics:', metrics);
 
-<span class="comment">// Get job counts by state</span>
-<span class="keyword">const</span> counts = <span class="keyword">await</span> client.<span class="function">getJobCounts</span>(<span class="string">'my-queue'</span>);
-console.<span class="function">log</span>(<span class="string">'Job Counts:'</span>, counts);
-<span class="comment">// { waiting: 150, active: 10, completed: 5000, failed: 23, delayed: 50 }</span>
+// Get job counts by state
+const counts = await client.getJobCounts('my-queue');
+console.log('Job Counts:', counts);
+// { waiting: 150, active: 10, completed: 5000, failed: 23, delayed: 50 }
 
-<span class="comment">// List jobs in a specific state</span>
-<span class="keyword">const</span> failedJobs = <span class="keyword">await</span> client.<span class="function">getJobs</span>(<span class="string">'my-queue'</span>, <span class="string">'failed'</span>, <span class="number">100</span>);
-failedJobs.<span class="function">forEach</span>(job => {
-  console.<span class="function">log</span>(<span class="string">`Job </span>${job.id}<span class="string">: </span>${job.error}<span class="string">`</span>);
+// List jobs in a specific state
+const failedJobs = await client.getJobs('my-queue', 'failed', 100);
+failedJobs.forEach(job => {
+  console.log(`Job ${job.id}: ${job.error}`);
 });
 
-<span class="comment">// Get a specific job's details</span>
-<span class="keyword">const</span> job = <span class="keyword">await</span> client.<span class="function">getJob</span>(jobId);
-console.<span class="function">log</span>(<span class="string">'Job State:'</span>, job.state);
-console.<span class="function">log</span>(<span class="string">'Job Data:'</span>, job.data);
-console.<span class="function">log</span>(<span class="string">'Job Attempts:'</span>, job.attempts);</code></pre>
+// Get a specific job's details
+const job = await client.getJob(jobId);
+console.log('Job State:', job.state);
+console.log('Job Data:', job.data);
+console.log('Job Attempts:', job.attempts);</code></pre>
 
       <h3>3. Useful Debugging Script</h3>
-      <pre><code><span class="comment">// debug-queue.ts - Save this for quick diagnostics</span>
-<span class="keyword">import</span> { FlashQ } <span class="keyword">from</span> <span class="string">'flashq'</span>;
+      <pre><code class="language-typescript">// debug-queue.ts - Save this for quick diagnostics
+import { FlashQ } from 'flashq';
 
-<span class="keyword">async function</span> <span class="function">diagnose</span>(queueName) {
-  <span class="keyword">const</span> client = <span class="keyword">new</span> <span class="function">FlashQ</span>({ host: <span class="string">'localhost'</span>, port: <span class="number">6789</span> });
-  <span class="keyword">await</span> client.<span class="function">connect</span>();
+async function diagnose(queueName) {
+  const client = new FlashQ({ host: 'localhost', port: 6789 });
+  await client.connect();
 
-  console.<span class="function">log</span>(<span class="string">'\n=== Queue Diagnostics ===\n'</span>);
+  console.log('\n=== Queue Diagnostics ===\n');
 
-  <span class="comment">// 1. Job counts</span>
-  <span class="keyword">const</span> counts = <span class="keyword">await</span> client.<span class="function">getJobCounts</span>(queueName);
-  console.<span class="function">log</span>(<span class="string">'📊 Job Counts:'</span>);
-  console.<span class="function">log</span>(<span class="string">`   Waiting:   </span>${counts.waiting}<span class="string">`</span>);
-  console.<span class="function">log</span>(<span class="string">`   Active:    </span>${counts.active}<span class="string">`</span>);
-  console.<span class="function">log</span>(<span class="string">`   Completed: </span>${counts.completed}<span class="string">`</span>);
-  console.<span class="function">log</span>(<span class="string">`   Failed:    </span>${counts.failed}<span class="string">`</span>);
+  // 1. Job counts
+  const counts = await client.getJobCounts(queueName);
+  console.log('📊 Job Counts:');
+  console.log(`   Waiting:   ${counts.waiting}`);
+  console.log(`   Active:    ${counts.active}`);
+  console.log(`   Completed: ${counts.completed}`);
+  console.log(`   Failed:    ${counts.failed}`);
 
-  <span class="comment">// 2. Check for stuck jobs</span>
-  <span class="keyword">const</span> activeJobs = <span class="keyword">await</span> client.<span class="function">getJobs</span>(queueName, <span class="string">'active'</span>, <span class="number">10</span>);
-  console.<span class="function">log</span>(<span class="string">'\n⏳ Active Jobs:'</span>);
-  activeJobs.<span class="function">forEach</span>(job => {
-    <span class="keyword">const</span> age = Date.<span class="function">now</span>() - job.processedAt;
-    <span class="keyword">const</span> status = age > <span class="number">60000</span> ? <span class="string">'⚠️ POSSIBLY STUCK'</span> : <span class="string">'✅ OK'</span>;
-    console.<span class="function">log</span>(<span class="string">`   Job </span>${job.id}<span class="string">: </span>${Math.<span class="function">round</span>(age/<span class="number">1000</span>)}<span class="string">s old </span>${status}<span class="string">`</span>);
+  // 2. Check for stuck jobs
+  const activeJobs = await client.getJobs(queueName, 'active', 10);
+  console.log('\n⏳ Active Jobs:');
+  activeJobs.forEach(job => {
+    const age = Date.now() - job.processedAt;
+    const status = age > 60000 ? '⚠️ POSSIBLY STUCK' : '✅ OK';
+    console.log(`   Job ${job.id}: ${Math.round(age/1000)}s old ${status}`);
   });
 
-  <span class="comment">// 3. DLQ check</span>
-  <span class="keyword">const</span> dlq = <span class="keyword">await</span> client.<span class="function">getDlq</span>(queueName, <span class="number">5</span>);
-  console.<span class="function">log</span>(<span class="string">`\n☠️ Dead Letter Queue: </span>${dlq.length}<span class="string"> jobs`</span>);
+  // 3. DLQ check
+  const dlq = await client.getDlq(queueName, 5);
+  console.log(`\n☠️ Dead Letter Queue: ${dlq.length} jobs`);
 
-  <span class="keyword">await</span> client.<span class="function">close</span>();
+  await client.close();
 }
 
-<span class="function">diagnose</span>(process.argv[<span class="number">2</span>] || <span class="string">'default'</span>);</code></pre>
+diagnose(process.argv[2] || 'default');</code></pre>
 
       <h2>Problem: Jobs Stuck in Processing</h2>
 
@@ -187,58 +194,58 @@ console.<span class="function">log</span>(<span class="string">'Job Attempts:'</
 
       <h3>Diagnosis Steps</h3>
 
-      <pre><code><span class="comment">// 1. Check how long jobs have been active</span>
-<span class="keyword">const</span> activeJobs = <span class="keyword">await</span> client.<span class="function">getJobs</span>(<span class="string">'my-queue'</span>, <span class="string">'active'</span>, <span class="number">100</span>);
+      <pre><code class="language-typescript">// 1. Check how long jobs have been active
+const activeJobs = await client.getJobs('my-queue', 'active', 100);
 
-activeJobs.<span class="function">forEach</span>(job => {
-  <span class="keyword">const</span> activeTime = Date.<span class="function">now</span>() - job.processedAt;
-  <span class="keyword">if</span> (activeTime > <span class="number">60000</span>) { <span class="comment">// More than 1 minute</span>
-    console.<span class="function">log</span>(<span class="string">`⚠️ Job </span>${job.id}<span class="string"> stuck for </span>${Math.<span class="function">round</span>(activeTime/<span class="number">1000</span>)}<span class="string">s`</span>);
-    console.<span class="function">log</span>(<span class="string">`   Worker: </span>${job.workerId}<span class="string">`</span>);
+activeJobs.forEach(job => {
+  const activeTime = Date.now() - job.processedAt;
+  if (activeTime > 60000) { // More than 1 minute
+    console.log(`⚠️ Job ${job.id} stuck for ${Math.round(activeTime/1000)}s`);
+    console.log(`   Worker: ${job.workerId}`);
   }
 });</code></pre>
 
       <h3>Common Causes & Solutions</h3>
 
       <h4>1. Worker Crashed Without ACK</h4>
-      <pre><code><span class="comment">// Problem: Worker died before acknowledging</span>
-<span class="comment">// Solution: flashQ auto-recovers after stall_timeout</span>
+      <pre><code class="language-typescript">// Problem: Worker died before acknowledging
+// Solution: flashQ auto-recovers after stall_timeout
 
-<span class="comment">// Set appropriate stall timeout when pushing jobs</span>
-<span class="keyword">await</span> client.<span class="function">push</span>(<span class="string">'my-queue'</span>, data, {
-  stall_timeout: <span class="number">30000</span>,  <span class="comment">// 30 seconds</span>
-  timeout: <span class="number">60000</span>         <span class="comment">// 60 second processing timeout</span>
+// Set appropriate stall timeout when pushing jobs
+await client.push('my-queue', data, {
+  stall_timeout: 30000,  // 30 seconds
+  timeout: 60000         // 60 second processing timeout
 });
 
-<span class="comment">// Jobs will automatically return to queue after timeout</span></code></pre>
+// Jobs will automatically return to queue after timeout</code></pre>
 
       <h4>2. Infinite Loop in Processor</h4>
-      <pre><code><span class="comment">// Problem: Processor never returns</span>
-<span class="comment">// BAD</span>
-<span class="keyword">const</span> worker = <span class="keyword">new</span> <span class="function">Worker</span>(<span class="string">'my-queue'</span>, <span class="keyword">async</span> (job) => {
-  <span class="keyword">while</span> (<span class="keyword">true</span>) {  <span class="comment">// Infinite loop!</span>
-    <span class="keyword">await</span> <span class="function">doSomething</span>();
+      <pre><code class="language-typescript">// Problem: Processor never returns
+// BAD
+const worker = new Worker('my-queue', async (job) => {
+  while (true) {  // Infinite loop!
+    await doSomething();
   }
 });
 
-<span class="comment">// GOOD - Always have exit conditions</span>
-<span class="keyword">const</span> worker = <span class="keyword">new</span> <span class="function">Worker</span>(<span class="string">'my-queue'</span>, <span class="keyword">async</span> (job) => {
-  <span class="keyword">const</span> maxIterations = <span class="number">1000</span>;
-  <span class="keyword">for</span> (<span class="keyword">let</span> i = <span class="number">0</span>; i < maxIterations; i++) {
-    <span class="keyword">const</span> done = <span class="keyword">await</span> <span class="function">doSomething</span>();
-    <span class="keyword">if</span> (done) <span class="keyword">break</span>;
+// GOOD - Always have exit conditions
+const worker = new Worker('my-queue', async (job) => {
+  const maxIterations = 1000;
+  for (let i = 0; i < maxIterations; i++) {
+    const done = await doSomething();
+    if (done) break;
   }
 });</code></pre>
 
       <h4>3. Manual Recovery</h4>
-      <pre><code><span class="comment">// Force-fail stuck jobs to return them to queue</span>
-<span class="keyword">const</span> activeJobs = <span class="keyword">await</span> client.<span class="function">getJobs</span>(<span class="string">'my-queue'</span>, <span class="string">'active'</span>, <span class="number">100</span>);
+      <pre><code class="language-typescript">// Force-fail stuck jobs to return them to queue
+const activeJobs = await client.getJobs('my-queue', 'active', 100);
 
-<span class="keyword">for</span> (<span class="keyword">const</span> job <span class="keyword">of</span> activeJobs) {
-  <span class="keyword">const</span> activeTime = Date.<span class="function">now</span>() - job.processedAt;
-  <span class="keyword">if</span> (activeTime > <span class="number">300000</span>) { <span class="comment">// Stuck for 5+ minutes</span>
-    console.<span class="function">log</span>(<span class="string">`Force-failing stuck job </span>${job.id}<span class="string">`</span>);
-    <span class="keyword">await</span> client.<span class="function">fail</span>(job.id, <span class="string">'Manual recovery: job was stuck'</span>);
+for (const job of activeJobs) {
+  const activeTime = Date.now() - job.processedAt;
+  if (activeTime > 300000) { // Stuck for 5+ minutes
+    console.log(`Force-failing stuck job ${job.id}`);
+    await client.fail(job.id, 'Manual recovery: job was stuck');
   }
 }</code></pre>
 
@@ -253,74 +260,74 @@ activeJobs.<span class="function">forEach</span>(job => {
 
       <h3>Diagnosis</h3>
 
-      <pre><code><span class="comment">// Analyze DLQ errors</span>
-<span class="keyword">const</span> dlqJobs = <span class="keyword">await</span> client.<span class="function">getDlq</span>(<span class="string">'my-queue'</span>, <span class="number">100</span>);
+      <pre><code class="language-typescript">// Analyze DLQ errors
+const dlqJobs = await client.getDlq('my-queue', 100);
 
-<span class="comment">// Group by error type</span>
-<span class="keyword">const</span> errorGroups = {};
-dlqJobs.<span class="function">forEach</span>(job => {
-  <span class="keyword">const</span> errorType = job.error?.<span class="function">split</span>(<span class="string">':'</span>)[<span class="number">0</span>] || <span class="string">'Unknown'</span>;
-  errorGroups[errorType] = (errorGroups[errorType] || <span class="number">0</span>) + <span class="number">1</span>;
+// Group by error type
+const errorGroups = {};
+dlqJobs.forEach(job => {
+  const errorType = job.error?.split(':')[0] || 'Unknown';
+  errorGroups[errorType] = (errorGroups[errorType] || 0) + 1;
 });
 
-console.<span class="function">log</span>(<span class="string">'Error Distribution:'</span>);
-Object.<span class="function">entries</span>(errorGroups)
-  .<span class="function">sort</span>((a, b) => b[<span class="number">1</span>] - a[<span class="number">1</span>])
-  .<span class="function">forEach</span>(([error, count]) => {
-    console.<span class="function">log</span>(<span class="string">`  </span>${count}<span class="string">x </span>${error}<span class="string">`</span>);
+console.log('Error Distribution:');
+Object.entries(errorGroups)
+  .sort((a, b) => b[1] - a[1])
+  .forEach(([error, count]) => {
+    console.log(`  ${count}x ${error}`);
   });</code></pre>
 
       <h3>Common Causes & Solutions</h3>
 
       <h4>1. External API Failures</h4>
-      <pre><code><span class="comment">// Problem: Third-party API returns errors</span>
-<span class="comment">// Solution: Add circuit breaker and better retry logic</span>
+      <pre><code class="language-typescript">// Problem: Third-party API returns errors
+// Solution: Add circuit breaker and better retry logic
 
-<span class="keyword">import</span> CircuitBreaker <span class="keyword">from</span> <span class="string">'opossum'</span>;
+import CircuitBreaker from 'opossum';
 
-<span class="keyword">const</span> breaker = <span class="keyword">new</span> <span class="function">CircuitBreaker</span>(callExternalAPI, {
-  timeout: <span class="number">10000</span>,
-  errorThresholdPercentage: <span class="number">50</span>,
-  resetTimeout: <span class="number">30000</span>
+const breaker = new CircuitBreaker(callExternalAPI, {
+  timeout: 10000,
+  errorThresholdPercentage: 50,
+  resetTimeout: 30000
 });
 
-<span class="keyword">const</span> worker = <span class="keyword">new</span> <span class="function">Worker</span>(<span class="string">'api-calls'</span>, <span class="keyword">async</span> (job) => {
-  <span class="keyword">try</span> {
-    <span class="keyword">return</span> <span class="keyword">await</span> breaker.<span class="function">fire</span>(job.data);
-  } <span class="keyword">catch</span> (error) {
-    <span class="keyword">if</span> (breaker.opened) {
-      <span class="keyword">throw</span> <span class="keyword">new</span> <span class="function">Error</span>(<span class="string">'Circuit breaker open, will retry'</span>);
+const worker = new Worker('api-calls', async (job) => {
+  try {
+    return await breaker.fire(job.data);
+  } catch (error) {
+    if (breaker.opened) {
+      throw new Error('Circuit breaker open, will retry');
     }
-    <span class="keyword">throw</span> error;
+    throw error;
   }
 });</code></pre>
 
       <h4>2. Invalid Job Data</h4>
-      <pre><code><span class="comment">// Problem: Jobs have bad data that will never succeed</span>
-<span class="comment">// Solution: Validate before processing, discard invalid</span>
+      <pre><code class="language-typescript">// Problem: Jobs have bad data that will never succeed
+// Solution: Validate before processing, discard invalid
 
-<span class="keyword">const</span> worker = <span class="keyword">new</span> <span class="function">Worker</span>(<span class="string">'process'</span>, <span class="keyword">async</span> (job) => {
-  <span class="comment">// Validate first</span>
-  <span class="keyword">if</span> (!job.data.userId || !job.data.action) {
-    <span class="comment">// Don't retry invalid jobs - discard them</span>
-    <span class="keyword">await</span> client.<span class="function">discard</span>(job.id);
-    console.<span class="function">log</span>(<span class="string">`Discarded invalid job </span>${job.id}<span class="string">`</span>);
-    <span class="keyword">return</span>;
+const worker = new Worker('process', async (job) => {
+  // Validate first
+  if (!job.data.userId || !job.data.action) {
+    // Don't retry invalid jobs - discard them
+    await client.discard(job.id);
+    console.log(`Discarded invalid job ${job.id}`);
+    return;
   }
 
-  <span class="keyword">await</span> <span class="function">processJob</span>(job.data);
+  await processJob(job.data);
 });</code></pre>
 
       <h4>3. Retry DLQ Jobs After Fix</h4>
-      <pre><code><span class="comment">// After fixing the root cause, retry DLQ jobs</span>
-<span class="keyword">const</span> retried = <span class="keyword">await</span> client.<span class="function">retryDlq</span>(<span class="string">'my-queue'</span>);
-console.<span class="function">log</span>(<span class="string">`Retried </span>${retried}<span class="string"> jobs from DLQ`</span>);
+      <pre><code class="language-typescript">// After fixing the root cause, retry DLQ jobs
+const retried = await client.retryDlq('my-queue');
+console.log(`Retried ${retried} jobs from DLQ`);
 
-<span class="comment">// Or retry specific jobs</span>
-<span class="keyword">const</span> dlqJobs = <span class="keyword">await</span> client.<span class="function">getDlq</span>(<span class="string">'my-queue'</span>, <span class="number">100</span>);
-<span class="keyword">for</span> (<span class="keyword">const</span> job <span class="keyword">of</span> dlqJobs) {
-  <span class="keyword">if</span> (job.error?.<span class="function">includes</span>(<span class="string">'API rate limit'</span>)) {
-    <span class="keyword">await</span> client.<span class="function">retryDlq</span>(<span class="string">'my-queue'</span>, job.id);
+// Or retry specific jobs
+const dlqJobs = await client.getDlq('my-queue', 100);
+for (const job of dlqJobs) {
+  if (job.error?.includes('API rate limit')) {
+    await client.retryDlq('my-queue', job.id);
   }
 }</code></pre>
 
@@ -335,44 +342,44 @@ console.<span class="function">log</span>(<span class="string">`Retried </span>$
 
       <h3>Diagnosis</h3>
 
-      <pre><code><span class="comment">// Check queue depth and processing rate</span>
-<span class="keyword">const</span> stats = <span class="keyword">await</span> client.<span class="function">stats</span>();
-console.<span class="function">log</span>(<span class="string">'Queue depths:'</span>, stats.queues);
+      <pre><code class="language-typescript">// Check queue depth and processing rate
+const stats = await client.stats();
+console.log('Queue depths:', stats.queues);
 
-<span class="comment">// Monitor throughput over time</span>
-<span class="keyword">const</span> metrics = <span class="keyword">await</span> client.<span class="function">metrics</span>();
-console.<span class="function">log</span>(<span class="string">'Throughput history:'</span>, metrics.throughput);</code></pre>
+// Monitor throughput over time
+const metrics = await client.metrics();
+console.log('Throughput history:', metrics.throughput);</code></pre>
 
       <h3>Common Causes & Solutions</h3>
 
       <h4>1. Low Worker Concurrency</h4>
-      <pre><code><span class="comment">// Problem: Only processing one job at a time</span>
-<span class="comment">// Solution: Increase concurrency</span>
+      <pre><code class="language-typescript">// Problem: Only processing one job at a time
+// Solution: Increase concurrency
 
-<span class="comment">// Before</span>
-<span class="keyword">const</span> worker = <span class="keyword">new</span> <span class="function">Worker</span>(<span class="string">'my-queue'</span>, processor);  <span class="comment">// Default: 1</span>
+// Before
+const worker = new Worker('my-queue', processor);  // Default: 1
 
-<span class="comment">// After - for I/O bound tasks</span>
-<span class="keyword">const</span> worker = <span class="keyword">new</span> <span class="function">Worker</span>(<span class="string">'my-queue'</span>, processor, {
-  concurrency: <span class="number">20</span>  <span class="comment">// Process 20 jobs concurrently</span>
+// After - for I/O bound tasks
+const worker = new Worker('my-queue', processor, {
+  concurrency: 20  // Process 20 jobs concurrently
 });</code></pre>
 
       <h4>2. Rate Limiting Too Strict</h4>
-      <pre><code><span class="comment">// Increase rate limit</span>
-<span class="keyword">await</span> client.<span class="function">setRateLimit</span>(<span class="string">'my-queue'</span>, {
-  max: <span class="number">100</span>,      <span class="comment">// 100 jobs</span>
-  window: <span class="number">1000</span>   <span class="comment">// per second</span>
+      <pre><code class="language-typescript">// Increase rate limit
+await client.setRateLimit('my-queue', {
+  max: 100,      // 100 jobs
+  window: 1000   // per second
 });
 
-<span class="comment">// Or clear rate limit entirely for testing</span>
-<span class="keyword">await</span> client.<span class="function">clearRateLimit</span>(<span class="string">'my-queue'</span>);</code></pre>
+// Or clear rate limit entirely for testing
+await client.clearRateLimit('my-queue');</code></pre>
 
       <h4>3. Enable Binary Protocol</h4>
-      <pre><code><span class="comment">// 40% faster serialization with MessagePack</span>
-<span class="keyword">const</span> client = <span class="keyword">new</span> <span class="function">FlashQ</span>({
-  host: <span class="string">'localhost'</span>,
-  port: <span class="number">6789</span>,
-  useBinary: <span class="keyword">true</span>
+      <pre><code class="language-typescript">// 40% faster serialization with MessagePack
+const client = new FlashQ({
+  host: 'localhost',
+  port: 6789,
+  useBinary: true
 });</code></pre>
 
       <h2>Problem: Connection Issues</h2>
@@ -386,43 +393,43 @@ console.<span class="function">log</span>(<span class="string">'Throughput histo
 
       <h3>Diagnosis</h3>
 
-      <pre><code><span class="comment"># Check if server is running</span>
+      <pre><code class="language-bash"># Check if server is running
 curl http://localhost:6790/health
 
-<span class="comment"># Check port is open</span>
+# Check port is open
 nc -zv localhost 6789
 
-<span class="comment"># Check server logs</span>
+# Check server logs
 docker logs flashq-server 2>&1 | tail -100</code></pre>
 
       <h3>Common Causes & Solutions</h3>
 
       <h4>1. Connection Pool Exhausted</h4>
-      <pre><code><span class="comment">// Problem: Too many connections</span>
-<span class="comment">// Solution: Reuse client instances</span>
+      <pre><code class="language-typescript">// Problem: Too many connections
+// Solution: Reuse client instances
 
-<span class="comment">// BAD - Creates new connection per request</span>
-app.<span class="function">post</span>(<span class="string">'/job'</span>, <span class="keyword">async</span> (req, res) => {
-  <span class="keyword">const</span> client = <span class="keyword">new</span> <span class="function">FlashQ</span>({ host: <span class="string">'localhost'</span> });
-  <span class="keyword">await</span> client.<span class="function">connect</span>();
-  <span class="keyword">await</span> client.<span class="function">push</span>(<span class="string">'queue'</span>, req.body);
-  <span class="keyword">await</span> client.<span class="function">close</span>();  <span class="comment">// Connection churn!</span>
+// BAD - Creates new connection per request
+app.post('/job', async (req, res) => {
+  const client = new FlashQ({ host: 'localhost' });
+  await client.connect();
+  await client.push('queue', req.body);
+  await client.close();  // Connection churn!
 });
 
-<span class="comment">// GOOD - Singleton client</span>
-<span class="keyword">const</span> client = <span class="keyword">new</span> <span class="function">FlashQ</span>({ host: <span class="string">'localhost'</span> });
-<span class="keyword">await</span> client.<span class="function">connect</span>();
+// GOOD - Singleton client
+const client = new FlashQ({ host: 'localhost' });
+await client.connect();
 
-app.<span class="function">post</span>(<span class="string">'/job'</span>, <span class="keyword">async</span> (req, res) => {
-  <span class="keyword">await</span> client.<span class="function">push</span>(<span class="string">'queue'</span>, req.body);  <span class="comment">// Reuses connection</span>
+app.post('/job', async (req, res) => {
+  await client.push('queue', req.body);  // Reuses connection
 });</code></pre>
 
       <h4>2. Network Timeouts</h4>
-      <pre><code><span class="comment">// Increase timeout for slow networks</span>
-<span class="keyword">const</span> client = <span class="keyword">new</span> <span class="function">FlashQ</span>({
-  host: <span class="string">'remote-server.com'</span>,
-  port: <span class="number">6789</span>,
-  timeout: <span class="number">30000</span>  <span class="comment">// 30 second timeout</span>
+      <pre><code class="language-typescript">// Increase timeout for slow networks
+const client = new FlashQ({
+  host: 'remote-server.com',
+  port: 6789,
+  timeout: 30000  // 30 second timeout
 });</code></pre>
 
       <h2>Problem: Memory Issues</h2>
@@ -436,27 +443,27 @@ app.<span class="function">post</span>(<span class="string">'/job'</span>, <span
 
       <h3>Diagnosis</h3>
 
-      <pre><code><span class="comment"># Check server memory</span>
+      <pre><code class="language-bash"># Check server memory
 docker stats flashq-server
 
-<span class="comment"># Check completed jobs count</span>
+# Check completed jobs count
 curl http://localhost:6790/stats | jq '.completed_jobs'</code></pre>
 
       <h3>Common Causes & Solutions</h3>
 
       <h4>1. Too Many Completed Jobs Stored</h4>
-      <pre><code><span class="comment">// Problem: Keeping too many completed job results</span>
-<span class="comment">// Solution: Set retention limits</span>
+      <pre><code class="language-typescript">// Problem: Keeping too many completed job results
+// Solution: Set retention limits
 
-<span class="comment">// Per-job retention</span>
-<span class="keyword">await</span> client.<span class="function">push</span>(<span class="string">'my-queue'</span>, data, {
-  keepCompletedAge: <span class="number">3600000</span>,  <span class="comment">// Keep for 1 hour only</span>
-  keepCompletedCount: <span class="number">100</span>     <span class="comment">// Or keep last 100</span>
+// Per-job retention
+await client.push('my-queue', data, {
+  keepCompletedAge: 3600000,  // Keep for 1 hour only
+  keepCompletedCount: 100     // Or keep last 100
 });
 
-<span class="comment">// Clean old jobs periodically</span>
-<span class="keyword">await</span> client.<span class="function">clean</span>(<span class="string">'my-queue'</span>, <span class="number">3600000</span>, <span class="string">'completed'</span>, <span class="number">1000</span>);
-<span class="comment">// Removes completed jobs older than 1 hour, max 1000</span></code></pre>
+// Clean old jobs periodically
+await client.clean('my-queue', 3600000, 'completed', 1000);
+// Removes completed jobs older than 1 hour, max 1000</code></pre>
 
       <h2>Quick Reference: Debug Commands</h2>
 
@@ -536,5 +543,6 @@ curl http://localhost:6790/stats | jq '.completed_jobs'</code></pre>
   </footer>
 
   <script src="../script.js"></script>
+  <script>hljs.highlightAll();</script>
 </body>
 </html>

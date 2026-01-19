@@ -64,6 +64,13 @@
     ]
   }
   </script>
+  <!-- Highlight.js -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/typescript.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/bash.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/yaml.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/json.min.js"></script>
 </head>
 <body>
   <!-- Navigation -->
@@ -143,10 +150,10 @@
 
       <p>flashQ is a standalone server written in Rust. You run a single binary, and you're done. No Redis to provision, no connection strings to manage, no memory to monitor.</p>
 
-      <pre><code><span class="comment"># Start flashQ server</span>
+      <pre><code class="language-bash"># Start flashQ server
 ./flashq-server
 
-<span class="comment"># Or with Docker</span>
+# Or with Docker
 docker run -p 6789:6789 flashq/flashq</code></pre>
 
       <p>For persistence, flashQ can optionally connect to PostgreSQL. But for many use cases, the in-memory mode is perfectly sufficient.</p>
@@ -155,11 +162,11 @@ docker run -p 6789:6789 flashq/flashq</code></pre>
 
       <p>If you're already using BullMQ, switching to flashQ is trivial. The API is intentionally compatible:</p>
 
-      <pre><code><span class="comment">// Before (BullMQ)</span>
-<span class="keyword">import</span> { Queue, Worker } <span class="keyword">from</span> <span class="string">'bullmq'</span>;
+      <pre><code class="language-typescript">// Before (BullMQ)
+import { Queue, Worker } from 'bullmq';
 
-<span class="comment">// After (flashQ)</span>
-<span class="keyword">import</span> { Queue, Worker } <span class="keyword">from</span> <span class="string">'flashq'</span>;</code></pre>
+// After (flashQ)
+import { Queue, Worker } from 'flashq';</code></pre>
 
       <p>That's it. Your existing code works with minimal changes.</p>
 
@@ -210,7 +217,7 @@ docker run -p 6789:6789 flashq/flashq</code></pre>
 
       <p>At its core, flashQ is a TCP server that accepts commands and manages job queues. Here's the architecture:</p>
 
-      <pre><code>┌─────────────────┐     ┌─────────────────┐
+      <pre><code class="language-plaintext">┌─────────────────┐     ┌─────────────────┐
 │   Your App      │     │   Workers       │
 │  (Producer)     │     │  (Consumers)    │
 └────────┬────────┘     └────────┬────────┘
@@ -240,29 +247,29 @@ docker run -p 6789:6789 flashq/flashq</code></pre>
 
       <p>Let's build a simple AI pipeline that generates embeddings and stores them:</p>
 
-      <pre><code><span class="keyword">import</span> { Queue, Worker } <span class="keyword">from</span> <span class="string">'flashq'</span>;
+      <pre><code class="language-typescript">import { Queue, Worker } from 'flashq';
 
-<span class="comment">// Create a queue</span>
-<span class="keyword">const</span> <span class="variable">queue</span> = <span class="keyword">new</span> <span class="function">Queue</span>(<span class="string">'embeddings'</span>);
+// Create a queue
+const queue = new Queue('embeddings');
 
-<span class="comment">// Add a job</span>
-<span class="keyword">await</span> queue.<span class="function">add</span>(<span class="string">'generate'</span>, {
-  text: <span class="string">'The quick brown fox jumps over the lazy dog'</span>,
-  model: <span class="string">'text-embedding-3-small'</span>
+// Add a job
+await queue.add('generate', {
+  text: 'The quick brown fox jumps over the lazy dog',
+  model: 'text-embedding-3-small'
 });
 
-<span class="comment">// Process jobs</span>
-<span class="keyword">const</span> <span class="variable">worker</span> = <span class="keyword">new</span> <span class="function">Worker</span>(<span class="string">'embeddings'</span>, <span class="keyword">async</span> (job) => {
-  <span class="keyword">const</span> { text, model } = job.data;
+// Process jobs
+const worker = new Worker('embeddings', async (job) => {
+  const { text, model } = job.data;
 
-  <span class="comment">// Call OpenAI API</span>
-  <span class="keyword">const</span> <span class="variable">response</span> = <span class="keyword">await</span> openai.embeddings.<span class="function">create</span>({
+  // Call OpenAI API
+  const response = await openai.embeddings.create({
     input: text,
     model: model
   });
 
-  <span class="comment">// Return the embedding</span>
-  <span class="keyword">return</span> response.data[<span class="number">0</span>].embedding;
+  // Return the embedding
+  return response.data[0].embedding;
 });</code></pre>
 
       <h2>When Should You Use flashQ?</h2>
@@ -289,26 +296,26 @@ docker run -p 6789:6789 flashq/flashq</code></pre>
 
       <p>Ready to try flashQ? It takes about 5 minutes to get started:</p>
 
-      <pre><code><span class="comment"># Install the SDK</span>
+      <pre><code class="language-bash"># Install the SDK
 npm install flashq
 
-<span class="comment"># Start the server (using Docker)</span>
+# Start the server (using Docker)
 docker run -d -p 6789:6789 flashq/flashq
 
-<span class="comment"># Or download the binary</span>
+# Or download the binary
 curl -L https://github.com/egeominotti/flashq/releases/latest/download/flashq-linux -o flashq
 chmod +x flashq
 ./flashq</code></pre>
 
       <p>Then in your code:</p>
 
-      <pre><code><span class="keyword">import</span> { Queue, Worker } <span class="keyword">from</span> <span class="string">'flashq'</span>;
+      <pre><code class="language-typescript">import { Queue, Worker } from 'flashq';
 
-<span class="keyword">const</span> <span class="variable">queue</span> = <span class="keyword">new</span> <span class="function">Queue</span>(<span class="string">'my-queue'</span>);
-<span class="keyword">await</span> queue.<span class="function">add</span>(<span class="string">'task'</span>, { hello: <span class="string">'world'</span> });
+const queue = new Queue('my-queue');
+await queue.add('task', { hello: 'world' });
 
-<span class="keyword">const</span> <span class="variable">worker</span> = <span class="keyword">new</span> <span class="function">Worker</span>(<span class="string">'my-queue'</span>, <span class="keyword">async</span> (job) => {
-  console.<span class="function">log</span>(job.data); <span class="comment">// { hello: 'world' }</span>
+const worker = new Worker('my-queue', async (job) => {
+  console.log(job.data); // { hello: 'world' }
 });</code></pre>
 
       <div class="callout callout-success">
@@ -365,5 +372,6 @@ chmod +x flashq
       });
     });
   </script>
+  <script>hljs.highlightAll();</script>
 </body>
 </html>

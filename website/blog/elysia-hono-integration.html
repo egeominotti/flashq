@@ -53,6 +53,13 @@
     ]
   }
   </script>
+  <!-- Highlight.js -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/typescript.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/bash.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/yaml.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/json.min.js"></script>
 </head>
 <body>
   <nav>
@@ -146,7 +153,7 @@
 
       <h2 id="architecture">Architecture Overview</h2>
 
-      <pre><code>┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+      <pre><code class="language-bash">┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
 │  Elysia/Hono    │     │    flashQ       │     │    Worker       │
 │     API         │────▶│    Server       │◀────│    Process      │
 │                 │     │                 │     │                 │
@@ -164,86 +171,86 @@
 
       <h3>Project Setup</h3>
 
-      <pre><code><span class="comment"># Create new Elysia project</span>
+      <pre><code class="language-bash"># Create new Elysia project
 bun create elysia flashq-elysia
-<span class="keyword">cd</span> flashq-elysia
+cd flashq-elysia
 
-<span class="comment"># Install flashQ</span>
+# Install flashQ
 bun add flashq</code></pre>
 
       <h3>Queue Configuration</h3>
 
-      <pre><code><span class="comment">// src/queue.ts</span>
-<span class="keyword">import</span> { FlashQ, Worker } <span class="keyword">from</span> <span class="string">'flashq'</span>;
+      <pre><code class="language-typescript">// src/queue.ts
+import { FlashQ, Worker } from 'flashq';
 
-<span class="comment">// Singleton client instance</span>
-<span class="keyword">let</span> client: FlashQ | <span class="keyword">null</span> = <span class="keyword">null</span>;
+// Singleton client instance
+let client: FlashQ | null = null;
 
-<span class="keyword">export</span> <span class="keyword">async</span> <span class="keyword">function</span> <span class="function">getClient</span>(): Promise&lt;FlashQ&gt; {
-  <span class="keyword">if</span> (!client) {
-    client = <span class="keyword">new</span> <span class="function">FlashQ</span>({
-      host: process.env.FLASHQ_HOST || <span class="string">'localhost'</span>,
-      port: <span class="function">parseInt</span>(process.env.FLASHQ_PORT || <span class="string">'6789'</span>),
+export async function getClient(): Promise&lt;FlashQ&gt; {
+  if (!client) {
+    client = new FlashQ({
+      host: process.env.FLASHQ_HOST || 'localhost',
+      port: parseInt(process.env.FLASHQ_PORT || '6789'),
       token: process.env.FLASHQ_TOKEN,
     });
-    <span class="keyword">await</span> client.<span class="function">connect</span>();
+    await client.connect();
   }
-  <span class="keyword">return</span> client;
+  return client;
 }
 
-<span class="comment">// Queue names as constants for type safety</span>
-<span class="keyword">export</span> <span class="keyword">const</span> <span class="variable">QUEUES</span> = {
-  EMAIL: <span class="string">'email'</span>,
-  AI_PROCESSING: <span class="string">'ai-processing'</span>,
-  WEBHOOKS: <span class="string">'webhooks'</span>,
-  NOTIFICATIONS: <span class="string">'notifications'</span>,
-} <span class="keyword">as const</span>;
+// Queue names as constants for type safety
+export const QUEUES = {
+  EMAIL: 'email',
+  AI_PROCESSING: 'ai-processing',
+  WEBHOOKS: 'webhooks',
+  NOTIFICATIONS: 'notifications',
+} as const;
 
-<span class="comment">// Type-safe job data interfaces</span>
-<span class="keyword">export</span> <span class="keyword">interface</span> <span class="function">EmailJob</span> {
-  to: <span class="keyword">string</span>;
-  subject: <span class="keyword">string</span>;
-  template: <span class="keyword">string</span>;
-  data: Record&lt;<span class="keyword">string</span>, <span class="keyword">any</span>&gt;;
+// Type-safe job data interfaces
+export interface EmailJob {
+  to: string;
+  subject: string;
+  template: string;
+  data: Record&lt;string, any&gt;;
 }
 
-<span class="keyword">export</span> <span class="keyword">interface</span> <span class="function">AIJob</span> {
-  prompt: <span class="keyword">string</span>;
-  model: <span class="string">'gpt-4'</span> | <span class="string">'gpt-4-turbo'</span> | <span class="string">'claude-3'</span>;
-  userId: <span class="keyword">string</span>;
-  maxTokens?: <span class="keyword">number</span>;
+export interface AIJob {
+  prompt: string;
+  model: 'gpt-4' | 'gpt-4-turbo' | 'claude-3';
+  userId: string;
+  maxTokens?: number;
 }</code></pre>
 
       <h3>Elysia Plugin for flashQ</h3>
 
-      <pre><code><span class="comment">// src/plugins/flashq.ts</span>
-<span class="keyword">import</span> { Elysia } <span class="keyword">from</span> <span class="string">'elysia'</span>;
-<span class="keyword">import</span> { getClient, QUEUES } <span class="keyword">from</span> <span class="string">'../queue'</span>;
+      <pre><code class="language-typescript">// src/plugins/flashq.ts
+import { Elysia } from 'elysia';
+import { getClient, QUEUES } from '../queue';
 
-<span class="keyword">export</span> <span class="keyword">const</span> <span class="variable">flashqPlugin</span> = <span class="keyword">new</span> <span class="function">Elysia</span>({ name: <span class="string">'flashq'</span> })
-  .<span class="function">decorate</span>(<span class="string">'queue'</span>, {
-    <span class="comment">// Push a job to any queue</span>
-    <span class="keyword">async</span> <span class="function">push</span>&lt;T&gt;(queue: <span class="keyword">string</span>, data: T, options?: <span class="keyword">any</span>) {
-      <span class="keyword">const</span> <span class="variable">client</span> = <span class="keyword">await</span> <span class="function">getClient</span>();
-      <span class="keyword">return</span> client.<span class="function">push</span>(queue, data, options);
+export const flashqPlugin = new Elysia({ name: 'flashq' })
+  .decorate('queue', {
+    // Push a job to any queue
+    async push&lt;T&gt;(queue: string, data: T, options?: any) {
+      const client = await getClient();
+      return client.push(queue, data, options);
     },
 
-    <span class="comment">// Get job status</span>
-    <span class="keyword">async</span> <span class="function">getJob</span>(jobId: <span class="keyword">string</span>) {
-      <span class="keyword">const</span> <span class="variable">client</span> = <span class="keyword">await</span> <span class="function">getClient</span>();
-      <span class="keyword">return</span> client.<span class="function">getJob</span>(jobId);
+    // Get job status
+    async getJob(jobId: string) {
+      const client = await getClient();
+      return client.getJob(jobId);
     },
 
-    <span class="comment">// Get job result (for finished() pattern)</span>
-    <span class="keyword">async</span> <span class="function">waitForResult</span>(jobId: <span class="keyword">string</span>, timeout = <span class="number">30000</span>) {
-      <span class="keyword">const</span> <span class="variable">client</span> = <span class="keyword">await</span> <span class="function">getClient</span>();
-      <span class="keyword">return</span> client.<span class="function">finished</span>(jobId, timeout);
+    // Get job result (for finished() pattern)
+    async waitForResult(jobId: string, timeout = 30000) {
+      const client = await getClient();
+      return client.finished(jobId, timeout);
     },
 
-    <span class="comment">// Queue stats</span>
-    <span class="keyword">async</span> <span class="function">stats</span>() {
-      <span class="keyword">const</span> <span class="variable">client</span> = <span class="keyword">await</span> <span class="function">getClient</span>();
-      <span class="keyword">return</span> client.<span class="function">stats</span>();
+    // Queue stats
+    async stats() {
+      const client = await getClient();
+      return client.stats();
     },
 
     QUEUES,
@@ -251,123 +258,123 @@ bun add flashq</code></pre>
 
       <h3>API Routes with Elysia</h3>
 
-      <pre><code><span class="comment">// src/index.ts</span>
-<span class="keyword">import</span> { Elysia, t } <span class="keyword">from</span> <span class="string">'elysia'</span>;
-<span class="keyword">import</span> { flashqPlugin } <span class="keyword">from</span> <span class="string">'./plugins/flashq'</span>;
+      <pre><code class="language-typescript">// src/index.ts
+import { Elysia, t } from 'elysia';
+import { flashqPlugin } from './plugins/flashq';
 
-<span class="keyword">const</span> <span class="variable">app</span> = <span class="keyword">new</span> <span class="function">Elysia</span>()
-  .<span class="function">use</span>(flashqPlugin)
+const app = new Elysia()
+  .use(flashqPlugin)
 
-  <span class="comment">// Health check with queue stats</span>
-  .<span class="function">get</span>(<span class="string">'/health'</span>, <span class="keyword">async</span> ({ queue }) => {
-    <span class="keyword">const</span> <span class="variable">stats</span> = <span class="keyword">await</span> queue.<span class="function">stats</span>();
-    <span class="keyword">return</span> {
-      status: <span class="string">'healthy'</span>,
+  // Health check with queue stats
+  .get('/health', async ({ queue }) => {
+    const stats = await queue.stats();
+    return {
+      status: 'healthy',
       queue: stats,
-      timestamp: <span class="keyword">new</span> <span class="function">Date</span>().<span class="function">toISOString</span>(),
+      timestamp: new Date().toISOString(),
     };
   })
 
-  <span class="comment">// Send email endpoint</span>
-  .<span class="function">post</span>(<span class="string">'/api/email'</span>, <span class="keyword">async</span> ({ body, queue }) => {
-    <span class="keyword">const</span> <span class="variable">job</span> = <span class="keyword">await</span> queue.<span class="function">push</span>(queue.QUEUES.EMAIL, body, {
-      attempts: <span class="number">5</span>,
-      backoff: <span class="number">5000</span>,
+  // Send email endpoint
+  .post('/api/email', async ({ body, queue }) => {
+    const job = await queue.push(queue.QUEUES.EMAIL, body, {
+      attempts: 5,
+      backoff: 5000,
     });
 
-    <span class="keyword">return</span> {
-      success: <span class="keyword">true</span>,
+    return {
+      success: true,
       jobId: job.id,
-      message: <span class="string">'Email queued for delivery'</span>,
+      message: 'Email queued for delivery',
     };
   }, {
-    body: t.<span class="function">Object</span>({
-      to: t.<span class="function">String</span>({ format: <span class="string">'email'</span> }),
-      subject: t.<span class="function">String</span>({ minLength: <span class="number">1</span> }),
-      template: t.<span class="function">String</span>(),
-      data: t.<span class="function">Record</span>(t.<span class="function">String</span>(), t.<span class="function">Any</span>()),
+    body: t.Object({
+      to: t.String({ format: 'email' }),
+      subject: t.String({ minLength: 1 }),
+      template: t.String(),
+      data: t.Record(t.String(), t.Any()),
     }),
   })
 
-  <span class="comment">// AI generation with sync response option</span>
-  .<span class="function">post</span>(<span class="string">'/api/generate'</span>, <span class="keyword">async</span> ({ body, query, queue }) => {
-    <span class="keyword">const</span> <span class="variable">job</span> = <span class="keyword">await</span> queue.<span class="function">push</span>(queue.QUEUES.AI_PROCESSING, {
+  // AI generation with sync response option
+  .post('/api/generate', async ({ body, query, queue }) => {
+    const job = await queue.push(queue.QUEUES.AI_PROCESSING, {
       prompt: body.prompt,
-      model: body.model || <span class="string">'gpt-4-turbo'</span>,
+      model: body.model || 'gpt-4-turbo',
       userId: body.userId,
       maxTokens: body.maxTokens,
     }, {
-      priority: body.priority || <span class="number">5</span>,
-      timeout: <span class="number">120000</span>, <span class="comment">// 2 min for AI</span>
+      priority: body.priority || 5,
+      timeout: 120000, // 2 min for AI
     });
 
-    <span class="comment">// Optional: wait for result (sync mode)</span>
-    <span class="keyword">if</span> (query.sync === <span class="string">'true'</span>) {
-      <span class="keyword">const</span> <span class="variable">result</span> = <span class="keyword">await</span> queue.<span class="function">waitForResult</span>(job.id, <span class="number">60000</span>);
-      <span class="keyword">return</span> { success: <span class="keyword">true</span>, result };
+    // Optional: wait for result (sync mode)
+    if (query.sync === 'true') {
+      const result = await queue.waitForResult(job.id, 60000);
+      return { success: true, result };
     }
 
-    <span class="keyword">return</span> {
-      success: <span class="keyword">true</span>,
+    return {
+      success: true,
       jobId: job.id,
-      statusUrl: <span class="string">`/api/jobs/${job.id}`</span>,
+      statusUrl: `/api/jobs/${job.id}`,
     };
   }, {
-    body: t.<span class="function">Object</span>({
-      prompt: t.<span class="function">String</span>({ minLength: <span class="number">1</span> }),
-      model: t.<span class="function">Optional</span>(t.<span class="function">Union</span>([
-        t.<span class="function">Literal</span>(<span class="string">'gpt-4'</span>),
-        t.<span class="function">Literal</span>(<span class="string">'gpt-4-turbo'</span>),
-        t.<span class="function">Literal</span>(<span class="string">'claude-3'</span>),
+    body: t.Object({
+      prompt: t.String({ minLength: 1 }),
+      model: t.Optional(t.Union([
+        t.Literal('gpt-4'),
+        t.Literal('gpt-4-turbo'),
+        t.Literal('claude-3'),
       ])),
-      userId: t.<span class="function">String</span>(),
-      maxTokens: t.<span class="function">Optional</span>(t.<span class="function">Number</span>({ minimum: <span class="number">1</span>, maximum: <span class="number">4096</span> })),
-      priority: t.<span class="function">Optional</span>(t.<span class="function">Number</span>({ minimum: <span class="number">1</span>, maximum: <span class="number">100</span> })),
+      userId: t.String(),
+      maxTokens: t.Optional(t.Number({ minimum: 1, maximum: 4096 })),
+      priority: t.Optional(t.Number({ minimum: 1, maximum: 100 })),
     }),
-    query: t.<span class="function">Object</span>({
-      sync: t.<span class="function">Optional</span>(t.<span class="function">String</span>()),
+    query: t.Object({
+      sync: t.Optional(t.String()),
     }),
   })
 
-  <span class="comment">// Get job status</span>
-  .<span class="function">get</span>(<span class="string">'/api/jobs/:id'</span>, <span class="keyword">async</span> ({ params, queue }) => {
-    <span class="keyword">const</span> <span class="variable">job</span> = <span class="keyword">await</span> queue.<span class="function">getJob</span>(params.id);
-    <span class="keyword">if</span> (!job) {
-      <span class="keyword">return</span> { error: <span class="string">'Job not found'</span> };
+  // Get job status
+  .get('/api/jobs/:id', async ({ params, queue }) => {
+    const job = await queue.getJob(params.id);
+    if (!job) {
+      return { error: 'Job not found' };
     }
-    <span class="keyword">return</span> job;
+    return job;
   })
 
-  <span class="comment">// Batch job creation</span>
-  .<span class="function">post</span>(<span class="string">'/api/batch/emails'</span>, <span class="keyword">async</span> ({ body, queue }) => {
-    <span class="keyword">const</span> <span class="variable">client</span> = <span class="keyword">await</span> <span class="function">getClient</span>();
-    <span class="keyword">const</span> <span class="variable">jobs</span> = <span class="keyword">await</span> client.<span class="function">pushBatch</span>(
+  // Batch job creation
+  .post('/api/batch/emails', async ({ body, queue }) => {
+    const client = await getClient();
+    const jobs = await client.pushBatch(
       queue.QUEUES.EMAIL,
-      body.emails.<span class="function">map</span>((email: <span class="keyword">any</span>) => ({
+      body.emails.map((email: any) => ({
         data: email,
-        options: { attempts: <span class="number">3</span> },
+        options: { attempts: 3 },
       }))
     );
 
-    <span class="keyword">return</span> {
-      success: <span class="keyword">true</span>,
+    return {
+      success: true,
       count: jobs.length,
-      jobIds: jobs.<span class="function">map</span>(j => j.id),
+      jobIds: jobs.map(j => j.id),
     };
   }, {
-    body: t.<span class="function">Object</span>({
-      emails: t.<span class="function">Array</span>(t.<span class="function">Object</span>({
-        to: t.<span class="function">String</span>({ format: <span class="string">'email'</span> }),
-        subject: t.<span class="function">String</span>(),
-        template: t.<span class="function">String</span>(),
-        data: t.<span class="function">Record</span>(t.<span class="function">String</span>(), t.<span class="function">Any</span>()),
+    body: t.Object({
+      emails: t.Array(t.Object({
+        to: t.String({ format: 'email' }),
+        subject: t.String(),
+        template: t.String(),
+        data: t.Record(t.String(), t.Any()),
       })),
     }),
   })
 
-  .<span class="function">listen</span>(<span class="number">3000</span>);
+  .listen(3000);
 
-console.<span class="function">log</span>(<span class="string">`🦊 Elysia running at ${app.server?.hostname}:${app.server?.port}`</span>);</code></pre>
+console.log(`🦊 Elysia running at ${app.server?.hostname}:${app.server?.port}`);</code></pre>
 
       <div class="callout callout-info">
         <div class="callout-title">💡 Type Safety with Elysia</div>
@@ -378,192 +385,192 @@ console.<span class="function">log</span>(<span class="string">`🦊 Elysia runn
 
       <h3>Project Setup</h3>
 
-      <pre><code><span class="comment"># Create new Hono project</span>
+      <pre><code class="language-bash"># Create new Hono project
 bun create hono@latest flashq-hono
-<span class="keyword">cd</span> flashq-hono
+cd flashq-hono
 
-<span class="comment"># Install flashQ and Zod for validation</span>
+# Install flashQ and Zod for validation
 bun add flashq zod @hono/zod-validator</code></pre>
 
       <h3>Queue Middleware for Hono</h3>
 
-      <pre><code><span class="comment">// src/middleware/queue.ts</span>
-<span class="keyword">import</span> { createMiddleware } <span class="keyword">from</span> <span class="string">'hono/factory'</span>;
-<span class="keyword">import</span> { FlashQ } <span class="keyword">from</span> <span class="string">'flashq'</span>;
+      <pre><code class="language-typescript">// src/middleware/queue.ts
+import { createMiddleware } from 'hono/factory';
+import { FlashQ } from 'flashq';
 
-<span class="keyword">let</span> client: FlashQ | <span class="keyword">null</span> = <span class="keyword">null</span>;
+let client: FlashQ | null = null;
 
-<span class="keyword">async</span> <span class="keyword">function</span> <span class="function">getClient</span>(): Promise&lt;FlashQ&gt; {
-  <span class="keyword">if</span> (!client) {
-    client = <span class="keyword">new</span> <span class="function">FlashQ</span>({
-      host: process.env.FLASHQ_HOST || <span class="string">'localhost'</span>,
-      port: <span class="function">parseInt</span>(process.env.FLASHQ_PORT || <span class="string">'6789'</span>),
+async function getClient(): Promise&lt;FlashQ&gt; {
+  if (!client) {
+    client = new FlashQ({
+      host: process.env.FLASHQ_HOST || 'localhost',
+      port: parseInt(process.env.FLASHQ_PORT || '6789'),
       token: process.env.FLASHQ_TOKEN,
     });
-    <span class="keyword">await</span> client.<span class="function">connect</span>();
+    await client.connect();
   }
-  <span class="keyword">return</span> client;
+  return client;
 }
 
-<span class="keyword">export</span> <span class="keyword">const</span> <span class="variable">QUEUES</span> = {
-  EMAIL: <span class="string">'email'</span>,
-  AI: <span class="string">'ai-processing'</span>,
-  WEBHOOKS: <span class="string">'webhooks'</span>,
-} <span class="keyword">as const</span>;
+export const QUEUES = {
+  EMAIL: 'email',
+  AI: 'ai-processing',
+  WEBHOOKS: 'webhooks',
+} as const;
 
-<span class="keyword">type</span> QueueName = <span class="keyword">typeof</span> QUEUES[<span class="keyword">keyof typeof</span> QUEUES];
+type QueueName = typeof QUEUES[keyof typeof QUEUES];
 
-<span class="keyword">export</span> <span class="keyword">type</span> <span class="function">QueueVariables</span> = {
+export type QueueVariables = {
   queue: {
-    push: &lt;T&gt;(name: QueueName, data: T, options?: <span class="keyword">any</span>) => Promise&lt;<span class="keyword">any</span>&gt;;
-    getJob: (id: <span class="keyword">string</span>) => Promise&lt;<span class="keyword">any</span>&gt;;
-    finished: (id: <span class="keyword">string</span>, timeout?: <span class="keyword">number</span>) => Promise&lt;<span class="keyword">any</span>&gt;;
-    stats: () => Promise&lt;<span class="keyword">any</span>&gt;;
+    push: &lt;T&gt;(name: QueueName, data: T, options?: any) => Promise&lt;any&gt;;
+    getJob: (id: string) => Promise&lt;any&gt;;
+    finished: (id: string, timeout?: number) => Promise&lt;any&gt;;
+    stats: () => Promise&lt;any&gt;;
   };
 };
 
-<span class="keyword">export</span> <span class="keyword">const</span> <span class="variable">queueMiddleware</span> = <span class="function">createMiddleware</span>&lt;{ Variables: QueueVariables }&gt;(
-  <span class="keyword">async</span> (c, next) => {
-    <span class="keyword">const</span> <span class="variable">flashq</span> = <span class="keyword">await</span> <span class="function">getClient</span>();
+export const queueMiddleware = createMiddleware&lt;{ Variables: QueueVariables }&gt;(
+  async (c, next) => {
+    const flashq = await getClient();
 
-    c.<span class="function">set</span>(<span class="string">'queue'</span>, {
-      push: (name, data, options) => flashq.<span class="function">push</span>(name, data, options),
-      getJob: (id) => flashq.<span class="function">getJob</span>(id),
-      finished: (id, timeout) => flashq.<span class="function">finished</span>(id, timeout),
-      stats: () => flashq.<span class="function">stats</span>(),
+    c.set('queue', {
+      push: (name, data, options) => flashq.push(name, data, options),
+      getJob: (id) => flashq.getJob(id),
+      finished: (id, timeout) => flashq.finished(id, timeout),
+      stats: () => flashq.stats(),
     });
 
-    <span class="keyword">await</span> <span class="function">next</span>();
+    await next();
   }
 );</code></pre>
 
       <h3>Hono Routes</h3>
 
-      <pre><code><span class="comment">// src/index.ts</span>
-<span class="keyword">import</span> { Hono } <span class="keyword">from</span> <span class="string">'hono'</span>;
-<span class="keyword">import</span> { cors } <span class="keyword">from</span> <span class="string">'hono/cors'</span>;
-<span class="keyword">import</span> { logger } <span class="keyword">from</span> <span class="string">'hono/logger'</span>;
-<span class="keyword">import</span> { zValidator } <span class="keyword">from</span> <span class="string">'@hono/zod-validator'</span>;
-<span class="keyword">import</span> { z } <span class="keyword">from</span> <span class="string">'zod'</span>;
-<span class="keyword">import</span> { queueMiddleware, QUEUES, <span class="keyword">type</span> QueueVariables } <span class="keyword">from</span> <span class="string">'./middleware/queue'</span>;
+      <pre><code class="language-typescript">// src/index.ts
+import { Hono } from 'hono';
+import { cors } from 'hono/cors';
+import { logger } from 'hono/logger';
+import { zValidator } from '@hono/zod-validator';
+import { z } from 'zod';
+import { queueMiddleware, QUEUES, type QueueVariables } from './middleware/queue';
 
-<span class="keyword">const</span> <span class="variable">app</span> = <span class="keyword">new</span> <span class="function">Hono</span>&lt;{ Variables: QueueVariables }&gt;();
+const app = new Hono&lt;{ Variables: QueueVariables }&gt;();
 
-<span class="comment">// Global middleware</span>
-app.<span class="function">use</span>(<span class="string">'*'</span>, <span class="function">cors</span>());
-app.<span class="function">use</span>(<span class="string">'*'</span>, <span class="function">logger</span>());
-app.<span class="function">use</span>(<span class="string">'/api/*'</span>, queueMiddleware);
+// Global middleware
+app.use('*', cors());
+app.use('*', logger());
+app.use('/api/*', queueMiddleware);
 
-<span class="comment">// Schemas</span>
-<span class="keyword">const</span> <span class="variable">emailSchema</span> = z.<span class="function">object</span>({
-  to: z.<span class="function">string</span>().<span class="function">email</span>(),
-  subject: z.<span class="function">string</span>().<span class="function">min</span>(<span class="number">1</span>),
-  template: z.<span class="function">string</span>(),
-  data: z.<span class="function">record</span>(z.<span class="function">any</span>()),
+// Schemas
+const emailSchema = z.object({
+  to: z.string().email(),
+  subject: z.string().min(1),
+  template: z.string(),
+  data: z.record(z.any()),
 });
 
-<span class="keyword">const</span> <span class="variable">generateSchema</span> = z.<span class="function">object</span>({
-  prompt: z.<span class="function">string</span>().<span class="function">min</span>(<span class="number">1</span>),
-  model: z.<span class="function">enum</span>([<span class="string">'gpt-4'</span>, <span class="string">'gpt-4-turbo'</span>, <span class="string">'claude-3'</span>]).<span class="function">default</span>(<span class="string">'gpt-4-turbo'</span>),
-  userId: z.<span class="function">string</span>(),
-  maxTokens: z.<span class="function">number</span>().<span class="function">min</span>(<span class="number">1</span>).<span class="function">max</span>(<span class="number">4096</span>).<span class="function">optional</span>(),
-  priority: z.<span class="function">number</span>().<span class="function">min</span>(<span class="number">1</span>).<span class="function">max</span>(<span class="number">100</span>).<span class="function">default</span>(<span class="number">5</span>),
+const generateSchema = z.object({
+  prompt: z.string().min(1),
+  model: z.enum(['gpt-4', 'gpt-4-turbo', 'claude-3']).default('gpt-4-turbo'),
+  userId: z.string(),
+  maxTokens: z.number().min(1).max(4096).optional(),
+  priority: z.number().min(1).max(100).default(5),
 });
 
-<span class="comment">// Health endpoint</span>
-app.<span class="function">get</span>(<span class="string">'/health'</span>, <span class="keyword">async</span> (c) => {
-  <span class="keyword">const</span> <span class="variable">queue</span> = c.<span class="function">get</span>(<span class="string">'queue'</span>);
-  <span class="keyword">const</span> <span class="variable">stats</span> = queue ? <span class="keyword">await</span> queue.<span class="function">stats</span>() : <span class="keyword">null</span>;
-  <span class="keyword">return</span> c.<span class="function">json</span>({
-    status: <span class="string">'healthy'</span>,
+// Health endpoint
+app.get('/health', async (c) => {
+  const queue = c.get('queue');
+  const stats = queue ? await queue.stats() : null;
+  return c.json({
+    status: 'healthy',
     queue: stats,
-    timestamp: <span class="keyword">new</span> <span class="function">Date</span>().<span class="function">toISOString</span>(),
+    timestamp: new Date().toISOString(),
   });
 });
 
-<span class="comment">// Email endpoint</span>
-app.<span class="function">post</span>(
-  <span class="string">'/api/email'</span>,
-  <span class="function">zValidator</span>(<span class="string">'json'</span>, emailSchema),
-  <span class="keyword">async</span> (c) => {
-    <span class="keyword">const</span> <span class="variable">body</span> = c.req.<span class="function">valid</span>(<span class="string">'json'</span>);
-    <span class="keyword">const</span> <span class="variable">queue</span> = c.<span class="function">get</span>(<span class="string">'queue'</span>);
+// Email endpoint
+app.post(
+  '/api/email',
+  zValidator('json', emailSchema),
+  async (c) => {
+    const body = c.req.valid('json');
+    const queue = c.get('queue');
 
-    <span class="keyword">const</span> <span class="variable">job</span> = <span class="keyword">await</span> queue.<span class="function">push</span>(QUEUES.EMAIL, body, {
-      attempts: <span class="number">5</span>,
-      backoff: <span class="number">5000</span>,
+    const job = await queue.push(QUEUES.EMAIL, body, {
+      attempts: 5,
+      backoff: 5000,
     });
 
-    <span class="keyword">return</span> c.<span class="function">json</span>({
-      success: <span class="keyword">true</span>,
+    return c.json({
+      success: true,
       jobId: job.id,
-      message: <span class="string">'Email queued'</span>,
+      message: 'Email queued',
     });
   }
 );
 
-<span class="comment">// AI Generation endpoint</span>
-app.<span class="function">post</span>(
-  <span class="string">'/api/generate'</span>,
-  <span class="function">zValidator</span>(<span class="string">'json'</span>, generateSchema),
-  <span class="keyword">async</span> (c) => {
-    <span class="keyword">const</span> <span class="variable">body</span> = c.req.<span class="function">valid</span>(<span class="string">'json'</span>);
-    <span class="keyword">const</span> <span class="variable">queue</span> = c.<span class="function">get</span>(<span class="string">'queue'</span>);
-    <span class="keyword">const</span> <span class="variable">sync</span> = c.req.<span class="function">query</span>(<span class="string">'sync'</span>) === <span class="string">'true'</span>;
+// AI Generation endpoint
+app.post(
+  '/api/generate',
+  zValidator('json', generateSchema),
+  async (c) => {
+    const body = c.req.valid('json');
+    const queue = c.get('queue');
+    const sync = c.req.query('sync') === 'true';
 
-    <span class="keyword">const</span> <span class="variable">job</span> = <span class="keyword">await</span> queue.<span class="function">push</span>(QUEUES.AI, body, {
+    const job = await queue.push(QUEUES.AI, body, {
       priority: body.priority,
-      timeout: <span class="number">120000</span>,
+      timeout: 120000,
     });
 
-    <span class="comment">// Sync mode: wait for result</span>
-    <span class="keyword">if</span> (sync) {
-      <span class="keyword">const</span> <span class="variable">result</span> = <span class="keyword">await</span> queue.<span class="function">finished</span>(job.id, <span class="number">60000</span>);
-      <span class="keyword">return</span> c.<span class="function">json</span>({ success: <span class="keyword">true</span>, result });
+    // Sync mode: wait for result
+    if (sync) {
+      const result = await queue.finished(job.id, 60000);
+      return c.json({ success: true, result });
     }
 
-    <span class="keyword">return</span> c.<span class="function">json</span>({
-      success: <span class="keyword">true</span>,
+    return c.json({
+      success: true,
       jobId: job.id,
-      statusUrl: <span class="string">`/api/jobs/${job.id}`</span>,
+      statusUrl: `/api/jobs/${job.id}`,
     });
   }
 );
 
-<span class="comment">// Job status endpoint</span>
-app.<span class="function">get</span>(<span class="string">'/api/jobs/:id'</span>, <span class="keyword">async</span> (c) => {
-  <span class="keyword">const</span> <span class="variable">queue</span> = c.<span class="function">get</span>(<span class="string">'queue'</span>);
-  <span class="keyword">const</span> <span class="variable">job</span> = <span class="keyword">await</span> queue.<span class="function">getJob</span>(c.req.<span class="function">param</span>(<span class="string">'id'</span>));
+// Job status endpoint
+app.get('/api/jobs/:id', async (c) => {
+  const queue = c.get('queue');
+  const job = await queue.getJob(c.req.param('id'));
 
-  <span class="keyword">if</span> (!job) {
-    <span class="keyword">return</span> c.<span class="function">json</span>({ error: <span class="string">'Job not found'</span> }, <span class="number">404</span>);
+  if (!job) {
+    return c.json({ error: 'Job not found' }, 404);
   }
 
-  <span class="keyword">return</span> c.<span class="function">json</span>(job);
+  return c.json(job);
 });
 
-<span class="comment">// Webhook handler with idempotency</span>
-app.<span class="function">post</span>(<span class="string">'/api/webhooks/:provider'</span>, <span class="keyword">async</span> (c) => {
-  <span class="keyword">const</span> <span class="variable">provider</span> = c.req.<span class="function">param</span>(<span class="string">'provider'</span>);
-  <span class="keyword">const</span> <span class="variable">body</span> = <span class="keyword">await</span> c.req.<span class="function">json</span>();
-  <span class="keyword">const</span> <span class="variable">queue</span> = c.<span class="function">get</span>(<span class="string">'queue'</span>);
+// Webhook handler with idempotency
+app.post('/api/webhooks/:provider', async (c) => {
+  const provider = c.req.param('provider');
+  const body = await c.req.json();
+  const queue = c.get('queue');
 
-  <span class="comment">// Use webhook ID for idempotency</span>
-  <span class="keyword">const</span> <span class="variable">webhookId</span> = body.id || c.req.<span class="function">header</span>(<span class="string">'x-webhook-id'</span>);
+  // Use webhook ID for idempotency
+  const webhookId = body.id || c.req.header('x-webhook-id');
 
-  <span class="keyword">const</span> <span class="variable">job</span> = <span class="keyword">await</span> queue.<span class="function">push</span>(QUEUES.WEBHOOKS, {
+  const job = await queue.push(QUEUES.WEBHOOKS, {
     provider,
     payload: body,
   }, {
-    jobId: <span class="string">`webhook-${provider}-${webhookId}`</span>, <span class="comment">// Idempotent</span>
-    attempts: <span class="number">3</span>,
+    jobId: `webhook-${provider}-${webhookId}`, // Idempotent
+    attempts: 3,
   });
 
-  <span class="keyword">return</span> c.<span class="function">json</span>({ received: <span class="keyword">true</span>, jobId: job.id });
+  return c.json({ received: true, jobId: job.id });
 });
 
-<span class="keyword">export</span> <span class="keyword">default</span> {
-  port: <span class="number">3000</span>,
+export default {
+  port: 3000,
   fetch: app.fetch,
 };</code></pre>
 
@@ -571,169 +578,169 @@ app.<span class="function">post</span>(<span class="string">'/api/webhooks/:prov
 
       <p>The worker can be the same for both Elysia and Hono since it uses the flashQ SDK directly.</p>
 
-      <pre><code><span class="comment">// worker/index.ts</span>
-<span class="keyword">import</span> { Worker, FlashQ } <span class="keyword">from</span> <span class="string">'flashq'</span>;
-<span class="keyword">import</span> OpenAI <span class="keyword">from</span> <span class="string">'openai'</span>;
-<span class="keyword">import</span> { Resend } <span class="keyword">from</span> <span class="string">'resend'</span>;
+      <pre><code class="language-typescript">// worker/index.ts
+import { Worker, FlashQ } from 'flashq';
+import OpenAI from 'openai';
+import { Resend } from 'resend';
 
-<span class="keyword">const</span> <span class="variable">openai</span> = <span class="keyword">new</span> <span class="function">OpenAI</span>();
-<span class="keyword">const</span> <span class="variable">resend</span> = <span class="keyword">new</span> <span class="function">Resend</span>(process.env.RESEND_API_KEY);
+const openai = new OpenAI();
+const resend = new Resend(process.env.RESEND_API_KEY);
 
-<span class="comment">// Email Worker</span>
-<span class="keyword">const</span> <span class="variable">emailWorker</span> = <span class="keyword">new</span> <span class="function">Worker</span>(<span class="string">'email'</span>, <span class="keyword">async</span> (job) => {
-  <span class="keyword">const</span> { to, subject, template, data } = job.data;
+// Email Worker
+const emailWorker = new Worker('email', async (job) => {
+  const { to, subject, template, data } = job.data;
 
-  <span class="comment">// Render template (use your preferred engine)</span>
-  <span class="keyword">const</span> <span class="variable">html</span> = <span class="function">renderTemplate</span>(template, data);
+  // Render template (use your preferred engine)
+  const html = renderTemplate(template, data);
 
-  <span class="keyword">const</span> <span class="variable">result</span> = <span class="keyword">await</span> resend.emails.<span class="function">send</span>({
-    from: <span class="string">'noreply@yourdomain.com'</span>,
+  const result = await resend.emails.send({
+    from: 'noreply@yourdomain.com',
     to,
     subject,
     html,
   });
 
-  <span class="keyword">return</span> { emailId: result.id, sentAt: <span class="keyword">new</span> <span class="function">Date</span>().<span class="function">toISOString</span>() };
+  return { emailId: result.id, sentAt: new Date().toISOString() };
 }, {
   connection: {
-    host: process.env.FLASHQ_HOST || <span class="string">'localhost'</span>,
-    port: <span class="function">parseInt</span>(process.env.FLASHQ_PORT || <span class="string">'6789'</span>),
+    host: process.env.FLASHQ_HOST || 'localhost',
+    port: parseInt(process.env.FLASHQ_PORT || '6789'),
   },
-  concurrency: <span class="number">10</span>,
+  concurrency: 10,
 });
 
-<span class="comment">// AI Worker</span>
-<span class="keyword">const</span> <span class="variable">aiWorker</span> = <span class="keyword">new</span> <span class="function">Worker</span>(<span class="string">'ai-processing'</span>, <span class="keyword">async</span> (job) => {
-  <span class="keyword">const</span> { prompt, model, maxTokens, userId } = job.data;
+// AI Worker
+const aiWorker = new Worker('ai-processing', async (job) => {
+  const { prompt, model, maxTokens, userId } = job.data;
 
-  <span class="keyword">await</span> job.<span class="function">updateProgress</span>(<span class="number">10</span>, <span class="string">'Connecting to AI...'</span>);
+  await job.updateProgress(10, 'Connecting to AI...');
 
-  <span class="keyword">let</span> response;
+  let response;
 
-  <span class="keyword">if</span> (model.<span class="function">startsWith</span>(<span class="string">'gpt'</span>)) {
-    response = <span class="keyword">await</span> openai.chat.completions.<span class="function">create</span>({
+  if (model.startsWith('gpt')) {
+    response = await openai.chat.completions.create({
       model,
-      messages: [{ role: <span class="string">'user'</span>, content: prompt }],
-      max_tokens: maxTokens || <span class="number">1000</span>,
+      messages: [{ role: 'user', content: prompt }],
+      max_tokens: maxTokens || 1000,
     });
 
-    <span class="keyword">await</span> job.<span class="function">updateProgress</span>(<span class="number">90</span>, <span class="string">'Processing complete'</span>);
+    await job.updateProgress(90, 'Processing complete');
 
-    <span class="keyword">return</span> {
-      content: response.choices[<span class="number">0</span>].message.content,
+    return {
+      content: response.choices[0].message.content,
       model,
       tokens: response.usage?.total_tokens,
       userId,
     };
   }
 
-  <span class="comment">// Claude handling would go here</span>
-  <span class="keyword">throw</span> <span class="keyword">new</span> <span class="function">Error</span>(<span class="string">`Unsupported model: ${model}`</span>);
+  // Claude handling would go here
+  throw new Error(`Unsupported model: ${model}`);
 }, {
   connection: {
-    host: process.env.FLASHQ_HOST || <span class="string">'localhost'</span>,
-    port: <span class="function">parseInt</span>(process.env.FLASHQ_PORT || <span class="string">'6789'</span>),
+    host: process.env.FLASHQ_HOST || 'localhost',
+    port: parseInt(process.env.FLASHQ_PORT || '6789'),
   },
-  concurrency: <span class="number">3</span>, <span class="comment">// Limit AI concurrency</span>
+  concurrency: 3, // Limit AI concurrency
 });
 
-<span class="comment">// Webhook Worker</span>
-<span class="keyword">const</span> <span class="variable">webhookWorker</span> = <span class="keyword">new</span> <span class="function">Worker</span>(<span class="string">'webhooks'</span>, <span class="keyword">async</span> (job) => {
-  <span class="keyword">const</span> { provider, payload } = job.data;
+// Webhook Worker
+const webhookWorker = new Worker('webhooks', async (job) => {
+  const { provider, payload } = job.data;
 
-  <span class="keyword">switch</span> (provider) {
-    <span class="keyword">case</span> <span class="string">'stripe'</span>:
-      <span class="keyword">return</span> <span class="keyword">await</span> <span class="function">handleStripeWebhook</span>(payload);
-    <span class="keyword">case</span> <span class="string">'github'</span>:
-      <span class="keyword">return</span> <span class="keyword">await</span> <span class="function">handleGithubWebhook</span>(payload);
-    <span class="keyword">default</span>:
-      <span class="keyword">throw</span> <span class="keyword">new</span> <span class="function">Error</span>(<span class="string">`Unknown provider: ${provider}`</span>);
+  switch (provider) {
+    case 'stripe':
+      return await handleStripeWebhook(payload);
+    case 'github':
+      return await handleGithubWebhook(payload);
+    default:
+      throw new Error(`Unknown provider: ${provider}`);
   }
 }, {
   connection: {
-    host: process.env.FLASHQ_HOST || <span class="string">'localhost'</span>,
-    port: <span class="function">parseInt</span>(process.env.FLASHQ_PORT || <span class="string">'6789'</span>),
+    host: process.env.FLASHQ_HOST || 'localhost',
+    port: parseInt(process.env.FLASHQ_PORT || '6789'),
   },
-  concurrency: <span class="number">20</span>,
+  concurrency: 20,
 });
 
-<span class="comment">// Event handlers</span>
-[emailWorker, aiWorker, webhookWorker].<span class="function">forEach</span>(worker => {
-  worker.<span class="function">on</span>(<span class="string">'completed'</span>, (job, result) => {
-    console.<span class="function">log</span>(<span class="string">`✓ [${worker.name}] Job ${job.id} completed`</span>);
+// Event handlers
+[emailWorker, aiWorker, webhookWorker].forEach(worker => {
+  worker.on('completed', (job, result) => {
+    console.log(`✓ [${worker.name}] Job ${job.id} completed`);
   });
 
-  worker.<span class="function">on</span>(<span class="string">'failed'</span>, (job, error) => {
-    console.<span class="function">error</span>(<span class="string">`✗ [${worker.name}] Job ${job.id} failed: ${error.message}`</span>);
+  worker.on('failed', (job, error) => {
+    console.error(`✗ [${worker.name}] Job ${job.id} failed: ${error.message}`);
   });
 });
 
-console.<span class="function">log</span>(<span class="string">'🔧 Workers started: email, ai-processing, webhooks'</span>);</code></pre>
+console.log('🔧 Workers started: email, ai-processing, webhooks');</code></pre>
 
       <h2 id="advanced">Advanced Patterns</h2>
 
       <h3>Rate Limiting per User</h3>
 
-      <pre><code><span class="comment">// Elysia example with per-user rate limiting</span>
-.<span class="function">post</span>(<span class="string">'/api/generate'</span>, <span class="keyword">async</span> ({ body, queue }) => {
-  <span class="keyword">const</span> <span class="variable">client</span> = <span class="keyword">await</span> <span class="function">getClient</span>();
+      <pre><code class="language-typescript">// Elysia example with per-user rate limiting
+.post('/api/generate', async ({ body, queue }) => {
+  const client = await getClient();
 
-  <span class="comment">// Check user's current job count</span>
-  <span class="keyword">const</span> <span class="variable">userQueueName</span> = <span class="string">`ai-${body.userId}`</span>;
-  <span class="keyword">const</span> <span class="variable">counts</span> = <span class="keyword">await</span> client.<span class="function">getJobCounts</span>(userQueueName);
+  // Check user's current job count
+  const userQueueName = `ai-${body.userId}`;
+  const counts = await client.getJobCounts(userQueueName);
 
-  <span class="keyword">if</span> (counts.active + counts.waiting > <span class="number">5</span>) {
-    <span class="keyword">return</span> {
-      error: <span class="string">'Rate limit exceeded'</span>,
-      message: <span class="string">'Maximum 5 pending jobs allowed'</span>,
+  if (counts.active + counts.waiting > 5) {
+    return {
+      error: 'Rate limit exceeded',
+      message: 'Maximum 5 pending jobs allowed',
     };
   }
 
-  <span class="comment">// Use user-specific queue with rate limiting</span>
-  <span class="keyword">await</span> client.<span class="function">setRateLimit</span>(userQueueName, {
-    max: <span class="number">10</span>,        <span class="comment">// 10 jobs</span>
-    duration: <span class="number">60000</span>, <span class="comment">// per minute</span>
+  // Use user-specific queue with rate limiting
+  await client.setRateLimit(userQueueName, {
+    max: 10,        // 10 jobs
+    duration: 60000, // per minute
   });
 
-  <span class="keyword">const</span> <span class="variable">job</span> = <span class="keyword">await</span> client.<span class="function">push</span>(userQueueName, body);
-  <span class="keyword">return</span> { success: <span class="keyword">true</span>, jobId: job.id };
+  const job = await client.push(userQueueName, body);
+  return { success: true, jobId: job.id };
 })</code></pre>
 
       <h3>Job Workflows with Dependencies</h3>
 
-      <pre><code><span class="comment">// Hono example: Multi-step AI pipeline</span>
-app.<span class="function">post</span>(<span class="string">'/api/pipeline'</span>, <span class="keyword">async</span> (c) => {
-  <span class="keyword">const</span> <span class="variable">queue</span> = c.<span class="function">get</span>(<span class="string">'queue'</span>);
-  <span class="keyword">const</span> <span class="variable">body</span> = <span class="keyword">await</span> c.req.<span class="function">json</span>();
-  <span class="keyword">const</span> <span class="variable">client</span> = <span class="keyword">await</span> <span class="function">getClient</span>();
+      <pre><code class="language-typescript">// Hono example: Multi-step AI pipeline
+app.post('/api/pipeline', async (c) => {
+  const queue = c.get('queue');
+  const body = await c.req.json();
+  const client = await getClient();
 
-  <span class="comment">// Step 1: Extract text from document</span>
-  <span class="keyword">const</span> <span class="variable">extractJob</span> = <span class="keyword">await</span> client.<span class="function">push</span>(<span class="string">'extract'</span>, {
+  // Step 1: Extract text from document
+  const extractJob = await client.push('extract', {
     documentUrl: body.documentUrl,
   });
 
-  <span class="comment">// Step 2: Summarize (depends on extraction)</span>
-  <span class="keyword">const</span> <span class="variable">summarizeJob</span> = <span class="keyword">await</span> client.<span class="function">push</span>(<span class="string">'summarize'</span>, {
+  // Step 2: Summarize (depends on extraction)
+  const summarizeJob = await client.push('summarize', {
     sourceJobId: extractJob.id,
   }, {
     depends_on: [extractJob.id],
   });
 
-  <span class="comment">// Step 3: Generate embeddings (depends on extraction)</span>
-  <span class="keyword">const</span> <span class="variable">embedJob</span> = <span class="keyword">await</span> client.<span class="function">push</span>(<span class="string">'embed'</span>, {
+  // Step 3: Generate embeddings (depends on extraction)
+  const embedJob = await client.push('embed', {
     sourceJobId: extractJob.id,
   }, {
     depends_on: [extractJob.id],
   });
 
-  <span class="comment">// Step 4: Store in vector DB (depends on embeddings)</span>
-  <span class="keyword">const</span> <span class="variable">storeJob</span> = <span class="keyword">await</span> client.<span class="function">push</span>(<span class="string">'store-vectors'</span>, {
+  // Step 4: Store in vector DB (depends on embeddings)
+  const storeJob = await client.push('store-vectors', {
     sourceJobId: embedJob.id,
   }, {
     depends_on: [embedJob.id],
   });
 
-  <span class="keyword">return</span> c.<span class="function">json</span>({
+  return c.json({
     pipelineId: extractJob.id,
     jobs: {
       extract: extractJob.id,
@@ -746,45 +753,45 @@ app.<span class="function">post</span>(<span class="string">'/api/pipeline'</spa
 
       <h3>Real-time Progress with SSE</h3>
 
-      <pre><code><span class="comment">// Elysia SSE for job progress</span>
-<span class="keyword">import</span> { Elysia } <span class="keyword">from</span> <span class="string">'elysia'</span>;
+      <pre><code class="language-typescript">// Elysia SSE for job progress
+import { Elysia } from 'elysia';
 
-<span class="keyword">new</span> <span class="function">Elysia</span>()
-  .<span class="function">get</span>(<span class="string">'/api/jobs/:id/stream'</span>, <span class="keyword">async</span> <span class="keyword">function</span>* ({ params }) {
-    <span class="keyword">const</span> <span class="variable">client</span> = <span class="keyword">await</span> <span class="function">getClient</span>();
-    <span class="keyword">let</span> lastState = <span class="string">''</span>;
-    <span class="keyword">let</span> lastProgress = <span class="number">-1</span>;
+new Elysia()
+  .get('/api/jobs/:id/stream', async function* ({ params }) {
+    const client = await getClient();
+    let lastState = '';
+    let lastProgress = -1;
 
-    <span class="keyword">while</span> (<span class="keyword">true</span>) {
-      <span class="keyword">const</span> <span class="variable">job</span> = <span class="keyword">await</span> client.<span class="function">getJob</span>(params.id);
-      <span class="keyword">if</span> (!job) {
-        <span class="keyword">yield</span> { event: <span class="string">'error'</span>, data: <span class="string">'Job not found'</span> };
-        <span class="keyword">break</span>;
+    while (true) {
+      const job = await client.getJob(params.id);
+      if (!job) {
+        yield { event: 'error', data: 'Job not found' };
+        break;
       }
 
-      <span class="keyword">const</span> <span class="variable">state</span> = <span class="keyword">await</span> client.<span class="function">getState</span>(params.id);
-      <span class="keyword">const</span> <span class="variable">progress</span> = <span class="keyword">await</span> client.<span class="function">getProgress</span>(params.id);
+      const state = await client.getState(params.id);
+      const progress = await client.getProgress(params.id);
 
-      <span class="comment">// Only emit on changes</span>
-      <span class="keyword">if</span> (state !== lastState || progress?.percent !== lastProgress) {
-        <span class="keyword">yield</span> {
-          event: <span class="string">'update'</span>,
-          data: JSON.<span class="function">stringify</span>({ state, progress }),
+      // Only emit on changes
+      if (state !== lastState || progress?.percent !== lastProgress) {
+        yield {
+          event: 'update',
+          data: JSON.stringify({ state, progress }),
         };
         lastState = state;
-        lastProgress = progress?.percent || <span class="number">0</span>;
+        lastProgress = progress?.percent || 0;
       }
 
-      <span class="keyword">if</span> (state === <span class="string">'completed'</span> || state === <span class="string">'failed'</span>) {
-        <span class="keyword">const</span> <span class="variable">result</span> = <span class="keyword">await</span> client.<span class="function">getResult</span>(params.id);
-        <span class="keyword">yield</span> {
+      if (state === 'completed' || state === 'failed') {
+        const result = await client.getResult(params.id);
+        yield {
           event: state,
-          data: JSON.<span class="function">stringify</span>({ result }),
+          data: JSON.stringify({ result }),
         };
-        <span class="keyword">break</span>;
+        break;
       }
 
-      <span class="keyword">await</span> <span class="function">Bun</span>.<span class="function">sleep</span>(<span class="number">500</span>);
+      await Bun.sleep(500);
     }
   });</code></pre>
 
@@ -797,78 +804,78 @@ app.<span class="function">post</span>(<span class="string">'/api/pipeline'</spa
 
       <h3>Docker Compose Setup</h3>
 
-      <pre><code><span class="comment"># docker-compose.yml</span>
-<span class="variable">version</span>: <span class="string">'3.8'</span>
+      <pre><code class="language-bash"># docker-compose.yml
+version: '3.8'
 
-<span class="variable">services</span>:
-  <span class="variable">flashq</span>:
-    <span class="variable">image</span>: ghcr.io/egeominotti/flashq:latest
-    <span class="variable">ports</span>:
-      - <span class="string">"6789:6789"</span>
-      - <span class="string">"6790:6790"</span>
-    <span class="variable">environment</span>:
+services:
+  flashq:
+    image: ghcr.io/egeominotti/flashq:latest
+    ports:
+      - "6789:6789"
+      - "6790:6790"
+    environment:
       - DATABASE_URL=postgres://flashq:flashq@postgres:5432/flashq
       - HTTP=1
       - AUTH_TOKENS=your-secret-token
-    <span class="variable">depends_on</span>:
+    depends_on:
       - postgres
 
-  <span class="variable">postgres</span>:
-    <span class="variable">image</span>: postgres:16-alpine
-    <span class="variable">environment</span>:
+  postgres:
+    image: postgres:16-alpine
+    environment:
       - POSTGRES_USER=flashq
       - POSTGRES_PASSWORD=flashq
       - POSTGRES_DB=flashq
-    <span class="variable">volumes</span>:
+    volumes:
       - postgres_data:/var/lib/postgresql/data
 
-  <span class="variable">api</span>:
-    <span class="variable">build</span>: .
-    <span class="variable">ports</span>:
-      - <span class="string">"3000:3000"</span>
-    <span class="variable">environment</span>:
+  api:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
       - FLASHQ_HOST=flashq
       - FLASHQ_PORT=6789
       - FLASHQ_TOKEN=your-secret-token
-    <span class="variable">depends_on</span>:
+    depends_on:
       - flashq
 
-  <span class="variable">worker</span>:
-    <span class="variable">build</span>:
-      <span class="variable">context</span>: .
-      <span class="variable">dockerfile</span>: Dockerfile.worker
-    <span class="variable">environment</span>:
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    environment:
       - FLASHQ_HOST=flashq
       - FLASHQ_PORT=6789
       - FLASHQ_TOKEN=your-secret-token
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - RESEND_API_KEY=${RESEND_API_KEY}
-    <span class="variable">depends_on</span>:
+    depends_on:
       - flashq
-    <span class="variable">deploy</span>:
-      <span class="variable">replicas</span>: 3
+    deploy:
+      replicas: 3
 
-<span class="variable">volumes</span>:
+volumes:
   postgres_data:</code></pre>
 
       <h3>Dockerfile for Bun</h3>
 
-      <pre><code><span class="comment"># Dockerfile</span>
+      <pre><code class="language-bash"># Dockerfile
 FROM oven/bun:1 AS base
 WORKDIR /app
 
-<span class="comment"># Install dependencies</span>
+# Install dependencies
 FROM base AS deps
 COPY package.json bun.lockb ./
 RUN bun install --frozen-lockfile
 
-<span class="comment"># Build</span>
+# Build
 FROM base AS build
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN bun build ./src/index.ts --outdir ./dist --target bun
 
-<span class="comment"># Production</span>
+# Production
 FROM base AS production
 COPY --from=build /app/dist ./dist
 COPY --from=deps /app/node_modules ./node_modules
@@ -954,5 +961,6 @@ CMD ["bun", "run", "dist/index.js"]</code></pre>
     document.getElementById('searchInput').addEventListener('input', e => renderResults(e.target.value));
     document.addEventListener('keydown', e => { if ((e.metaKey||e.ctrlKey) && e.key==='k') { e.preventDefault(); openSearch(); } if (e.key==='Escape') closeSearch({target:document.getElementById('searchOverlay')}); });
   </script>
+  <script>hljs.highlightAll();</script>
 </body>
 </html>
