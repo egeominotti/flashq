@@ -10,7 +10,7 @@
   "dependencies": {
     "elysia": "^1.0.0",
     "@elysiajs/cors": "^1.0.0",
-    "flashq": "^1.0.0"
+    "flashq": "^0.1.5"
   },
   "devDependencies": {
     "@types/bun": "latest"
