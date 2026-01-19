@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Blog - flashQ</title>
+  <meta name="description" content="Learn about job queues, AI pipelines, and background processing. Tutorials, guides, and insights from the flashQ team.">
+  <meta name="keywords" content="flashq blog, job queue tutorial, ai pipelines, background jobs, bullmq alternative">
+  <meta name="robots" content="index, follow">
+
+  <meta property="og:title" content="flashQ Blog">
+  <meta property="og:description" content="Learn about job queues, AI pipelines, and background processing.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://flashq.dev/blog/">
+  <meta property="og:image" content="https://flashq.dev/og-image.png">
+  <meta property="og:site_name" content="flashQ">
+
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="flashQ Blog">
+  <meta name="twitter:description" content="Learn about job queues, AI pipelines, and background processing.">
+  <meta name="twitter:image" content="https://flashq.dev/og-image.png">
+
+  <link rel="canonical" href="https://flashq.dev/blog/">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <nav>
+    <div class="container wide">
+      <a href="../" class="logo">
+        <span>⚡</span> flashQ
+      </a>
+      <div class="nav-links">
+        <a href="../#features">Features</a>
+        <a href="../blog/" class="active">Blog</a>
+        <a href="../docs/">Docs</a>
+        <a href="https://github.com/egeominotti/flashq" target="_blank">GitHub</a>
+        <a href="../docs/#quickstart" class="btn btn-primary">Get Started</a>
+      </div>
+      <button class="mobile-menu-btn" aria-label="Menu">
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
+    </div>
+  </nav>
+
+  <div class="mobile-menu">
+    <a href="../#features">Features</a>
+    <a href="../blog/">Blog</a>
+    <a href="../docs/">Docs</a>
+    <a href="https://github.com/egeominotti/flashq" target="_blank">GitHub</a>
+    <a href="../docs/#quickstart" class="btn btn-primary">Get Started</a>
+  </div>
+
+  <header class="blog-header">
+    <div class="container">
+      <h1>Blog</h1>
+      <p>Tutorials, guides, and insights about job queues, AI pipelines, and background processing.</p>
+    </div>
+  </header>
+
+  <main class="container wide">
+    <div class="blog-grid">
+      <!-- Article 0 - Today (NEW) -->
+      <article class="article-card">
+        <div class="article-card-image cover-1"></div>
+        <div class="article-card-content">
+          <div class="article-card-meta">
+            <span class="article-tag">Deep Dive</span>
+            <span class="article-date">Jan 20, 2026</span>
+          </div>
+          <h2><a href="flashq-architecture.html">flashQ Architecture: How We Built a 1.9M Jobs/sec Queue Server</a></h2>
+          <p>Deep dive into flashQ's sharded design, lock-free data structures, and optimizations that achieve 1.9M jobs/sec.</p>
+          <a href="flashq-architecture.html" class="read-more">Read more →</a>
+        </div>
+      </article>
+
+      <!-- Article 1 -->
+      <article class="article-card">
+        <div class="article-card-image cover-2"></div>
+        <div class="article-card-content">
+          <div class="article-card-meta">
+            <span class="article-tag tutorial">Tutorial</span>
+            <span class="article-date">Jan 19, 2026</span>
+          </div>
+          <h2><a href="rate-limiting-openai.html">How to Rate Limit OpenAI API Calls with flashQ</a></h2>
+          <p>Learn how to properly rate limit OpenAI, Anthropic, and other AI API calls. Avoid 429 errors and control costs.</p>
+          <a href="rate-limiting-openai.html" class="read-more">Read more →</a>
+        </div>
+      </article>
+
+      <!-- Article 2 - 5 days ago -->
+      <article class="article-card">
+        <div class="article-card-image cover-3"></div>
+        <div class="article-card-content">
+          <div class="article-card-meta">
+            <span class="article-tag">Best Practices</span>
+            <span class="article-date">Jan 14, 2026</span>
+          </div>
+          <h2><a href="job-queue-patterns.html">Job Queue Patterns for AI Applications</a></h2>
+          <p>Essential patterns for building reliable AI applications: fan-out, sagas, circuit breakers, and more.</p>
+          <a href="job-queue-patterns.html" class="read-more">Read more →</a>
+        </div>
+      </article>
+
+      <!-- Article 3 - 1 week ago -->
+      <article class="article-card">
+        <div class="article-card-image cover-3"></div>
+        <div class="article-card-content">
+          <div class="article-card-meta">
+            <span class="article-tag tutorial">Tutorial</span>
+            <span class="article-date">Jan 12, 2026</span>
+          </div>
+          <h2><a href="building-ai-pipelines.html">Building AI Pipelines with flashQ: A Complete Guide</a></h2>
+          <p>Learn how to build production-ready RAG pipelines, LLM workflows, and batch inference systems using flashQ.</p>
+          <a href="building-ai-pipelines.html" class="read-more">Read more →</a>
+        </div>
+      </article>
+
+      <!-- Article 4 - 2 weeks ago -->
+      <article class="article-card">
+        <div class="article-card-image cover-4"></div>
+        <div class="article-card-content">
+          <div class="article-card-meta">
+            <span class="article-tag comparison">Comparison</span>
+            <span class="article-date">Jan 5, 2026</span>
+          </div>
+          <h2><a href="flashq-vs-bullmq.html">flashQ vs BullMQ: Why We Built a Redis-Free Alternative</a></h2>
+          <p>A detailed comparison between flashQ and BullMQ. Learn when to use each and why going Redis-free matters.</p>
+          <a href="flashq-vs-bullmq.html" class="read-more">Read more →</a>
+        </div>
+      </article>
+
+      <!-- Article 5 - 3 weeks ago -->
+      <article class="article-card">
+        <div class="article-card-image cover-5"></div>
+        <div class="article-card-content">
+          <div class="article-card-meta">
+            <span class="article-tag tutorial">Tutorial</span>
+            <span class="article-date">Dec 28, 2025</span>
+          </div>
+          <h2><a href="monitoring-ai-pipelines.html">Monitoring AI Pipelines: Metrics, Alerts, and Dashboards</a></h2>
+          <p>Set up comprehensive monitoring for your AI pipelines with Prometheus, Grafana, and flashQ metrics.</p>
+          <a href="monitoring-ai-pipelines.html" class="read-more">Read more →</a>
+        </div>
+      </article>
+
+      <!-- Article 6 - 4 weeks ago -->
+      <article class="article-card">
+        <div class="article-card-image cover-6"></div>
+        <div class="article-card-content">
+          <div class="article-card-meta">
+            <span class="article-tag">Introduction</span>
+            <span class="article-date">Dec 20, 2025</span>
+          </div>
+          <h2><a href="what-is-flashq.html">What is flashQ? A Modern Job Queue for AI Workloads</a></h2>
+          <p>Discover why we built flashQ, a high-performance job queue designed specifically for AI and ML workloads. No Redis required.</p>
+          <a href="what-is-flashq.html" class="read-more">Read more →</a>
+        </div>
+      </article>
+    </div>
+  </main>
+
+  <footer>
+    <div class="container wide">
+      <a href="../" class="logo">
+        <span>⚡</span> flashQ
+      </a>
+      <div class="footer-links">
+        <a href="https://github.com/egeominotti/flashq" target="_blank">GitHub</a>
+        <a href="https://npmjs.com/package/flashq" target="_blank">npm</a>
+        <a href="../docs/">Docs</a>
+        <a href="../blog/">Blog</a>
+      </div>
+      <div class="footer-copy">
+        © 2025 flashQ. MIT License.
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    // Mobile menu toggle
+    const mobileMenuBtn = document.querySelector('.mobile-menu-btn');
+    const mobileMenu = document.querySelector('.mobile-menu');
+
+    mobileMenuBtn.addEventListener('click', () => {
+      mobileMenuBtn.classList.toggle('active');
+      mobileMenu.classList.toggle('active');
+      document.body.style.overflow = mobileMenu.classList.contains('active') ? 'hidden' : '';
+    });
+
+    // Close menu when clicking a link
+    mobileMenu.querySelectorAll('a').forEach(link => {
+      link.addEventListener('click', () => {
+        mobileMenuBtn.classList.remove('active');
+        mobileMenu.classList.remove('active');
+        document.body.style.overflow = '';
+      });
+    });
+  </script>
+</body>
+</html>

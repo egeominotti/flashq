@@ -4,602 +4,54 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Documentation - flashQ</title>
-  <meta name="description" content="Complete documentation for flashQ - the high-performance job queue for AI workloads.">
+  <meta name="description" content="Complete documentation for flashQ - the high-performance job queue for AI workloads. BullMQ-compatible API without Redis.">
+  <meta name="keywords" content="flashq documentation, job queue api, bullmq alternative, ai workloads, typescript sdk">
+  <meta name="robots" content="index, follow">
 
+  <!-- Open Graph -->
+  <meta property="og:title" content="flashQ Documentation">
+  <meta property="og:description" content="Complete documentation for the high-performance job queue for AI workloads.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://flashq.dev/docs/">
+  <meta property="og:image" content="https://flashq.dev/og-image.png">
+  <meta property="og:site_name" content="flashQ">
+
+  <!-- Twitter -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="flashQ Documentation">
+  <meta name="twitter:description" content="Complete documentation for the high-performance job queue for AI workloads.">
+  <meta name="twitter:image" content="https://flashq.dev/og-image.png">
+
+  <link rel="canonical" href="https://flashq.dev/docs/">
+
+  <!-- Schema.org JSON-LD -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "TechArticle",
+    "headline": "flashQ Documentation",
+    "description": "Complete documentation for flashQ - the high-performance job queue for AI workloads.",
+    "url": "https://flashq.dev/docs/",
+    "author": {
+      "@type": "Organization",
+      "name": "flashQ"
+    },
+    "publisher": {
+      "@type": "Organization",
+      "name": "flashQ",
+      "url": "https://flashq.dev"
+    }
+  }
+  </script>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
+
+  <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 
-  <style>
-    :root {
-      --bg: #0a0a0b;
-      --bg-secondary: #111113;
-      --bg-tertiary: #18181b;
-      --border: #27272a;
-      --text: #fafafa;
-      --text-secondary: #a1a1aa;
-      --text-muted: #71717a;
-      --accent: #f97316;
-      --accent-hover: #fb923c;
-      --green: #22c55e;
-      --blue: #3b82f6;
-      --purple: #a855f7;
-      --yellow: #eab308;
-      --sidebar-width: 280px;
-    }
-
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
-
-    html {
-      scroll-behavior: smooth;
-    }
-
-    body {
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      line-height: 1.7;
-      -webkit-font-smoothing: antialiased;
-    }
-
-    /* Layout */
-    .docs-layout {
-      display: flex;
-      min-height: 100vh;
-    }
-
-    /* Sidebar */
-    .sidebar {
-      width: var(--sidebar-width);
-      background: var(--bg-secondary);
-      border-right: 1px solid var(--border);
-      position: fixed;
-      top: 0;
-      left: 0;
-      bottom: 0;
-      overflow-y: auto;
-      padding: 24px 0;
-    }
-
-    .sidebar-header {
-      padding: 0 24px 24px;
-      border-bottom: 1px solid var(--border);
-      margin-bottom: 24px;
-    }
-
-    .sidebar-logo {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-weight: 700;
-      font-size: 1.25rem;
-      color: var(--text);
-      text-decoration: none;
-    }
-
-    .sidebar-logo span {
-      font-size: 1.5rem;
-    }
-
-    .sidebar-version {
-      font-size: 0.75rem;
-      color: var(--text-muted);
-      margin-top: 4px;
-    }
-
-    .sidebar-section {
-      margin-bottom: 24px;
-    }
-
-    .sidebar-section-title {
-      font-size: 0.75rem;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      color: var(--text-muted);
-      padding: 0 24px;
-      margin-bottom: 8px;
-    }
-
-    .sidebar-nav {
-      list-style: none;
-    }
-
-    .sidebar-nav a {
-      display: block;
-      padding: 8px 24px;
-      color: var(--text-secondary);
-      text-decoration: none;
-      font-size: 0.875rem;
-      transition: all 0.15s;
-      border-left: 2px solid transparent;
-    }
-
-    .sidebar-nav a:hover {
-      color: var(--text);
-      background: var(--bg-tertiary);
-    }
-
-    .sidebar-nav a.active {
-      color: var(--accent);
-      border-left-color: var(--accent);
-      background: rgba(249, 115, 22, 0.1);
-    }
-
-    .sidebar-nav .nested {
-      padding-left: 16px;
-    }
-
-    .sidebar-nav .nested a {
-      font-size: 0.813rem;
-      padding: 6px 24px 6px 40px;
-    }
-
-    /* Main content */
-    .main-content {
-      flex: 1;
-      margin-left: var(--sidebar-width);
-      max-width: 900px;
-      padding: 48px 64px;
-    }
-
-    /* Typography */
-    h1 {
-      font-size: 2.5rem;
-      font-weight: 700;
-      margin-bottom: 16px;
-      letter-spacing: -0.02em;
-    }
-
-    h2 {
-      font-size: 1.75rem;
-      font-weight: 600;
-      margin-top: 48px;
-      margin-bottom: 16px;
-      padding-bottom: 8px;
-      border-bottom: 1px solid var(--border);
-    }
-
-    h3 {
-      font-size: 1.25rem;
-      font-weight: 600;
-      margin-top: 32px;
-      margin-bottom: 12px;
-    }
-
-    h4 {
-      font-size: 1rem;
-      font-weight: 600;
-      margin-top: 24px;
-      margin-bottom: 8px;
-    }
-
-    p {
-      margin-bottom: 16px;
-      color: var(--text-secondary);
-    }
-
-    .lead {
-      font-size: 1.125rem;
-      color: var(--text-secondary);
-      margin-bottom: 32px;
-    }
-
-    a {
-      color: var(--accent);
-      text-decoration: none;
-    }
-
-    a:hover {
-      text-decoration: underline;
-    }
-
-    /* Code */
-    code {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 0.875em;
-      background: var(--bg-tertiary);
-      padding: 2px 6px;
-      border-radius: 4px;
-      color: var(--accent);
-    }
-
-    pre {
-      background: var(--bg-secondary);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 20px;
-      overflow-x: auto;
-      margin: 16px 0 24px;
-    }
-
-    pre code {
-      background: none;
-      padding: 0;
-      color: var(--text);
-      font-size: 0.875rem;
-      line-height: 1.6;
-    }
-
-    .code-block {
-      position: relative;
-    }
-
-    .code-block-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      background: var(--bg-tertiary);
-      border: 1px solid var(--border);
-      border-bottom: none;
-      border-radius: 8px 8px 0 0;
-      padding: 8px 16px;
-      font-size: 0.75rem;
-      color: var(--text-muted);
-    }
-
-    .code-block-header + pre {
-      margin-top: 0;
-      border-radius: 0 0 8px 8px;
-    }
-
-    .copy-btn {
-      background: var(--bg);
-      border: 1px solid var(--border);
-      color: var(--text-secondary);
-      padding: 4px 12px;
-      border-radius: 4px;
-      font-size: 0.75rem;
-      cursor: pointer;
-      transition: all 0.15s;
-    }
-
-    .copy-btn:hover {
-      background: var(--border);
-      color: var(--text);
-    }
-
-    /* Syntax highlighting */
-    .token-keyword { color: #c084fc; }
-    .token-string { color: #4ade80; }
-    .token-comment { color: #6b7280; }
-    .token-function { color: #60a5fa; }
-    .token-variable { color: #fbbf24; }
-    .token-number { color: #f472b6; }
-    .token-operator { color: #94a3b8; }
-
-    /* Tables */
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin: 16px 0 24px;
-      font-size: 0.875rem;
-    }
-
-    th, td {
-      text-align: left;
-      padding: 12px 16px;
-      border-bottom: 1px solid var(--border);
-    }
-
-    th {
-      background: var(--bg-secondary);
-      font-weight: 600;
-      color: var(--text);
-    }
-
-    td {
-      color: var(--text-secondary);
-    }
-
-    td code {
-      font-size: 0.813rem;
-    }
-
-    /* Callouts */
-    .callout {
-      padding: 16px 20px;
-      border-radius: 8px;
-      margin: 16px 0 24px;
-      border-left: 4px solid;
-    }
-
-    .callout-title {
-      font-weight: 600;
-      font-size: 0.875rem;
-      margin-bottom: 4px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .callout p {
-      margin: 0;
-      font-size: 0.875rem;
-    }
-
-    .callout-info {
-      background: rgba(59, 130, 246, 0.1);
-      border-color: var(--blue);
-    }
-
-    .callout-info .callout-title {
-      color: var(--blue);
-    }
-
-    .callout-warning {
-      background: rgba(234, 179, 8, 0.1);
-      border-color: var(--yellow);
-    }
-
-    .callout-warning .callout-title {
-      color: var(--yellow);
-    }
-
-    .callout-success {
-      background: rgba(34, 197, 94, 0.1);
-      border-color: var(--green);
-    }
-
-    .callout-success .callout-title {
-      color: var(--green);
-    }
-
-    .callout-danger {
-      background: rgba(239, 68, 68, 0.1);
-      border-color: #ef4444;
-    }
-
-    .callout-danger .callout-title {
-      color: #ef4444;
-    }
-
-    /* Lists */
-    ul, ol {
-      margin: 16px 0 24px;
-      padding-left: 24px;
-      color: var(--text-secondary);
-    }
-
-    li {
-      margin-bottom: 8px;
-    }
-
-    li code {
-      font-size: 0.813rem;
-    }
-
-    /* Badges */
-    .badge {
-      display: inline-block;
-      padding: 2px 8px;
-      font-size: 0.75rem;
-      font-weight: 500;
-      border-radius: 4px;
-      margin-left: 8px;
-    }
-
-    .badge-new {
-      background: rgba(34, 197, 94, 0.2);
-      color: var(--green);
-    }
-
-    .badge-pro {
-      background: rgba(168, 85, 247, 0.2);
-      color: var(--purple);
-    }
-
-    /* Cards */
-    .card-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-      gap: 16px;
-      margin: 24px 0;
-    }
-
-    .card {
-      background: var(--bg-secondary);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 20px;
-      transition: border-color 0.15s;
-    }
-
-    .card:hover {
-      border-color: var(--accent);
-    }
-
-    .card h4 {
-      margin-top: 0;
-      margin-bottom: 8px;
-    }
-
-    .card p {
-      font-size: 0.875rem;
-      margin: 0;
-    }
-
-    /* Steps */
-    .steps {
-      counter-reset: step;
-      margin: 24px 0;
-    }
-
-    .step {
-      position: relative;
-      padding-left: 48px;
-      padding-bottom: 24px;
-      border-left: 2px solid var(--border);
-      margin-left: 16px;
-    }
-
-    .step:last-child {
-      border-left-color: transparent;
-      padding-bottom: 0;
-    }
-
-    .step::before {
-      counter-increment: step;
-      content: counter(step);
-      position: absolute;
-      left: -17px;
-      top: 0;
-      width: 32px;
-      height: 32px;
-      background: var(--accent);
-      color: white;
-      border-radius: 50%;
-      font-weight: 600;
-      font-size: 0.875rem;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .step h4 {
-      margin-top: 0;
-    }
-
-    /* API Reference */
-    .api-method {
-      display: inline-block;
-      padding: 4px 10px;
-      font-size: 0.75rem;
-      font-weight: 600;
-      border-radius: 4px;
-      margin-right: 8px;
-    }
-
-    .api-method-get { background: rgba(34, 197, 94, 0.2); color: var(--green); }
-    .api-method-post { background: rgba(59, 130, 246, 0.2); color: var(--blue); }
-    .api-method-put { background: rgba(234, 179, 8, 0.2); color: var(--yellow); }
-    .api-method-delete { background: rgba(239, 68, 68, 0.2); color: #ef4444; }
-
-    .api-endpoint {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 0.875rem;
-    }
-
-    /* Search */
-    .search-box {
-      padding: 16px 24px;
-      margin-bottom: 16px;
-    }
-
-    .search-input {
-      width: 100%;
-      padding: 10px 14px;
-      background: var(--bg);
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      color: var(--text);
-      font-size: 0.875rem;
-      outline: none;
-    }
-
-    .search-input:focus {
-      border-color: var(--accent);
-    }
-
-    .search-input::placeholder {
-      color: var(--text-muted);
-    }
-
-    /* Responsive */
-    @media (max-width: 1024px) {
-      .sidebar {
-        transform: translateX(-100%);
-        z-index: 100;
-        transition: transform 0.3s;
-      }
-
-      .sidebar.open {
-        transform: translateX(0);
-      }
-
-      .main-content {
-        margin-left: 0;
-        padding: 32px 24px;
-      }
-    }
-
-    /* Mobile menu toggle */
-    .mobile-menu-toggle {
-      display: none;
-      position: fixed;
-      bottom: 24px;
-      right: 24px;
-      width: 48px;
-      height: 48px;
-      background: var(--accent);
-      border: none;
-      border-radius: 50%;
-      color: white;
-      font-size: 1.5rem;
-      cursor: pointer;
-      z-index: 101;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-    }
-
-    @media (max-width: 1024px) {
-      .mobile-menu-toggle {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-      }
-    }
-
-    /* TOC */
-    .toc {
-      position: fixed;
-      right: 32px;
-      top: 100px;
-      width: 200px;
-      font-size: 0.813rem;
-    }
-
-    .toc-title {
-      font-weight: 600;
-      color: var(--text-muted);
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      font-size: 0.75rem;
-      margin-bottom: 12px;
-    }
-
-    .toc-list {
-      list-style: none;
-      padding: 0;
-      margin: 0;
-    }
-
-    .toc-list a {
-      display: block;
-      padding: 4px 0;
-      color: var(--text-secondary);
-      text-decoration: none;
-      border-left: 2px solid transparent;
-      padding-left: 12px;
-      margin-left: -2px;
-    }
-
-    .toc-list a:hover,
-    .toc-list a.active {
-      color: var(--text);
-      border-left-color: var(--accent);
-    }
-
-    @media (max-width: 1400px) {
-      .toc {
-        display: none;
-      }
-    }
-  </style>
+  <!-- Styles -->
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <div class="docs-layout">
@@ -613,7 +65,7 @@
       </div>
 
       <div class="search-box">
-        <input type="text" class="search-input" placeholder="Search docs..." id="search">
+        <input type="text" class="search-input" placeholder="Search docs... (⌘K)" id="search">
       </div>
 
       <div class="sidebar-section">
@@ -652,10 +104,9 @@
       <div class="sidebar-section">
         <div class="sidebar-section-title">Features</div>
         <ul class="sidebar-nav">
-          <li><a href="#kv-storage">KV Storage</a></li>
-          <li><a href="#pubsub">Pub/Sub</a></li>
           <li><a href="#cron-jobs">Cron Jobs</a></li>
           <li><a href="#dead-letter-queue">Dead Letter Queue</a></li>
+          <li><a href="#progress">Progress Tracking</a></li>
         </ul>
       </div>
 
@@ -680,7 +131,6 @@
         <div class="sidebar-section-title">Reference</div>
         <ul class="sidebar-nav">
           <li><a href="#api-reference">API Reference</a></li>
-          <li><a href="#cli">CLI Reference</a></li>
           <li><a href="#troubleshooting">Troubleshooting</a></li>
         </ul>
       </div>
@@ -733,12 +183,12 @@
             </tr>
             <tr>
               <td>Throughput</td>
-              <td>300K jobs/sec</td>
+              <td><strong>300K jobs/sec</strong></td>
               <td>~30K jobs/sec</td>
             </tr>
             <tr>
               <td>Max payload</td>
-              <td>10 MB</td>
+              <td><strong>10 MB</strong></td>
               <td>~5 MB recommended</td>
             </tr>
             <tr>
@@ -796,7 +246,7 @@ curl -L https://github.com/egeominotti/flashq/releases/latest/download/flashq-ma
             <span>Terminal</span>
             <button class="copy-btn" onclick="copyCode(this)">Copy</button>
           </div>
-          <pre><code><span class="token-comment"># Using bun</span>
+          <pre><code><span class="token-comment"># Using bun (recommended)</span>
 bun add flashq
 
 <span class="token-comment"># Using npm</span>
@@ -1241,34 +691,6 @@ console.<span class="token-function">log</span>(result); <span class="token-comm
           <pre><code><span class="token-keyword">const</span> worker = <span class="token-keyword">new</span> <span class="token-function">Worker</span>(queueName, processor, options?);</code></pre>
         </div>
 
-        <h4>Parameters</h4>
-        <table>
-          <thead>
-            <tr>
-              <th>Parameter</th>
-              <th>Type</th>
-              <th>Description</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td><code>queueName</code></td>
-              <td>string</td>
-              <td>Name of the queue to process</td>
-            </tr>
-            <tr>
-              <td><code>processor</code></td>
-              <td>function</td>
-              <td>Async function that processes each job</td>
-            </tr>
-            <tr>
-              <td><code>options</code></td>
-              <td>object</td>
-              <td>Worker configuration options</td>
-            </tr>
-          </tbody>
-        </table>
-
         <h4>Options</h4>
         <table>
           <thead>
@@ -1323,19 +745,6 @@ console.<span class="token-function">log</span>(result); <span class="token-comm
   <span class="token-comment">// Return result (stored with the job)</span>
   <span class="token-keyword">return</span> result;
 });</code></pre>
-        </div>
-
-        <h3>Concurrency</h3>
-        <p>Process multiple jobs in parallel for better throughput.</p>
-        <div class="code-block">
-          <pre><code><span class="token-comment">// Process 10 jobs concurrently</span>
-<span class="token-keyword">const</span> worker = <span class="token-keyword">new</span> <span class="token-function">Worker</span>(<span class="token-string">'images'</span>, processor, {
-  concurrency: <span class="token-number">10</span>
-});</code></pre>
-        </div>
-        <div class="callout callout-warning">
-          <div class="callout-title">⚠️ Concurrency Tips</div>
-          <p>Set concurrency based on your workload. CPU-bound tasks benefit from concurrency matching CPU cores. I/O-bound tasks (API calls, DB queries) can use higher concurrency.</p>
         </div>
 
         <h3>Graceful Shutdown</h3>
@@ -1400,15 +809,10 @@ process.<span class="token-function">on</span>(<span class="token-string">'SIGTE
 
 worker.<span class="token-function">on</span>(<span class="token-string">'failed'</span>, (job, error) => {
   console.<span class="token-function">error</span>(<span class="token-string">`❌ Job ${job.id} failed: ${error.message}`</span>);
-  <span class="token-comment">// Send to error tracking (Sentry, etc.)</span>
 });
 
 worker.<span class="token-function">on</span>(<span class="token-string">'active'</span>, (job) => {
   console.<span class="token-function">log</span>(<span class="token-string">`🔄 Job ${job.id} started`</span>);
-});
-
-worker.<span class="token-function">on</span>(<span class="token-string">'error'</span>, (error) => {
-  console.<span class="token-function">error</span>(<span class="token-string">'Worker error:'</span>, error);
 });</code></pre>
         </div>
       </section>
@@ -1433,19 +837,80 @@ worker.<span class="token-function">on</span>(<span class="token-string">'error'
 <span class="token-keyword">await</span> client.<span class="token-function">clearRateLimit</span>(<span class="token-string">'openai-calls'</span>);</code></pre>
         </div>
 
+        <h3>Concurrency Limiting</h3>
+        <p>Limit how many jobs can be processed simultaneously across all workers.</p>
+        <div class="code-block">
+          <pre><code><span class="token-comment">// Max 5 concurrent jobs processing</span>
+<span class="token-keyword">await</span> client.<span class="token-function">setConcurrency</span>(<span class="token-string">'heavy-tasks'</span>, <span class="token-number">5</span>);
+
+<span class="token-comment">// Remove concurrency limit</span>
+<span class="token-keyword">await</span> client.<span class="token-function">clearConcurrency</span>(<span class="token-string">'heavy-tasks'</span>);</code></pre>
+        </div>
+
         <div class="callout callout-info">
           <div class="callout-title">💡 AI Cost Control</div>
           <p>Rate limiting is essential for controlling LLM API costs. Set limits based on your API tier and budget.</p>
         </div>
+      </section>
 
-        <h3>Concurrency Limiting</h3>
-        <p>Limit the number of jobs that can be processed simultaneously.</p>
+      <!-- Retries & Backoff -->
+      <section id="retries">
+        <h2>Retries &amp; Backoff</h2>
+        <p>Configure automatic retries with exponential backoff for failed jobs.</p>
+
+        <h3>Basic Retries</h3>
         <div class="code-block">
-          <pre><code><span class="token-comment">// Only allow 5 concurrent jobs in this queue</span>
-<span class="token-keyword">await</span> client.<span class="token-function">setConcurrency</span>(<span class="token-string">'heavy-processing'</span>, <span class="token-number">5</span>);
+          <pre><code><span class="token-comment">// Retry up to 3 times on failure</span>
+<span class="token-keyword">await</span> queue.<span class="token-function">add</span>(<span class="token-string">'send-email'</span>, emailData, {
+  attempts: <span class="token-number">3</span>
+});</code></pre>
+        </div>
 
-<span class="token-comment">// Remove concurrency limit</span>
-<span class="token-keyword">await</span> client.<span class="token-function">clearConcurrency</span>(<span class="token-string">'heavy-processing'</span>);</code></pre>
+        <h3>Fixed Delay Backoff</h3>
+        <p>Wait a fixed time between retry attempts.</p>
+        <div class="code-block">
+          <pre><code><span class="token-comment">// Retry after 5 seconds each time</span>
+<span class="token-keyword">await</span> queue.<span class="token-function">add</span>(<span class="token-string">'api-call'</span>, data, {
+  attempts: <span class="token-number">5</span>,
+  backoff: <span class="token-number">5000</span>  <span class="token-comment">// 5 seconds</span>
+});</code></pre>
+        </div>
+
+        <h3>Exponential Backoff</h3>
+        <p>Increase delay exponentially: 1s, 2s, 4s, 8s... Perfect for rate-limited APIs.</p>
+        <div class="code-block">
+          <pre><code><span class="token-comment">// Exponential: base * 2^attempt</span>
+<span class="token-keyword">await</span> queue.<span class="token-function">add</span>(<span class="token-string">'openai-request'</span>, data, {
+  attempts: <span class="token-number">5</span>,
+  backoff: {
+    type: <span class="token-string">'exponential'</span>,
+    delay: <span class="token-number">1000</span>  <span class="token-comment">// base delay</span>
+  }
+});
+<span class="token-comment">// Delays: 1s, 2s, 4s, 8s, 16s</span></code></pre>
+        </div>
+
+        <h3>Retry Flow</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Attempt</th>
+              <th>Exponential (1s base)</th>
+              <th>Fixed (5s)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>1</td><td>1 second</td><td>5 seconds</td></tr>
+            <tr><td>2</td><td>2 seconds</td><td>5 seconds</td></tr>
+            <tr><td>3</td><td>4 seconds</td><td>5 seconds</td></tr>
+            <tr><td>4</td><td>8 seconds</td><td>5 seconds</td></tr>
+            <tr><td>5</td><td>16 seconds</td><td>5 seconds</td></tr>
+          </tbody>
+        </table>
+
+        <div class="callout callout-warning">
+          <div class="callout-title">⚠️ Dead Letter Queue</div>
+          <p>After exhausting all attempts, failed jobs are moved to the Dead Letter Queue (DLQ). See <a href="#dead-letter-queue">Dead Letter Queue</a> for handling failed jobs.</p>
         </div>
       </section>
 
@@ -1501,7 +966,7 @@ worker.<span class="token-function">on</span>(<span class="token-string">'error'
   <span class="token-comment">// Step 3: Generate answer (waits for search)</span>
   <span class="token-keyword">const</span> generateJob = <span class="token-keyword">await</span> rag.<span class="token-function">add</span>(<span class="token-string">'generate'</span>, { question }, {
     depends_on: [searchJob.id],
-    priority: <span class="token-number">10</span>  <span class="token-comment">// Higher priority for final step</span>
+    priority: <span class="token-number">10</span>
   });
 
   <span class="token-comment">// Wait for result</span>
@@ -1531,6 +996,611 @@ worker.<span class="token-function">on</span>(<span class="token-string">'error'
 <span class="token-comment">// Usage</span>
 <span class="token-keyword">const</span> answer = <span class="token-keyword">await</span> <span class="token-function">askQuestion</span>(<span class="token-string">'What is flashQ?'</span>);
 console.<span class="token-function">log</span>(answer);</code></pre>
+        </div>
+      </section>
+
+      <!-- LLM Pipelines -->
+      <section id="llm-pipelines">
+        <h2>LLM Pipelines</h2>
+        <p>Build multi-step LLM workflows with job dependencies, progress tracking, and automatic retries.</p>
+
+        <div class="code-block">
+          <div class="code-block-header">
+            <span>llm-pipeline.ts</span>
+            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+          </div>
+          <pre><code><span class="token-keyword">import</span> { Queue, Worker } <span class="token-keyword">from</span> <span class="token-string">'flashq'</span>;
+
+<span class="token-keyword">const</span> llm = <span class="token-keyword">new</span> <span class="token-function">Queue</span>(<span class="token-string">'llm-pipeline'</span>);
+
+<span class="token-comment">// Multi-step summarization pipeline</span>
+<span class="token-keyword">async function</span> <span class="token-function">summarizeDocument</span>(doc: <span class="token-variable">string</span>) {
+  <span class="token-comment">// Step 1: Chunk the document</span>
+  <span class="token-keyword">const</span> chunkJob = <span class="token-keyword">await</span> llm.<span class="token-function">add</span>(<span class="token-string">'chunk'</span>, { text: doc });
+
+  <span class="token-comment">// Step 2: Summarize each chunk (parallel)</span>
+  <span class="token-keyword">const</span> summarizeJob = <span class="token-keyword">await</span> llm.<span class="token-function">add</span>(<span class="token-string">'summarize-chunks'</span>, {}, {
+    depends_on: [chunkJob.id]
+  });
+
+  <span class="token-comment">// Step 3: Combine summaries</span>
+  <span class="token-keyword">const</span> combineJob = <span class="token-keyword">await</span> llm.<span class="token-function">add</span>(<span class="token-string">'combine'</span>, {}, {
+    depends_on: [summarizeJob.id],
+    priority: <span class="token-number">10</span>
+  });
+
+  <span class="token-keyword">return</span> llm.<span class="token-function">finished</span>(combineJob.id, <span class="token-number">60000</span>);
+}
+
+<span class="token-comment">// Worker with progress tracking</span>
+<span class="token-keyword">new</span> <span class="token-function">Worker</span>(<span class="token-string">'llm-pipeline'</span>, <span class="token-keyword">async</span> (job) => {
+  <span class="token-keyword">if</span> (job.name === <span class="token-string">'summarize-chunks'</span>) {
+    <span class="token-keyword">const</span> chunks = job.data.chunks;
+    <span class="token-keyword">const</span> summaries = [];
+
+    <span class="token-keyword">for</span> (<span class="token-keyword">let</span> i = <span class="token-number">0</span>; i < chunks.length; i++) {
+      <span class="token-keyword">const</span> summary = <span class="token-keyword">await</span> openai.chat.completions.<span class="token-function">create</span>({
+        model: <span class="token-string">'gpt-4'</span>,
+        messages: [{ role: <span class="token-string">'user'</span>, content: <span class="token-string">`Summarize: ${chunks[i]}`</span> }]
+      });
+      summaries.<span class="token-function">push</span>(summary);
+
+      <span class="token-comment">// Update progress</span>
+      <span class="token-keyword">await</span> job.<span class="token-function">updateProgress</span>(((i + <span class="token-number">1</span>) / chunks.length) * <span class="token-number">100</span>);
+    }
+
+    <span class="token-keyword">return</span> { summaries };
+  }
+}, {
+  concurrency: <span class="token-number">5</span>
+});</code></pre>
+        </div>
+
+        <h3>Pipeline Patterns</h3>
+        <div class="card-grid">
+          <div class="card">
+            <h4>Sequential Chain</h4>
+            <p>A → B → C. Each step waits for the previous to complete. Perfect for multi-turn conversations.</p>
+          </div>
+          <div class="card">
+            <h4>Fan-Out / Fan-In</h4>
+            <p>Split work into parallel chunks, then aggregate. Ideal for document processing.</p>
+          </div>
+          <div class="card">
+            <h4>Conditional Flow</h4>
+            <p>Branch based on intermediate results. Use for AI classification and routing.</p>
+          </div>
+          <div class="card">
+            <h4>Retry with Fallback</h4>
+            <p>Try GPT-4, fallback to GPT-3.5 on failure. Automatic with retry configuration.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Batch Inference -->
+      <section id="batch-inference">
+        <h2>Batch Inference</h2>
+        <p>Process large datasets efficiently with batch operations and progress tracking.</p>
+
+        <div class="code-block">
+          <div class="code-block-header">
+            <span>batch-inference.ts</span>
+            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+          </div>
+          <pre><code><span class="token-keyword">import</span> { Queue, Worker } <span class="token-keyword">from</span> <span class="token-string">'flashq'</span>;
+
+<span class="token-keyword">const</span> batch = <span class="token-keyword">new</span> <span class="token-function">Queue</span>(<span class="token-string">'batch-inference'</span>);
+
+<span class="token-comment">// Submit batch job for embeddings</span>
+<span class="token-keyword">async function</span> <span class="token-function">embedDocuments</span>(documents: <span class="token-variable">string</span>[]) {
+  <span class="token-comment">// Split into chunks of 100</span>
+  <span class="token-keyword">const</span> chunkSize = <span class="token-number">100</span>;
+  <span class="token-keyword">const</span> jobs = [];
+
+  <span class="token-keyword">for</span> (<span class="token-keyword">let</span> i = <span class="token-number">0</span>; i < documents.length; i += chunkSize) {
+    <span class="token-keyword">const</span> chunk = documents.<span class="token-function">slice</span>(i, i + chunkSize);
+    <span class="token-keyword">const</span> job = <span class="token-keyword">await</span> batch.<span class="token-function">add</span>(<span class="token-string">'embed'</span>, {
+      documents: chunk,
+      batchIndex: i / chunkSize
+    }, {
+      priority: <span class="token-number">5</span>,
+      attempts: <span class="token-number">3</span>,
+      backoff: { type: <span class="token-string">'exponential'</span>, delay: <span class="token-number">2000</span> }
+    });
+    jobs.<span class="token-function">push</span>(job);
+  }
+
+  <span class="token-comment">// Wait for all jobs</span>
+  <span class="token-keyword">return</span> Promise.<span class="token-function">all</span>(jobs.<span class="token-function">map</span>(j => batch.<span class="token-function">finished</span>(j.id)));
+}
+
+<span class="token-comment">// Worker optimized for batch processing</span>
+<span class="token-keyword">new</span> <span class="token-function">Worker</span>(<span class="token-string">'batch-inference'</span>, <span class="token-keyword">async</span> (job) => {
+  <span class="token-keyword">const</span> { documents } = job.data;
+
+  <span class="token-comment">// Use OpenAI batch embedding API</span>
+  <span class="token-keyword">const</span> response = <span class="token-keyword">await</span> openai.embeddings.<span class="token-function">create</span>({
+    model: <span class="token-string">'text-embedding-3-small'</span>,
+    input: documents
+  });
+
+  <span class="token-keyword">return</span> {
+    embeddings: response.data.<span class="token-function">map</span>(d => d.embedding),
+    model: response.model,
+    usage: response.usage
+  };
+}, {
+  concurrency: <span class="token-number">10</span>  <span class="token-comment">// Process 10 batches in parallel</span>
+});
+
+<span class="token-comment">// Usage: Process 10,000 documents</span>
+<span class="token-keyword">const</span> results = <span class="token-keyword">await</span> <span class="token-function">embedDocuments</span>(myDocuments);
+console.<span class="token-function">log</span>(<span class="token-string">`Processed ${results.length} batches`</span>);</code></pre>
+        </div>
+
+        <div class="callout callout-info">
+          <div class="callout-title">💡 Large Payload Support</div>
+          <p>flashQ supports payloads up to 10MB, making it perfect for passing embeddings (1536-3072 dimensions) between pipeline stages.</p>
+        </div>
+      </section>
+
+      <!-- Cron Jobs -->
+      <section id="cron-jobs">
+        <h2>Cron Jobs</h2>
+        <p>Schedule recurring jobs with standard cron expressions. flashQ supports 6-field cron (including seconds).</p>
+
+        <div class="code-block">
+          <div class="code-block-header">
+            <span>cron-jobs.ts</span>
+            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+          </div>
+          <pre><code><span class="token-keyword">import</span> { FlashQ } <span class="token-keyword">from</span> <span class="token-string">'flashq'</span>;
+
+<span class="token-keyword">const</span> client = <span class="token-keyword">new</span> <span class="token-function">FlashQ</span>();
+
+<span class="token-comment">// Every minute</span>
+<span class="token-keyword">await</span> client.<span class="token-function">addCron</span>(<span class="token-string">'health-check'</span>, {
+  queue: <span class="token-string">'monitoring'</span>,
+  schedule: <span class="token-string">'0 * * * * *'</span>,  <span class="token-comment">// sec min hour day month weekday</span>
+  data: { type: <span class="token-string">'health'</span> }
+});
+
+<span class="token-comment">// Every hour at minute 0</span>
+<span class="token-keyword">await</span> client.<span class="token-function">addCron</span>(<span class="token-string">'hourly-sync'</span>, {
+  queue: <span class="token-string">'sync'</span>,
+  schedule: <span class="token-string">'0 0 * * * *'</span>,
+  data: { source: <span class="token-string">'external-api'</span> }
+});
+
+<span class="token-comment">// Every day at 2 AM</span>
+<span class="token-keyword">await</span> client.<span class="token-function">addCron</span>(<span class="token-string">'daily-report'</span>, {
+  queue: <span class="token-string">'reports'</span>,
+  schedule: <span class="token-string">'0 0 2 * * *'</span>,
+  data: { reportType: <span class="token-string">'daily'</span> }
+});
+
+<span class="token-comment">// Every Monday at 9 AM</span>
+<span class="token-keyword">await</span> client.<span class="token-function">addCron</span>(<span class="token-string">'weekly-digest'</span>, {
+  queue: <span class="token-string">'emails'</span>,
+  schedule: <span class="token-string">'0 0 9 * * 1'</span>,
+  data: { template: <span class="token-string">'weekly-digest'</span> }
+});
+
+<span class="token-comment">// List all cron jobs</span>
+<span class="token-keyword">const</span> crons = <span class="token-keyword">await</span> client.<span class="token-function">listCrons</span>();
+console.<span class="token-function">log</span>(crons);
+
+<span class="token-comment">// Delete a cron job</span>
+<span class="token-keyword">await</span> client.<span class="token-function">deleteCron</span>(<span class="token-string">'health-check'</span>);</code></pre>
+        </div>
+
+        <h3>Cron Expression Format</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Field</th>
+              <th>Values</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>Second</td><td>0-59</td><td>Optional, defaults to 0</td></tr>
+            <tr><td>Minute</td><td>0-59</td><td>Required</td></tr>
+            <tr><td>Hour</td><td>0-23</td><td>Required</td></tr>
+            <tr><td>Day</td><td>1-31</td><td>Required</td></tr>
+            <tr><td>Month</td><td>1-12</td><td>Required</td></tr>
+            <tr><td>Weekday</td><td>0-6</td><td>0 = Sunday</td></tr>
+          </tbody>
+        </table>
+
+        <h3>Common Patterns</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Expression</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td><code>0 * * * * *</code></td><td>Every minute</td></tr>
+            <tr><td><code>0 0 * * * *</code></td><td>Every hour</td></tr>
+            <tr><td><code>0 0 0 * * *</code></td><td>Every day at midnight</td></tr>
+            <tr><td><code>0 30 9 * * 1-5</code></td><td>Weekdays at 9:30 AM</td></tr>
+            <tr><td><code>0 0 */2 * * *</code></td><td>Every 2 hours</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <!-- Dead Letter Queue -->
+      <section id="dead-letter-queue">
+        <h2>Dead Letter Queue</h2>
+        <p>Jobs that fail all retry attempts are moved to the Dead Letter Queue (DLQ) for inspection and manual retry.</p>
+
+        <div class="code-block">
+          <div class="code-block-header">
+            <span>dlq-handling.ts</span>
+            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+          </div>
+          <pre><code><span class="token-keyword">import</span> { FlashQ } <span class="token-keyword">from</span> <span class="token-string">'flashq'</span>;
+
+<span class="token-keyword">const</span> client = <span class="token-keyword">new</span> <span class="token-function">FlashQ</span>();
+
+<span class="token-comment">// Get failed jobs from DLQ</span>
+<span class="token-keyword">const</span> failedJobs = <span class="token-keyword">await</span> client.<span class="token-function">getDlq</span>(<span class="token-string">'emails'</span>, <span class="token-number">10</span>);
+
+<span class="token-keyword">for</span> (<span class="token-keyword">const</span> job <span class="token-keyword">of</span> failedJobs) {
+  console.<span class="token-function">log</span>(<span class="token-string">`Job ${job.id} failed: ${job.error}`</span>);
+  console.<span class="token-function">log</span>(<span class="token-string">`Data: ${JSON.stringify(job.data)}`</span>);
+  console.<span class="token-function">log</span>(<span class="token-string">`Attempts: ${job.attempts}`</span>);
+}
+
+<span class="token-comment">// Retry a specific failed job</span>
+<span class="token-keyword">await</span> client.<span class="token-function">retryDlq</span>(<span class="token-string">'emails'</span>, <span class="token-number">123</span>);
+
+<span class="token-comment">// Retry ALL failed jobs in queue</span>
+<span class="token-keyword">await</span> client.<span class="token-function">retryDlq</span>(<span class="token-string">'emails'</span>);
+
+<span class="token-comment">// Discard a job directly to DLQ</span>
+<span class="token-keyword">await</span> client.<span class="token-function">discard</span>(<span class="token-number">456</span>);</code></pre>
+        </div>
+
+        <h3>DLQ Best Practices</h3>
+        <div class="card-grid">
+          <div class="card">
+            <h4>Monitor Regularly</h4>
+            <p>Set up alerts for DLQ growth. A growing DLQ indicates systemic issues.</p>
+          </div>
+          <div class="card">
+            <h4>Log Failures</h4>
+            <p>Include detailed error messages in job failures for easier debugging.</p>
+          </div>
+          <div class="card">
+            <h4>Automate Retries</h4>
+            <p>For transient errors, set up automatic retry schedules during off-peak hours.</p>
+          </div>
+          <div class="card">
+            <h4>Clean Periodically</h4>
+            <p>Use <code>clean()</code> to remove old DLQ entries after investigation.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Progress Tracking -->
+      <section id="progress">
+        <h2>Progress Tracking</h2>
+        <p>Track job progress in real-time for long-running tasks like file processing or AI inference.</p>
+
+        <div class="code-block">
+          <div class="code-block-header">
+            <span>progress-tracking.ts</span>
+            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+          </div>
+          <pre><code><span class="token-keyword">import</span> { Queue, Worker, FlashQ } <span class="token-keyword">from</span> <span class="token-string">'flashq'</span>;
+
+<span class="token-keyword">const</span> queue = <span class="token-keyword">new</span> <span class="token-function">Queue</span>(<span class="token-string">'processing'</span>);
+<span class="token-keyword">const</span> client = <span class="token-keyword">new</span> <span class="token-function">FlashQ</span>();
+
+<span class="token-comment">// Worker that reports progress</span>
+<span class="token-keyword">new</span> <span class="token-function">Worker</span>(<span class="token-string">'processing'</span>, <span class="token-keyword">async</span> (job) => {
+  <span class="token-keyword">const</span> items = job.data.items;
+  <span class="token-keyword">const</span> results = [];
+
+  <span class="token-keyword">for</span> (<span class="token-keyword">let</span> i = <span class="token-number">0</span>; i < items.length; i++) {
+    <span class="token-comment">// Process item</span>
+    <span class="token-keyword">const</span> result = <span class="token-keyword">await</span> <span class="token-function">processItem</span>(items[i]);
+    results.<span class="token-function">push</span>(result);
+
+    <span class="token-comment">// Update progress (0-100)</span>
+    <span class="token-keyword">const</span> progress = Math.<span class="token-function">round</span>(((i + <span class="token-number">1</span>) / items.length) * <span class="token-number">100</span>);
+    <span class="token-keyword">await</span> job.<span class="token-function">updateProgress</span>(progress, <span class="token-string">`Processed ${i + 1}/${items.length}`</span>);
+  }
+
+  <span class="token-keyword">return</span> results;
+});
+
+<span class="token-comment">// Monitor progress from producer</span>
+<span class="token-keyword">const</span> job = <span class="token-keyword">await</span> queue.<span class="token-function">add</span>(<span class="token-string">'batch'</span>, { items: largeArray });
+
+<span class="token-comment">// Poll progress</span>
+<span class="token-keyword">const</span> interval = <span class="token-function">setInterval</span>(<span class="token-keyword">async</span> () => {
+  <span class="token-keyword">const</span> { progress, message } = <span class="token-keyword">await</span> client.<span class="token-function">getProgress</span>(job.id);
+  console.<span class="token-function">log</span>(<span class="token-string">`Progress: ${progress}% - ${message}`</span>);
+
+  <span class="token-keyword">if</span> (progress === <span class="token-number">100</span>) {
+    <span class="token-function">clearInterval</span>(interval);
+  }
+}, <span class="token-number">1000</span>);
+
+<span class="token-comment">// Or listen to progress events</span>
+worker.<span class="token-function">on</span>(<span class="token-string">'progress'</span>, (job, progress) => {
+  console.<span class="token-function">log</span>(<span class="token-string">`Job ${job.id}: ${progress}%`</span>);
+});</code></pre>
+        </div>
+
+        <div class="callout callout-info">
+          <div class="callout-title">💡 Heartbeat for Long Jobs</div>
+          <p>For jobs running longer than the timeout, use <code>job.heartbeat()</code> to prevent stall detection from failing the job.</p>
+        </div>
+      </section>
+
+      <!-- Self-Hosting -->
+      <section id="self-hosting">
+        <h2>Self-Hosting</h2>
+        <p>flashQ is designed for easy self-hosting. Run it on any Linux, macOS, or container environment.</p>
+
+        <h3>System Requirements</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Component</th>
+              <th>Minimum</th>
+              <th>Recommended</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>CPU</td><td>1 core</td><td>2+ cores</td></tr>
+            <tr><td>Memory</td><td>512 MB</td><td>1-2 GB</td></tr>
+            <tr><td>Disk</td><td>100 MB</td><td>1 GB (for persistence)</td></tr>
+            <tr><td>OS</td><td colspan="2">Linux (x86_64, arm64), macOS</td></tr>
+          </tbody>
+        </table>
+
+        <h3>Binary Installation</h3>
+        <div class="code-block">
+          <pre><code><span class="token-comment"># Linux x86_64</span>
+curl -L https://github.com/egeominotti/flashq/releases/latest/download/flashq-linux-x86_64.tar.gz | tar xz
+sudo mv flashq-server /usr/local/bin/
+
+<span class="token-comment"># Linux ARM64 (Raspberry Pi, AWS Graviton)</span>
+curl -L https://github.com/egeominotti/flashq/releases/latest/download/flashq-linux-arm64.tar.gz | tar xz
+sudo mv flashq-server /usr/local/bin/
+
+<span class="token-comment"># macOS Apple Silicon</span>
+curl -L https://github.com/egeominotti/flashq/releases/latest/download/flashq-macos-arm64.tar.gz | tar xz
+sudo mv flashq-server /usr/local/bin/</code></pre>
+        </div>
+
+        <h3>Systemd Service</h3>
+        <div class="code-block">
+          <div class="code-block-header">
+            <span>/etc/systemd/system/flashq.service</span>
+            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+          </div>
+          <pre><code>[Unit]
+Description=flashQ Job Queue Server
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=flashq
+Environment=HTTP=1
+Environment=DATABASE_URL=postgres://flashq:password@localhost/flashq
+ExecStart=/usr/local/bin/flashq-server
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target</code></pre>
+        </div>
+
+        <div class="code-block">
+          <pre><code><span class="token-comment"># Enable and start</span>
+sudo systemctl enable flashq
+sudo systemctl start flashq
+
+<span class="token-comment"># Check status</span>
+sudo systemctl status flashq
+
+<span class="token-comment"># View logs</span>
+sudo journalctl -u flashq -f</code></pre>
+        </div>
+      </section>
+
+      <!-- Docker -->
+      <section id="docker">
+        <h2>Docker</h2>
+        <p>The recommended way to run flashQ in production.</p>
+
+        <h3>Quick Start</h3>
+        <div class="code-block">
+          <pre><code><span class="token-comment"># Run with dashboard enabled</span>
+docker run -d --name flashq \
+  -p 6789:6789 \
+  -p 6790:6790 \
+  -e HTTP=1 \
+  ghcr.io/egeominotti/flashq:latest</code></pre>
+        </div>
+
+        <h3>Docker Compose (Production)</h3>
+        <div class="code-block">
+          <div class="code-block-header">
+            <span>docker-compose.yml</span>
+            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+          </div>
+          <pre><code>version: '3.8'
+
+services:
+  flashq:
+    image: ghcr.io/egeominotti/flashq:latest
+    ports:
+      - "6789:6789"   # TCP
+      - "6790:6790"   # HTTP/Dashboard
+    environment:
+      - HTTP=1
+      - DATABASE_URL=postgres://flashq:secret@postgres:5432/flashq
+      - AUTH_TOKENS=your-secret-token
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: flashq
+      POSTGRES_PASSWORD: secret
+      POSTGRES_DB: flashq
+    volumes:
+      - flashq_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U flashq"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  flashq_data:</code></pre>
+        </div>
+
+        <h3>Environment Variables</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Variable</th>
+              <th>Default</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td><code>PORT</code></td><td>6789</td><td>TCP port for client connections</td></tr>
+            <tr><td><code>HTTP</code></td><td>0</td><td>Enable HTTP API (1 = enabled)</td></tr>
+            <tr><td><code>HTTP_PORT</code></td><td>6790</td><td>HTTP API and dashboard port</td></tr>
+            <tr><td><code>GRPC</code></td><td>0</td><td>Enable gRPC API (1 = enabled)</td></tr>
+            <tr><td><code>GRPC_PORT</code></td><td>6791</td><td>gRPC API port</td></tr>
+            <tr><td><code>DATABASE_URL</code></td><td>-</td><td>PostgreSQL connection string</td></tr>
+            <tr><td><code>AUTH_TOKENS</code></td><td>-</td><td>Comma-separated auth tokens</td></tr>
+            <tr><td><code>CLUSTER_MODE</code></td><td>0</td><td>Enable clustering (1 = enabled)</td></tr>
+            <tr><td><code>NODE_ID</code></td><td>auto</td><td>Unique node ID for clustering</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <!-- Clustering -->
+      <section id="clustering">
+        <h2>Clustering (High Availability)</h2>
+        <p>Run multiple flashQ nodes for high availability. PostgreSQL is used for coordination and leader election.</p>
+
+        <h3>Architecture</h3>
+        <div class="code-block">
+          <pre><code>┌──────────┐    ┌──────────┐    ┌──────────┐
+│  Node 1  │    │  Node 2  │    │  Node 3  │
+│ (Leader) │    │(Follower)│    │(Follower)│
+└────┬─────┘    └────┬─────┘    └────┬─────┘
+     │               │               │
+     └───────────────┼───────────────┘
+                     │
+              ┌──────▼──────┐
+              │  PostgreSQL │
+              │  (Shared)   │
+              └─────────────┘</code></pre>
+        </div>
+
+        <h3>How It Works</h3>
+        <ul>
+          <li><strong>Leader election</strong>: Uses PostgreSQL advisory locks (<code>pg_try_advisory_lock</code>)</li>
+          <li><strong>Leader responsibilities</strong>: Runs background tasks (cron, cleanup, timeouts)</li>
+          <li><strong>All nodes</strong>: Handle client requests (push/pull/ack)</li>
+          <li><strong>Automatic failover</strong>: Within 5 seconds when leader crashes</li>
+          <li><strong>Health checks</strong>: Stale nodes cleaned after 30s of no heartbeat</li>
+        </ul>
+
+        <h3>Multi-Node Setup</h3>
+        <div class="code-block">
+          <div class="code-block-header">
+            <span>docker-compose.ha.yml</span>
+            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+          </div>
+          <pre><code>version: '3.8'
+
+services:
+  flashq-node1:
+    image: ghcr.io/egeominotti/flashq:latest
+    ports:
+      - "6789:6789"
+      - "6790:6790"
+    environment:
+      - CLUSTER_MODE=1
+      - NODE_ID=node-1
+      - HTTP=1
+      - DATABASE_URL=postgres://flashq:secret@postgres:5432/flashq
+    depends_on:
+      - postgres
+
+  flashq-node2:
+    image: ghcr.io/egeominotti/flashq:latest
+    ports:
+      - "6793:6789"
+      - "6794:6790"
+    environment:
+      - CLUSTER_MODE=1
+      - NODE_ID=node-2
+      - HTTP=1
+      - DATABASE_URL=postgres://flashq:secret@postgres:5432/flashq
+    depends_on:
+      - postgres
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: flashq
+      POSTGRES_PASSWORD: secret
+      POSTGRES_DB: flashq
+    volumes:
+      - ha_data:/var/lib/postgresql/data
+
+volumes:
+  ha_data:</code></pre>
+        </div>
+
+        <h3>Cluster Endpoints</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Endpoint</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td><code>GET /health</code></td><td>Node health with leader/follower status</td></tr>
+            <tr><td><code>GET /cluster/nodes</code></td><td>List all nodes in cluster</td></tr>
+          </tbody>
+        </table>
+
+        <div class="code-block">
+          <pre><code><span class="token-comment"># Check cluster status</span>
+curl http://localhost:6790/cluster/nodes
+
+<span class="token-comment"># Response</span>
+{
+  "nodes": [
+    { "id": "node-1", "host": "flashq-node1", "is_leader": true },
+    { "id": "node-2", "host": "flashq-node2", "is_leader": false }
+  ]
+}</code></pre>
         </div>
       </section>
 
@@ -1564,16 +1634,6 @@ console.<span class="token-function">log</span>(answer);</code></pre>
               <td>HTTP API port</td>
             </tr>
             <tr>
-              <td><code>GRPC</code></td>
-              <td><code>0</code></td>
-              <td>Enable gRPC API (set to <code>1</code>)</td>
-            </tr>
-            <tr>
-              <td><code>GRPC_PORT</code></td>
-              <td><code>6791</code></td>
-              <td>gRPC API port</td>
-            </tr>
-            <tr>
               <td><code>DATABASE_URL</code></td>
               <td>-</td>
               <td>PostgreSQL connection URL for persistence</td>
@@ -1587,11 +1647,6 @@ console.<span class="token-function">log</span>(answer);</code></pre>
               <td><code>CLUSTER_MODE</code></td>
               <td><code>0</code></td>
               <td>Enable clustering (set to <code>1</code>)</td>
-            </tr>
-            <tr>
-              <td><code>NODE_ID</code></td>
-              <td>auto</td>
-              <td>Unique node identifier for clustering</td>
             </tr>
           </tbody>
         </table>
@@ -1657,72 +1712,156 @@ console.<span class="token-function">log</span>(answer);</code></pre>
           <div class="callout-title">✅ That's it!</div>
           <p>Your code should work without any other changes. The Queue and Worker APIs are compatible.</p>
         </div>
+      </section>
 
-        <h3>API Compatibility</h3>
+      <!-- API Reference -->
+      <section id="api-reference">
+        <h2>API Reference</h2>
+        <p>Complete reference for all SDK methods and server commands.</p>
+
+        <h3>Queue Class</h3>
         <table>
           <thead>
             <tr>
-              <th>BullMQ Feature</th>
-              <th>flashQ Support</th>
-              <th>Notes</th>
+              <th>Method</th>
+              <th>Description</th>
             </tr>
           </thead>
           <tbody>
+            <tr><td><code>add(name, data, opts?)</code></td><td>Add a single job to the queue</td></tr>
+            <tr><td><code>addBulk(jobs)</code></td><td>Add multiple jobs in batch</td></tr>
+            <tr><td><code>getJob(jobId)</code></td><td>Get job by ID with current state</td></tr>
+            <tr><td><code>getJobs(state?, limit?, offset?)</code></td><td>List jobs with filtering and pagination</td></tr>
+            <tr><td><code>getJobCounts()</code></td><td>Get counts by state</td></tr>
+            <tr><td><code>count()</code></td><td>Count waiting + delayed jobs</td></tr>
+            <tr><td><code>finished(jobId, timeout?)</code></td><td>Wait for job completion</td></tr>
+            <tr><td><code>pause()</code></td><td>Pause the queue</td></tr>
+            <tr><td><code>resume()</code></td><td>Resume the queue</td></tr>
+            <tr><td><code>isPaused()</code></td><td>Check if queue is paused</td></tr>
+            <tr><td><code>drain()</code></td><td>Remove all waiting jobs</td></tr>
+            <tr><td><code>obliterate()</code></td><td>Remove ALL queue data</td></tr>
+            <tr><td><code>clean(grace, state, limit?)</code></td><td>Cleanup by age and state</td></tr>
+            <tr><td><code>close()</code></td><td>Close connection</td></tr>
+          </tbody>
+        </table>
+
+        <h3>Worker Class</h3>
+        <table>
+          <thead>
             <tr>
-              <td><code>Queue.add()</code></td>
-              <td>✅ Full</td>
-              <td></td>
+              <th>Method / Event</th>
+              <th>Description</th>
             </tr>
+          </thead>
+          <tbody>
+            <tr><td><code>run()</code></td><td>Start processing (if autorun=false)</td></tr>
+            <tr><td><code>pause()</code></td><td>Pause the worker</td></tr>
+            <tr><td><code>resume()</code></td><td>Resume the worker</td></tr>
+            <tr><td><code>close()</code></td><td>Stop and close connections</td></tr>
+            <tr><td><code>on('completed')</code></td><td>Job completed event</td></tr>
+            <tr><td><code>on('failed')</code></td><td>Job failed event</td></tr>
+            <tr><td><code>on('active')</code></td><td>Job started event</td></tr>
+            <tr><td><code>on('progress')</code></td><td>Progress update event</td></tr>
+            <tr><td><code>on('error')</code></td><td>Worker error event</td></tr>
+          </tbody>
+        </table>
+
+        <h3>FlashQ Client (Low-Level)</h3>
+        <table>
+          <thead>
             <tr>
-              <td><code>Queue.addBulk()</code></td>
-              <td>✅ Full</td>
-              <td></td>
+              <th>Method</th>
+              <th>Description</th>
             </tr>
+          </thead>
+          <tbody>
+            <tr><td><code>connect()</code></td><td>Connect to server</td></tr>
+            <tr><td><code>close()</code></td><td>Close connection</td></tr>
+            <tr><td><code>auth(token)</code></td><td>Authenticate with token</td></tr>
+            <tr><td><code>push(queue, data, opts?)</code></td><td>Push a job</td></tr>
+            <tr><td><code>pushBatch(queue, jobs)</code></td><td>Push multiple jobs</td></tr>
+            <tr><td><code>pull(queue)</code></td><td>Pull a job (blocking)</td></tr>
+            <tr><td><code>pullBatch(queue, count)</code></td><td>Pull multiple jobs</td></tr>
+            <tr><td><code>ack(jobId, result?)</code></td><td>Acknowledge completion</td></tr>
+            <tr><td><code>ackBatch(jobIds)</code></td><td>Batch acknowledge</td></tr>
+            <tr><td><code>fail(jobId, error?)</code></td><td>Fail a job</td></tr>
+            <tr><td><code>cancel(jobId)</code></td><td>Cancel pending job</td></tr>
+            <tr><td><code>getJob(jobId)</code></td><td>Get job details</td></tr>
+            <tr><td><code>getState(jobId)</code></td><td>Get job state only</td></tr>
+            <tr><td><code>getResult(jobId)</code></td><td>Get job result</td></tr>
+            <tr><td><code>getJobByCustomId(customId)</code></td><td>Lookup by custom ID</td></tr>
+            <tr><td><code>progress(jobId, pct, msg?)</code></td><td>Update progress</td></tr>
+            <tr><td><code>getProgress(jobId)</code></td><td>Get job progress</td></tr>
+            <tr><td><code>update(jobId, data)</code></td><td>Update job data</td></tr>
+            <tr><td><code>changePriority(jobId, pri)</code></td><td>Change priority</td></tr>
+            <tr><td><code>moveToDelayed(jobId, delay)</code></td><td>Move to delayed</td></tr>
+            <tr><td><code>promote(jobId)</code></td><td>Move delayed to waiting</td></tr>
+            <tr><td><code>discard(jobId)</code></td><td>Move to DLQ</td></tr>
+            <tr><td><code>heartbeat(jobId)</code></td><td>Send heartbeat</td></tr>
+            <tr><td><code>log(jobId, msg, level?)</code></td><td>Add log entry</td></tr>
+            <tr><td><code>getLogs(jobId)</code></td><td>Get job logs</td></tr>
+            <tr><td><code>getDlq(queue, count?)</code></td><td>Get DLQ jobs</td></tr>
+            <tr><td><code>retryDlq(queue, jobId?)</code></td><td>Retry DLQ jobs</td></tr>
+            <tr><td><code>setRateLimit(queue, limit)</code></td><td>Set rate limit</td></tr>
+            <tr><td><code>clearRateLimit(queue)</code></td><td>Clear rate limit</td></tr>
+            <tr><td><code>setConcurrency(queue, limit)</code></td><td>Set concurrency</td></tr>
+            <tr><td><code>clearConcurrency(queue)</code></td><td>Clear concurrency</td></tr>
+            <tr><td><code>addCron(name, options)</code></td><td>Add cron job</td></tr>
+            <tr><td><code>deleteCron(name)</code></td><td>Delete cron job</td></tr>
+            <tr><td><code>listCrons()</code></td><td>List cron jobs</td></tr>
+            <tr><td><code>stats()</code></td><td>Get queue statistics</td></tr>
+            <tr><td><code>metrics()</code></td><td>Get detailed metrics</td></tr>
+            <tr><td><code>listQueues()</code></td><td>List all queues</td></tr>
+          </tbody>
+        </table>
+
+        <h3>Job Options (Complete)</h3>
+        <table>
+          <thead>
             <tr>
-              <td><code>Worker</code></td>
-              <td>✅ Full</td>
-              <td></td>
+              <th>Option</th>
+              <th>Type</th>
+              <th>Description</th>
             </tr>
+          </thead>
+          <tbody>
+            <tr><td><code>priority</code></td><td>number</td><td>Higher = processed first</td></tr>
+            <tr><td><code>delay</code></td><td>number</td><td>Delay in milliseconds</td></tr>
+            <tr><td><code>attempts</code></td><td>number</td><td>Max retry attempts</td></tr>
+            <tr><td><code>backoff</code></td><td>number | object</td><td>Retry backoff strategy</td></tr>
+            <tr><td><code>timeout</code></td><td>number</td><td>Processing timeout (ms)</td></tr>
+            <tr><td><code>ttl</code></td><td>number</td><td>Time-to-live (ms)</td></tr>
+            <tr><td><code>jobId</code></td><td>string</td><td>Custom ID for idempotency</td></tr>
+            <tr><td><code>depends_on</code></td><td>number[]</td><td>Job dependencies</td></tr>
+            <tr><td><code>unique_key</code></td><td>string</td><td>Deduplication key</td></tr>
+            <tr><td><code>tags</code></td><td>string[]</td><td>Job tags for filtering</td></tr>
+            <tr><td><code>lifo</code></td><td>boolean</td><td>Last-in-first-out mode</td></tr>
+            <tr><td><code>stall_timeout</code></td><td>number</td><td>Stall detection (ms)</td></tr>
+            <tr><td><code>debounce_id</code></td><td>string</td><td>Debounce identifier</td></tr>
+            <tr><td><code>debounce_ttl</code></td><td>number</td><td>Debounce window (ms)</td></tr>
+            <tr><td><code>keepCompletedAge</code></td><td>number</td><td>Keep result for duration (ms)</td></tr>
+            <tr><td><code>keepCompletedCount</code></td><td>number</td><td>Keep in last N completed</td></tr>
+          </tbody>
+        </table>
+
+        <h3>HTTP API Endpoints</h3>
+        <table>
+          <thead>
             <tr>
-              <td>Job priorities</td>
-              <td>✅ Full</td>
-              <td></td>
+              <th>Method</th>
+              <th>Endpoint</th>
+              <th>Description</th>
             </tr>
-            <tr>
-              <td>Delayed jobs</td>
-              <td>✅ Full</td>
-              <td></td>
-            </tr>
-            <tr>
-              <td>Retries & backoff</td>
-              <td>✅ Full</td>
-              <td></td>
-            </tr>
-            <tr>
-              <td>Job events</td>
-              <td>✅ Full</td>
-              <td></td>
-            </tr>
-            <tr>
-              <td>Rate limiting</td>
-              <td>✅ Full</td>
-              <td></td>
-            </tr>
-            <tr>
-              <td>Job dependencies</td>
-              <td>✅ Full</td>
-              <td></td>
-            </tr>
-            <tr>
-              <td>Repeatable jobs</td>
-              <td>✅ Via cron</td>
-              <td>Use <code>addCron()</code></td>
-            </tr>
-            <tr>
-              <td>Flows</td>
-              <td>✅ Via depends_on</td>
-              <td>Use job dependencies</td>
-            </tr>
+          </thead>
+          <tbody>
+            <tr><td><span class="api-method api-method-get">GET</span></td><td><code>/health</code></td><td>Health check</td></tr>
+            <tr><td><span class="api-method api-method-get">GET</span></td><td><code>/metrics/prometheus</code></td><td>Prometheus metrics</td></tr>
+            <tr><td><span class="api-method api-method-get">GET</span></td><td><code>/cluster/nodes</code></td><td>List cluster nodes</td></tr>
+            <tr><td><span class="api-method api-method-post">POST</span></td><td><code>/api/push</code></td><td>Push job via HTTP</td></tr>
+            <tr><td><span class="api-method api-method-post">POST</span></td><td><code>/api/pull</code></td><td>Pull job via HTTP</td></tr>
+            <tr><td><span class="api-method api-method-post">POST</span></td><td><code>/api/ack</code></td><td>Acknowledge job</td></tr>
+            <tr><td><span class="api-method api-method-get">GET</span></td><td><code>/api/job/:id</code></td><td>Get job details</td></tr>
+            <tr><td><span class="api-method api-method-get">GET</span></td><td><code>/api/stats</code></td><td>Queue statistics</td></tr>
           </tbody>
         </table>
       </section>
@@ -1747,10 +1886,6 @@ console.<span class="token-function">log</span>(answer);</code></pre>
 });</code></pre>
         </div>
 
-        <h3>Job data too large</h3>
-        <p><strong>Error:</strong> <code>Job data too large</code></p>
-        <p><strong>Solution:</strong> flashQ supports up to 10MB payloads. If you need larger, store data externally and pass a reference.</p>
-
         <h3>Authentication failed</h3>
         <p><strong>Error:</strong> <code>AUTH_FAILED</code></p>
         <p><strong>Solution:</strong> Set the token in your client configuration:</p>
@@ -1758,6 +1893,32 @@ console.<span class="token-function">log</span>(answer);</code></pre>
           <pre><code><span class="token-keyword">const</span> queue = <span class="token-keyword">new</span> <span class="token-function">Queue</span>(<span class="token-string">'emails'</span>, {
   token: <span class="token-string">'your-auth-token'</span>
 });</code></pre>
+        </div>
+
+        <h3>Job stuck in active state</h3>
+        <p><strong>Error:</strong> Job remains active after worker crash</p>
+        <p><strong>Solution:</strong> Jobs are automatically recovered after the stall timeout. For long jobs, use heartbeat:</p>
+        <div class="code-block">
+          <pre><code><span class="token-keyword">new</span> <span class="token-function">Worker</span>(<span class="token-string">'queue'</span>, <span class="token-keyword">async</span> (job) => {
+  <span class="token-keyword">for</span> (<span class="token-keyword">const</span> item <span class="token-keyword">of</span> items) {
+    <span class="token-keyword">await</span> <span class="token-function">processItem</span>(item);
+    <span class="token-keyword">await</span> job.<span class="token-function">heartbeat</span>();  <span class="token-comment">// Prevent stall detection</span>
+  }
+});</code></pre>
+        </div>
+
+        <h3>Memory usage growing</h3>
+        <p><strong>Cause:</strong> Completed jobs and results accumulating</p>
+        <p><strong>Solution:</strong> Configure retention or use clean():</p>
+        <div class="code-block">
+          <pre><code><span class="token-comment">// During job creation</span>
+<span class="token-keyword">await</span> queue.<span class="token-function">add</span>(<span class="token-string">'job'</span>, data, {
+  keepCompletedAge: <span class="token-number">3600000</span>,  <span class="token-comment">// Keep for 1 hour</span>
+  keepCompletedCount: <span class="token-number">1000</span>   <span class="token-comment">// Keep last 1000</span>
+});
+
+<span class="token-comment">// Manual cleanup</span>
+<span class="token-keyword">await</span> queue.<span class="token-function">clean</span>(<span class="token-number">3600000</span>, <span class="token-string">'completed'</span>);</code></pre>
         </div>
       </section>
 
@@ -1767,48 +1928,7 @@ console.<span class="token-function">log</span>(answer);</code></pre>
   <!-- Mobile menu toggle -->
   <button class="mobile-menu-toggle" onclick="toggleSidebar()">☰</button>
 
-  <script>
-    function toggleSidebar() {
-      document.getElementById('sidebar').classList.toggle('open');
-    }
-
-    function copyCode(btn) {
-      const code = btn.parentElement.nextElementSibling.querySelector('code');
-      navigator.clipboard.writeText(code.textContent);
-      btn.textContent = 'Copied!';
-      setTimeout(() => btn.textContent = 'Copy', 2000);
-    }
-
-    // Highlight active section on scroll
-    const sections = document.querySelectorAll('section[id]');
-    const navLinks = document.querySelectorAll('.sidebar-nav a');
-
-    window.addEventListener('scroll', () => {
-      let current = '';
-      sections.forEach(section => {
-        const sectionTop = section.offsetTop;
-        if (scrollY >= sectionTop - 100) {
-          current = section.getAttribute('id');
-        }
-      });
-
-      navLinks.forEach(link => {
-        link.classList.remove('active');
-        if (link.getAttribute('href') === `#${current}`) {
-          link.classList.add('active');
-        }
-      });
-    });
-
-    // Search functionality
-    const searchInput = document.getElementById('search');
-    searchInput.addEventListener('input', (e) => {
-      const query = e.target.value.toLowerCase();
-      navLinks.forEach(link => {
-        const text = link.textContent.toLowerCase();
-        link.style.display = text.includes(query) ? 'block' : 'none';
-      });
-    });
-  </script>
+  <!-- Scripts -->
+  <script src="script.js"></script>
 </body>
 </html>

@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>How to Rate Limit OpenAI API Calls with flashQ - flashQ Blog</title>
+  <meta name="description" content="Learn how to properly rate limit OpenAI, Anthropic, and other AI API calls using flashQ. Avoid 429 errors and control costs.">
+  <meta name="keywords" content="openai rate limit, api rate limiting, 429 error, openai quota, anthropic rate limit, ai api costs">
+  <meta name="robots" content="index, follow">
+
+  <meta property="og:title" content="How to Rate Limit OpenAI API Calls with flashQ">
+  <meta property="og:description" content="Learn how to properly rate limit OpenAI and other AI API calls.">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://flashq.dev/blog/rate-limiting-openai.html">
+  <meta property="og:image" content="https://flashq.dev/og-image.png">
+
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="How to Rate Limit OpenAI API Calls with flashQ">
+  <meta name="twitter:image" content="https://flashq.dev/og-image.png">
+
+  <link rel="canonical" href="https://flashq.dev/blog/rate-limiting-openai.html">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="styles.css">
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "headline": "How to Rate Limit OpenAI API Calls with flashQ",
+    "datePublished": "2026-01-19",
+    "author": { "@type": "Organization", "name": "flashQ" }
+  }
+  </script>
+</head>
+<body>
+  <nav>
+    <div class="container wide">
+      <a href="../" class="logo"><span>⚡</span> flashQ</a>
+      <div class="nav-links">
+        <a href="../#features">Features</a>
+        <a href="../blog/" class="active">Blog</a>
+        <a href="../docs/">Docs</a>
+        <a href="https://github.com/egeominotti/flashq" target="_blank">GitHub</a>
+        <a href="../docs/#quickstart" class="btn btn-primary">Get Started</a>
+      </div>
+      <button class="mobile-menu-btn" aria-label="Menu">
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
+    </div>
+  </nav>
+
+  <div class="mobile-menu">
+    <a href="../#features">Features</a>
+    <a href="../blog/">Blog</a>
+    <a href="../docs/">Docs</a>
+    <a href="https://github.com/egeominotti/flashq" target="_blank">GitHub</a>
+    <a href="../docs/#quickstart" class="btn btn-primary">Get Started</a>
+  </div>
+
+  <header class="article-header">
+    <div class="container">
+      <span class="article-tag tutorial">Tutorial</span>
+      <h1>How to Rate Limit OpenAI API Calls with flashQ</h1>
+      <div class="article-meta">
+        <span>📅 January 19, 2026</span>
+        <span>⏱️ 8 min read</span>
+      </div>
+    </div>
+  </header>
+
+  <article class="article-content">
+    <div class="container">
+      <p>If you've worked with OpenAI's API, you've probably seen this error:</p>
+
+      <pre><code>Error 429: Rate limit reached for gpt-4 in organization org-xxx
+on requests per min (RPM): Limit 500, Used 500, Requested 1.</code></pre>
+
+      <p>Rate limits are a fact of life when working with AI APIs. OpenAI, Anthropic, Cohere, and every other provider enforces them. Without proper handling, your application will crash, users will see errors, and you'll waste money on failed requests.</p>
+
+      <p>In this tutorial, we'll build a robust rate-limiting system using flashQ that:</p>
+
+      <ul>
+        <li>Never exceeds API rate limits</li>
+        <li>Automatically retries failed requests</li>
+        <li>Tracks costs per request</li>
+        <li>Handles multiple API tiers</li>
+      </ul>
+
+      <h2>Understanding OpenAI Rate Limits</h2>
+
+      <p>OpenAI has two types of rate limits:</p>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Limit Type</th>
+            <th>Description</th>
+            <th>Typical Values (Tier 1)</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>RPM</strong></td>
+            <td>Requests per minute</td>
+            <td>500 RPM for GPT-4</td>
+          </tr>
+          <tr>
+            <td><strong>TPM</strong></td>
+            <td>Tokens per minute</td>
+            <td>10,000 TPM for GPT-4</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p>Your tier depends on how much you've spent. New accounts start at Tier 1 with lower limits.</p>
+
+      <h2>Basic Rate Limiting with flashQ</h2>
+
+      <p>flashQ has built-in token bucket rate limiting. Here's the simplest setup:</p>
+
+      <pre><code><span class="keyword">import</span> { Queue, Worker } <span class="keyword">from</span> <span class="string">'flashq'</span>;
+<span class="keyword">import</span> OpenAI <span class="keyword">from</span> <span class="string">'openai'</span>;
+
+<span class="keyword">const</span> <span class="variable">openai</span> = <span class="keyword">new</span> <span class="function">OpenAI</span>();
+<span class="keyword">const</span> <span class="variable">queue</span> = <span class="keyword">new</span> <span class="function">Queue</span>(<span class="string">'openai-calls'</span>);
+
+<span class="comment">// Set rate limit: 400 requests per minute (leaving buffer)</span>
+<span class="keyword">await</span> queue.<span class="function">setRateLimit</span>(<span class="number">400</span>);
+
+<span class="comment">// Add jobs</span>
+<span class="keyword">await</span> queue.<span class="function">add</span>(<span class="string">'chat'</span>, {
+  model: <span class="string">'gpt-4'</span>,
+  messages: [{ role: <span class="string">'user'</span>, content: <span class="string">'Hello!'</span> }]
+});
+
+<span class="comment">// Worker processes at controlled rate</span>
+<span class="keyword">new</span> <span class="function">Worker</span>(<span class="string">'openai-calls'</span>, <span class="keyword">async</span> (job) => {
+  <span class="keyword">const</span> <span class="variable">response</span> = <span class="keyword">await</span> openai.chat.completions.<span class="function">create</span>(job.data);
+  <span class="keyword">return</span> response.choices[<span class="number">0</span>].message.content;
+});</code></pre>
+
+      <p>The queue will now process at most 400 jobs per minute, regardless of how many jobs you add.</p>
+
+      <h2>Handling 429 Errors with Retries</h2>
+
+      <p>Even with rate limiting, you might still hit 429 errors during traffic spikes. Configure automatic retries:</p>
+
+      <pre><code><span class="comment">// Add job with retry configuration</span>
+<span class="keyword">await</span> queue.<span class="function">add</span>(<span class="string">'chat'</span>, {
+  model: <span class="string">'gpt-4'</span>,
+  messages: [{ role: <span class="string">'user'</span>, content: <span class="string">'Explain quantum computing'</span> }]
+}, {
+  attempts: <span class="number">5</span>,
+  backoff: {
+    type: <span class="string">'exponential'</span>,
+    delay: <span class="number">2000</span>  <span class="comment">// 2s, 4s, 8s, 16s, 32s</span>
+  }
+});
+
+<span class="comment">// Worker with error handling</span>
+<span class="keyword">new</span> <span class="function">Worker</span>(<span class="string">'openai-calls'</span>, <span class="keyword">async</span> (job) => {
+  <span class="keyword">try</span> {
+    <span class="keyword">const</span> <span class="variable">response</span> = <span class="keyword">await</span> openai.chat.completions.<span class="function">create</span>(job.data);
+    <span class="keyword">return</span> {
+      content: response.choices[<span class="number">0</span>].message.content,
+      usage: response.usage
+    };
+  } <span class="keyword">catch</span> (error) {
+    <span class="keyword">if</span> (error.status === <span class="number">429</span>) {
+      <span class="comment">// Rate limited - throw to trigger retry</span>
+      <span class="keyword">throw</span> <span class="keyword">new</span> <span class="function">Error</span>(<span class="string">'Rate limited by OpenAI'</span>);
+    }
+    <span class="keyword">if</span> (error.status === <span class="number">400</span>) {
+      <span class="comment">// Bad request - don't retry, return error</span>
+      <span class="keyword">return</span> { error: error.message };
+    }
+    <span class="keyword">throw</span> error; <span class="comment">// Other errors - retry</span>
+  }
+});</code></pre>
+
+      <h2>Different Queues for Different Models</h2>
+
+      <p>Each OpenAI model has different rate limits. Create separate queues:</p>
+
+      <pre><code><span class="comment">// GPT-4: Lower limits, higher cost</span>
+<span class="keyword">const</span> <span class="variable">gpt4Queue</span> = <span class="keyword">new</span> <span class="function">Queue</span>(<span class="string">'openai-gpt4'</span>);
+<span class="keyword">await</span> gpt4Queue.<span class="function">setRateLimit</span>(<span class="number">400</span>); <span class="comment">// 400 RPM</span>
+
+<span class="comment">// GPT-3.5: Higher limits, lower cost</span>
+<span class="keyword">const</span> <span class="variable">gpt35Queue</span> = <span class="keyword">new</span> <span class="function">Queue</span>(<span class="string">'openai-gpt35'</span>);
+<span class="keyword">await</span> gpt35Queue.<span class="function">setRateLimit</span>(<span class="number">3000</span>); <span class="comment">// 3000 RPM</span>
+
+<span class="comment">// Embeddings: Very high limits</span>
+<span class="keyword">const</span> <span class="variable">embeddingsQueue</span> = <span class="keyword">new</span> <span class="function">Queue</span>(<span class="string">'openai-embeddings'</span>);
+<span class="keyword">await</span> embeddingsQueue.<span class="function">setRateLimit</span>(<span class="number">5000</span>); <span class="comment">// 5000 RPM</span>
+
+<span class="comment">// Route requests to appropriate queue</span>
+<span class="keyword">function</span> <span class="function">getQueue</span>(model) {
+  <span class="keyword">if</span> (model.<span class="function">startsWith</span>(<span class="string">'gpt-4'</span>)) <span class="keyword">return</span> gpt4Queue;
+  <span class="keyword">if</span> (model.<span class="function">startsWith</span>(<span class="string">'gpt-3.5'</span>)) <span class="keyword">return</span> gpt35Queue;
+  <span class="keyword">if</span> (model.<span class="function">includes</span>(<span class="string">'embedding'</span>)) <span class="keyword">return</span> embeddingsQueue;
+  <span class="keyword">return</span> gpt35Queue;
+}</code></pre>
+
+      <h2>Tracking Costs</h2>
+
+      <p>AI API costs can spiral quickly. Track them per job:</p>
+
+      <pre><code><span class="comment">// Pricing per 1K tokens (as of 2024)</span>
+<span class="keyword">const</span> <span class="variable">PRICING</span> = {
+  <span class="string">'gpt-4'</span>: { input: <span class="number">0.03</span>, output: <span class="number">0.06</span> },
+  <span class="string">'gpt-4-turbo'</span>: { input: <span class="number">0.01</span>, output: <span class="number">0.03</span> },
+  <span class="string">'gpt-3.5-turbo'</span>: { input: <span class="number">0.0005</span>, output: <span class="number">0.0015</span> },
+  <span class="string">'text-embedding-3-small'</span>: { input: <span class="number">0.00002</span>, output: <span class="number">0</span> }
+};
+
+<span class="keyword">function</span> <span class="function">calculateCost</span>(model, usage) {
+  <span class="keyword">const</span> <span class="variable">prices</span> = PRICING[model] || PRICING[<span class="string">'gpt-3.5-turbo'</span>];
+  <span class="keyword">const</span> <span class="variable">inputCost</span> = (usage.prompt_tokens / <span class="number">1000</span>) * prices.input;
+  <span class="keyword">const</span> <span class="variable">outputCost</span> = (usage.completion_tokens / <span class="number">1000</span>) * prices.output;
+  <span class="keyword">return</span> inputCost + outputCost;
+}
+
+<span class="comment">// Worker with cost tracking</span>
+<span class="keyword">new</span> <span class="function">Worker</span>(<span class="string">'openai-gpt4'</span>, <span class="keyword">async</span> (job) => {
+  <span class="keyword">const</span> <span class="variable">response</span> = <span class="keyword">await</span> openai.chat.completions.<span class="function">create</span>(job.data);
+  <span class="keyword">const</span> <span class="variable">cost</span> = <span class="function">calculateCost</span>(job.data.model, response.usage);
+
+  <span class="keyword">return</span> {
+    content: response.choices[<span class="number">0</span>].message.content,
+    usage: response.usage,
+    cost: cost
+  };
+});
+
+<span class="comment">// Aggregate costs</span>
+<span class="keyword">let</span> <span class="variable">totalCost</span> = <span class="number">0</span>;
+gpt4Queue.<span class="function">on</span>(<span class="string">'completed'</span>, (job, result) => {
+  totalCost += result.cost;
+  console.<span class="function">log</span>(<span class="string">`Job cost: $${result.cost.toFixed(4)}, Total: $${totalCost.toFixed(2)}`</span>);
+});</code></pre>
+
+      <h2>Budget Controls</h2>
+
+      <p>Stop processing when you hit a budget limit:</p>
+
+      <pre><code><span class="keyword">const</span> <span class="variable">DAILY_BUDGET</span> = <span class="number">100</span>; <span class="comment">// $100/day</span>
+<span class="keyword">let</span> <span class="variable">dailySpend</span> = <span class="number">0</span>;
+
+gpt4Queue.<span class="function">on</span>(<span class="string">'completed'</span>, <span class="keyword">async</span> (job, result) => {
+  dailySpend += result.cost;
+
+  <span class="keyword">if</span> (dailySpend >= DAILY_BUDGET) {
+    console.<span class="function">log</span>(<span class="string">'Daily budget reached! Pausing queue.'</span>);
+    <span class="keyword">await</span> gpt4Queue.<span class="function">pause</span>();
+
+    <span class="comment">// Alert team</span>
+    <span class="keyword">await</span> <span class="function">sendSlackAlert</span>(<span class="string">`OpenAI daily budget of $${DAILY_BUDGET} reached`</span>);
+  }
+});
+
+<span class="comment">// Reset daily spend at midnight</span>
+<span class="function">setInterval</span>(<span class="keyword">async</span> () => {
+  <span class="keyword">const</span> <span class="variable">now</span> = <span class="keyword">new</span> <span class="function">Date</span>();
+  <span class="keyword">if</span> (now.<span class="function">getHours</span>() === <span class="number">0</span> && now.<span class="function">getMinutes</span>() === <span class="number">0</span>) {
+    dailySpend = <span class="number">0</span>;
+    <span class="keyword">await</span> gpt4Queue.<span class="function">resume</span>();
+    console.<span class="function">log</span>(<span class="string">'Daily budget reset. Queue resumed.'</span>);
+  }
+}, <span class="number">60000</span>); <span class="comment">// Check every minute</span></code></pre>
+
+      <h2>Handling Multiple Providers</h2>
+
+      <p>Most teams use multiple AI providers. Here's a pattern for that:</p>
+
+      <pre><code><span class="keyword">import</span> OpenAI <span class="keyword">from</span> <span class="string">'openai'</span>;
+<span class="keyword">import</span> Anthropic <span class="keyword">from</span> <span class="string">'@anthropic-ai/sdk'</span>;
+
+<span class="keyword">const</span> <span class="variable">openai</span> = <span class="keyword">new</span> <span class="function">OpenAI</span>();
+<span class="keyword">const</span> <span class="variable">anthropic</span> = <span class="keyword">new</span> <span class="function">Anthropic</span>();
+
+<span class="comment">// Separate queues per provider</span>
+<span class="keyword">const</span> <span class="variable">openaiQueue</span> = <span class="keyword">new</span> <span class="function">Queue</span>(<span class="string">'llm-openai'</span>);
+<span class="keyword">const</span> <span class="variable">anthropicQueue</span> = <span class="keyword">new</span> <span class="function">Queue</span>(<span class="string">'llm-anthropic'</span>);
+
+<span class="keyword">await</span> openaiQueue.<span class="function">setRateLimit</span>(<span class="number">500</span>);
+<span class="keyword">await</span> anthropicQueue.<span class="function">setRateLimit</span>(<span class="number">1000</span>);
+
+<span class="comment">// Unified interface</span>
+<span class="keyword">async</span> <span class="keyword">function</span> <span class="function">chat</span>(provider, messages, options = {}) {
+  <span class="keyword">const</span> <span class="variable">queue</span> = provider === <span class="string">'anthropic'</span> ? anthropicQueue : openaiQueue;
+
+  <span class="keyword">const</span> <span class="variable">job</span> = <span class="keyword">await</span> queue.<span class="function">add</span>(<span class="string">'chat'</span>, {
+    provider,
+    messages,
+    ...options
+  });
+
+  <span class="keyword">return</span> queue.<span class="function">finished</span>(job.id);
+}
+
+<span class="comment">// Workers</span>
+<span class="keyword">new</span> <span class="function">Worker</span>(<span class="string">'llm-openai'</span>, <span class="keyword">async</span> (job) => {
+  <span class="keyword">const</span> <span class="variable">response</span> = <span class="keyword">await</span> openai.chat.completions.<span class="function">create</span>({
+    model: job.data.model || <span class="string">'gpt-4'</span>,
+    messages: job.data.messages
+  });
+  <span class="keyword">return</span> response.choices[<span class="number">0</span>].message.content;
+});
+
+<span class="keyword">new</span> <span class="function">Worker</span>(<span class="string">'llm-anthropic'</span>, <span class="keyword">async</span> (job) => {
+  <span class="keyword">const</span> <span class="variable">response</span> = <span class="keyword">await</span> anthropic.messages.<span class="function">create</span>({
+    model: job.data.model || <span class="string">'claude-3-opus-20240229'</span>,
+    max_tokens: <span class="number">1024</span>,
+    messages: job.data.messages
+  });
+  <span class="keyword">return</span> response.content[<span class="number">0</span>].text;
+});</code></pre>
+
+      <h2>Production Checklist</h2>
+
+      <p>Before going to production with rate-limited AI calls:</p>
+
+      <ul>
+        <li>✅ Set rate limits below your API tier limits (leave 10-20% buffer)</li>
+        <li>✅ Configure exponential backoff for retries</li>
+        <li>✅ Track costs per job and set budget alerts</li>
+        <li>✅ Use separate queues for different models/providers</li>
+        <li>✅ Monitor the dead letter queue for persistent failures</li>
+        <li>✅ Set up alerts for high error rates</li>
+        <li>✅ Test failover behavior when limits are hit</li>
+      </ul>
+
+      <div class="callout callout-success">
+        <div class="callout-title">💡 Pro Tip</div>
+        <p>Request a rate limit increase from OpenAI once you have consistent usage. They're generally responsive and will bump your limits based on spend history.</p>
+      </div>
+
+      <h2>Conclusion</h2>
+
+      <p>Rate limiting AI API calls is essential for building reliable applications. With flashQ's built-in rate limiting, automatic retries, and event system, you can build robust AI applications that never exceed quotas and stay within budget.</p>
+
+      <div class="article-cta">
+        <h3>Start Building</h3>
+        <p>Get flashQ running and start rate limiting your AI calls in minutes.</p>
+        <a href="../docs/#rate-limiting" class="btn btn-primary">Read the Docs →</a>
+      </div>
+    </div>
+  </article>
+
+  <footer>
+    <div class="container wide">
+      <a href="../" class="logo"><span>⚡</span> flashQ</a>
+      <div class="footer-links">
+        <a href="https://github.com/egeominotti/flashq" target="_blank">GitHub</a>
+        <a href="https://npmjs.com/package/flashq" target="_blank">npm</a>
+        <a href="../docs/">Docs</a>
+        <a href="../blog/">Blog</a>
+      </div>
+      <div class="footer-copy">© 2025 flashQ. MIT License.</div>
+    </div>
+  </footer>
+  <script>
+    const mobileMenuBtn = document.querySelector(".mobile-menu-btn");
+    const mobileMenu = document.querySelector(".mobile-menu");
+    mobileMenuBtn.addEventListener("click", () => {
+      mobileMenuBtn.classList.toggle("active");
+      mobileMenu.classList.toggle("active");
+      document.body.style.overflow = mobileMenu.classList.contains("active") ? "hidden" : "";
+    });
+    mobileMenu.querySelectorAll("a").forEach(link => {
+      link.addEventListener("click", () => {
+        mobileMenuBtn.classList.remove("active");
+        mobileMenu.classList.remove("active");
+        document.body.style.overflow = "";
+      });
+    });
+  </script>
+</body>
+</html>

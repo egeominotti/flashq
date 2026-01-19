@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Building AI Pipelines with flashQ: A Complete Guide - flashQ Blog</title>
+  <meta name="description" content="Learn how to build production-ready AI pipelines with flashQ. RAG workflows, LLM orchestration, batch inference, and more.">
+  <meta name="keywords" content="ai pipeline, rag workflow, llm orchestration, job queue ai, flashq tutorial, batch inference">
+  <meta name="robots" content="index, follow">
+
+  <!-- Open Graph -->
+  <meta property="og:title" content="Building AI Pipelines with flashQ: A Complete Guide">
+  <meta property="og:description" content="Learn how to build production-ready AI pipelines with flashQ.">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://flashq.dev/blog/building-ai-pipelines.html">
+  <meta property="og:image" content="https://flashq.dev/og-image.png">
+  <meta property="article:published_time" content="2026-01-19">
+
+  <!-- Twitter -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Building AI Pipelines with flashQ: A Complete Guide">
+  <meta name="twitter:description" content="Learn how to build production-ready AI pipelines with flashQ.">
+  <meta name="twitter:image" content="https://flashq.dev/og-image.png">
+
+  <link rel="canonical" href="https://flashq.dev/blog/building-ai-pipelines.html">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="styles.css">
+
+  <!-- Article Schema -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "headline": "Building AI Pipelines with flashQ: A Complete Guide",
+    "description": "Learn how to build production-ready AI pipelines with flashQ.",
+    "datePublished": "2026-01-19",
+    "author": {
+      "@type": "Organization",
+      "name": "flashQ"
+    }
+  }
+  </script>
+</head>
+<body>
+  <!-- Navigation -->
+  <nav>
+    <div class="container wide">
+      <a href="../" class="logo">
+        <span>⚡</span> flashQ
+      </a>
+      <div class="nav-links">
+        <a href="../#features">Features</a>
+        <a href="../blog/" class="active">Blog</a>
+        <a href="../docs/">Docs</a>
+        <a href="https://github.com/egeominotti/flashq" target="_blank">GitHub</a>
+        <a href="../docs/#quickstart" class="btn btn-primary">Get Started</a>
+      </div>
+      <button class="mobile-menu-btn" aria-label="Menu">
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
+    </div>
+  </nav>
+
+  <div class="mobile-menu">
+    <a href="../#features">Features</a>
+    <a href="../blog/">Blog</a>
+    <a href="../docs/">Docs</a>
+    <a href="https://github.com/egeominotti/flashq" target="_blank">GitHub</a>
+    <a href="../docs/#quickstart" class="btn btn-primary">Get Started</a>
+  </div>
+
+  <!-- Article Header -->
+  <header class="article-header">
+    <div class="container">
+      <span class="article-tag tutorial">Tutorial</span>
+      <h1>Building AI Pipelines with flashQ: A Complete Guide</h1>
+      <div class="article-meta">
+        <span>📅 January 19, 2026</span>
+        <span>⏱️ 15 min read</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Article Content -->
+  <article class="article-content">
+    <div class="container">
+      <p>AI applications are rarely simple request-response systems. They involve complex pipelines: generating embeddings, searching vector databases, calling LLMs, post-processing results, and more. Each step can fail, needs retry logic, and often takes seconds to complete.</p>
+
+      <p>This is where job queues shine. In this guide, we'll build three real-world AI pipelines using flashQ:</p>
+
+      <ol>
+        <li><strong>RAG Pipeline</strong>: Embed → Search → Generate</li>
+        <li><strong>Document Processing</strong>: Parse → Chunk → Embed → Store</li>
+        <li><strong>Batch Inference</strong>: Process millions of predictions</li>
+      </ol>
+
+      <h2>Why Use a Job Queue for AI?</h2>
+
+      <p>Before diving into code, let's understand why job queues are essential for AI applications:</p>
+
+      <ul>
+        <li><strong>Rate Limiting</strong>: OpenAI, Anthropic, and other providers have strict rate limits. A queue lets you control throughput.</li>
+        <li><strong>Reliability</strong>: API calls fail. Queues provide automatic retries with exponential backoff.</li>
+        <li><strong>Cost Control</strong>: Track costs per job, pause queues when budgets are exceeded.</li>
+        <li><strong>Long-Running Jobs</strong>: LLM calls can take 30+ seconds. Don't block your web server.</li>
+        <li><strong>Orchestration</strong>: Chain multiple steps with dependencies.</li>
+      </ul>
+
+      <h2>Setup</h2>
+
+      <p>First, let's set up flashQ:</p>
+
+      <pre><code><span class="comment"># Install flashQ SDK</span>
+npm install flashq
+
+<span class="comment"># Start the server</span>
+docker run -d -p 6789:6789 flashq/flashq</code></pre>
+
+      <p>And install the AI SDKs we'll use:</p>
+
+      <pre><code>npm install openai @anthropic-ai/sdk</code></pre>
+
+      <h2>Pipeline 1: RAG (Retrieval-Augmented Generation)</h2>
+
+      <p>RAG is the most common AI pattern. It involves:</p>
+
+      <ol>
+        <li>Converting a query to an embedding</li>
+        <li>Searching a vector database for similar documents</li>
+        <li>Generating a response using the retrieved context</li>
+      </ol>
+
+      <pre><code>┌─────────┐     ┌─────────┐     ┌──────────┐
+│  Embed  │ ──▶ │ Search  │ ──▶ │ Generate │
+└─────────┘     └─────────┘     └──────────┘</code></pre>
+
+      <p>With flashQ, we can model this as a job flow with dependencies:</p>
+
+      <pre><code><span class="keyword">import</span> { Queue, Worker } <span class="keyword">from</span> <span class="string">'flashq'</span>;
+<span class="keyword">import</span> OpenAI <span class="keyword">from</span> <span class="string">'openai'</span>;
+
+<span class="keyword">const</span> <span class="variable">openai</span> = <span class="keyword">new</span> <span class="function">OpenAI</span>();
+<span class="keyword">const</span> <span class="variable">queue</span> = <span class="keyword">new</span> <span class="function">Queue</span>(<span class="string">'rag-pipeline'</span>);
+
+<span class="comment">// Step 1: Embed the query</span>
+<span class="keyword">const</span> <span class="variable">embedJob</span> = <span class="keyword">await</span> queue.<span class="function">add</span>(<span class="string">'embed'</span>, {
+  text: <span class="string">'What is the capital of France?'</span>,
+  model: <span class="string">'text-embedding-3-small'</span>
+});
+
+<span class="comment">// Step 2: Search (depends on embed)</span>
+<span class="keyword">const</span> <span class="variable">searchJob</span> = <span class="keyword">await</span> queue.<span class="function">add</span>(<span class="string">'search'</span>, {
+  collection: <span class="string">'knowledge-base'</span>,
+  topK: <span class="number">5</span>
+}, {
+  depends_on: [embedJob.id]
+});
+
+<span class="comment">// Step 3: Generate (depends on search)</span>
+<span class="keyword">const</span> <span class="variable">generateJob</span> = <span class="keyword">await</span> queue.<span class="function">add</span>(<span class="string">'generate'</span>, {
+  model: <span class="string">'gpt-4'</span>,
+  systemPrompt: <span class="string">'Answer based on the provided context.'</span>
+}, {
+  depends_on: [searchJob.id]
+});
+
+<span class="comment">// Wait for the final result</span>
+<span class="keyword">const</span> <span class="variable">result</span> = <span class="keyword">await</span> queue.<span class="function">finished</span>(generateJob.id);
+console.<span class="function">log</span>(result); <span class="comment">// "The capital of France is Paris."</span></code></pre>
+
+      <p>Now let's implement the workers:</p>
+
+      <pre><code><span class="comment">// Embed Worker</span>
+<span class="keyword">new</span> <span class="function">Worker</span>(<span class="string">'rag-pipeline'</span>, <span class="keyword">async</span> (job) => {
+  <span class="keyword">if</span> (job.name !== <span class="string">'embed'</span>) <span class="keyword">return</span>;
+
+  <span class="keyword">const</span> { text, model } = job.data;
+
+  <span class="keyword">const</span> <span class="variable">response</span> = <span class="keyword">await</span> openai.embeddings.<span class="function">create</span>({
+    input: text,
+    model: model
+  });
+
+  <span class="keyword">return</span> {
+    embedding: response.data[<span class="number">0</span>].embedding,
+    originalText: text
+  };
+});
+
+<span class="comment">// Search Worker</span>
+<span class="keyword">new</span> <span class="function">Worker</span>(<span class="string">'rag-pipeline'</span>, <span class="keyword">async</span> (job) => {
+  <span class="keyword">if</span> (job.name !== <span class="string">'search'</span>) <span class="keyword">return</span>;
+
+  <span class="comment">// Get embedding from parent job</span>
+  <span class="keyword">const</span> <span class="variable">embedResult</span> = <span class="keyword">await</span> queue.<span class="function">getResult</span>(job.data.parentId);
+
+  <span class="comment">// Search vector database (using your preferred DB)</span>
+  <span class="keyword">const</span> <span class="variable">results</span> = <span class="keyword">await</span> vectorDB.<span class="function">search</span>({
+    vector: embedResult.embedding,
+    topK: job.data.topK
+  });
+
+  <span class="keyword">return</span> {
+    documents: results,
+    query: embedResult.originalText
+  };
+});
+
+<span class="comment">// Generate Worker</span>
+<span class="keyword">new</span> <span class="function">Worker</span>(<span class="string">'rag-pipeline'</span>, <span class="keyword">async</span> (job) => {
+  <span class="keyword">if</span> (job.name !== <span class="string">'generate'</span>) <span class="keyword">return</span>;
+
+  <span class="keyword">const</span> <span class="variable">searchResult</span> = <span class="keyword">await</span> queue.<span class="function">getResult</span>(job.data.parentId);
+
+  <span class="keyword">const</span> <span class="variable">context</span> = searchResult.documents
+    .<span class="function">map</span>(d => d.content)
+    .<span class="function">join</span>(<span class="string">'\n\n'</span>);
+
+  <span class="keyword">const</span> <span class="variable">response</span> = <span class="keyword">await</span> openai.chat.completions.<span class="function">create</span>({
+    model: job.data.model,
+    messages: [
+      { role: <span class="string">'system'</span>, content: job.data.systemPrompt },
+      { role: <span class="string">'user'</span>, content: <span class="string">`Context:\n${context}\n\nQuestion: ${searchResult.query}`</span> }
+    ]
+  });
+
+  <span class="keyword">return</span> response.choices[<span class="number">0</span>].message.content;
+});</code></pre>
+
+      <h2>Pipeline 2: Document Processing</h2>
+
+      <p>Processing documents for a knowledge base involves multiple steps:</p>
+
+      <pre><code>┌───────┐     ┌───────┐     ┌───────┐     ┌───────┐
+│ Parse │ ──▶ │ Chunk │ ──▶ │ Embed │ ──▶ │ Store │
+└───────┘     └───────┘     └───────┘     └───────┘</code></pre>
+
+      <p>Here's how to implement it with rate limiting to avoid hitting API quotas:</p>
+
+      <pre><code><span class="keyword">const</span> <span class="variable">queue</span> = <span class="keyword">new</span> <span class="function">Queue</span>(<span class="string">'document-processing'</span>);
+
+<span class="comment">// Set rate limit: 100 requests per minute for embeddings</span>
+<span class="keyword">await</span> queue.<span class="function">setRateLimit</span>(<span class="number">100</span>);
+
+<span class="comment">// Process a document</span>
+<span class="keyword">async</span> <span class="keyword">function</span> <span class="function">processDocument</span>(documentUrl) {
+  <span class="comment">// Step 1: Parse</span>
+  <span class="keyword">const</span> <span class="variable">parseJob</span> = <span class="keyword">await</span> queue.<span class="function">add</span>(<span class="string">'parse'</span>, {
+    url: documentUrl
+  });
+
+  <span class="comment">// Step 2: Chunk (depends on parse)</span>
+  <span class="keyword">const</span> <span class="variable">chunkJob</span> = <span class="keyword">await</span> queue.<span class="function">add</span>(<span class="string">'chunk'</span>, {
+    chunkSize: <span class="number">500</span>,
+    overlap: <span class="number">50</span>
+  }, {
+    depends_on: [parseJob.id]
+  });
+
+  <span class="comment">// Wait for chunks to be ready</span>
+  <span class="keyword">const</span> <span class="variable">chunks</span> = <span class="keyword">await</span> queue.<span class="function">finished</span>(chunkJob.id);
+
+  <span class="comment">// Step 3: Embed each chunk (rate limited!)</span>
+  <span class="keyword">const</span> <span class="variable">embedJobs</span> = <span class="keyword">await</span> Promise.<span class="function">all</span>(
+    chunks.<span class="function">map</span>((chunk, i) =>
+      queue.<span class="function">add</span>(<span class="string">'embed-chunk'</span>, {
+        text: chunk.text,
+        metadata: chunk.metadata,
+        index: i
+      })
+    )
+  );
+
+  <span class="comment">// Step 4: Store (depends on all embeddings)</span>
+  <span class="keyword">const</span> <span class="variable">storeJob</span> = <span class="keyword">await</span> queue.<span class="function">add</span>(<span class="string">'store'</span>, {
+    documentUrl,
+    totalChunks: chunks.length
+  }, {
+    depends_on: embedJobs.<span class="function">map</span>(j => j.id)
+  });
+
+  <span class="keyword">return</span> queue.<span class="function">finished</span>(storeJob.id);
+}</code></pre>
+
+      <h2>Pipeline 3: Batch Inference</h2>
+
+      <p>For batch processing millions of items, flashQ's high throughput really shines:</p>
+
+      <pre><code><span class="keyword">const</span> <span class="variable">queue</span> = <span class="keyword">new</span> <span class="function">Queue</span>(<span class="string">'batch-inference'</span>);
+
+<span class="comment">// Process 1 million items</span>
+<span class="keyword">async</span> <span class="keyword">function</span> <span class="function">batchProcess</span>(items) {
+  console.<span class="function">log</span>(<span class="string">`Processing ${items.length} items...`</span>);
+
+  <span class="comment">// Push all jobs in batches of 1000</span>
+  <span class="keyword">const</span> <span class="variable">batchSize</span> = <span class="number">1000</span>;
+  <span class="keyword">const</span> <span class="variable">jobIds</span> = [];
+
+  <span class="keyword">for</span> (<span class="keyword">let</span> i = <span class="number">0</span>; i < items.length; i += batchSize) {
+    <span class="keyword">const</span> <span class="variable">batch</span> = items.<span class="function">slice</span>(i, i + batchSize);
+
+    <span class="comment">// Batch push for maximum throughput</span>
+    <span class="keyword">const</span> <span class="variable">jobs</span> = <span class="keyword">await</span> queue.<span class="function">addBulk</span>(
+      batch.<span class="function">map</span>(item => ({
+        name: <span class="string">'predict'</span>,
+        data: item
+      }))
+    );
+
+    jobIds.<span class="function">push</span>(...jobs.<span class="function">map</span>(j => j.id));
+
+    <span class="comment">// Report progress</span>
+    console.<span class="function">log</span>(<span class="string">`Queued ${Math.min(i + batchSize, items.length)} / ${items.length}`</span>);
+  }
+
+  console.<span class="function">log</span>(<span class="string">'All jobs queued. Processing...'</span>);
+}
+
+<span class="comment">// Worker with concurrency control</span>
+<span class="keyword">new</span> <span class="function">Worker</span>(<span class="string">'batch-inference'</span>, <span class="keyword">async</span> (job) => {
+  <span class="keyword">const</span> <span class="variable">prediction</span> = <span class="keyword">await</span> model.<span class="function">predict</span>(job.data);
+
+  <span class="comment">// Update progress</span>
+  <span class="keyword">await</span> job.<span class="function">updateProgress</span>(<span class="number">100</span>);
+
+  <span class="keyword">return</span> prediction;
+}, {
+  concurrency: <span class="number">10</span> <span class="comment">// Process 10 jobs in parallel</span>
+});</code></pre>
+
+      <h2>Handling Failures</h2>
+
+      <p>AI APIs are unreliable. Here's how to handle failures gracefully:</p>
+
+      <pre><code><span class="comment">// Configure retries with exponential backoff</span>
+<span class="keyword">await</span> queue.<span class="function">add</span>(<span class="string">'llm-call'</span>, { prompt }, {
+  attempts: <span class="number">5</span>,
+  backoff: {
+    type: <span class="string">'exponential'</span>,
+    delay: <span class="number">1000</span>  <span class="comment">// 1s, 2s, 4s, 8s, 16s</span>
+  }
+});
+
+<span class="comment">// Handle specific errors in worker</span>
+<span class="keyword">new</span> <span class="function">Worker</span>(<span class="string">'llm-call'</span>, <span class="keyword">async</span> (job) => {
+  <span class="keyword">try</span> {
+    <span class="keyword">return</span> <span class="keyword">await</span> openai.chat.completions.<span class="function">create</span>({...});
+  } <span class="keyword">catch</span> (error) {
+    <span class="keyword">if</span> (error.status === <span class="number">429</span>) {
+      <span class="comment">// Rate limited - throw to retry</span>
+      <span class="keyword">throw</span> <span class="keyword">new</span> <span class="function">Error</span>(<span class="string">'Rate limited, will retry'</span>);
+    }
+    <span class="keyword">if</span> (error.status === <span class="number">400</span>) {
+      <span class="comment">// Bad request - don't retry</span>
+      <span class="keyword">return</span> { error: <span class="string">'Invalid request'</span>, skip: <span class="keyword">true</span> };
+    }
+    <span class="keyword">throw</span> error;
+  }
+});
+
+<span class="comment">// Monitor the dead letter queue</span>
+<span class="keyword">const</span> <span class="variable">failedJobs</span> = <span class="keyword">await</span> queue.<span class="function">getDlq</span>(<span class="number">100</span>);
+console.<span class="function">log</span>(<span class="string">`${failedJobs.length} jobs in DLQ`</span>);
+
+<span class="comment">// Retry failed jobs</span>
+<span class="keyword">await</span> queue.<span class="function">retryDlq</span>();</code></pre>
+
+      <h2>Monitoring and Observability</h2>
+
+      <p>Track your pipelines in real-time:</p>
+
+      <pre><code><span class="comment">// Get queue stats</span>
+<span class="keyword">const</span> <span class="variable">stats</span> = <span class="keyword">await</span> queue.<span class="function">getJobCounts</span>();
+console.<span class="function">log</span>(stats);
+<span class="comment">// {
+//   waiting: 1523,
+//   active: 10,
+//   completed: 45230,
+//   failed: 12,
+//   delayed: 0
+// }</span>
+
+<span class="comment">// Track progress of a specific job</span>
+<span class="keyword">const</span> <span class="variable">progress</span> = <span class="keyword">await</span> queue.<span class="function">getProgress</span>(jobId);
+console.<span class="function">log</span>(<span class="string">`Job ${jobId}: ${progress.percent}% - ${progress.message}`</span>);
+
+<span class="comment">// Listen to events</span>
+queue.<span class="function">on</span>(<span class="string">'completed'</span>, (job, result) => {
+  console.<span class="function">log</span>(<span class="string">`Job ${job.id} completed`</span>);
+  metrics.<span class="function">increment</span>(<span class="string">'jobs.completed'</span>);
+});
+
+queue.<span class="function">on</span>(<span class="string">'failed'</span>, (job, error) => {
+  console.<span class="function">error</span>(<span class="string">`Job ${job.id} failed: ${error.message}`</span>);
+  metrics.<span class="function">increment</span>(<span class="string">'jobs.failed'</span>);
+});</code></pre>
+
+      <div class="callout callout-success">
+        <div class="callout-title">💡 Pro Tip</div>
+        <p>flashQ exposes Prometheus metrics at <code>/metrics/prometheus</code> when running with HTTP enabled. Use Grafana to visualize queue health.</p>
+      </div>
+
+      <h2>Best Practices</h2>
+
+      <h3>1. Use Job Dependencies for Complex Pipelines</h3>
+
+      <p>Instead of polling for job completion, use <code>depends_on</code> to chain jobs. This is more efficient and lets flashQ optimize scheduling.</p>
+
+      <h3>2. Set Appropriate Timeouts</h3>
+
+      <p>LLM calls can be slow. Set timeouts that match your use case:</p>
+
+      <pre><code><span class="keyword">await</span> queue.<span class="function">add</span>(<span class="string">'generate'</span>, data, {
+  timeout: <span class="number">60000</span>  <span class="comment">// 60 seconds for LLM calls</span>
+});</code></pre>
+
+      <h3>3. Use Rate Limiting to Control Costs</h3>
+
+      <p>Rate limiting isn't just for API compliance—it's for budget control:</p>
+
+      <pre><code><span class="comment">// Limit to $10/hour in API calls</span>
+<span class="comment">// GPT-4 ≈ $0.03 per 1K tokens ≈ 333 calls per $10</span>
+<span class="keyword">await</span> queue.<span class="function">setRateLimit</span>(<span class="number">333</span>); <span class="comment">// 333 per hour = ~6 per minute</span></code></pre>
+
+      <h3>4. Track Costs Per Job</h3>
+
+      <p>Store token usage in job results for cost tracking:</p>
+
+      <pre><code><span class="keyword">return</span> {
+  result: response.choices[<span class="number">0</span>].message.content,
+  usage: {
+    promptTokens: response.usage.prompt_tokens,
+    completionTokens: response.usage.completion_tokens,
+    cost: <span class="function">calculateCost</span>(response.usage)
+  }
+};</code></pre>
+
+      <h3>5. Use Concurrency Control</h3>
+
+      <p>Match concurrency to your API limits and system resources:</p>
+
+      <pre><code><span class="keyword">new</span> <span class="function">Worker</span>(<span class="string">'embeddings'</span>, processor, {
+  concurrency: <span class="number">5</span>  <span class="comment">// 5 parallel embedding calls</span>
+});
+
+<span class="comment">// Or set at queue level</span>
+<span class="keyword">await</span> queue.<span class="function">setConcurrency</span>(<span class="number">10</span>);</code></pre>
+
+      <h2>Conclusion</h2>
+
+      <p>Building reliable AI pipelines doesn't have to be complicated. With flashQ, you get:</p>
+
+      <ul>
+        <li><strong>Job dependencies</strong> for complex workflows</li>
+        <li><strong>Rate limiting</strong> to control API costs</li>
+        <li><strong>Automatic retries</strong> for transient failures</li>
+        <li><strong>Progress tracking</strong> for long-running jobs</li>
+        <li><strong>High throughput</strong> for batch processing</li>
+      </ul>
+
+      <p>All without managing Redis or any external infrastructure.</p>
+
+      <p>Ready to build your own AI pipeline? Check out the <a href="../docs/">documentation</a> for the full API reference and more examples.</p>
+
+      <!-- CTA -->
+      <div class="article-cta">
+        <h3>Start Building</h3>
+        <p>Get flashQ running in 5 minutes and start building AI pipelines.</p>
+        <a href="../docs/#quickstart" class="btn btn-primary">Get Started →</a>
+      </div>
+    </div>
+  </article>
+
+  <!-- Footer -->
+  <footer>
+    <div class="container wide">
+      <a href="../" class="logo">
+        <span>⚡</span> flashQ
+      </a>
+      <div class="footer-links">
+        <a href="https://github.com/egeominotti/flashq" target="_blank">GitHub</a>
+        <a href="https://npmjs.com/package/flashq" target="_blank">npm</a>
+        <a href="../docs/">Docs</a>
+        <a href="../blog/">Blog</a>
+      </div>
+      <div class="footer-copy">
+        © 2025 flashQ. MIT License.
+      </div>
+    </div>
+  </footer>
+  <script>
+    const mobileMenuBtn = document.querySelector(".mobile-menu-btn");
+    const mobileMenu = document.querySelector(".mobile-menu");
+    mobileMenuBtn.addEventListener("click", () => {
+      mobileMenuBtn.classList.toggle("active");
+      mobileMenu.classList.toggle("active");
+      document.body.style.overflow = mobileMenu.classList.contains("active") ? "hidden" : "";
+    });
+    mobileMenu.querySelectorAll("a").forEach(link => {
+      link.addEventListener("click", () => {
+        mobileMenuBtn.classList.remove("active");
+        mobileMenu.classList.remove("active");
+        document.body.style.overflow = "";
+      });
+    });
+  </script>
+</body>
+</html>

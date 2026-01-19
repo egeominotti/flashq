@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Job Queue Patterns for AI Applications - flashQ Blog</title>
+  <meta name="description" content="Essential job queue patterns for building reliable AI applications: fan-out, sagas, circuit breakers, dead letter queues, and more.">
+  <meta name="keywords" content="job queue patterns, ai architecture, saga pattern, circuit breaker, fan-out, background jobs">
+  <meta name="robots" content="index, follow">
+
+  <meta property="og:title" content="Job Queue Patterns for AI Applications">
+  <meta property="og:description" content="Essential patterns for building reliable AI applications with job queues.">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://flashq.dev/blog/job-queue-patterns.html">
+  <meta property="og:image" content="https://flashq.dev/og-image.png">
+
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Job Queue Patterns for AI Applications">
+  <meta name="twitter:image" content="https://flashq.dev/og-image.png">
+
+  <link rel="canonical" href="https://flashq.dev/blog/job-queue-patterns.html">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="styles.css">
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "headline": "Job Queue Patterns for AI Applications",
+    "datePublished": "2026-01-19",
+    "author": { "@type": "Organization", "name": "flashQ" }
+  }
+  </script>
+</head>
+<body>
+  <nav>
+    <div class="container wide">
+      <a href="../" class="logo"><span>⚡</span> flashQ</a>
+      <div class="nav-links">
+        <a href="../#features">Features</a>
+        <a href="../blog/" class="active">Blog</a>
+        <a href="../docs/">Docs</a>
+        <a href="https://github.com/egeominotti/flashq" target="_blank">GitHub</a>
+        <a href="../docs/#quickstart" class="btn btn-primary">Get Started</a>
+      </div>
+      <button class="mobile-menu-btn" aria-label="Menu">
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
+    </div>
+  </nav>
+
+  <div class="mobile-menu">
+    <a href="../#features">Features</a>
+    <a href="../blog/">Blog</a>
+    <a href="../docs/">Docs</a>
+    <a href="https://github.com/egeominotti/flashq" target="_blank">GitHub</a>
+    <a href="../docs/#quickstart" class="btn btn-primary">Get Started</a>
+  </div>
+
+  <header class="article-header">
+    <div class="container">
+      <span class="article-tag">Best Practices</span>
+      <h1>Job Queue Patterns for AI Applications</h1>
+      <div class="article-meta">
+        <span>📅 January 19, 2026</span>
+        <span>⏱️ 12 min read</span>
+      </div>
+    </div>
+  </header>
+
+  <article class="article-content">
+    <div class="container">
+      <p>Building reliable AI applications requires more than just calling APIs. You need patterns that handle failures gracefully, scale efficiently, and maintain data consistency. In this guide, we'll explore essential job queue patterns that every AI engineer should know.</p>
+
+      <h2>1. Fan-Out Pattern</h2>
+
+      <p>The fan-out pattern distributes work across multiple workers. It's perfect for batch processing where you need to process many items independently.</p>
+
+      <pre><code>┌─────────┐     ┌──────────┐     ┌──────────┐
+│ Source  │ ──▶ │ Worker 1 │ ──▶ │ Results  │
+│  Job    │ ──▶ │ Worker 2 │ ──▶ │ Collector│
+│         │ ──▶ │ Worker 3 │ ──▶ │          │
+└─────────┘     └──────────┘     └──────────┘</code></pre>
+
+      <p><strong>Use case:</strong> Processing 10,000 documents for embedding generation.</p>
+
+      <pre><code><span class="keyword">async</span> <span class="keyword">function</span> <span class="function">fanOutEmbeddings</span>(documents) {
+  <span class="keyword">const</span> <span class="variable">queue</span> = <span class="keyword">new</span> <span class="function">Queue</span>(<span class="string">'embeddings'</span>);
+
+  <span class="comment">// Fan out: Create a job for each document</span>
+  <span class="keyword">const</span> <span class="variable">jobs</span> = <span class="keyword">await</span> queue.<span class="function">addBulk</span>(
+    documents.<span class="function">map</span>(doc => ({
+      name: <span class="string">'embed'</span>,
+      data: { id: doc.id, text: doc.content }
+    }))
+  );
+
+  <span class="comment">// Fan in: Collect results</span>
+  <span class="keyword">const</span> <span class="variable">collector</span> = <span class="keyword">await</span> queue.<span class="function">add</span>(<span class="string">'collect'</span>, {
+    jobIds: jobs.<span class="function">map</span>(j => j.id),
+    totalCount: documents.length
+  }, {
+    depends_on: jobs.<span class="function">map</span>(j => j.id)
+  });
+
+  <span class="keyword">return</span> queue.<span class="function">finished</span>(collector.id);
+}</code></pre>
+
+      <h2>2. Saga Pattern</h2>
+
+      <p>The saga pattern manages distributed transactions by breaking them into steps, each with a compensating action for rollback.</p>
+
+      <pre><code>┌───────┐     ┌───────┐     ┌───────┐
+│Step 1 │ ──▶ │Step 2 │ ──▶ │Step 3 │
+│       │     │       │     │       │
+│Comp 1 │ ◀── │Comp 2 │ ◀── │Comp 3 │
+└───────┘     └───────┘     └───────┘
+  (rollback chain if any step fails)</code></pre>
+
+      <p><strong>Use case:</strong> AI-powered document processing with external API calls.</p>
+
+      <pre><code><span class="keyword">const</span> <span class="variable">saga</span> = {
+  steps: [
+    {
+      name: <span class="string">'extract'</span>,
+      execute: <span class="keyword">async</span> (data) => <span class="keyword">await</span> <span class="function">extractText</span>(data.file),
+      compensate: <span class="keyword">async</span> (data) => <span class="keyword">await</span> <span class="function">deleteExtraction</span>(data.extractionId)
+    },
+    {
+      name: <span class="string">'analyze'</span>,
+      execute: <span class="keyword">async</span> (data) => <span class="keyword">await</span> openai.chat.completions.<span class="function">create</span>({...}),
+      compensate: <span class="keyword">async</span> (data) => { <span class="comment">/* no-op, API call can't be undone */</span> }
+    },
+    {
+      name: <span class="string">'store'</span>,
+      execute: <span class="keyword">async</span> (data) => <span class="keyword">await</span> db.<span class="function">insert</span>(data.analysis),
+      compensate: <span class="keyword">async</span> (data) => <span class="keyword">await</span> db.<span class="function">delete</span>(data.recordId)
+    }
+  ]
+};
+
+<span class="comment">// Execute saga with automatic rollback on failure</span>
+<span class="keyword">async</span> <span class="keyword">function</span> <span class="function">executeSaga</span>(saga, initialData) {
+  <span class="keyword">const</span> <span class="variable">completedSteps</span> = [];
+
+  <span class="keyword">try</span> {
+    <span class="keyword">let</span> <span class="variable">data</span> = initialData;
+    <span class="keyword">for</span> (<span class="keyword">const</span> step <span class="keyword">of</span> saga.steps) {
+      data = <span class="keyword">await</span> step.<span class="function">execute</span>(data);
+      completedSteps.<span class="function">push</span>({ step, data });
+    }
+    <span class="keyword">return</span> data;
+  } <span class="keyword">catch</span> (error) {
+    <span class="comment">// Rollback in reverse order</span>
+    <span class="keyword">for</span> (<span class="keyword">const</span> { step, data } <span class="keyword">of</span> completedSteps.<span class="function">reverse</span>()) {
+      <span class="keyword">await</span> step.<span class="function">compensate</span>(data);
+    }
+    <span class="keyword">throw</span> error;
+  }
+}</code></pre>
+
+      <h2>3. Circuit Breaker Pattern</h2>
+
+      <p>The circuit breaker prevents cascading failures by stopping requests to a failing service.</p>
+
+      <pre><code>        ┌─────────────────────────────────────┐
+        │         Circuit Breaker             │
+        │  ┌───────┐ ┌───────┐ ┌───────────┐ │
+        │  │Closed │→│ Open  │→│Half-Open  │ │
+        │  └───────┘ └───────┘ └───────────┘ │
+        └─────────────────────────────────────┘</code></pre>
+
+      <p><strong>Use case:</strong> Protecting against OpenAI API outages.</p>
+
+      <pre><code><span class="keyword">class</span> <span class="function">CircuitBreaker</span> {
+  <span class="keyword">constructor</span>(threshold = <span class="number">5</span>, timeout = <span class="number">60000</span>) {
+    <span class="keyword">this</span>.failures = <span class="number">0</span>;
+    <span class="keyword">this</span>.threshold = threshold;
+    <span class="keyword">this</span>.timeout = timeout;
+    <span class="keyword">this</span>.state = <span class="string">'CLOSED'</span>;
+    <span class="keyword">this</span>.nextAttempt = <span class="number">0</span>;
+  }
+
+  <span class="keyword">async</span> <span class="function">execute</span>(fn) {
+    <span class="keyword">if</span> (<span class="keyword">this</span>.state === <span class="string">'OPEN'</span>) {
+      <span class="keyword">if</span> (Date.<span class="function">now</span>() < <span class="keyword">this</span>.nextAttempt) {
+        <span class="keyword">throw</span> <span class="keyword">new</span> <span class="function">Error</span>(<span class="string">'Circuit breaker is OPEN'</span>);
+      }
+      <span class="keyword">this</span>.state = <span class="string">'HALF-OPEN'</span>;
+    }
+
+    <span class="keyword">try</span> {
+      <span class="keyword">const</span> <span class="variable">result</span> = <span class="keyword">await</span> <span class="function">fn</span>();
+      <span class="keyword">this</span>.<span class="function">onSuccess</span>();
+      <span class="keyword">return</span> result;
+    } <span class="keyword">catch</span> (error) {
+      <span class="keyword">this</span>.<span class="function">onFailure</span>();
+      <span class="keyword">throw</span> error;
+    }
+  }
+
+  <span class="function">onSuccess</span>() {
+    <span class="keyword">this</span>.failures = <span class="number">0</span>;
+    <span class="keyword">this</span>.state = <span class="string">'CLOSED'</span>;
+  }
+
+  <span class="function">onFailure</span>() {
+    <span class="keyword">this</span>.failures++;
+    <span class="keyword">if</span> (<span class="keyword">this</span>.failures >= <span class="keyword">this</span>.threshold) {
+      <span class="keyword">this</span>.state = <span class="string">'OPEN'</span>;
+      <span class="keyword">this</span>.nextAttempt = Date.<span class="function">now</span>() + <span class="keyword">this</span>.timeout;
+    }
+  }
+}
+
+<span class="comment">// Usage in worker</span>
+<span class="keyword">const</span> <span class="variable">breaker</span> = <span class="keyword">new</span> <span class="function">CircuitBreaker</span>();
+
+<span class="keyword">new</span> <span class="function">Worker</span>(<span class="string">'openai-calls'</span>, <span class="keyword">async</span> (job) => {
+  <span class="keyword">return</span> breaker.<span class="function">execute</span>(<span class="keyword">async</span> () => {
+    <span class="keyword">return</span> openai.chat.completions.<span class="function">create</span>(job.data);
+  });
+});</code></pre>
+
+      <h2>4. Priority Queue Pattern</h2>
+
+      <p>Process important jobs first while still handling lower-priority work.</p>
+
+      <pre><code><span class="comment">// Priority levels</span>
+<span class="keyword">const</span> <span class="variable">PRIORITY</span> = {
+  CRITICAL: <span class="number">100</span>,  <span class="comment">// Processed immediately</span>
+  HIGH: <span class="number">50</span>,       <span class="comment">// Next in line</span>
+  NORMAL: <span class="number">10</span>,     <span class="comment">// Default</span>
+  LOW: <span class="number">1</span>          <span class="comment">// When nothing else is pending</span>
+};
+
+<span class="comment">// Real-time user request (high priority)</span>
+<span class="keyword">await</span> queue.<span class="function">add</span>(<span class="string">'generate'</span>, { prompt, userId }, {
+  priority: PRIORITY.HIGH
+});
+
+<span class="comment">// Background batch job (low priority)</span>
+<span class="keyword">await</span> queue.<span class="function">add</span>(<span class="string">'generate'</span>, { prompt, batchId }, {
+  priority: PRIORITY.LOW
+});</code></pre>
+
+      <h2>5. Retry with Exponential Backoff</h2>
+
+      <p>Handle transient failures by retrying with increasing delays.</p>
+
+      <pre><code><span class="comment">// Retry delays: 1s, 2s, 4s, 8s, 16s</span>
+<span class="keyword">await</span> queue.<span class="function">add</span>(<span class="string">'api-call'</span>, data, {
+  attempts: <span class="number">5</span>,
+  backoff: {
+    type: <span class="string">'exponential'</span>,
+    delay: <span class="number">1000</span>
+  }
+});
+
+<span class="comment">// Custom backoff with jitter (prevents thundering herd)</span>
+<span class="keyword">function</span> <span class="function">calculateBackoff</span>(attempt, baseDelay = <span class="number">1000</span>) {
+  <span class="keyword">const</span> <span class="variable">exponentialDelay</span> = baseDelay * Math.<span class="function">pow</span>(<span class="number">2</span>, attempt);
+  <span class="keyword">const</span> <span class="variable">jitter</span> = Math.<span class="function">random</span>() * <span class="number">1000</span>;
+  <span class="keyword">return</span> exponentialDelay + jitter;
+}</code></pre>
+
+      <h2>6. Dead Letter Queue (DLQ) Pattern</h2>
+
+      <p>Capture failed jobs for investigation and reprocessing.</p>
+
+      <pre><code><span class="comment">// Jobs move to DLQ after max attempts</span>
+<span class="keyword">await</span> queue.<span class="function">add</span>(<span class="string">'process'</span>, data, {
+  attempts: <span class="number">3</span>
+});
+
+<span class="comment">// Monitor DLQ</span>
+<span class="keyword">const</span> <span class="variable">failedJobs</span> = <span class="keyword">await</span> queue.<span class="function">getDlq</span>(<span class="number">100</span>);
+
+<span class="keyword">for</span> (<span class="keyword">const</span> job <span class="keyword">of</span> failedJobs) {
+  console.<span class="function">log</span>(<span class="string">`Failed job ${job.id}:`</span>, job.failedReason);
+
+  <span class="comment">// Decide action based on error</span>
+  <span class="keyword">if</span> (job.failedReason.<span class="function">includes</span>(<span class="string">'rate limit'</span>)) {
+    <span class="comment">// Retry rate-limited jobs</span>
+    <span class="keyword">await</span> queue.<span class="function">retryDlq</span>(job.id);
+  } <span class="keyword">else</span> <span class="keyword">if</span> (job.failedReason.<span class="function">includes</span>(<span class="string">'invalid'</span>)) {
+    <span class="comment">// Log and skip invalid jobs</span>
+    <span class="keyword">await</span> <span class="function">logToSlack</span>(<span class="string">`Invalid job: ${job.id}`</span>);
+  }
+}
+
+<span class="comment">// Alert on DLQ growth</span>
+<span class="keyword">if</span> (failedJobs.length > <span class="number">100</span>) {
+  <span class="keyword">await</span> <span class="function">sendAlert</span>(<span class="string">'DLQ has over 100 jobs!'</span>);
+}</code></pre>
+
+      <h2>7. Idempotency Pattern</h2>
+
+      <p>Ensure jobs can be safely retried without side effects.</p>
+
+      <pre><code><span class="comment">// Use custom job ID for idempotency</span>
+<span class="keyword">await</span> queue.<span class="function">add</span>(<span class="string">'charge'</span>, { userId, amount }, {
+  jobId: <span class="string">`charge-${userId}-${orderId}`</span>  <span class="comment">// Unique per operation</span>
+});
+
+<span class="comment">// Worker checks idempotency</span>
+<span class="keyword">new</span> <span class="function">Worker</span>(<span class="string">'payments'</span>, <span class="keyword">async</span> (job) => {
+  <span class="comment">// Check if already processed</span>
+  <span class="keyword">const</span> <span class="variable">existing</span> = <span class="keyword">await</span> db.payments.<span class="function">findOne</span>({
+    idempotencyKey: job.id
+  });
+
+  <span class="keyword">if</span> (existing) {
+    <span class="keyword">return</span> existing.result; <span class="comment">// Return cached result</span>
+  }
+
+  <span class="comment">// Process and store with idempotency key</span>
+  <span class="keyword">const</span> <span class="variable">result</span> = <span class="keyword">await</span> <span class="function">processPayment</span>(job.data);
+  <span class="keyword">await</span> db.payments.<span class="function">insert</span>({
+    idempotencyKey: job.id,
+    result
+  });
+
+  <span class="keyword">return</span> result;
+});</code></pre>
+
+      <h2>8. Scheduled Job Pattern</h2>
+
+      <p>Run jobs at specific times using cron expressions.</p>
+
+      <pre><code><span class="comment">// Daily report at 9 AM</span>
+<span class="keyword">await</span> queue.<span class="function">addCron</span>(<span class="string">'daily-report'</span>, {
+  queue: <span class="string">'reports'</span>,
+  schedule: <span class="string">'0 9 * * *'</span>,
+  data: { type: <span class="string">'daily'</span> }
+});
+
+<span class="comment">// Hourly model retraining</span>
+<span class="keyword">await</span> queue.<span class="function">addCron</span>(<span class="string">'retrain-model'</span>, {
+  queue: <span class="string">'ml-training'</span>,
+  schedule: <span class="string">'0 * * * *'</span>,
+  data: { modelId: <span class="string">'recommendations'</span> }
+});
+
+<span class="comment">// Every 5 minutes - cache refresh</span>
+<span class="keyword">await</span> queue.<span class="function">addCron</span>(<span class="string">'refresh-cache'</span>, {
+  queue: <span class="string">'maintenance'</span>,
+  schedule: <span class="string">'*/5 * * * *'</span>,
+  data: { cache: <span class="string">'embeddings'</span> }
+});</code></pre>
+
+      <h2>9. Batch Processing Pattern</h2>
+
+      <p>Group multiple items into a single job for efficiency.</p>
+
+      <pre><code><span class="comment">// Instead of 1000 individual jobs...</span>
+<span class="keyword">const</span> <span class="variable">BATCH_SIZE</span> = <span class="number">100</span>;
+<span class="keyword">const</span> <span class="variable">batches</span> = [];
+
+<span class="keyword">for</span> (<span class="keyword">let</span> i = <span class="number">0</span>; i < items.length; i += BATCH_SIZE) {
+  batches.<span class="function">push</span>(items.<span class="function">slice</span>(i, i + BATCH_SIZE));
+}
+
+<span class="comment">// Create 10 batch jobs instead</span>
+<span class="keyword">for</span> (<span class="keyword">const</span> batch <span class="keyword">of</span> batches) {
+  <span class="keyword">await</span> queue.<span class="function">add</span>(<span class="string">'process-batch'</span>, {
+    items: batch
+  });
+}
+
+<span class="comment">// Worker processes batch efficiently</span>
+<span class="keyword">new</span> <span class="function">Worker</span>(<span class="string">'embeddings'</span>, <span class="keyword">async</span> (job) => {
+  <span class="keyword">const</span> { items } = job.data;
+
+  <span class="comment">// OpenAI supports batch embeddings</span>
+  <span class="keyword">const</span> <span class="variable">response</span> = <span class="keyword">await</span> openai.embeddings.<span class="function">create</span>({
+    input: items.<span class="function">map</span>(i => i.text),
+    model: <span class="string">'text-embedding-3-small'</span>
+  });
+
+  <span class="keyword">return</span> response.data;
+});</code></pre>
+
+      <h2>Choosing the Right Pattern</h2>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Scenario</th>
+            <th>Pattern</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Processing many items independently</td>
+            <td>Fan-Out</td>
+          </tr>
+          <tr>
+            <td>Multi-step workflow with rollback</td>
+            <td>Saga</td>
+          </tr>
+          <tr>
+            <td>Unstable external API</td>
+            <td>Circuit Breaker</td>
+          </tr>
+          <tr>
+            <td>User-facing vs batch jobs</td>
+            <td>Priority Queue</td>
+          </tr>
+          <tr>
+            <td>Transient failures</td>
+            <td>Exponential Backoff</td>
+          </tr>
+          <tr>
+            <td>Debugging failures</td>
+            <td>Dead Letter Queue</td>
+          </tr>
+          <tr>
+            <td>Payment/mutation safety</td>
+            <td>Idempotency</td>
+          </tr>
+          <tr>
+            <td>Recurring tasks</td>
+            <td>Scheduled Jobs</td>
+          </tr>
+          <tr>
+            <td>High-volume processing</td>
+            <td>Batch Processing</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h2>Conclusion</h2>
+
+      <p>These patterns form the foundation of reliable AI applications. Start with the basics (retries, DLQ) and add complexity (sagas, circuit breakers) as your system grows. flashQ supports all these patterns out of the box.</p>
+
+      <div class="article-cta">
+        <h3>Build Reliable AI Apps</h3>
+        <p>Get started with flashQ and implement these patterns today.</p>
+        <a href="../docs/" class="btn btn-primary">Read the Docs →</a>
+      </div>
+    </div>
+  </article>
+
+  <footer>
+    <div class="container wide">
+      <a href="../" class="logo"><span>⚡</span> flashQ</a>
+      <div class="footer-links">
+        <a href="https://github.com/egeominotti/flashq" target="_blank">GitHub</a>
+        <a href="https://npmjs.com/package/flashq" target="_blank">npm</a>
+        <a href="../docs/">Docs</a>
+        <a href="../blog/">Blog</a>
+      </div>
+      <div class="footer-copy">© 2025 flashQ. MIT License.</div>
+    </div>
+  </footer>
+  <script>
+    const mobileMenuBtn = document.querySelector(".mobile-menu-btn");
+    const mobileMenu = document.querySelector(".mobile-menu");
+    mobileMenuBtn.addEventListener("click", () => {
+      mobileMenuBtn.classList.toggle("active");
+      mobileMenu.classList.toggle("active");
+      document.body.style.overflow = mobileMenu.classList.contains("active") ? "hidden" : "";
+    });
+    mobileMenu.querySelectorAll("a").forEach(link => {
+      link.addEventListener("click", () => {
+        mobileMenuBtn.classList.remove("active");
+        mobileMenu.classList.remove("active");
+        document.body.style.overflow = "";
+      });
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Monitoring AI Pipelines: Metrics, Alerts, and Dashboards - flashQ Blog</title>
+  <meta name="description" content="Set up comprehensive monitoring for your AI pipelines with Prometheus, Grafana, and flashQ. Track latency, throughput, errors, and costs.">
+  <meta name="keywords" content="ai pipeline monitoring, prometheus metrics, grafana dashboard, job queue monitoring, observability">
+  <meta name="robots" content="index, follow">
+
+  <meta property="og:title" content="Monitoring AI Pipelines: Metrics, Alerts, and Dashboards">
+  <meta property="og:description" content="Set up comprehensive monitoring for your AI pipelines.">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://flashq.dev/blog/monitoring-ai-pipelines.html">
+  <meta property="og:image" content="https://flashq.dev/og-image.png">
+
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Monitoring AI Pipelines: Metrics, Alerts, and Dashboards">
+  <meta name="twitter:image" content="https://flashq.dev/og-image.png">
+
+  <link rel="canonical" href="https://flashq.dev/blog/monitoring-ai-pipelines.html">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="styles.css">
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "headline": "Monitoring AI Pipelines: Metrics, Alerts, and Dashboards",
+    "datePublished": "2025-12-28",
+    "author": { "@type": "Organization", "name": "flashQ" }
+  }
+  </script>
+</head>
+<body>
+  <nav>
+    <div class="container wide">
+      <a href="../" class="logo"><span>⚡</span> flashQ</a>
+      <div class="nav-links">
+        <a href="../#features">Features</a>
+        <a href="../blog/" class="active">Blog</a>
+        <a href="../docs/">Docs</a>
+        <a href="https://github.com/egeominotti/flashq" target="_blank">GitHub</a>
+        <a href="../docs/#quickstart" class="btn btn-primary">Get Started</a>
+      </div>
+      <button class="mobile-menu-btn" aria-label="Menu">
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
+    </div>
+  </nav>
+
+  <div class="mobile-menu">
+    <a href="../#features">Features</a>
+    <a href="../blog/">Blog</a>
+    <a href="../docs/">Docs</a>
+    <a href="https://github.com/egeominotti/flashq" target="_blank">GitHub</a>
+    <a href="../docs/#quickstart" class="btn btn-primary">Get Started</a>
+  </div>
+
+  <header class="article-header">
+    <div class="container">
+      <span class="article-tag tutorial">Tutorial</span>
+      <h1>Monitoring AI Pipelines: Metrics, Alerts, and Dashboards</h1>
+      <div class="article-meta">
+        <span>📅 December 28, 2025</span>
+        <span>⏱️ 10 min read</span>
+      </div>
+    </div>
+  </header>
+
+  <article class="article-content">
+    <div class="container">
+      <p>Running AI pipelines in production without proper monitoring is like flying blind. You need visibility into throughput, latency, error rates, and costs. In this guide, we'll set up comprehensive monitoring for flashQ using Prometheus and Grafana.</p>
+
+      <h2>Why Monitor AI Pipelines?</h2>
+
+      <p>AI workloads have unique monitoring challenges:</p>
+
+      <ul>
+        <li><strong>Variable latency</strong>: LLM calls can take 100ms to 60s depending on prompt length</li>
+        <li><strong>Cost visibility</strong>: API calls cost money—you need to track spend in real-time</li>
+        <li><strong>Failure patterns</strong>: Rate limits, timeouts, and model errors need different handling</li>
+        <li><strong>Throughput planning</strong>: Understanding job flow helps capacity planning</li>
+      </ul>
+
+      <h2>flashQ Metrics Overview</h2>
+
+      <p>flashQ exposes Prometheus metrics at <code>/metrics/prometheus</code> when running with HTTP enabled:</p>
+
+      <pre><code><span class="comment"># Start flashQ with HTTP API</span>
+HTTP=1 HTTP_PORT=6790 ./flashq-server</code></pre>
+
+      <p>Available metrics include:</p>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Metric</th>
+            <th>Type</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>flashq_jobs_total</code></td>
+            <td>Counter</td>
+            <td>Total jobs by queue and status</td>
+          </tr>
+          <tr>
+            <td><code>flashq_jobs_active</code></td>
+            <td>Gauge</td>
+            <td>Currently processing jobs</td>
+          </tr>
+          <tr>
+            <td><code>flashq_jobs_waiting</code></td>
+            <td>Gauge</td>
+            <td>Jobs waiting in queue</td>
+          </tr>
+          <tr>
+            <td><code>flashq_jobs_failed</code></td>
+            <td>Counter</td>
+            <td>Failed jobs (sent to DLQ)</td>
+          </tr>
+          <tr>
+            <td><code>flashq_job_duration_seconds</code></td>
+            <td>Histogram</td>
+            <td>Job processing duration</td>
+          </tr>
+          <tr>
+            <td><code>flashq_queue_depth</code></td>
+            <td>Gauge</td>
+            <td>Queue depth by queue name</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h2>Setting Up Prometheus</h2>
+
+      <p>Create a <code>prometheus.yml</code> configuration:</p>
+
+      <pre><code><span class="variable">global</span>:
+  <span class="variable">scrape_interval</span>: <span class="number">15</span>s
+
+<span class="variable">scrape_configs</span>:
+  - <span class="variable">job_name</span>: <span class="string">'flashq'</span>
+    <span class="variable">static_configs</span>:
+      - <span class="variable">targets</span>: [<span class="string">'localhost:6790'</span>]
+    <span class="variable">metrics_path</span>: <span class="string">'/metrics/prometheus'</span></code></pre>
+
+      <p>Run Prometheus with Docker:</p>
+
+      <pre><code>docker run -d \
+  --name prometheus \
+  -p 9090:9090 \
+  -v ./prometheus.yml:/etc/prometheus/prometheus.yml \
+  prom/prometheus</code></pre>
+
+      <h2>Essential Grafana Dashboards</h2>
+
+      <h3>1. Queue Health Dashboard</h3>
+
+      <p>Monitor the overall health of your queues:</p>
+
+      <pre><code><span class="comment"># Jobs per second (throughput)</span>
+rate(flashq_jobs_total[5m])
+
+<span class="comment"># Queue depth (waiting jobs)</span>
+flashq_jobs_waiting
+
+<span class="comment"># Active jobs</span>
+flashq_jobs_active
+
+<span class="comment"># Error rate</span>
+rate(flashq_jobs_failed[5m]) / rate(flashq_jobs_total[5m]) * 100</code></pre>
+
+      <h3>2. Latency Dashboard</h3>
+
+      <p>Track job processing times:</p>
+
+      <pre><code><span class="comment"># P50 latency</span>
+histogram_quantile(0.5, rate(flashq_job_duration_seconds_bucket[5m]))
+
+<span class="comment"># P95 latency</span>
+histogram_quantile(0.95, rate(flashq_job_duration_seconds_bucket[5m]))
+
+<span class="comment"># P99 latency</span>
+histogram_quantile(0.99, rate(flashq_job_duration_seconds_bucket[5m]))</code></pre>
+
+      <h3>3. AI Cost Dashboard</h3>
+
+      <p>Track API costs with custom metrics:</p>
+
+      <pre><code><span class="keyword">import</span> { Counter, Histogram } <span class="keyword">from</span> <span class="string">'prom-client'</span>;
+
+<span class="comment">// Custom metrics for AI costs</span>
+<span class="keyword">const</span> <span class="variable">tokenCounter</span> = <span class="keyword">new</span> <span class="function">Counter</span>({
+  name: <span class="string">'ai_tokens_total'</span>,
+  help: <span class="string">'Total tokens used'</span>,
+  labelNames: [<span class="string">'model'</span>, <span class="string">'type'</span>]  <span class="comment">// type: input/output</span>
+});
+
+<span class="keyword">const</span> <span class="variable">costCounter</span> = <span class="keyword">new</span> <span class="function">Counter</span>({
+  name: <span class="string">'ai_cost_dollars'</span>,
+  help: <span class="string">'Total API cost in dollars'</span>,
+  labelNames: [<span class="string">'model'</span>, <span class="string">'queue'</span>]
+});
+
+<span class="comment">// Track in worker</span>
+<span class="keyword">new</span> <span class="function">Worker</span>(<span class="string">'llm-calls'</span>, <span class="keyword">async</span> (job) => {
+  <span class="keyword">const</span> <span class="variable">response</span> = <span class="keyword">await</span> openai.chat.completions.<span class="function">create</span>(job.data);
+
+  <span class="comment">// Record metrics</span>
+  tokenCounter.<span class="function">inc</span>(
+    { model: job.data.model, type: <span class="string">'input'</span> },
+    response.usage.prompt_tokens
+  );
+  tokenCounter.<span class="function">inc</span>(
+    { model: job.data.model, type: <span class="string">'output'</span> },
+    response.usage.completion_tokens
+  );
+
+  <span class="keyword">const</span> <span class="variable">cost</span> = <span class="function">calculateCost</span>(job.data.model, response.usage);
+  costCounter.<span class="function">inc</span>({ model: job.data.model, queue: <span class="string">'llm-calls'</span> }, cost);
+
+  <span class="keyword">return</span> response;
+});</code></pre>
+
+      <h2>Setting Up Alerts</h2>
+
+      <p>Create alerting rules for critical conditions:</p>
+
+      <pre><code><span class="variable">groups</span>:
+  - <span class="variable">name</span>: flashq_alerts
+    <span class="variable">rules</span>:
+      <span class="comment"># High error rate</span>
+      - <span class="variable">alert</span>: HighErrorRate
+        <span class="variable">expr</span>: rate(flashq_jobs_failed[5m]) > 0.1
+        <span class="variable">for</span>: 5m
+        <span class="variable">labels</span>:
+          <span class="variable">severity</span>: critical
+        <span class="variable">annotations</span>:
+          <span class="variable">summary</span>: <span class="string">"High job failure rate"</span>
+
+      <span class="comment"># Queue backing up</span>
+      - <span class="variable">alert</span>: QueueBacklog
+        <span class="variable">expr</span>: flashq_jobs_waiting > 10000
+        <span class="variable">for</span>: 10m
+        <span class="variable">labels</span>:
+          <span class="variable">severity</span>: warning
+        <span class="variable">annotations</span>:
+          <span class="variable">summary</span>: <span class="string">"Queue has large backlog"</span>
+
+      <span class="comment"># High latency</span>
+      - <span class="variable">alert</span>: HighLatency
+        <span class="variable">expr</span>: histogram_quantile(0.95, rate(flashq_job_duration_seconds_bucket[5m])) > 30
+        <span class="variable">for</span>: 5m
+        <span class="variable">labels</span>:
+          <span class="variable">severity</span>: warning
+        <span class="variable">annotations</span>:
+          <span class="variable">summary</span>: <span class="string">"P95 latency above 30 seconds"</span>
+
+      <span class="comment"># Budget exceeded</span>
+      - <span class="variable">alert</span>: DailyBudgetExceeded
+        <span class="variable">expr</span>: increase(ai_cost_dollars[24h]) > 100
+        <span class="variable">labels</span>:
+          <span class="variable">severity</span>: critical
+        <span class="variable">annotations</span>:
+          <span class="variable">summary</span>: <span class="string">"Daily AI spend exceeded $100"</span></code></pre>
+
+      <h2>Application-Level Monitoring</h2>
+
+      <p>Beyond infrastructure metrics, monitor application behavior:</p>
+
+      <pre><code><span class="keyword">const</span> <span class="variable">queue</span> = <span class="keyword">new</span> <span class="function">Queue</span>(<span class="string">'ai-pipeline'</span>);
+
+<span class="comment">// Log all job completions</span>
+queue.<span class="function">on</span>(<span class="string">'completed'</span>, (job, result) => {
+  console.<span class="function">log</span>(JSON.<span class="function">stringify</span>({
+    event: <span class="string">'job_completed'</span>,
+    jobId: job.id,
+    queue: <span class="string">'ai-pipeline'</span>,
+    duration: Date.<span class="function">now</span>() - job.timestamp,
+    resultSize: JSON.<span class="function">stringify</span>(result).length
+  }));
+});
+
+<span class="comment">// Track failures with context</span>
+queue.<span class="function">on</span>(<span class="string">'failed'</span>, (job, error) => {
+  console.<span class="function">error</span>(JSON.<span class="function">stringify</span>({
+    event: <span class="string">'job_failed'</span>,
+    jobId: job.id,
+    queue: <span class="string">'ai-pipeline'</span>,
+    error: error.message,
+    attempt: job.attemptsMade,
+    data: job.data
+  }));
+});
+
+<span class="comment">// Monitor progress for long jobs</span>
+queue.<span class="function">on</span>(<span class="string">'progress'</span>, (job, progress) => {
+  console.<span class="function">log</span>(JSON.<span class="function">stringify</span>({
+    event: <span class="string">'job_progress'</span>,
+    jobId: job.id,
+    progress: progress.percent,
+    message: progress.message
+  }));
+});</code></pre>
+
+      <h2>Real-Time Dashboard with WebSocket</h2>
+
+      <p>flashQ supports WebSocket for real-time updates:</p>
+
+      <pre><code><span class="keyword">const</span> <span class="variable">ws</span> = <span class="keyword">new</span> <span class="function">WebSocket</span>(<span class="string">'ws://localhost:6790/ws?token=YOUR_TOKEN'</span>);
+
+ws.<span class="function">onmessage</span> = (event) => {
+  <span class="keyword">const</span> <span class="variable">data</span> = JSON.<span class="function">parse</span>(event.data);
+
+  <span class="keyword">switch</span> (data.type) {
+    <span class="keyword">case</span> <span class="string">'job:completed'</span>:
+      <span class="function">updateCompletedCount</span>(data.queue);
+      <span class="keyword">break</span>;
+    <span class="keyword">case</span> <span class="string">'job:failed'</span>:
+      <span class="function">showErrorAlert</span>(data.jobId, data.error);
+      <span class="keyword">break</span>;
+    <span class="keyword">case</span> <span class="string">'queue:stats'</span>:
+      <span class="function">updateDashboard</span>(data.stats);
+      <span class="keyword">break</span>;
+  }
+};</code></pre>
+
+      <h2>Monitoring Checklist</h2>
+
+      <p>Before going to production, ensure you have:</p>
+
+      <ul>
+        <li>✅ Prometheus scraping flashQ metrics</li>
+        <li>✅ Grafana dashboards for queues, latency, and costs</li>
+        <li>✅ Alerts for high error rate, queue backlog, and budget</li>
+        <li>✅ Structured logging for job events</li>
+        <li>✅ DLQ monitoring and alerting</li>
+        <li>✅ Cost tracking per model and queue</li>
+      </ul>
+
+      <div class="callout callout-info">
+        <div class="callout-title">💡 Pro Tip</div>
+        <p>Set up a daily report that summarizes jobs processed, errors, and total API spend. This helps catch trends before they become problems.</p>
+      </div>
+
+      <h2>Conclusion</h2>
+
+      <p>Good monitoring is the foundation of reliable AI systems. With flashQ's built-in Prometheus metrics and the patterns in this guide, you'll have full visibility into your AI pipelines. Start with the basics and iterate based on what you learn from your data.</p>
+
+      <div class="article-cta">
+        <h3>Start Monitoring</h3>
+        <p>Enable HTTP API and start collecting metrics today.</p>
+        <a href="../docs/#monitoring" class="btn btn-primary">Read the Docs →</a>
+      </div>
+    </div>
+  </article>
+
+  <footer>
+    <div class="container wide">
+      <a href="../" class="logo"><span>⚡</span> flashQ</a>
+      <div class="footer-links">
+        <a href="https://github.com/egeominotti/flashq" target="_blank">GitHub</a>
+        <a href="https://npmjs.com/package/flashq" target="_blank">npm</a>
+        <a href="../docs/">Docs</a>
+        <a href="../blog/">Blog</a>
+      </div>
+      <div class="footer-copy">© 2025 flashQ. MIT License.</div>
+    </div>
+  </footer>
+  <script>
+    const mobileMenuBtn = document.querySelector(".mobile-menu-btn");
+    const mobileMenu = document.querySelector(".mobile-menu");
+    mobileMenuBtn.addEventListener("click", () => {
+      mobileMenuBtn.classList.toggle("active");
+      mobileMenu.classList.toggle("active");
+      document.body.style.overflow = mobileMenu.classList.contains("active") ? "hidden" : "";
+    });
+    mobileMenu.querySelectorAll("a").forEach(link => {
+      link.addEventListener("click", () => {
+        mobileMenuBtn.classList.remove("active");
+        mobileMenu.classList.remove("active");
+        document.body.style.overflow = "";
+      });
+    });
+  </script>
+</body>
+</html>
