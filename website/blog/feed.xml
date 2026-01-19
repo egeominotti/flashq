@@ -6,13 +6,22 @@
     <link>https://flashq.dev/blog/</link>
     <atom:link href="https://flashq.dev/blog/feed.xml" rel="self" type="application/rss+xml"/>
     <language>en-us</language>
-    <lastBuildDate>Mon, 20 Jan 2026 00:00:00 GMT</lastBuildDate>
+    <lastBuildDate>Sun, 19 Jan 2026 00:00:00 GMT</lastBuildDate>
     <ttl>60</ttl>
     <image>
       <url>https://flashq.dev/og-image.png</url>
       <title>flashQ Blog</title>
       <link>https://flashq.dev/blog/</link>
     </image>
+
+    <item>
+      <title>flashQ for Blockchain: 14 Use Cases That Replace Expensive Infrastructure</title>
+      <link>https://flashq.dev/blog/blockchain-crypto-usecases.html</link>
+      <guid isPermaLink="true">https://flashq.dev/blog/blockchain-crypto-usecases.html</guid>
+      <pubDate>Sun, 19 Jan 2026 00:00:00 GMT</pubDate>
+      <description>Build self-hosted blockchain infrastructure with flashQ. Transaction relayers, NFT minting queues, airdrops, keepers, bridges. Replace OpenZeppelin Defender and Gelato.</description>
+      <category>Blockchain</category>
+    </item>
 
     <item>
       <title>flashQ + Elysia &amp; Hono.js: Modern Bun-Powered Background Jobs</title>

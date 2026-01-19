@@ -875,6 +875,32 @@ nav .container {
   pointer-events: none;
 }
 
+.article-header.header-blockchain::before {
+  background:
+    radial-gradient(circle at 30% 30%, rgba(99, 102, 241, 0.2) 0%, transparent 40%),
+    radial-gradient(circle at 70% 60%, rgba(249, 115, 22, 0.15) 0%, transparent 35%),
+    radial-gradient(circle at 50% 80%, rgba(139, 92, 246, 0.1) 0%, transparent 30%);
+}
+
+.article-header.header-blockchain::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 200px;
+  height: 200px;
+  border: 2px solid rgba(99, 102, 241, 0.2);
+  border-radius: 12px;
+  transform: translate(-50%, -50%) rotate(45deg);
+  animation: headerBlockchain 4s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes headerBlockchain {
+  0%, 100% { transform: translate(-50%, -50%) rotate(45deg) scale(1); opacity: 0.3; }
+  50% { transform: translate(-50%, -50%) rotate(45deg) scale(1.2); opacity: 0.6; }
+}
+
 @keyframes headerMorph {
   0%, 100% { border-radius: 30% 70% 70% 30% / 30% 30% 70% 70%; transform: translate(-50%, -50%) scale(1); }
   25% { border-radius: 58% 42% 75% 25% / 76% 46% 54% 24%; transform: translate(-50%, -50%) scale(1.1); }
