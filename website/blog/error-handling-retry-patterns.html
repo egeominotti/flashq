@@ -7,14 +7,12 @@
   <meta name="description" content="Master error handling in flashQ job queues. Learn retry strategies, exponential backoff, dead letter queues, circuit breakers, and graceful degradation patterns.">
   <meta name="keywords" content="flashq error handling, job queue retry, exponential backoff, dead letter queue, dlq, circuit breaker, retry patterns, job queue resilience">
   <meta name="robots" content="index, follow">
-  <meta name="author" content="flashQ Team">
 
   <meta property="og:title" content="Error Handling & Retry Patterns in flashQ: Complete Guide">
   <meta property="og:description" content="Master error handling with retry strategies, exponential backoff, DLQ, and circuit breakers.">
   <meta property="og:type" content="article">
   <meta property="og:url" content="https://flashq.dev/blog/error-handling-retry-patterns.html">
   <meta property="og:image" content="https://flashq.dev/og-image.png">
-  <meta property="og:site_name" content="flashQ">
   <meta property="article:published_time" content="2026-01-19">
 
   <meta name="twitter:card" content="summary_large_image">
@@ -23,7 +21,6 @@
   <meta name="twitter:image" content="https://flashq.dev/og-image.png">
 
   <link rel="canonical" href="https://flashq.dev/blog/error-handling-retry-patterns.html">
-  <link rel="alternate" type="application/rss+xml" title="flashQ Blog RSS Feed" href="https://flashq.dev/blog/feed.xml">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -34,15 +31,12 @@
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
-    "@type": "TechArticle",
+    "@type": "Article",
     "headline": "Error Handling & Retry Patterns in flashQ: Complete Guide",
     "description": "Comprehensive guide to error handling patterns in flashQ including retry strategies, exponential backoff, and dead letter queues.",
     "datePublished": "2026-01-19",
-    "dateModified": "2026-01-19",
-    "author": { "@type": "Organization", "name": "flashQ", "url": "https://flashq.dev" },
-    "publisher": { "@type": "Organization", "name": "flashQ", "url": "https://flashq.dev" },
-    "mainEntityOfPage": { "@type": "WebPage", "@id": "https://flashq.dev/blog/error-handling-retry-patterns.html" },
-    "image": "https://flashq.dev/og-image.png"
+    "author": { "@type": "Organization", "name": "flashQ" },
+    "publisher": { "@type": "Organization", "name": "flashQ", "url": "https://flashq.dev" }
   }
   </script>
 
@@ -81,89 +75,75 @@
     <a href="../docs/#quickstart" class="btn btn-primary">Get Started</a>
   </div>
 
-  <article class="blog-post">
-    <div class="container narrow">
-      <header class="post-header">
-        <div class="post-meta">
-          <span class="post-tag">Best Practices</span>
-          <time datetime="2026-01-19">January 19, 2026</time>
-          <span class="reading-time">15 min read</span>
-        </div>
-        <h1>Error Handling & Retry Patterns in flashQ</h1>
-        <p class="post-subtitle">Build resilient job queues that gracefully handle failures. Learn retry strategies, exponential backoff, dead letter queues, circuit breakers, and more.</p>
-      </header>
+  <header class="article-header">
+    <div class="container">
+      <span class="article-tag">Best Practices</span>
+      <h1>Error Handling & Retry Patterns in flashQ</h1>
+      <div class="article-meta">
+        <span>📅 January 19, 2026</span>
+        <span>⏱️ 15 min read</span>
+      </div>
+    </div>
+  </header>
 
-      <div class="post-content">
-        <nav class="toc">
-          <h3>Table of Contents</h3>
-          <ul>
-            <li><a href="#error-types">Understanding Error Types</a></li>
-            <li><a href="#retry-strategies">Retry Strategies</a></li>
-            <li><a href="#exponential-backoff">Exponential Backoff</a></li>
-            <li><a href="#dlq">Dead Letter Queue (DLQ)</a></li>
-            <li><a href="#circuit-breaker">Circuit Breaker Pattern</a></li>
-            <li><a href="#error-classification">Error Classification</a></li>
-            <li><a href="#graceful-degradation">Graceful Degradation</a></li>
-            <li><a href="#patterns">Complete Patterns</a></li>
-          </ul>
-        </nav>
+  <article class="article-content">
+    <div class="container">
+      <p>Build resilient job queues that gracefully handle failures. This guide covers retry strategies, exponential backoff, dead letter queues, circuit breakers, and more.</p>
 
-        <h2 id="error-types">Understanding Error Types</h2>
+      <h2>Understanding Error Types</h2>
 
-        <p>Not all errors are equal. Understanding error types helps you choose the right handling strategy:</p>
+      <p>Not all errors are equal. Understanding error types helps you choose the right handling strategy:</p>
 
-        <div class="table-wrapper">
-          <table>
-            <thead>
-              <tr>
-                <th>Error Type</th>
-                <th>Examples</th>
-                <th>Strategy</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td><strong>Transient</strong></td>
-                <td>Network timeout, 503 Service Unavailable, rate limit</td>
-                <td>Retry with backoff</td>
-              </tr>
-              <tr>
-                <td><strong>Permanent</strong></td>
-                <td>400 Bad Request, invalid data, missing resource</td>
-                <td>Don't retry, send to DLQ</td>
-              </tr>
-              <tr>
-                <td><strong>Recoverable</strong></td>
-                <td>Database connection lost, external service down</td>
-                <td>Retry with circuit breaker</td>
-              </tr>
-              <tr>
-                <td><strong>Bug</strong></td>
-                <td>TypeError, null reference, logic errors</td>
-                <td>Log, alert, fix code</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Error Type</th>
+            <th>Examples</th>
+            <th>Strategy</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Transient</strong></td>
+            <td>Network timeout, 503 Service Unavailable, rate limit</td>
+            <td>Retry with backoff</td>
+          </tr>
+          <tr>
+            <td><strong>Permanent</strong></td>
+            <td>400 Bad Request, invalid data, missing resource</td>
+            <td>Don't retry, send to DLQ</td>
+          </tr>
+          <tr>
+            <td><strong>Recoverable</strong></td>
+            <td>Database connection lost, external service down</td>
+            <td>Retry with circuit breaker</td>
+          </tr>
+          <tr>
+            <td><strong>Bug</strong></td>
+            <td>TypeError, null reference, logic errors</td>
+            <td>Log, alert, fix code</td>
+          </tr>
+        </tbody>
+      </table>
 
-        <h2 id="retry-strategies">Retry Strategies</h2>
+      <h2>Retry Strategies</h2>
 
-        <h3>Basic Retry Configuration</h3>
+      <h3>Basic Retry Configuration</h3>
 
-        <pre><code class="language-typescript">import { FlashQ } from 'flashq';
+      <pre><code><span class="keyword">import</span> { FlashQ } <span class="keyword">from</span> <span class="string">'flashq'</span>;
 
-const client = new FlashQ({ host: 'localhost', port: 6789 });
+<span class="keyword">const</span> client = <span class="keyword">new</span> <span class="function">FlashQ</span>({ host: <span class="string">'localhost'</span>, port: <span class="number">6789</span> });
 
-// Configure retries when pushing a job
-await client.push('process-order', orderData, {
-  max_attempts: 5,    // Maximum retry attempts
-  backoff: 1000,      // Initial backoff delay (ms)
-  timeout: 30000      // Processing timeout per attempt
+<span class="comment">// Configure retries when pushing a job</span>
+<span class="keyword">await</span> client.<span class="function">push</span>(<span class="string">'process-order'</span>, orderData, {
+  max_attempts: <span class="number">5</span>,    <span class="comment">// Maximum retry attempts</span>
+  backoff: <span class="number">1000</span>,      <span class="comment">// Initial backoff delay (ms)</span>
+  timeout: <span class="number">30000</span>      <span class="comment">// Processing timeout per attempt</span>
 });</code></pre>
 
-        <h3>Retry Timeline Visualization</h3>
+      <h3>Retry Timeline Visualization</h3>
 
-        <pre><code class="language-text">Attempt 1: Immediate
+      <pre><code>Attempt 1: Immediate
     ↓ (fail)
     └── Wait 1s (backoff)
 
@@ -183,115 +163,95 @@ Attempt 5: After 15s total
     ↓ (fail)
     └── Move to DLQ (max_attempts reached)</code></pre>
 
-        <h3>Custom Retry Logic in Worker</h3>
+      <h3>Custom Retry Logic in Worker</h3>
 
-        <pre><code class="language-typescript">import { Worker } from 'flashq';
+      <pre><code><span class="keyword">import</span> { Worker } <span class="keyword">from</span> <span class="string">'flashq'</span>;
 
-const worker = new Worker('process-order', async (job) => {
-  try {
-    await processOrder(job.data);
-  } catch (error) {
-    // Check if we should retry
-    if (isTransientError(error) && job.attempts < 5) {
-      // Throw to trigger automatic retry
-      throw error;
+<span class="keyword">const</span> worker = <span class="keyword">new</span> <span class="function">Worker</span>(<span class="string">'process-order'</span>, <span class="keyword">async</span> (job) => {
+  <span class="keyword">try</span> {
+    <span class="keyword">await</span> <span class="function">processOrder</span>(job.data);
+  } <span class="keyword">catch</span> (error) {
+    <span class="comment">// Check if we should retry</span>
+    <span class="keyword">if</span> (<span class="function">isTransientError</span>(error) && job.attempts < <span class="number">5</span>) {
+      <span class="keyword">throw</span> error; <span class="comment">// Throw to trigger automatic retry</span>
     }
 
-    // Permanent error - log and don't retry
-    if (isPermanentError(error)) {
-      console.error(`Permanent error for job ${job.id}:`, error);
-      // Return without throwing - job marked as completed
-      // Or use client.discard() to send directly to DLQ
-      return { success: false, error: error.message };
+    <span class="comment">// Permanent error - log and don't retry</span>
+    <span class="keyword">if</span> (<span class="function">isPermanentError</span>(error)) {
+      console.<span class="function">error</span>(<span class="string">`Permanent error for job </span>${job.id}<span class="string">:`</span>, error);
+      <span class="keyword">return</span> { success: <span class="keyword">false</span>, error: error.message };
     }
 
-    throw error; // Unknown error - retry
+    <span class="keyword">throw</span> error; <span class="comment">// Unknown error - retry</span>
   }
 });
 
-function isTransientError(error: Error): boolean {
-  const transientCodes = [408, 429, 500, 502, 503, 504];
-  return error.message.includes('ECONNREFUSED') ||
-         error.message.includes('ETIMEDOUT') ||
-         transientCodes.some(code => error.message.includes(String(code)));
+<span class="keyword">function</span> <span class="function">isTransientError</span>(error) {
+  <span class="keyword">const</span> transientCodes = [<span class="number">408</span>, <span class="number">429</span>, <span class="number">500</span>, <span class="number">502</span>, <span class="number">503</span>, <span class="number">504</span>];
+  <span class="keyword">return</span> error.message.<span class="function">includes</span>(<span class="string">'ECONNREFUSED'</span>) ||
+         error.message.<span class="function">includes</span>(<span class="string">'ETIMEDOUT'</span>) ||
+         transientCodes.<span class="function">some</span>(code => error.message.<span class="function">includes</span>(String(code)));
 }
 
-function isPermanentError(error: Error): boolean {
-  const permanentCodes = [400, 401, 403, 404, 422];
-  return permanentCodes.some(code => error.message.includes(String(code)));
+<span class="keyword">function</span> <span class="function">isPermanentError</span>(error) {
+  <span class="keyword">const</span> permanentCodes = [<span class="number">400</span>, <span class="number">401</span>, <span class="number">403</span>, <span class="number">404</span>, <span class="number">422</span>];
+  <span class="keyword">return</span> permanentCodes.<span class="function">some</span>(code => error.message.<span class="function">includes</span>(String(code)));
 }</code></pre>
 
-        <h2 id="exponential-backoff">Exponential Backoff</h2>
+      <h2>Exponential Backoff</h2>
 
-        <p>flashQ implements exponential backoff automatically. The delay between retries doubles each time:</p>
+      <p>flashQ implements exponential backoff automatically. The delay between retries doubles each time:</p>
 
-        <pre><code class="language-typescript">// Backoff formula: delay = backoff * (2 ^ (attempt - 1))
+      <pre><code><span class="comment">// Backoff formula: delay = backoff * (2 ^ (attempt - 1))</span>
 
-await client.push('api-call', data, {
-  max_attempts: 6,
-  backoff: 1000  // 1 second base
+<span class="keyword">await</span> client.<span class="function">push</span>(<span class="string">'api-call'</span>, data, {
+  max_attempts: <span class="number">6</span>,
+  backoff: <span class="number">1000</span>  <span class="comment">// 1 second base</span>
 });
 
-// Retry delays:
-// Attempt 1 → 2: 1s
-// Attempt 2 → 3: 2s
-// Attempt 3 → 4: 4s
-// Attempt 4 → 5: 8s
-// Attempt 5 → 6: 16s
-// Total wait time: 31 seconds</code></pre>
+<span class="comment">// Retry delays:</span>
+<span class="comment">// Attempt 1 → 2: 1s</span>
+<span class="comment">// Attempt 2 → 3: 2s</span>
+<span class="comment">// Attempt 3 → 4: 4s</span>
+<span class="comment">// Attempt 4 → 5: 8s</span>
+<span class="comment">// Attempt 5 → 6: 16s</span>
+<span class="comment">// Total wait time: 31 seconds</span></code></pre>
 
-        <h3>Backoff with Jitter</h3>
+      <h3>Backoff with Jitter</h3>
 
-        <p>For high-concurrency scenarios, add jitter to prevent thundering herd:</p>
+      <p>For high-concurrency scenarios, add jitter to prevent thundering herd:</p>
 
-        <pre><code class="language-typescript">// Implement jitter in your worker for critical paths
-const worker = new Worker('high-concurrency', async (job) => {
-  try {
-    await processJob(job.data);
-  } catch (error) {
-    if (isTransientError(error)) {
-      // Add random jitter before throwing
-      const jitter = Math.random() * 1000; // 0-1s random delay
-      await sleep(jitter);
-      throw error;
+      <pre><code><span class="keyword">const</span> worker = <span class="keyword">new</span> <span class="function">Worker</span>(<span class="string">'high-concurrency'</span>, <span class="keyword">async</span> (job) => {
+  <span class="keyword">try</span> {
+    <span class="keyword">await</span> <span class="function">processJob</span>(job.data);
+  } <span class="keyword">catch</span> (error) {
+    <span class="keyword">if</span> (<span class="function">isTransientError</span>(error)) {
+      <span class="comment">// Add random jitter before throwing</span>
+      <span class="keyword">const</span> jitter = Math.<span class="function">random</span>() * <span class="number">1000</span>; <span class="comment">// 0-1s random delay</span>
+      <span class="keyword">await</span> <span class="function">sleep</span>(jitter);
+      <span class="keyword">throw</span> error;
     }
-    throw error;
+    <span class="keyword">throw</span> error;
   }
 });
 
-function sleep(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms));
+<span class="keyword">function</span> <span class="function">sleep</span>(ms) {
+  <span class="keyword">return</span> <span class="keyword">new</span> <span class="function">Promise</span>(resolve => <span class="function">setTimeout</span>(resolve, ms));
 }</code></pre>
 
-        <h3>Custom Backoff Strategies</h3>
+      <h2>Dead Letter Queue (DLQ)</h2>
 
-        <pre><code class="language-typescript">// For time-sensitive jobs: faster initial retries
-await client.push('time-sensitive', data, {
-  max_attempts: 10,
-  backoff: 100  // Start with 100ms
-});
-// Delays: 100ms, 200ms, 400ms, 800ms, 1.6s, 3.2s...
+      <p>Jobs that fail all retries are moved to the Dead Letter Queue for later analysis or manual intervention.</p>
 
-// For rate-limited APIs: slower backoff
-await client.push('rate-limited-api', data, {
-  max_attempts: 5,
-  backoff: 5000  // Start with 5 seconds
-});
-// Delays: 5s, 10s, 20s, 40s, 80s</code></pre>
+      <h3>Viewing DLQ Jobs</h3>
 
-        <h2 id="dlq">Dead Letter Queue (DLQ)</h2>
+      <pre><code><span class="comment">// Get jobs from DLQ</span>
+<span class="keyword">const</span> dlqJobs = <span class="keyword">await</span> client.<span class="function">getDlq</span>(<span class="string">'process-order'</span>, <span class="number">100</span>);
 
-        <p>Jobs that fail all retries are moved to the Dead Letter Queue for later analysis or manual intervention.</p>
+console.<span class="function">log</span>(<span class="string">`</span>${dlqJobs.length}<span class="string"> jobs in DLQ`</span>);
 
-        <h3>Viewing DLQ Jobs</h3>
-
-        <pre><code class="language-typescript">// Get jobs from DLQ
-const dlqJobs = await client.getDlq('process-order', 100);
-
-console.log(`${dlqJobs.length} jobs in DLQ`);
-
-dlqJobs.forEach(job => {
-  console.log({
+dlqJobs.<span class="function">forEach</span>(job => {
+  console.<span class="function">log</span>({
     id: job.id,
     attempts: job.attempts,
     error: job.error,
@@ -300,471 +260,202 @@ dlqJobs.forEach(job => {
   });
 });</code></pre>
 
-        <h3>Analyzing DLQ Patterns</h3>
+      <h3>Retrying DLQ Jobs</h3>
 
-        <pre><code class="language-typescript">// Find common failure patterns
-const dlqJobs = await client.getDlq('my-queue', 1000);
+      <pre><code><span class="comment">// Retry all jobs in DLQ</span>
+<span class="keyword">const</span> retried = <span class="keyword">await</span> client.<span class="function">retryDlq</span>(<span class="string">'process-order'</span>);
+console.<span class="function">log</span>(<span class="string">`Retried </span>${retried}<span class="string"> jobs`</span>);
 
-const errorPatterns = {};
-dlqJobs.forEach(job => {
-  // Extract error type
-  const errorType = job.error?.split(':')[0] || 'Unknown';
-  errorPatterns[errorType] = (errorPatterns[errorType] || 0) + 1;
-});
+<span class="comment">// Retry specific job</span>
+<span class="keyword">await</span> client.<span class="function">retryDlq</span>(<span class="string">'process-order'</span>, jobId);
 
-// Sort by frequency
-const sorted = Object.entries(errorPatterns)
-  .sort((a, b) => b[1] - a[1]);
+<span class="comment">// Selective retry based on error type</span>
+<span class="keyword">const</span> dlqJobs = <span class="keyword">await</span> client.<span class="function">getDlq</span>(<span class="string">'my-queue'</span>, <span class="number">100</span>);
 
-console.log('Top error patterns:');
-sorted.slice(0, 10).forEach(([error, count]) => {
-  console.log(`  ${count}x ${error}`);
-});</code></pre>
-
-        <h3>Retrying DLQ Jobs</h3>
-
-        <pre><code class="language-typescript">// Retry all jobs in DLQ
-const retried = await client.retryDlq('process-order');
-console.log(`Retried ${retried} jobs`);
-
-// Retry specific job
-await client.retryDlq('process-order', jobId);
-
-// Selective retry based on error type
-const dlqJobs = await client.getDlq('my-queue', 100);
-
-for (const job of dlqJobs) {
-  // Only retry rate limit errors (now that limit is lifted)
-  if (job.error?.includes('429') || job.error?.includes('rate limit')) {
-    await client.retryDlq('my-queue', job.id);
-    console.log(`Retrying job ${job.id}`);
+<span class="keyword">for</span> (<span class="keyword">const</span> job <span class="keyword">of</span> dlqJobs) {
+  <span class="comment">// Only retry rate limit errors (now that limit is lifted)</span>
+  <span class="keyword">if</span> (job.error?.<span class="function">includes</span>(<span class="string">'429'</span>) || job.error?.<span class="function">includes</span>(<span class="string">'rate limit'</span>)) {
+    <span class="keyword">await</span> client.<span class="function">retryDlq</span>(<span class="string">'my-queue'</span>, job.id);
   }
 }</code></pre>
 
-        <h3>DLQ Webhooks</h3>
+      <h3>DLQ Webhooks</h3>
 
-        <pre><code class="language-typescript">// Get notified when jobs hit DLQ
-await client.push('critical-task', data, {
-  max_attempts: 3,
+      <pre><code><span class="comment">// Get notified when jobs hit DLQ</span>
+<span class="keyword">await</span> client.<span class="function">push</span>(<span class="string">'critical-task'</span>, data, {
+  max_attempts: <span class="number">3</span>,
   webhook: {
-    url: 'https://your-api.com/dlq-alert',
-    events: ['failed'],  // Trigger on final failure
+    url: <span class="string">'https://your-api.com/dlq-alert'</span>,
+    events: [<span class="string">'failed'</span>],  <span class="comment">// Trigger on final failure</span>
     secret: process.env.WEBHOOK_SECRET
   }
 });
 
-// Webhook handler
-app.post('/dlq-alert', (req, res) => {
-  const { jobId, queue, error, attempts } = req.body;
+<span class="comment">// Webhook handler</span>
+app.<span class="function">post</span>(<span class="string">'/dlq-alert'</span>, (req, res) => {
+  <span class="keyword">const</span> { jobId, queue, error, attempts } = req.body;
 
-  // Send alert
-  slack.send({
-    channel: '#alerts',
-    text: `Job ${jobId} failed after ${attempts} attempts: ${error}`
+  <span class="comment">// Send alert to Slack</span>
+  slack.<span class="function">send</span>({
+    channel: <span class="string">'#alerts'</span>,
+    text: <span class="string">`Job </span>${jobId}<span class="string"> failed after </span>${attempts}<span class="string"> attempts: </span>${error}<span class="string">`</span>
   });
 
-  res.status(200).send('OK');
+  res.<span class="function">status</span>(<span class="number">200</span>).<span class="function">send</span>(<span class="string">'OK'</span>);
 });</code></pre>
 
-        <h2 id="circuit-breaker">Circuit Breaker Pattern</h2>
+      <h2>Circuit Breaker Pattern</h2>
 
-        <p>Prevent cascading failures when external services are down:</p>
+      <p>Prevent cascading failures when external services are down:</p>
 
-        <pre><code class="language-typescript">import CircuitBreaker from 'opossum';
-import { Worker } from 'flashq';
+      <pre><code><span class="keyword">import</span> CircuitBreaker <span class="keyword">from</span> <span class="string">'opossum'</span>;
+<span class="keyword">import</span> { Worker } <span class="keyword">from</span> <span class="string">'flashq'</span>;
 
-// Create circuit breaker for external API
-const apiBreaker = new CircuitBreaker(callExternalAPI, {
-  timeout: 10000,              // 10s timeout
-  errorThresholdPercentage: 50, // Open after 50% failures
-  resetTimeout: 30000,          // Try again after 30s
-  volumeThreshold: 10           // Minimum 10 requests before tripping
+<span class="comment">// Create circuit breaker for external API</span>
+<span class="keyword">const</span> apiBreaker = <span class="keyword">new</span> <span class="function">CircuitBreaker</span>(callExternalAPI, {
+  timeout: <span class="number">10000</span>,              <span class="comment">// 10s timeout</span>
+  errorThresholdPercentage: <span class="number">50</span>, <span class="comment">// Open after 50% failures</span>
+  resetTimeout: <span class="number">30000</span>,          <span class="comment">// Try again after 30s</span>
+  volumeThreshold: <span class="number">10</span>           <span class="comment">// Minimum 10 requests before tripping</span>
 });
 
-// Event handlers for monitoring
-apiBreaker.on('open', () => {
-  console.warn('Circuit breaker OPENED - external API is down');
-  alertOps('External API circuit breaker opened');
+<span class="comment">// Event handlers for monitoring</span>
+apiBreaker.<span class="function">on</span>(<span class="string">'open'</span>, () => {
+  console.<span class="function">warn</span>(<span class="string">'Circuit breaker OPENED - external API is down'</span>);
+  <span class="function">alertOps</span>(<span class="string">'External API circuit breaker opened'</span>);
 });
 
-apiBreaker.on('halfOpen', () => {
-  console.info('Circuit breaker HALF-OPEN - testing API');
+apiBreaker.<span class="function">on</span>(<span class="string">'close'</span>, () => {
+  console.<span class="function">info</span>(<span class="string">'Circuit breaker CLOSED - API recovered'</span>);
 });
 
-apiBreaker.on('close', () => {
-  console.info('Circuit breaker CLOSED - API recovered');
-});
-
-// Worker with circuit breaker
-const worker = new Worker('external-api', async (job) => {
-  try {
-    return await apiBreaker.fire(job.data);
-  } catch (error) {
-    if (apiBreaker.opened) {
-      // Circuit is open - fail fast, retry later
-      throw new Error('Circuit breaker open: service unavailable');
+<span class="comment">// Worker with circuit breaker</span>
+<span class="keyword">const</span> worker = <span class="keyword">new</span> <span class="function">Worker</span>(<span class="string">'external-api'</span>, <span class="keyword">async</span> (job) => {
+  <span class="keyword">try</span> {
+    <span class="keyword">return</span> <span class="keyword">await</span> apiBreaker.<span class="function">fire</span>(job.data);
+  } <span class="keyword">catch</span> (error) {
+    <span class="keyword">if</span> (apiBreaker.opened) {
+      <span class="comment">// Circuit is open - fail fast, retry later</span>
+      <span class="keyword">throw</span> <span class="keyword">new</span> <span class="function">Error</span>(<span class="string">'Circuit breaker open: service unavailable'</span>);
     }
-    throw error;
+    <span class="keyword">throw</span> error;
   }
-});
+});</code></pre>
 
-async function callExternalAPI(data: any) {
-  const response = await fetch('https://api.example.com/process', {
-    method: 'POST',
-    body: JSON.stringify(data)
-  });
+      <h3>Circuit Breaker States</h3>
 
-  if (!response.ok) {
-    throw new Error(`API error: ${response.status}`);
-  }
-
-  return response.json();
-}</code></pre>
-
-        <h3>Circuit Breaker States</h3>
-
-        <pre><code class="language-text">┌─────────┐     Failures exceed threshold     ┌─────────┐
-│ CLOSED  │ ─────────────────────────────────→ │  OPEN   │
-│(normal) │                                    │ (fail   │
-└────┬────┘                                    │  fast)  │
-     │                                         └────┬────┘
-     │                                              │
-     │ Success                           Reset timeout expires
-     │                                              │
-     │         ┌─────────────┐                      │
-     └─────────│  HALF-OPEN  │←─────────────────────┘
+      <pre><code>┌─────────┐    Failures exceed threshold    ┌─────────┐
+│ CLOSED  │ ─────────────────────────────→ │  OPEN   │
+│(normal) │                                 │ (fail   │
+└────┬────┘                                 │  fast)  │
+     │                                      └────┬────┘
+     │                                           │
+     │ Success                      Reset timeout expires
+     │                                           │
+     │         ┌─────────────┐                   │
+     └─────────│  HALF-OPEN  │←──────────────────┘
                │   (test)    │
-               └─────────────┘
-                     │
-          ┌─────────┴─────────┐
-     Test succeeds      Test fails
-          │                   │
-          ↓                   ↓
-       CLOSED              OPEN</code></pre>
+               └─────────────┘</code></pre>
 
-        <h2 id="error-classification">Error Classification</h2>
+      <h2>Graceful Degradation</h2>
 
-        <p>Build a robust error classifier for smart retry decisions:</p>
+      <p>Return partial results when some operations fail:</p>
 
-        <pre><code class="language-typescript">// error-classifier.ts
-export enum ErrorType {
-  TRANSIENT = 'transient',
-  PERMANENT = 'permanent',
-  RECOVERABLE = 'recoverable',
-  BUG = 'bug'
-}
-
-export interface ClassifiedError {
-  type: ErrorType;
-  shouldRetry: boolean;
-  retryDelay?: number;
-  alertLevel: 'debug' | 'info' | 'warn' | 'error' | 'critical';
-}
-
-export function classifyError(error: Error): ClassifiedError {
-  const message = error.message.toLowerCase();
-
-  // Network/transient errors - retry with backoff
-  if (
-    message.includes('econnrefused') ||
-    message.includes('etimedout') ||
-    message.includes('enotfound') ||
-    message.includes('socket hang up')
-  ) {
-    return {
-      type: ErrorType.TRANSIENT,
-      shouldRetry: true,
-      retryDelay: 1000,
-      alertLevel: 'warn'
-    };
-  }
-
-  // Rate limiting - retry with longer backoff
-  if (message.includes('429') || message.includes('rate limit')) {
-    return {
-      type: ErrorType.TRANSIENT,
-      shouldRetry: true,
-      retryDelay: 60000, // Wait 1 minute
-      alertLevel: 'warn'
-    };
-  }
-
-  // Server errors - retry
-  if (message.includes('500') || message.includes('502') ||
-      message.includes('503') || message.includes('504')) {
-    return {
-      type: ErrorType.RECOVERABLE,
-      shouldRetry: true,
-      retryDelay: 5000,
-      alertLevel: 'warn'
-    };
-  }
-
-  // Client errors - don't retry
-  if (message.includes('400') || message.includes('401') ||
-      message.includes('403') || message.includes('404') ||
-      message.includes('422')) {
-    return {
-      type: ErrorType.PERMANENT,
-      shouldRetry: false,
-      alertLevel: 'error'
-    };
-  }
-
-  // Programming errors - don't retry, alert immediately
-  if (error instanceof TypeError || error instanceof ReferenceError) {
-    return {
-      type: ErrorType.BUG,
-      shouldRetry: false,
-      alertLevel: 'critical'
-    };
-  }
-
-  // Unknown - retry cautiously
-  return {
-    type: ErrorType.RECOVERABLE,
-    shouldRetry: true,
-    retryDelay: 5000,
-    alertLevel: 'error'
+      <pre><code><span class="keyword">const</span> worker = <span class="keyword">new</span> <span class="function">Worker</span>(<span class="string">'enrich-data'</span>, <span class="keyword">async</span> (job) => {
+  <span class="keyword">const</span> results = {
+    primary: <span class="keyword">null</span>,
+    enrichments: {}
   };
-}
 
-// Usage in worker
-const worker = new Worker('smart-retry', async (job) => {
-  try {
-    return await processJob(job.data);
-  } catch (error) {
-    const classified = classifyError(error);
+  <span class="comment">// Primary operation - must succeed</span>
+  results.primary = <span class="keyword">await</span> <span class="function">fetchPrimaryData</span>(job.data.id);
 
-    // Log with appropriate level
-    logger[classified.alertLevel](`Job ${job.id} error:`, {
-      type: classified.type,
-      message: error.message,
-      attempts: job.attempts
-    });
+  <span class="comment">// Optional enrichments - fail gracefully</span>
+  <span class="keyword">const</span> enrichmentTasks = [
+    { name: <span class="string">'social'</span>, fn: <span class="function">fetchSocialData</span> },
+    { name: <span class="string">'analytics'</span>, fn: <span class="function">fetchAnalytics</span> },
+    { name: <span class="string">'recommendations'</span>, fn: <span class="function">fetchRecommendations</span> }
+  ];
 
-    // Alert on critical errors
-    if (classified.alertLevel === 'critical') {
-      await alertOps(`Critical error in job ${job.id}: ${error.message}`);
-    }
-
-    // Decide whether to retry
-    if (!classified.shouldRetry) {
-      // Don't retry - discard to DLQ
-      await client.discard(job.id);
-      return;
-    }
-
-    // Retry by throwing
-    throw error;
-  }
-});</code></pre>
-
-        <h2 id="graceful-degradation">Graceful Degradation</h2>
-
-        <p>Return partial results instead of failing completely:</p>
-
-        <pre><code class="language-typescript">const worker = new Worker('enrich-data', async (job) => {
-  const { userId } = job.data;
-  const result = { userId, enriched: {} };
-
-  // Core data - required
-  try {
-    result.user = await getUserData(userId);
-  } catch (error) {
-    // Core data failed - must retry
-    throw error;
-  }
-
-  // Enrichment - optional, don't fail if unavailable
-  try {
-    result.enriched.social = await getSocialData(userId);
-  } catch (error) {
-    console.warn(`Social data unavailable for ${userId}`);
-    result.enriched.social = null;
-  }
-
-  try {
-    result.enriched.analytics = await getAnalyticsData(userId);
-  } catch (error) {
-    console.warn(`Analytics data unavailable for ${userId}`);
-    result.enriched.analytics = null;
-  }
-
-  try {
-    result.enriched.recommendations = await getRecommendations(userId);
-  } catch (error) {
-    console.warn(`Recommendations unavailable for ${userId}`);
-    result.enriched.recommendations = [];
-  }
-
-  return result;
-});</code></pre>
-
-        <h2 id="patterns">Complete Error Handling Patterns</h2>
-
-        <h3>Pattern 1: Retry with Fallback</h3>
-
-        <pre><code class="language-typescript">const worker = new Worker('fetch-data', async (job) => {
-  const { dataId } = job.data;
-
-  // Try primary source
-  try {
-    return await fetchFromPrimary(dataId);
-  } catch (primaryError) {
-    console.warn(`Primary source failed: ${primaryError.message}`);
-
-    // Try fallback source
-    try {
-      return await fetchFromFallback(dataId);
-    } catch (fallbackError) {
-      console.error(`Fallback also failed: ${fallbackError.message}`);
-
-      // Both failed - throw to retry
-      throw new Error(`All sources failed for ${dataId}`);
-    }
-  }
-});</code></pre>
-
-        <h3>Pattern 2: Idempotent Processing</h3>
-
-        <pre><code class="language-typescript">const worker = new Worker('process-payment', async (job) => {
-  const { orderId, amount } = job.data;
-
-  // Check if already processed (idempotency)
-  const existing = await db.payments.findOne({ orderId });
-  if (existing) {
-    console.log(`Payment for ${orderId} already processed`);
-    return existing;
-  }
-
-  // Process with idempotency key
-  try {
-    const payment = await paymentGateway.charge({
-      amount,
-      idempotencyKey: `order-${orderId}`, // Prevents double charging
-      orderId
-    });
-
-    // Record success
-    await db.payments.insert({ orderId, payment });
-
-    return payment;
-  } catch (error) {
-    if (error.code === 'IDEMPOTENCY_KEY_IN_USE') {
-      // Already processing - wait and check result
-      await sleep(5000);
-      return await db.payments.findOne({ orderId });
-    }
-    throw error;
-  }
-});</code></pre>
-
-        <h3>Pattern 3: Timeout with Cleanup</h3>
-
-        <pre><code class="language-typescript">const worker = new Worker('long-running', async (job) => {
-  const controller = new AbortController();
-  const { signal } = controller;
-
-  // Set timeout
-  const timeout = setTimeout(() => {
-    controller.abort();
-  }, 60000); // 60 second timeout
-
-  try {
-    const result = await longRunningOperation(job.data, { signal });
-    clearTimeout(timeout);
-    return result;
-  } catch (error) {
-    clearTimeout(timeout);
-
-    if (error.name === 'AbortError') {
-      // Cleanup partial work
-      await cleanupPartialWork(job.id);
-      throw new Error('Operation timed out');
-    }
-
-    throw error;
-  }
-});</code></pre>
-
-        <h3>Pattern 4: Compensating Transactions</h3>
-
-        <pre><code class="language-typescript">const worker = new Worker('saga', async (job) => {
-  const { orderId } = job.data;
-  const compensations = [];
-
-  try {
-    // Step 1: Reserve inventory
-    await reserveInventory(orderId);
-    compensations.push(() => releaseInventory(orderId));
-
-    // Step 2: Charge payment
-    await chargePayment(orderId);
-    compensations.push(() => refundPayment(orderId));
-
-    // Step 3: Create shipment
-    await createShipment(orderId);
-    compensations.push(() => cancelShipment(orderId));
-
-    // Step 4: Send confirmation
-    await sendConfirmation(orderId);
-
-    return { success: true, orderId };
-
-  } catch (error) {
-    // Rollback in reverse order
-    console.error(`Saga failed at step, rolling back: ${error.message}`);
-
-    for (const compensate of compensations.reverse()) {
-      try {
-        await compensate();
-      } catch (compError) {
-        console.error(`Compensation failed: ${compError.message}`);
-        // Log for manual intervention
-        await logFailedCompensation(orderId, compError);
+  <span class="keyword">await</span> Promise.<span class="function">all</span>(
+    enrichmentTasks.<span class="function">map</span>(<span class="keyword">async</span> (task) => {
+      <span class="keyword">try</span> {
+        results.enrichments[task.name] = <span class="keyword">await</span> task.<span class="function">fn</span>(job.data.id);
+      } <span class="keyword">catch</span> (error) {
+        console.<span class="function">warn</span>(<span class="string">`Enrichment </span>${task.name}<span class="string"> failed:`</span>, error.message);
+        results.enrichments[task.name] = <span class="keyword">null</span>; <span class="comment">// Graceful degradation</span>
       }
-    }
+    })
+  );
 
-    throw error;
-  }
+  <span class="keyword">return</span> results;
 });</code></pre>
 
-        <h2>Best Practices Summary</h2>
+      <h2>Complete Error Handling Pattern</h2>
 
-        <div class="callout callout-info">
-          <h4>Quick Reference</h4>
-          <ul>
-            <li><strong>Classify errors</strong> - Transient vs permanent determines retry strategy</li>
-            <li><strong>Use exponential backoff</strong> - Prevents overwhelming failing services</li>
-            <li><strong>Implement circuit breakers</strong> - Fail fast when services are down</li>
-            <li><strong>Make operations idempotent</strong> - Safe to retry without side effects</li>
-            <li><strong>Monitor your DLQ</strong> - Failed jobs reveal systemic issues</li>
-            <li><strong>Set appropriate timeouts</strong> - Don't wait forever</li>
-            <li><strong>Log with context</strong> - Include job ID, attempt number, error details</li>
-          </ul>
-        </div>
+      <pre><code><span class="keyword">import</span> { FlashQ, Worker } <span class="keyword">from</span> <span class="string">'flashq'</span>;
+<span class="keyword">import</span> CircuitBreaker <span class="keyword">from</span> <span class="string">'opossum'</span>;
 
-        <h2>Related Resources</h2>
-        <ul>
-          <li><a href="debugging-queue-problems.html">Debugging Queue Problems</a></li>
-          <li><a href="production-checklist.html">Production Checklist</a></li>
-          <li><a href="job-queue-patterns.html">Job Queue Patterns</a></li>
-        </ul>
+<span class="keyword">const</span> client = <span class="keyword">new</span> <span class="function">FlashQ</span>({ host: <span class="string">'localhost'</span>, port: <span class="number">6789</span> });
+
+<span class="comment">// Circuit breaker for external service</span>
+<span class="keyword">const</span> breaker = <span class="keyword">new</span> <span class="function">CircuitBreaker</span>(callAPI, {
+  timeout: <span class="number">10000</span>,
+  errorThresholdPercentage: <span class="number">50</span>,
+  resetTimeout: <span class="number">30000</span>
+});
+
+<span class="keyword">const</span> worker = <span class="keyword">new</span> <span class="function">Worker</span>(<span class="string">'resilient-queue'</span>, <span class="keyword">async</span> (job) => {
+  <span class="keyword">try</span> {
+    <span class="comment">// 1. Validate input</span>
+    <span class="keyword">if</span> (!job.data.userId) {
+      <span class="keyword">await</span> client.<span class="function">discard</span>(job.id);
+      <span class="keyword">return</span> { error: <span class="string">'Invalid data'</span> };
+    }
+
+    <span class="comment">// 2. Process with circuit breaker</span>
+    <span class="keyword">const</span> result = <span class="keyword">await</span> breaker.<span class="function">fire</span>(job.data);
+
+    <span class="comment">// 3. Report progress for long jobs</span>
+    <span class="keyword">await</span> client.<span class="function">progress</span>(job.id, <span class="number">100</span>, <span class="string">'Complete'</span>);
+
+    <span class="keyword">return</span> result;
+
+  } <span class="keyword">catch</span> (error) {
+    <span class="comment">// 4. Classify error</span>
+    <span class="keyword">if</span> (<span class="function">isPermanentError</span>(error)) {
+      <span class="keyword">await</span> client.<span class="function">discard</span>(job.id);
+      <span class="keyword">return</span> { error: error.message };
+    }
+
+    <span class="keyword">if</span> (breaker.opened) {
+      console.<span class="function">log</span>(<span class="string">'Circuit open, will retry later'</span>);
+    }
+
+    <span class="keyword">throw</span> error; <span class="comment">// Retry for transient errors</span>
+  }
+}, { concurrency: <span class="number">10</span> });</code></pre>
+
+      <div class="callout callout-success">
+        <strong>Key Takeaways:</strong> Classify errors, use exponential backoff, implement circuit breakers, and always have a DLQ strategy for failed jobs.
       </div>
 
-      <footer class="post-footer">
-        <div class="post-tags">
-          <a href="#">#error-handling</a>
-          <a href="#">#retry</a>
-          <a href="#">#dlq</a>
-          <a href="#">#resilience</a>
-        </div>
-      </footer>
+      <h2>Related Resources</h2>
+      <ul>
+        <li><a href="production-checklist.html">Production Checklist</a></li>
+        <li><a href="debugging-queue-problems.html">Debugging Queue Problems</a></li>
+        <li><a href="monitoring-ai-pipelines.html">Monitoring AI Pipelines</a></li>
+      </ul>
+
+      <div class="article-cta">
+        <h3>Build Resilient Queues</h3>
+        <p>Get started with flashQ and implement robust error handling.</p>
+        <a href="../docs/#quickstart" class="btn btn-primary">Get Started →</a>
+      </div>
     </div>
   </article>
 
-  <footer class="site-footer">
+  <footer>
     <div class="container">
       <a href="../" class="logo"><span>⚡</span> flashQ</a>
       <div class="footer-links">
