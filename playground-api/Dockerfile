@@ -2,13 +2,10 @@ FROM oven/bun:1-alpine
 
 WORKDIR /app
 
-# Copy SDK first (needed for local dependency)
-COPY sdk/typescript /sdk/typescript
-
-# Copy playground-api
+# Copy package.json
 COPY playground-api/package.json playground-api/bun.lock* ./
 
-# Install dependencies
+# Install dependencies (uses npm flashq package)
 RUN bun install --production
 
 # Copy source
