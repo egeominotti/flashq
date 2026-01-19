@@ -1,0 +1,18 @@
+# flashQ Caddyfile
+# Caddy gestisce automaticamente i certificati SSL con Let's Encrypt
+#
+# TCP (6789) e gRPC (6791) sono esposti direttamente dal container flashQ
+
+{
+	email admin@flashq.dev
+}
+
+api.flashq.dev {
+	reverse_proxy flashq:6790 {
+		header_up Host {host}
+		header_up X-Real-IP {remote_host}
+		header_up X-Forwarded-For {remote_host}
+		header_up X-Forwarded-Proto {scheme}
+	}
+	encode gzip zstd
+}

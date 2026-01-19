@@ -1,0 +1,67 @@
+# flashQ Production Docker Compose (In-Memory + Caddy)
+# Deploy su bare metal server (Hetzner, etc.)
+#
+# Uso:
+#   docker compose -f docker-compose.prod.yml up -d
+#
+# Verifica:
+#   curl https://api.flashq.dev/health
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    container_name: flashq-caddy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - flashq
+    restart: unless-stopped
+    networks:
+      - flashq-net
+
+  flashq:
+    image: ghcr.io/egeominotti/flashq:latest
+    container_name: flashq
+    environment:
+      - HTTP=1
+      - HTTP_PORT=6790
+      - PORT=6789
+      - GRPC=1
+      - GRPC_PORT=6791
+      - AUTH_TOKENS=${AUTH_TOKENS:-}
+      - RUST_LOG=${RUST_LOG:-info}
+      - ENV=production
+      - RATE_LIMIT_REQUESTS=${RATE_LIMIT_REQUESTS:-10000}
+      - RATE_LIMIT_WINDOW_SECS=${RATE_LIMIT_WINDOW_SECS:-60}
+    ports:
+      - "6789:6789"   # TCP Protocol
+      - "6791:6791"   # gRPC
+    expose:
+      - "6790"        # HTTP (via Caddy)
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:6790/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - flashq-net
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 512M
+
+volumes:
+  caddy_data:
+  caddy_config:
+
+networks:
+  flashq-net:
+    driver: bridge
