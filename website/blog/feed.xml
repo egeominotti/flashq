@@ -27,7 +27,7 @@
       <title>flashQ + Elysia &amp; Hono.js: Modern Bun-Powered Background Jobs</title>
       <link>https://flashq.dev/blog/elysia-hono-integration.html</link>
       <guid isPermaLink="true">https://flashq.dev/blog/elysia-hono-integration.html</guid>
-      <pubDate>Sun, 19 Jan 2026 00:00:00 GMT</pubDate>
+      <pubDate>Fri, 17 Jan 2026 00:00:00 GMT</pubDate>
       <description>Integrate flashQ with Elysia and Hono.js for blazing-fast background job processing with Bun.</description>
       <category>Tutorial</category>
     </item>
@@ -36,80 +36,62 @@
       <title>flashQ in Action: Live Demo of All Features</title>
       <link>https://flashq.dev/blog/flashq-in-action.html</link>
       <guid isPermaLink="true">https://flashq.dev/blog/flashq-in-action.html</guid>
-      <pubDate>Mon, 20 Jan 2026 00:00:00 GMT</pubDate>
+      <pubDate>Thu, 16 Jan 2026 00:00:00 GMT</pubDate>
       <description>Interactive walkthrough: priorities, retries, DLQ, rate limiting, cron jobs, workflows, and real-time monitoring.</description>
       <category>Tutorial</category>
     </item>
 
     <item>
-      <title>flashQ Architecture: How We Built a 1.9M Jobs/sec Queue Server</title>
-      <link>https://flashq.dev/blog/flashq-architecture.html</link>
-      <guid isPermaLink="true">https://flashq.dev/blog/flashq-architecture.html</guid>
-      <pubDate>Mon, 20 Jan 2026 00:00:00 GMT</pubDate>
-      <description>Deep dive into flashQ's sharded design, lock-free data structures, and optimizations that achieve 1.9M jobs/sec.</description>
-      <category>Deep Dive</category>
+      <title>Debugging flashQ: Logs, Metrics, and Troubleshooting Guide</title>
+      <link>https://flashq.dev/blog/debugging-queue-problems.html</link>
+      <guid isPermaLink="true">https://flashq.dev/blog/debugging-queue-problems.html</guid>
+      <pubDate>Wed, 15 Jan 2026 00:00:00 GMT</pubDate>
+      <description>Diagnose stuck jobs, memory issues, connection problems, and performance bottlenecks.</description>
+      <category>Troubleshooting</category>
     </item>
 
     <item>
-      <title>Migrating from BullMQ to flashQ: Step-by-Step Guide</title>
-      <link>https://flashq.dev/blog/migrating-from-bullmq.html</link>
-      <guid isPermaLink="true">https://flashq.dev/blog/migrating-from-bullmq.html</guid>
-      <pubDate>Sun, 19 Jan 2026 00:00:00 GMT</pubDate>
-      <description>Complete migration guide from BullMQ to flashQ. API mapping, code examples, and migration strategies.</description>
-      <category>Migration</category>
+      <title>flashQ Production Checklist: 15 Must-Do Steps Before Going Live</title>
+      <link>https://flashq.dev/blog/production-checklist.html</link>
+      <guid isPermaLink="true">https://flashq.dev/blog/production-checklist.html</guid>
+      <pubDate>Tue, 14 Jan 2026 00:00:00 GMT</pubDate>
+      <description>Security, persistence, monitoring, and scaling configurations you must set before going live.</description>
+      <category>DevOps</category>
     </item>
 
     <item>
       <title>flashQ + Next.js: Background Jobs for Vercel</title>
       <link>https://flashq.dev/blog/nextjs-background-jobs.html</link>
       <guid isPermaLink="true">https://flashq.dev/blog/nextjs-background-jobs.html</guid>
-      <pubDate>Sun, 19 Jan 2026 00:00:00 GMT</pubDate>
+      <pubDate>Sun, 12 Jan 2026 00:00:00 GMT</pubDate>
       <description>Build background job processing for Next.js apps. Perfect for Vercel, serverless, and edge deployments.</description>
       <category>Tutorial</category>
+    </item>
+
+    <item>
+      <title>Migrating from BullMQ to flashQ: Step-by-Step Guide</title>
+      <link>https://flashq.dev/blog/migrating-from-bullmq.html</link>
+      <guid isPermaLink="true">https://flashq.dev/blog/migrating-from-bullmq.html</guid>
+      <pubDate>Fri, 10 Jan 2026 00:00:00 GMT</pubDate>
+      <description>Complete migration guide from BullMQ to flashQ. API mapping, code examples, and migration strategies.</description>
+      <category>Migration</category>
+    </item>
+
+    <item>
+      <title>Building Webhook Handlers with flashQ</title>
+      <link>https://flashq.dev/blog/building-webhook-handlers.html</link>
+      <guid isPermaLink="true">https://flashq.dev/blog/building-webhook-handlers.html</guid>
+      <pubDate>Wed, 08 Jan 2026 00:00:00 GMT</pubDate>
+      <description>Secure, reliable webhook handlers for Stripe, GitHub, and custom integrations.</description>
+      <category>Integration</category>
     </item>
 
     <item>
       <title>Building a RAG Chatbot with flashQ and OpenAI</title>
       <link>https://flashq.dev/blog/rag-chatbot-tutorial.html</link>
       <guid isPermaLink="true">https://flashq.dev/blog/rag-chatbot-tutorial.html</guid>
-      <pubDate>Sun, 19 Jan 2026 00:00:00 GMT</pubDate>
+      <pubDate>Mon, 06 Jan 2026 00:00:00 GMT</pubDate>
       <description>Build a production RAG chatbot with document ingestion, vector search, and async LLM processing.</description>
-      <category>AI/ML</category>
-    </item>
-
-    <item>
-      <title>flashQ Cron Jobs: Complete Scheduling Guide</title>
-      <link>https://flashq.dev/blog/cron-jobs-guide.html</link>
-      <guid isPermaLink="true">https://flashq.dev/blog/cron-jobs-guide.html</guid>
-      <pubDate>Sun, 19 Jan 2026 00:00:00 GMT</pubDate>
-      <description>Master cron jobs with flashQ. Syntax, timezone handling, error recovery, and production patterns.</description>
-      <category>Tutorial</category>
-    </item>
-
-    <item>
-      <title>Deploying flashQ with Docker and Kubernetes</title>
-      <link>https://flashq.dev/blog/docker-kubernetes-deployment.html</link>
-      <guid isPermaLink="true">https://flashq.dev/blog/docker-kubernetes-deployment.html</guid>
-      <pubDate>Sun, 19 Jan 2026 00:00:00 GMT</pubDate>
-      <description>Production deployment guide: Docker Compose, Kubernetes manifests, HPA, and monitoring setup.</description>
-      <category>DevOps</category>
-    </item>
-
-    <item>
-      <title>Webhooks and Event-Driven Architecture with flashQ</title>
-      <link>https://flashq.dev/blog/webhooks-event-driven.html</link>
-      <guid isPermaLink="true">https://flashq.dev/blog/webhooks-event-driven.html</guid>
-      <pubDate>Sun, 19 Jan 2026 00:00:00 GMT</pubDate>
-      <description>Build reliable webhook handlers for Stripe, GitHub, and more. Event sourcing and CQRS patterns.</description>
-      <category>Tutorial</category>
-    </item>
-
-    <item>
-      <title>Cost Optimization for AI APIs with flashQ</title>
-      <link>https://flashq.dev/blog/cost-optimization-ai-apis.html</link>
-      <guid isPermaLink="true">https://flashq.dev/blog/cost-optimization-ai-apis.html</guid>
-      <pubDate>Sun, 19 Jan 2026 00:00:00 GMT</pubDate>
-      <description>Cut AI API costs by 70%. Caching, batching, model routing, and budget controls with flashQ.</description>
       <category>AI/ML</category>
     </item>
 
@@ -117,34 +99,97 @@
       <title>Building AI Agents with flashQ and LangChain</title>
       <link>https://flashq.dev/blog/langchain-ai-agents.html</link>
       <guid isPermaLink="true">https://flashq.dev/blog/langchain-ai-agents.html</guid>
-      <pubDate>Sun, 19 Jan 2026 00:00:00 GMT</pubDate>
+      <pubDate>Fri, 03 Jan 2026 00:00:00 GMT</pubDate>
       <description>Build production AI agents: async tools, multi-agent orchestration, memory, and monitoring.</description>
       <category>AI/ML</category>
-    </item>
-
-    <item>
-      <title>flashQ Security Best Practices</title>
-      <link>https://flashq.dev/blog/security-best-practices.html</link>
-      <guid isPermaLink="true">https://flashq.dev/blog/security-best-practices.html</guid>
-      <pubDate>Sun, 19 Jan 2026 00:00:00 GMT</pubDate>
-      <description>Secure your queue: authentication, encryption, input validation, network policies, and compliance.</description>
-      <category>Security</category>
     </item>
 
     <item>
       <title>Testing AI Pipelines with flashQ</title>
       <link>https://flashq.dev/blog/testing-ai-pipelines.html</link>
       <guid isPermaLink="true">https://flashq.dev/blog/testing-ai-pipelines.html</guid>
-      <pubDate>Sun, 19 Jan 2026 00:00:00 GMT</pubDate>
+      <pubDate>Wed, 31 Dec 2025 00:00:00 GMT</pubDate>
       <description>Test AI workloads: mocking LLMs, integration tests, performance benchmarks, and CI/CD strategies.</description>
       <category>Testing</category>
+    </item>
+
+    <item>
+      <title>Cost Optimization for AI APIs with flashQ</title>
+      <link>https://flashq.dev/blog/cost-optimization-ai-apis.html</link>
+      <guid isPermaLink="true">https://flashq.dev/blog/cost-optimization-ai-apis.html</guid>
+      <pubDate>Sun, 28 Dec 2025 00:00:00 GMT</pubDate>
+      <description>Cut AI API costs by 70%. Caching, batching, model routing, and budget controls with flashQ.</description>
+      <category>AI/ML</category>
+    </item>
+
+    <item>
+      <title>Scaling flashQ with Clustering: High Availability Guide</title>
+      <link>https://flashq.dev/blog/scaling-clustering.html</link>
+      <guid isPermaLink="true">https://flashq.dev/blog/scaling-clustering.html</guid>
+      <pubDate>Thu, 25 Dec 2025 00:00:00 GMT</pubDate>
+      <description>Multi-node deployment with automatic leader election and zero-downtime failover.</description>
+      <category>Infrastructure</category>
+    </item>
+
+    <item>
+      <title>Error Handling &amp; Retry Patterns in flashQ</title>
+      <link>https://flashq.dev/blog/error-handling-retry-patterns.html</link>
+      <guid isPermaLink="true">https://flashq.dev/blog/error-handling-retry-patterns.html</guid>
+      <pubDate>Mon, 22 Dec 2025 00:00:00 GMT</pubDate>
+      <description>Retry strategies, exponential backoff, dead letter queues, circuit breakers, and more.</description>
+      <category>Best Practices</category>
+    </item>
+
+    <item>
+      <title>flashQ Security Best Practices</title>
+      <link>https://flashq.dev/blog/security-best-practices.html</link>
+      <guid isPermaLink="true">https://flashq.dev/blog/security-best-practices.html</guid>
+      <pubDate>Fri, 19 Dec 2025 00:00:00 GMT</pubDate>
+      <description>Secure your queue: authentication, encryption, input validation, network policies, and compliance.</description>
+      <category>Security</category>
+    </item>
+
+    <item>
+      <title>Webhooks and Event-Driven Architecture with flashQ</title>
+      <link>https://flashq.dev/blog/webhooks-event-driven.html</link>
+      <guid isPermaLink="true">https://flashq.dev/blog/webhooks-event-driven.html</guid>
+      <pubDate>Tue, 16 Dec 2025 00:00:00 GMT</pubDate>
+      <description>Build reliable webhook handlers for Stripe, GitHub, and more. Event sourcing and CQRS patterns.</description>
+      <category>Tutorial</category>
+    </item>
+
+    <item>
+      <title>Deploying flashQ with Docker and Kubernetes</title>
+      <link>https://flashq.dev/blog/docker-kubernetes-deployment.html</link>
+      <guid isPermaLink="true">https://flashq.dev/blog/docker-kubernetes-deployment.html</guid>
+      <pubDate>Sat, 13 Dec 2025 00:00:00 GMT</pubDate>
+      <description>Production deployment guide: Docker Compose, Kubernetes manifests, HPA, and monitoring setup.</description>
+      <category>DevOps</category>
+    </item>
+
+    <item>
+      <title>flashQ Cron Jobs: Complete Scheduling Guide</title>
+      <link>https://flashq.dev/blog/cron-jobs-guide.html</link>
+      <guid isPermaLink="true">https://flashq.dev/blog/cron-jobs-guide.html</guid>
+      <pubDate>Wed, 10 Dec 2025 00:00:00 GMT</pubDate>
+      <description>Master cron jobs with flashQ. Syntax, timezone handling, error recovery, and production patterns.</description>
+      <category>Tutorial</category>
+    </item>
+
+    <item>
+      <title>Monitoring AI Pipelines: Metrics, Alerts, and Dashboards</title>
+      <link>https://flashq.dev/blog/monitoring-ai-pipelines.html</link>
+      <guid isPermaLink="true">https://flashq.dev/blog/monitoring-ai-pipelines.html</guid>
+      <pubDate>Sun, 07 Dec 2025 00:00:00 GMT</pubDate>
+      <description>Set up comprehensive monitoring for your AI pipelines with Prometheus, Grafana, and flashQ metrics.</description>
+      <category>Tutorial</category>
     </item>
 
     <item>
       <title>How to Rate Limit OpenAI API Calls with flashQ</title>
       <link>https://flashq.dev/blog/rate-limiting-openai.html</link>
       <guid isPermaLink="true">https://flashq.dev/blog/rate-limiting-openai.html</guid>
-      <pubDate>Sun, 19 Jan 2026 00:00:00 GMT</pubDate>
+      <pubDate>Thu, 04 Dec 2025 00:00:00 GMT</pubDate>
       <description>Learn how to properly rate limit OpenAI, Anthropic, and other AI API calls. Avoid 429 errors and control costs.</description>
       <category>Tutorial</category>
     </item>
@@ -153,7 +198,7 @@
       <title>Job Queue Patterns for AI Applications</title>
       <link>https://flashq.dev/blog/job-queue-patterns.html</link>
       <guid isPermaLink="true">https://flashq.dev/blog/job-queue-patterns.html</guid>
-      <pubDate>Tue, 14 Jan 2026 00:00:00 GMT</pubDate>
+      <pubDate>Mon, 01 Dec 2025 00:00:00 GMT</pubDate>
       <description>Essential patterns for building reliable AI applications: fan-out, sagas, circuit breakers, and more.</description>
       <category>Best Practices</category>
     </item>
@@ -162,34 +207,34 @@
       <title>Building AI Pipelines with flashQ: A Complete Guide</title>
       <link>https://flashq.dev/blog/building-ai-pipelines.html</link>
       <guid isPermaLink="true">https://flashq.dev/blog/building-ai-pipelines.html</guid>
-      <pubDate>Sun, 12 Jan 2026 00:00:00 GMT</pubDate>
+      <pubDate>Fri, 28 Nov 2025 00:00:00 GMT</pubDate>
       <description>Learn how to build production-ready RAG pipelines, LLM workflows, and batch inference systems using flashQ.</description>
       <category>Tutorial</category>
+    </item>
+
+    <item>
+      <title>flashQ Architecture: How We Built a 1.9M Jobs/sec Queue Server</title>
+      <link>https://flashq.dev/blog/flashq-architecture.html</link>
+      <guid isPermaLink="true">https://flashq.dev/blog/flashq-architecture.html</guid>
+      <pubDate>Tue, 25 Nov 2025 00:00:00 GMT</pubDate>
+      <description>Deep dive into flashQ's sharded design, lock-free data structures, and optimizations that achieve 1.9M jobs/sec.</description>
+      <category>Deep Dive</category>
     </item>
 
     <item>
       <title>flashQ vs BullMQ: Why We Built a Redis-Free Alternative</title>
       <link>https://flashq.dev/blog/flashq-vs-bullmq.html</link>
       <guid isPermaLink="true">https://flashq.dev/blog/flashq-vs-bullmq.html</guid>
-      <pubDate>Sun, 05 Jan 2026 00:00:00 GMT</pubDate>
+      <pubDate>Sat, 22 Nov 2025 00:00:00 GMT</pubDate>
       <description>A detailed comparison between flashQ and BullMQ. Learn when to use each and why going Redis-free matters.</description>
       <category>Comparison</category>
-    </item>
-
-    <item>
-      <title>Monitoring AI Pipelines: Metrics, Alerts, and Dashboards</title>
-      <link>https://flashq.dev/blog/monitoring-ai-pipelines.html</link>
-      <guid isPermaLink="true">https://flashq.dev/blog/monitoring-ai-pipelines.html</guid>
-      <pubDate>Sat, 28 Dec 2025 00:00:00 GMT</pubDate>
-      <description>Set up comprehensive monitoring for your AI pipelines with Prometheus, Grafana, and flashQ metrics.</description>
-      <category>Tutorial</category>
     </item>
 
     <item>
       <title>What is flashQ? A Modern Job Queue for AI Workloads</title>
       <link>https://flashq.dev/blog/what-is-flashq.html</link>
       <guid isPermaLink="true">https://flashq.dev/blog/what-is-flashq.html</guid>
-      <pubDate>Fri, 20 Dec 2025 00:00:00 GMT</pubDate>
+      <pubDate>Wed, 19 Nov 2025 00:00:00 GMT</pubDate>
       <description>Discover why we built flashQ, a high-performance job queue designed specifically for AI and ML workloads. No Redis required.</description>
       <category>Introduction</category>
     </item>
