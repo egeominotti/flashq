@@ -1,0 +1,851 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Scaling flashQ with Clustering: High Availability Guide - flashQ Blog</title>
+  <meta name="description" content="Deploy flashQ in high availability mode with clustering. Learn leader election, automatic failover, horizontal scaling, and load balancing for production workloads.">
+  <meta name="keywords" content="flashq clustering, job queue high availability, horizontal scaling, leader election, flashq ha, distributed job queue, load balancing queue">
+  <meta name="robots" content="index, follow">
+  <meta name="author" content="flashQ Team">
+
+  <meta property="og:title" content="Scaling flashQ with Clustering: High Availability Guide">
+  <meta property="og:description" content="Deploy flashQ in HA mode with clustering, leader election, and automatic failover.">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://flashq.dev/blog/scaling-clustering.html">
+  <meta property="og:image" content="https://flashq.dev/og-image.png">
+  <meta property="og:site_name" content="flashQ">
+  <meta property="article:published_time" content="2026-01-19">
+
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Scaling flashQ with Clustering">
+  <meta name="twitter:description" content="High availability with clustering, leader election, and automatic failover.">
+  <meta name="twitter:image" content="https://flashq.dev/og-image.png">
+
+  <link rel="canonical" href="https://flashq.dev/blog/scaling-clustering.html">
+  <link rel="alternate" type="application/rss+xml" title="flashQ Blog RSS Feed" href="https://flashq.dev/blog/feed.xml">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "TechArticle",
+    "headline": "Scaling flashQ with Clustering: High Availability Guide",
+    "description": "Complete guide to deploying flashQ in high availability mode with clustering and automatic failover.",
+    "datePublished": "2026-01-19",
+    "dateModified": "2026-01-19",
+    "author": { "@type": "Organization", "name": "flashQ", "url": "https://flashq.dev" },
+    "publisher": { "@type": "Organization", "name": "flashQ", "url": "https://flashq.dev" },
+    "mainEntityOfPage": { "@type": "WebPage", "@id": "https://flashq.dev/blog/scaling-clustering.html" },
+    "image": "https://flashq.dev/og-image.png"
+  }
+  </script>
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "itemListElement": [
+      { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://flashq.dev" },
+      { "@type": "ListItem", "position": 2, "name": "Blog", "item": "https://flashq.dev/blog/" },
+      { "@type": "ListItem", "position": 3, "name": "Scaling with Clustering", "item": "https://flashq.dev/blog/scaling-clustering.html" }
+    ]
+  }
+  </script>
+</head>
+<body>
+  <nav>
+    <div class="container wide">
+      <a href="../" class="logo"><span>⚡</span> flashQ</a>
+      <div class="nav-links">
+        <a href="../#features">Features</a>
+        <a href="../blog/" class="active">Blog</a>
+        <a href="../docs/">Docs</a>
+        <a href="https://github.com/egeominotti/flashq" target="_blank">GitHub</a>
+        <a href="../docs/#quickstart" class="btn btn-primary">Get Started</a>
+      </div>
+      <button class="mobile-menu-btn" aria-label="Menu"><span></span><span></span><span></span></button>
+    </div>
+  </nav>
+
+  <div class="mobile-menu">
+    <a href="../#features">Features</a>
+    <a href="../blog/">Blog</a>
+    <a href="../docs/">Docs</a>
+    <a href="https://github.com/egeominotti/flashq" target="_blank">GitHub</a>
+    <a href="../docs/#quickstart" class="btn btn-primary">Get Started</a>
+  </div>
+
+  <article class="blog-post">
+    <div class="container narrow">
+      <header class="post-header">
+        <div class="post-meta">
+          <span class="post-tag">Infrastructure</span>
+          <time datetime="2026-01-19">January 19, 2026</time>
+          <span class="reading-time">14 min read</span>
+        </div>
+        <h1>Scaling flashQ with Clustering: High Availability Guide</h1>
+        <p class="post-subtitle">Deploy flashQ for production with multiple nodes, automatic leader election, and zero-downtime failover. Complete guide with Docker, Kubernetes, and bare metal examples.</p>
+      </header>
+
+      <div class="post-content">
+        <nav class="toc">
+          <h3>Table of Contents</h3>
+          <ul>
+            <li><a href="#architecture">Cluster Architecture</a></li>
+            <li><a href="#leader-election">Leader Election</a></li>
+            <li><a href="#setup">Setting Up a Cluster</a></li>
+            <li><a href="#kubernetes">Kubernetes Deployment</a></li>
+            <li><a href="#load-balancing">Load Balancing</a></li>
+            <li><a href="#monitoring">Cluster Monitoring</a></li>
+            <li><a href="#capacity">Capacity Planning</a></li>
+            <li><a href="#troubleshooting">Troubleshooting</a></li>
+          </ul>
+        </nav>
+
+        <h2 id="architecture">Cluster Architecture</h2>
+
+        <p>flashQ clustering provides high availability through multiple nodes sharing a PostgreSQL database. One node is elected as the leader, while others serve as followers ready to take over.</p>
+
+        <pre><code class="language-text">┌─────────────────────────────────────────────────────────────┐
+│                      Load Balancer                          │
+│                   (nginx / HAProxy / ALB)                   │
+└─────────────────────────┬───────────────────────────────────┘
+                          │
+          ┌───────────────┼───────────────┐
+          │               │               │
+          ▼               ▼               ▼
+    ┌──────────┐   ┌──────────┐   ┌──────────┐
+    │  Node 1  │   │  Node 2  │   │  Node 3  │
+    │ (Leader) │   │(Follower)│   │(Follower)│
+    │          │   │          │   │          │
+    │ ✓ Push   │   │ ✓ Push   │   │ ✓ Push   │
+    │ ✓ Pull   │   │ ✓ Pull   │   │ ✓ Pull   │
+    │ ✓ Cron   │   │ ✗ Cron   │   │ ✗ Cron   │
+    │ ✓ Cleanup│   │ ✗ Cleanup│   │ ✗ Cleanup│
+    └────┬─────┘   └────┬─────┘   └────┬─────┘
+         │              │              │
+         └──────────────┼──────────────┘
+                        │
+                        ▼
+              ┌─────────────────┐
+              │   PostgreSQL    │
+              │   (Shared DB)   │
+              └─────────────────┘</code></pre>
+
+        <h3>What Each Role Does</h3>
+
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>Function</th>
+                <th>Leader</th>
+                <th>Follower</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Push jobs</td>
+                <td>✓</td>
+                <td>✓</td>
+              </tr>
+              <tr>
+                <td>Pull jobs</td>
+                <td>✓</td>
+                <td>✓</td>
+              </tr>
+              <tr>
+                <td>Acknowledge jobs</td>
+                <td>✓</td>
+                <td>✓</td>
+              </tr>
+              <tr>
+                <td>HTTP API</td>
+                <td>✓</td>
+                <td>✓</td>
+              </tr>
+              <tr>
+                <td>Run cron jobs</td>
+                <td>✓</td>
+                <td>✗</td>
+              </tr>
+              <tr>
+                <td>Cleanup tasks</td>
+                <td>✓</td>
+                <td>✗</td>
+              </tr>
+              <tr>
+                <td>Timeout checks</td>
+                <td>✓</td>
+                <td>✗</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h2 id="leader-election">Leader Election</h2>
+
+        <p>flashQ uses PostgreSQL advisory locks for leader election. This provides:</p>
+
+        <ul>
+          <li><strong>Automatic election:</strong> First node to acquire the lock becomes leader</li>
+          <li><strong>Automatic failover:</strong> If leader dies, another node takes over within 5 seconds</li>
+          <li><strong>No split-brain:</strong> PostgreSQL guarantees only one lock holder</li>
+        </ul>
+
+        <h3>How It Works</h3>
+
+        <pre><code class="language-sql">-- flashQ uses pg_try_advisory_lock for leader election
+-- Only one node can hold the lock at a time
+
+SELECT pg_try_advisory_lock(12345);  -- Returns true for leader
+
+-- Nodes heartbeat every 5 seconds
+-- Stale nodes (no heartbeat for 30s) are removed</code></pre>
+
+        <h3>Failover Timeline</h3>
+
+        <pre><code class="language-text">0s    - Leader crashes
+5s    - Heartbeat missed, lock released
+5-10s - Follower detects and acquires lock
+10s   - New leader starts background tasks
+
+Total failover time: ~10 seconds</code></pre>
+
+        <h2 id="setup">Setting Up a Cluster</h2>
+
+        <h3>Prerequisites</h3>
+
+        <ul>
+          <li>PostgreSQL 13+ (required for clustering)</li>
+          <li>Shared network between nodes</li>
+          <li>Load balancer (nginx, HAProxy, or cloud LB)</li>
+        </ul>
+
+        <h3>Environment Variables</h3>
+
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>Variable</th>
+                <th>Required</th>
+                <th>Description</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>CLUSTER_MODE</code></td>
+                <td>Yes</td>
+                <td>Set to <code>1</code> to enable clustering</td>
+              </tr>
+              <tr>
+                <td><code>NODE_ID</code></td>
+                <td>Recommended</td>
+                <td>Unique identifier for this node</td>
+              </tr>
+              <tr>
+                <td><code>NODE_HOST</code></td>
+                <td>Optional</td>
+                <td>Hostname for node registration</td>
+              </tr>
+              <tr>
+                <td><code>DATABASE_URL</code></td>
+                <td>Yes</td>
+                <td>PostgreSQL connection string</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>Docker Compose Example</h3>
+
+        <pre><code class="language-yaml"># docker-compose.cluster.yml
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: flashq
+      POSTGRES_PASSWORD: flashq
+      POSTGRES_DB: flashq
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U flashq"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  flashq-node1:
+    image: flashq/flashq-server:latest
+    environment:
+      DATABASE_URL: postgres://flashq:flashq@postgres:5432/flashq
+      CLUSTER_MODE: "1"
+      NODE_ID: node-1
+      HTTP: "1"
+      HTTP_PORT: "6790"
+      PORT: "6789"
+      AUTH_TOKENS: ${AUTH_TOKEN}
+    ports:
+      - "6789:6789"
+      - "6790:6790"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  flashq-node2:
+    image: flashq/flashq-server:latest
+    environment:
+      DATABASE_URL: postgres://flashq:flashq@postgres:5432/flashq
+      CLUSTER_MODE: "1"
+      NODE_ID: node-2
+      HTTP: "1"
+      HTTP_PORT: "6790"
+      PORT: "6789"
+      AUTH_TOKENS: ${AUTH_TOKEN}
+    ports:
+      - "6791:6789"
+      - "6792:6790"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  flashq-node3:
+    image: flashq/flashq-server:latest
+    environment:
+      DATABASE_URL: postgres://flashq:flashq@postgres:5432/flashq
+      CLUSTER_MODE: "1"
+      NODE_ID: node-3
+      HTTP: "1"
+      HTTP_PORT: "6790"
+      PORT: "6789"
+      AUTH_TOKENS: ${AUTH_TOKEN}
+    ports:
+      - "6793:6789"
+      - "6794:6790"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - flashq-node1
+      - flashq-node2
+      - flashq-node3
+
+volumes:
+  pgdata:</code></pre>
+
+        <h3>Nginx Load Balancer Configuration</h3>
+
+        <pre><code class="language-nginx"># nginx.conf
+events {
+    worker_connections 1024;
+}
+
+http {
+    upstream flashq_http {
+        least_conn;
+        server flashq-node1:6790;
+        server flashq-node2:6790;
+        server flashq-node3:6790;
+    }
+
+    server {
+        listen 80;
+
+        location / {
+            proxy_pass http://flashq_http;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection "upgrade";
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+        }
+
+        location /health {
+            proxy_pass http://flashq_http/health;
+        }
+    }
+}
+
+stream {
+    upstream flashq_tcp {
+        least_conn;
+        server flashq-node1:6789;
+        server flashq-node2:6789;
+        server flashq-node3:6789;
+    }
+
+    server {
+        listen 6789;
+        proxy_pass flashq_tcp;
+    }
+}</code></pre>
+
+        <h3>Start the Cluster</h3>
+
+        <pre><code class="language-bash"># Set your auth token
+export AUTH_TOKEN=$(openssl rand -hex 32)
+
+# Start the cluster
+docker-compose -f docker-compose.cluster.yml up -d
+
+# Check cluster status
+curl http://localhost/cluster/nodes
+
+# Response:
+# {
+#   "nodes": [
+#     {"id": "node-1", "host": "flashq-node1", "is_leader": true, "last_heartbeat": "2026-01-19T12:00:00Z"},
+#     {"id": "node-2", "host": "flashq-node2", "is_leader": false, "last_heartbeat": "2026-01-19T12:00:01Z"},
+#     {"id": "node-3", "host": "flashq-node3", "is_leader": false, "last_heartbeat": "2026-01-19T12:00:02Z"}
+#   ]
+# }</code></pre>
+
+        <h2 id="kubernetes">Kubernetes Deployment</h2>
+
+        <pre><code class="language-yaml"># flashq-cluster.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: flashq-config
+data:
+  CLUSTER_MODE: "1"
+  HTTP: "1"
+  HTTP_PORT: "6790"
+  PORT: "6789"
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: flashq-secrets
+type: Opaque
+stringData:
+  DATABASE_URL: postgres://flashq:password@postgres:5432/flashq
+  AUTH_TOKENS: your-secure-token
+
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: flashq
+spec:
+  serviceName: flashq
+  replicas: 3
+  selector:
+    matchLabels:
+      app: flashq
+  template:
+    metadata:
+      labels:
+        app: flashq
+    spec:
+      containers:
+        - name: flashq
+          image: flashq/flashq-server:latest
+          ports:
+            - containerPort: 6789
+              name: tcp
+            - containerPort: 6790
+              name: http
+          envFrom:
+            - configMapRef:
+                name: flashq-config
+            - secretRef:
+                name: flashq-secrets
+          env:
+            - name: NODE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 6790
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 6790
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: flashq
+spec:
+  selector:
+    app: flashq
+  ports:
+    - name: tcp
+      port: 6789
+      targetPort: 6789
+    - name: http
+      port: 6790
+      targetPort: 6790
+  type: ClusterIP
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: flashq-headless
+spec:
+  selector:
+    app: flashq
+  clusterIP: None
+  ports:
+    - name: tcp
+      port: 6789
+    - name: http
+      port: 6790
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: flashq
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+spec:
+  rules:
+    - host: flashq.yourdomain.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: flashq
+                port:
+                  number: 6790</code></pre>
+
+        <h3>Deploy to Kubernetes</h3>
+
+        <pre><code class="language-bash"># Apply configuration
+kubectl apply -f flashq-cluster.yaml
+
+# Check pods
+kubectl get pods -l app=flashq
+# NAME        READY   STATUS    RESTARTS   AGE
+# flashq-0    1/1     Running   0          2m
+# flashq-1    1/1     Running   0          1m
+# flashq-2    1/1     Running   0          30s
+
+# Check leader
+kubectl exec flashq-0 -- curl -s localhost:6790/health | jq .is_leader
+# true
+
+# Scale up
+kubectl scale statefulset flashq --replicas=5</code></pre>
+
+        <h2 id="load-balancing">Load Balancing Strategies</h2>
+
+        <h3>Round Robin (Default)</h3>
+        <p>Distributes requests evenly across all nodes. Good for uniform workloads.</p>
+
+        <h3>Least Connections</h3>
+        <p>Sends requests to the node with fewest active connections. Better for variable workloads.</p>
+
+        <pre><code class="language-nginx">upstream flashq_tcp {
+    least_conn;
+    server node1:6789;
+    server node2:6789;
+    server node3:6789;
+}</code></pre>
+
+        <h3>Sticky Sessions (Not Recommended)</h3>
+        <p>flashQ is stateless, so sticky sessions are not needed. Avoid them for better distribution.</p>
+
+        <h3>Health Check Configuration</h3>
+
+        <pre><code class="language-nginx"># nginx with active health checks
+upstream flashq_http {
+    zone flashq_zone 64k;
+
+    server node1:6790;
+    server node2:6790;
+    server node3:6790;
+
+    # Health checks (nginx plus)
+    health_check interval=5s fails=3 passes=2;
+}
+
+# HAProxy health checks
+backend flashq_servers
+    balance leastconn
+    option httpchk GET /health
+    http-check expect status 200
+
+    server node1 10.0.0.1:6790 check inter 5s fall 3 rise 2
+    server node2 10.0.0.2:6790 check inter 5s fall 3 rise 2
+    server node3 10.0.0.3:6790 check inter 5s fall 3 rise 2</code></pre>
+
+        <h2 id="monitoring">Cluster Monitoring</h2>
+
+        <h3>Cluster Status Endpoint</h3>
+
+        <pre><code class="language-bash"># Get cluster status
+curl http://flashq-lb/cluster/nodes
+
+{
+  "nodes": [
+    {
+      "id": "node-1",
+      "host": "10.0.0.1",
+      "is_leader": true,
+      "last_heartbeat": "2026-01-19T12:00:00Z",
+      "uptime_seconds": 86400,
+      "jobs_processed": 1250000
+    },
+    {
+      "id": "node-2",
+      "host": "10.0.0.2",
+      "is_leader": false,
+      "last_heartbeat": "2026-01-19T12:00:01Z",
+      "uptime_seconds": 86380,
+      "jobs_processed": 1248000
+    }
+  ],
+  "leader": "node-1",
+  "total_nodes": 3,
+  "healthy_nodes": 3
+}</code></pre>
+
+        <h3>Prometheus Metrics for Clustering</h3>
+
+        <pre><code class="language-yaml"># prometheus.yml
+scrape_configs:
+  - job_name: 'flashq-cluster'
+    static_configs:
+      - targets:
+          - 'node1:6790'
+          - 'node2:6790'
+          - 'node3:6790'
+    metrics_path: /metrics/prometheus
+    scrape_interval: 15s</code></pre>
+
+        <h3>Key Cluster Metrics</h3>
+
+        <pre><code class="language-promql"># Check cluster health
+sum(flashq_node_healthy) == 3
+
+# Leader changes (should be rare)
+changes(flashq_is_leader[1h])
+
+# Jobs processed per node (should be balanced)
+rate(flashq_jobs_processed_total[5m]) by (node_id)
+
+# Detect unbalanced load
+stddev(rate(flashq_jobs_processed_total[5m])) > 100</code></pre>
+
+        <h3>Alerting Rules</h3>
+
+        <pre><code class="language-yaml"># cluster-alerts.yml
+groups:
+  - name: flashq-cluster
+    rules:
+      - alert: FlashQNodeDown
+        expr: up{job="flashq-cluster"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "flashQ node {{ $labels.instance }} is down"
+
+      - alert: FlashQNoLeader
+        expr: sum(flashq_is_leader) == 0
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "No flashQ leader elected"
+
+      - alert: FlashQMultipleLeaders
+        expr: sum(flashq_is_leader) > 1
+        for: 10s
+        labels:
+          severity: critical
+        annotations:
+          summary: "Multiple flashQ leaders detected (split-brain)"
+
+      - alert: FlashQClusterDegraded
+        expr: sum(flashq_node_healthy) < 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "flashQ cluster has fewer than 2 healthy nodes"</code></pre>
+
+        <h2 id="capacity">Capacity Planning</h2>
+
+        <h3>Sizing Guidelines</h3>
+
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>Throughput</th>
+                <th>Nodes</th>
+                <th>CPU/Node</th>
+                <th>RAM/Node</th>
+                <th>PostgreSQL</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>&lt;10K jobs/sec</td>
+                <td>1-2</td>
+                <td>2 cores</td>
+                <td>2 GB</td>
+                <td>4 GB</td>
+              </tr>
+              <tr>
+                <td>10K-50K jobs/sec</td>
+                <td>3</td>
+                <td>4 cores</td>
+                <td>4 GB</td>
+                <td>8 GB</td>
+              </tr>
+              <tr>
+                <td>50K-200K jobs/sec</td>
+                <td>5</td>
+                <td>8 cores</td>
+                <td>8 GB</td>
+                <td>16 GB</td>
+              </tr>
+              <tr>
+                <td>&gt;200K jobs/sec</td>
+                <td>7+</td>
+                <td>16 cores</td>
+                <td>16 GB</td>
+                <td>32 GB+</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>PostgreSQL Recommendations</h3>
+
+        <pre><code class="language-sql">-- For high-throughput clusters
+ALTER SYSTEM SET max_connections = 300;
+ALTER SYSTEM SET shared_buffers = '4GB';
+ALTER SYSTEM SET effective_cache_size = '12GB';
+ALTER SYSTEM SET work_mem = '64MB';
+ALTER SYSTEM SET maintenance_work_mem = '512MB';
+ALTER SYSTEM SET checkpoint_completion_target = 0.9;
+ALTER SYSTEM SET wal_buffers = '64MB';
+ALTER SYSTEM SET random_page_cost = 1.1;  -- SSD storage</code></pre>
+
+        <h2 id="troubleshooting">Troubleshooting</h2>
+
+        <h3>Problem: No Leader Elected</h3>
+
+        <pre><code class="language-bash"># Check PostgreSQL connectivity
+psql $DATABASE_URL -c "SELECT 1"
+
+# Check advisory locks
+psql $DATABASE_URL -c "SELECT * FROM pg_locks WHERE locktype = 'advisory'"
+
+# Verify CLUSTER_MODE is set
+docker exec flashq-node1 env | grep CLUSTER</code></pre>
+
+        <h3>Problem: Frequent Leader Changes</h3>
+
+        <pre><code class="language-bash"># Check network latency between nodes and PostgreSQL
+ping postgres-host
+
+# Check PostgreSQL load
+psql $DATABASE_URL -c "SELECT * FROM pg_stat_activity"
+
+# Increase heartbeat tolerance (if needed)
+# Default: 30 seconds for stale node cleanup</code></pre>
+
+        <h3>Problem: Split Brain (Multiple Leaders)</h3>
+
+        <pre><code class="language-bash"># This should NOT happen with PostgreSQL advisory locks
+# If it does, check PostgreSQL connectivity
+
+# Verify single lock holder
+psql $DATABASE_URL -c "
+SELECT pid, granted
+FROM pg_locks
+WHERE locktype = 'advisory' AND objid = 12345
+"
+
+# Should show only one row with granted = true</code></pre>
+
+        <h3>Problem: Unbalanced Load</h3>
+
+        <pre><code class="language-bash"># Check load balancer health checks
+curl http://node1:6790/health
+curl http://node2:6790/health
+curl http://node3:6790/health
+
+# Verify all nodes are in LB pool
+# Check nginx/HAProxy logs for removed backends</code></pre>
+
+        <div class="callout callout-success">
+          <strong>Cluster Ready!</strong> With this setup, your flashQ deployment can handle node failures, rolling updates, and traffic spikes without downtime.
+        </div>
+
+        <h2>Related Resources</h2>
+        <ul>
+          <li><a href="production-checklist.html">Production Checklist</a></li>
+          <li><a href="docker-kubernetes-deployment.html">Docker & Kubernetes Deployment</a></li>
+          <li><a href="monitoring-ai-pipelines.html">Monitoring AI Pipelines</a></li>
+        </ul>
+      </div>
+
+      <footer class="post-footer">
+        <div class="post-tags">
+          <a href="#">#clustering</a>
+          <a href="#">#high-availability</a>
+          <a href="#">#scaling</a>
+          <a href="#">#kubernetes</a>
+        </div>
+      </footer>
+    </div>
+  </article>
+
+  <footer class="site-footer">
+    <div class="container">
+      <a href="../" class="logo"><span>⚡</span> flashQ</a>
+      <div class="footer-links">
+        <a href="https://github.com/egeominotti/flashq" target="_blank">GitHub</a>
+        <a href="https://npmjs.com/package/flashq" target="_blank">npm</a>
+        <a href="../docs/">Docs</a>
+        <a href="../blog/">Blog</a>
+      </div>
+      <div class="footer-copy">© 2026 flashQ. MIT License.</div>
+    </div>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>

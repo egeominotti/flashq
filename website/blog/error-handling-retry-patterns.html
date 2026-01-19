@@ -1,0 +1,782 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Error Handling & Retry Patterns in flashQ: Complete Guide - flashQ Blog</title>
+  <meta name="description" content="Master error handling in flashQ job queues. Learn retry strategies, exponential backoff, dead letter queues, circuit breakers, and graceful degradation patterns.">
+  <meta name="keywords" content="flashq error handling, job queue retry, exponential backoff, dead letter queue, dlq, circuit breaker, retry patterns, job queue resilience">
+  <meta name="robots" content="index, follow">
+  <meta name="author" content="flashQ Team">
+
+  <meta property="og:title" content="Error Handling & Retry Patterns in flashQ: Complete Guide">
+  <meta property="og:description" content="Master error handling with retry strategies, exponential backoff, DLQ, and circuit breakers.">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://flashq.dev/blog/error-handling-retry-patterns.html">
+  <meta property="og:image" content="https://flashq.dev/og-image.png">
+  <meta property="og:site_name" content="flashQ">
+  <meta property="article:published_time" content="2026-01-19">
+
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Error Handling & Retry Patterns in flashQ">
+  <meta name="twitter:description" content="Retry strategies, exponential backoff, DLQ, and circuit breakers.">
+  <meta name="twitter:image" content="https://flashq.dev/og-image.png">
+
+  <link rel="canonical" href="https://flashq.dev/blog/error-handling-retry-patterns.html">
+  <link rel="alternate" type="application/rss+xml" title="flashQ Blog RSS Feed" href="https://flashq.dev/blog/feed.xml">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "TechArticle",
+    "headline": "Error Handling & Retry Patterns in flashQ: Complete Guide",
+    "description": "Comprehensive guide to error handling patterns in flashQ including retry strategies, exponential backoff, and dead letter queues.",
+    "datePublished": "2026-01-19",
+    "dateModified": "2026-01-19",
+    "author": { "@type": "Organization", "name": "flashQ", "url": "https://flashq.dev" },
+    "publisher": { "@type": "Organization", "name": "flashQ", "url": "https://flashq.dev" },
+    "mainEntityOfPage": { "@type": "WebPage", "@id": "https://flashq.dev/blog/error-handling-retry-patterns.html" },
+    "image": "https://flashq.dev/og-image.png"
+  }
+  </script>
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "itemListElement": [
+      { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://flashq.dev" },
+      { "@type": "ListItem", "position": 2, "name": "Blog", "item": "https://flashq.dev/blog/" },
+      { "@type": "ListItem", "position": 3, "name": "Error Handling & Retry Patterns", "item": "https://flashq.dev/blog/error-handling-retry-patterns.html" }
+    ]
+  }
+  </script>
+</head>
+<body>
+  <nav>
+    <div class="container wide">
+      <a href="../" class="logo"><span>⚡</span> flashQ</a>
+      <div class="nav-links">
+        <a href="../#features">Features</a>
+        <a href="../blog/" class="active">Blog</a>
+        <a href="../docs/">Docs</a>
+        <a href="https://github.com/egeominotti/flashq" target="_blank">GitHub</a>
+        <a href="../docs/#quickstart" class="btn btn-primary">Get Started</a>
+      </div>
+      <button class="mobile-menu-btn" aria-label="Menu"><span></span><span></span><span></span></button>
+    </div>
+  </nav>
+
+  <div class="mobile-menu">
+    <a href="../#features">Features</a>
+    <a href="../blog/">Blog</a>
+    <a href="../docs/">Docs</a>
+    <a href="https://github.com/egeominotti/flashq" target="_blank">GitHub</a>
+    <a href="../docs/#quickstart" class="btn btn-primary">Get Started</a>
+  </div>
+
+  <article class="blog-post">
+    <div class="container narrow">
+      <header class="post-header">
+        <div class="post-meta">
+          <span class="post-tag">Best Practices</span>
+          <time datetime="2026-01-19">January 19, 2026</time>
+          <span class="reading-time">15 min read</span>
+        </div>
+        <h1>Error Handling & Retry Patterns in flashQ</h1>
+        <p class="post-subtitle">Build resilient job queues that gracefully handle failures. Learn retry strategies, exponential backoff, dead letter queues, circuit breakers, and more.</p>
+      </header>
+
+      <div class="post-content">
+        <nav class="toc">
+          <h3>Table of Contents</h3>
+          <ul>
+            <li><a href="#error-types">Understanding Error Types</a></li>
+            <li><a href="#retry-strategies">Retry Strategies</a></li>
+            <li><a href="#exponential-backoff">Exponential Backoff</a></li>
+            <li><a href="#dlq">Dead Letter Queue (DLQ)</a></li>
+            <li><a href="#circuit-breaker">Circuit Breaker Pattern</a></li>
+            <li><a href="#error-classification">Error Classification</a></li>
+            <li><a href="#graceful-degradation">Graceful Degradation</a></li>
+            <li><a href="#patterns">Complete Patterns</a></li>
+          </ul>
+        </nav>
+
+        <h2 id="error-types">Understanding Error Types</h2>
+
+        <p>Not all errors are equal. Understanding error types helps you choose the right handling strategy:</p>
+
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>Error Type</th>
+                <th>Examples</th>
+                <th>Strategy</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Transient</strong></td>
+                <td>Network timeout, 503 Service Unavailable, rate limit</td>
+                <td>Retry with backoff</td>
+              </tr>
+              <tr>
+                <td><strong>Permanent</strong></td>
+                <td>400 Bad Request, invalid data, missing resource</td>
+                <td>Don't retry, send to DLQ</td>
+              </tr>
+              <tr>
+                <td><strong>Recoverable</strong></td>
+                <td>Database connection lost, external service down</td>
+                <td>Retry with circuit breaker</td>
+              </tr>
+              <tr>
+                <td><strong>Bug</strong></td>
+                <td>TypeError, null reference, logic errors</td>
+                <td>Log, alert, fix code</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h2 id="retry-strategies">Retry Strategies</h2>
+
+        <h3>Basic Retry Configuration</h3>
+
+        <pre><code class="language-typescript">import { FlashQ } from 'flashq';
+
+const client = new FlashQ({ host: 'localhost', port: 6789 });
+
+// Configure retries when pushing a job
+await client.push('process-order', orderData, {
+  max_attempts: 5,    // Maximum retry attempts
+  backoff: 1000,      // Initial backoff delay (ms)
+  timeout: 30000      // Processing timeout per attempt
+});</code></pre>
+
+        <h3>Retry Timeline Visualization</h3>
+
+        <pre><code class="language-text">Attempt 1: Immediate
+    ↓ (fail)
+    └── Wait 1s (backoff)
+
+Attempt 2: After 1s
+    ↓ (fail)
+    └── Wait 2s (backoff × 2)
+
+Attempt 3: After 3s total
+    ↓ (fail)
+    └── Wait 4s (backoff × 4)
+
+Attempt 4: After 7s total
+    ↓ (fail)
+    └── Wait 8s (backoff × 8)
+
+Attempt 5: After 15s total
+    ↓ (fail)
+    └── Move to DLQ (max_attempts reached)</code></pre>
+
+        <h3>Custom Retry Logic in Worker</h3>
+
+        <pre><code class="language-typescript">import { Worker } from 'flashq';
+
+const worker = new Worker('process-order', async (job) => {
+  try {
+    await processOrder(job.data);
+  } catch (error) {
+    // Check if we should retry
+    if (isTransientError(error) && job.attempts < 5) {
+      // Throw to trigger automatic retry
+      throw error;
+    }
+
+    // Permanent error - log and don't retry
+    if (isPermanentError(error)) {
+      console.error(`Permanent error for job ${job.id}:`, error);
+      // Return without throwing - job marked as completed
+      // Or use client.discard() to send directly to DLQ
+      return { success: false, error: error.message };
+    }
+
+    throw error; // Unknown error - retry
+  }
+});
+
+function isTransientError(error: Error): boolean {
+  const transientCodes = [408, 429, 500, 502, 503, 504];
+  return error.message.includes('ECONNREFUSED') ||
+         error.message.includes('ETIMEDOUT') ||
+         transientCodes.some(code => error.message.includes(String(code)));
+}
+
+function isPermanentError(error: Error): boolean {
+  const permanentCodes = [400, 401, 403, 404, 422];
+  return permanentCodes.some(code => error.message.includes(String(code)));
+}</code></pre>
+
+        <h2 id="exponential-backoff">Exponential Backoff</h2>
+
+        <p>flashQ implements exponential backoff automatically. The delay between retries doubles each time:</p>
+
+        <pre><code class="language-typescript">// Backoff formula: delay = backoff * (2 ^ (attempt - 1))
+
+await client.push('api-call', data, {
+  max_attempts: 6,
+  backoff: 1000  // 1 second base
+});
+
+// Retry delays:
+// Attempt 1 → 2: 1s
+// Attempt 2 → 3: 2s
+// Attempt 3 → 4: 4s
+// Attempt 4 → 5: 8s
+// Attempt 5 → 6: 16s
+// Total wait time: 31 seconds</code></pre>
+
+        <h3>Backoff with Jitter</h3>
+
+        <p>For high-concurrency scenarios, add jitter to prevent thundering herd:</p>
+
+        <pre><code class="language-typescript">// Implement jitter in your worker for critical paths
+const worker = new Worker('high-concurrency', async (job) => {
+  try {
+    await processJob(job.data);
+  } catch (error) {
+    if (isTransientError(error)) {
+      // Add random jitter before throwing
+      const jitter = Math.random() * 1000; // 0-1s random delay
+      await sleep(jitter);
+      throw error;
+    }
+    throw error;
+  }
+});
+
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}</code></pre>
+
+        <h3>Custom Backoff Strategies</h3>
+
+        <pre><code class="language-typescript">// For time-sensitive jobs: faster initial retries
+await client.push('time-sensitive', data, {
+  max_attempts: 10,
+  backoff: 100  // Start with 100ms
+});
+// Delays: 100ms, 200ms, 400ms, 800ms, 1.6s, 3.2s...
+
+// For rate-limited APIs: slower backoff
+await client.push('rate-limited-api', data, {
+  max_attempts: 5,
+  backoff: 5000  // Start with 5 seconds
+});
+// Delays: 5s, 10s, 20s, 40s, 80s</code></pre>
+
+        <h2 id="dlq">Dead Letter Queue (DLQ)</h2>
+
+        <p>Jobs that fail all retries are moved to the Dead Letter Queue for later analysis or manual intervention.</p>
+
+        <h3>Viewing DLQ Jobs</h3>
+
+        <pre><code class="language-typescript">// Get jobs from DLQ
+const dlqJobs = await client.getDlq('process-order', 100);
+
+console.log(`${dlqJobs.length} jobs in DLQ`);
+
+dlqJobs.forEach(job => {
+  console.log({
+    id: job.id,
+    attempts: job.attempts,
+    error: job.error,
+    data: job.data,
+    failedAt: job.failedAt
+  });
+});</code></pre>
+
+        <h3>Analyzing DLQ Patterns</h3>
+
+        <pre><code class="language-typescript">// Find common failure patterns
+const dlqJobs = await client.getDlq('my-queue', 1000);
+
+const errorPatterns = {};
+dlqJobs.forEach(job => {
+  // Extract error type
+  const errorType = job.error?.split(':')[0] || 'Unknown';
+  errorPatterns[errorType] = (errorPatterns[errorType] || 0) + 1;
+});
+
+// Sort by frequency
+const sorted = Object.entries(errorPatterns)
+  .sort((a, b) => b[1] - a[1]);
+
+console.log('Top error patterns:');
+sorted.slice(0, 10).forEach(([error, count]) => {
+  console.log(`  ${count}x ${error}`);
+});</code></pre>
+
+        <h3>Retrying DLQ Jobs</h3>
+
+        <pre><code class="language-typescript">// Retry all jobs in DLQ
+const retried = await client.retryDlq('process-order');
+console.log(`Retried ${retried} jobs`);
+
+// Retry specific job
+await client.retryDlq('process-order', jobId);
+
+// Selective retry based on error type
+const dlqJobs = await client.getDlq('my-queue', 100);
+
+for (const job of dlqJobs) {
+  // Only retry rate limit errors (now that limit is lifted)
+  if (job.error?.includes('429') || job.error?.includes('rate limit')) {
+    await client.retryDlq('my-queue', job.id);
+    console.log(`Retrying job ${job.id}`);
+  }
+}</code></pre>
+
+        <h3>DLQ Webhooks</h3>
+
+        <pre><code class="language-typescript">// Get notified when jobs hit DLQ
+await client.push('critical-task', data, {
+  max_attempts: 3,
+  webhook: {
+    url: 'https://your-api.com/dlq-alert',
+    events: ['failed'],  // Trigger on final failure
+    secret: process.env.WEBHOOK_SECRET
+  }
+});
+
+// Webhook handler
+app.post('/dlq-alert', (req, res) => {
+  const { jobId, queue, error, attempts } = req.body;
+
+  // Send alert
+  slack.send({
+    channel: '#alerts',
+    text: `Job ${jobId} failed after ${attempts} attempts: ${error}`
+  });
+
+  res.status(200).send('OK');
+});</code></pre>
+
+        <h2 id="circuit-breaker">Circuit Breaker Pattern</h2>
+
+        <p>Prevent cascading failures when external services are down:</p>
+
+        <pre><code class="language-typescript">import CircuitBreaker from 'opossum';
+import { Worker } from 'flashq';
+
+// Create circuit breaker for external API
+const apiBreaker = new CircuitBreaker(callExternalAPI, {
+  timeout: 10000,              // 10s timeout
+  errorThresholdPercentage: 50, // Open after 50% failures
+  resetTimeout: 30000,          // Try again after 30s
+  volumeThreshold: 10           // Minimum 10 requests before tripping
+});
+
+// Event handlers for monitoring
+apiBreaker.on('open', () => {
+  console.warn('Circuit breaker OPENED - external API is down');
+  alertOps('External API circuit breaker opened');
+});
+
+apiBreaker.on('halfOpen', () => {
+  console.info('Circuit breaker HALF-OPEN - testing API');
+});
+
+apiBreaker.on('close', () => {
+  console.info('Circuit breaker CLOSED - API recovered');
+});
+
+// Worker with circuit breaker
+const worker = new Worker('external-api', async (job) => {
+  try {
+    return await apiBreaker.fire(job.data);
+  } catch (error) {
+    if (apiBreaker.opened) {
+      // Circuit is open - fail fast, retry later
+      throw new Error('Circuit breaker open: service unavailable');
+    }
+    throw error;
+  }
+});
+
+async function callExternalAPI(data: any) {
+  const response = await fetch('https://api.example.com/process', {
+    method: 'POST',
+    body: JSON.stringify(data)
+  });
+
+  if (!response.ok) {
+    throw new Error(`API error: ${response.status}`);
+  }
+
+  return response.json();
+}</code></pre>
+
+        <h3>Circuit Breaker States</h3>
+
+        <pre><code class="language-text">┌─────────┐     Failures exceed threshold     ┌─────────┐
+│ CLOSED  │ ─────────────────────────────────→ │  OPEN   │
+│(normal) │                                    │ (fail   │
+└────┬────┘                                    │  fast)  │
+     │                                         └────┬────┘
+     │                                              │
+     │ Success                           Reset timeout expires
+     │                                              │
+     │         ┌─────────────┐                      │
+     └─────────│  HALF-OPEN  │←─────────────────────┘
+               │   (test)    │
+               └─────────────┘
+                     │
+          ┌─────────┴─────────┐
+     Test succeeds      Test fails
+          │                   │
+          ↓                   ↓
+       CLOSED              OPEN</code></pre>
+
+        <h2 id="error-classification">Error Classification</h2>
+
+        <p>Build a robust error classifier for smart retry decisions:</p>
+
+        <pre><code class="language-typescript">// error-classifier.ts
+export enum ErrorType {
+  TRANSIENT = 'transient',
+  PERMANENT = 'permanent',
+  RECOVERABLE = 'recoverable',
+  BUG = 'bug'
+}
+
+export interface ClassifiedError {
+  type: ErrorType;
+  shouldRetry: boolean;
+  retryDelay?: number;
+  alertLevel: 'debug' | 'info' | 'warn' | 'error' | 'critical';
+}
+
+export function classifyError(error: Error): ClassifiedError {
+  const message = error.message.toLowerCase();
+
+  // Network/transient errors - retry with backoff
+  if (
+    message.includes('econnrefused') ||
+    message.includes('etimedout') ||
+    message.includes('enotfound') ||
+    message.includes('socket hang up')
+  ) {
+    return {
+      type: ErrorType.TRANSIENT,
+      shouldRetry: true,
+      retryDelay: 1000,
+      alertLevel: 'warn'
+    };
+  }
+
+  // Rate limiting - retry with longer backoff
+  if (message.includes('429') || message.includes('rate limit')) {
+    return {
+      type: ErrorType.TRANSIENT,
+      shouldRetry: true,
+      retryDelay: 60000, // Wait 1 minute
+      alertLevel: 'warn'
+    };
+  }
+
+  // Server errors - retry
+  if (message.includes('500') || message.includes('502') ||
+      message.includes('503') || message.includes('504')) {
+    return {
+      type: ErrorType.RECOVERABLE,
+      shouldRetry: true,
+      retryDelay: 5000,
+      alertLevel: 'warn'
+    };
+  }
+
+  // Client errors - don't retry
+  if (message.includes('400') || message.includes('401') ||
+      message.includes('403') || message.includes('404') ||
+      message.includes('422')) {
+    return {
+      type: ErrorType.PERMANENT,
+      shouldRetry: false,
+      alertLevel: 'error'
+    };
+  }
+
+  // Programming errors - don't retry, alert immediately
+  if (error instanceof TypeError || error instanceof ReferenceError) {
+    return {
+      type: ErrorType.BUG,
+      shouldRetry: false,
+      alertLevel: 'critical'
+    };
+  }
+
+  // Unknown - retry cautiously
+  return {
+    type: ErrorType.RECOVERABLE,
+    shouldRetry: true,
+    retryDelay: 5000,
+    alertLevel: 'error'
+  };
+}
+
+// Usage in worker
+const worker = new Worker('smart-retry', async (job) => {
+  try {
+    return await processJob(job.data);
+  } catch (error) {
+    const classified = classifyError(error);
+
+    // Log with appropriate level
+    logger[classified.alertLevel](`Job ${job.id} error:`, {
+      type: classified.type,
+      message: error.message,
+      attempts: job.attempts
+    });
+
+    // Alert on critical errors
+    if (classified.alertLevel === 'critical') {
+      await alertOps(`Critical error in job ${job.id}: ${error.message}`);
+    }
+
+    // Decide whether to retry
+    if (!classified.shouldRetry) {
+      // Don't retry - discard to DLQ
+      await client.discard(job.id);
+      return;
+    }
+
+    // Retry by throwing
+    throw error;
+  }
+});</code></pre>
+
+        <h2 id="graceful-degradation">Graceful Degradation</h2>
+
+        <p>Return partial results instead of failing completely:</p>
+
+        <pre><code class="language-typescript">const worker = new Worker('enrich-data', async (job) => {
+  const { userId } = job.data;
+  const result = { userId, enriched: {} };
+
+  // Core data - required
+  try {
+    result.user = await getUserData(userId);
+  } catch (error) {
+    // Core data failed - must retry
+    throw error;
+  }
+
+  // Enrichment - optional, don't fail if unavailable
+  try {
+    result.enriched.social = await getSocialData(userId);
+  } catch (error) {
+    console.warn(`Social data unavailable for ${userId}`);
+    result.enriched.social = null;
+  }
+
+  try {
+    result.enriched.analytics = await getAnalyticsData(userId);
+  } catch (error) {
+    console.warn(`Analytics data unavailable for ${userId}`);
+    result.enriched.analytics = null;
+  }
+
+  try {
+    result.enriched.recommendations = await getRecommendations(userId);
+  } catch (error) {
+    console.warn(`Recommendations unavailable for ${userId}`);
+    result.enriched.recommendations = [];
+  }
+
+  return result;
+});</code></pre>
+
+        <h2 id="patterns">Complete Error Handling Patterns</h2>
+
+        <h3>Pattern 1: Retry with Fallback</h3>
+
+        <pre><code class="language-typescript">const worker = new Worker('fetch-data', async (job) => {
+  const { dataId } = job.data;
+
+  // Try primary source
+  try {
+    return await fetchFromPrimary(dataId);
+  } catch (primaryError) {
+    console.warn(`Primary source failed: ${primaryError.message}`);
+
+    // Try fallback source
+    try {
+      return await fetchFromFallback(dataId);
+    } catch (fallbackError) {
+      console.error(`Fallback also failed: ${fallbackError.message}`);
+
+      // Both failed - throw to retry
+      throw new Error(`All sources failed for ${dataId}`);
+    }
+  }
+});</code></pre>
+
+        <h3>Pattern 2: Idempotent Processing</h3>
+
+        <pre><code class="language-typescript">const worker = new Worker('process-payment', async (job) => {
+  const { orderId, amount } = job.data;
+
+  // Check if already processed (idempotency)
+  const existing = await db.payments.findOne({ orderId });
+  if (existing) {
+    console.log(`Payment for ${orderId} already processed`);
+    return existing;
+  }
+
+  // Process with idempotency key
+  try {
+    const payment = await paymentGateway.charge({
+      amount,
+      idempotencyKey: `order-${orderId}`, // Prevents double charging
+      orderId
+    });
+
+    // Record success
+    await db.payments.insert({ orderId, payment });
+
+    return payment;
+  } catch (error) {
+    if (error.code === 'IDEMPOTENCY_KEY_IN_USE') {
+      // Already processing - wait and check result
+      await sleep(5000);
+      return await db.payments.findOne({ orderId });
+    }
+    throw error;
+  }
+});</code></pre>
+
+        <h3>Pattern 3: Timeout with Cleanup</h3>
+
+        <pre><code class="language-typescript">const worker = new Worker('long-running', async (job) => {
+  const controller = new AbortController();
+  const { signal } = controller;
+
+  // Set timeout
+  const timeout = setTimeout(() => {
+    controller.abort();
+  }, 60000); // 60 second timeout
+
+  try {
+    const result = await longRunningOperation(job.data, { signal });
+    clearTimeout(timeout);
+    return result;
+  } catch (error) {
+    clearTimeout(timeout);
+
+    if (error.name === 'AbortError') {
+      // Cleanup partial work
+      await cleanupPartialWork(job.id);
+      throw new Error('Operation timed out');
+    }
+
+    throw error;
+  }
+});</code></pre>
+
+        <h3>Pattern 4: Compensating Transactions</h3>
+
+        <pre><code class="language-typescript">const worker = new Worker('saga', async (job) => {
+  const { orderId } = job.data;
+  const compensations = [];
+
+  try {
+    // Step 1: Reserve inventory
+    await reserveInventory(orderId);
+    compensations.push(() => releaseInventory(orderId));
+
+    // Step 2: Charge payment
+    await chargePayment(orderId);
+    compensations.push(() => refundPayment(orderId));
+
+    // Step 3: Create shipment
+    await createShipment(orderId);
+    compensations.push(() => cancelShipment(orderId));
+
+    // Step 4: Send confirmation
+    await sendConfirmation(orderId);
+
+    return { success: true, orderId };
+
+  } catch (error) {
+    // Rollback in reverse order
+    console.error(`Saga failed at step, rolling back: ${error.message}`);
+
+    for (const compensate of compensations.reverse()) {
+      try {
+        await compensate();
+      } catch (compError) {
+        console.error(`Compensation failed: ${compError.message}`);
+        // Log for manual intervention
+        await logFailedCompensation(orderId, compError);
+      }
+    }
+
+    throw error;
+  }
+});</code></pre>
+
+        <h2>Best Practices Summary</h2>
+
+        <div class="callout callout-info">
+          <h4>Quick Reference</h4>
+          <ul>
+            <li><strong>Classify errors</strong> - Transient vs permanent determines retry strategy</li>
+            <li><strong>Use exponential backoff</strong> - Prevents overwhelming failing services</li>
+            <li><strong>Implement circuit breakers</strong> - Fail fast when services are down</li>
+            <li><strong>Make operations idempotent</strong> - Safe to retry without side effects</li>
+            <li><strong>Monitor your DLQ</strong> - Failed jobs reveal systemic issues</li>
+            <li><strong>Set appropriate timeouts</strong> - Don't wait forever</li>
+            <li><strong>Log with context</strong> - Include job ID, attempt number, error details</li>
+          </ul>
+        </div>
+
+        <h2>Related Resources</h2>
+        <ul>
+          <li><a href="debugging-queue-problems.html">Debugging Queue Problems</a></li>
+          <li><a href="production-checklist.html">Production Checklist</a></li>
+          <li><a href="job-queue-patterns.html">Job Queue Patterns</a></li>
+        </ul>
+      </div>
+
+      <footer class="post-footer">
+        <div class="post-tags">
+          <a href="#">#error-handling</a>
+          <a href="#">#retry</a>
+          <a href="#">#dlq</a>
+          <a href="#">#resilience</a>
+        </div>
+      </footer>
+    </div>
+  </article>
+
+  <footer class="site-footer">
+    <div class="container">
+      <a href="../" class="logo"><span>⚡</span> flashQ</a>
+      <div class="footer-links">
+        <a href="https://github.com/egeominotti/flashq" target="_blank">GitHub</a>
+        <a href="https://npmjs.com/package/flashq" target="_blank">npm</a>
+        <a href="../docs/">Docs</a>
+        <a href="../blog/">Blog</a>
+      </div>
+      <div class="footer-copy">© 2026 flashQ. MIT License.</div>
+    </div>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>

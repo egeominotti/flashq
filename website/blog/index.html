@@ -22,6 +22,46 @@
 
   <link rel="canonical" href="https://flashq.dev/blog/">
   <link rel="alternate" type="application/rss+xml" title="flashQ Blog RSS Feed" href="https://flashq.dev/blog/feed.xml">
+
+  <!-- Breadcrumb Schema -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "itemListElement": [
+      {
+        "@type": "ListItem",
+        "position": 1,
+        "name": "Home",
+        "item": "https://flashq.dev"
+      },
+      {
+        "@type": "ListItem",
+        "position": 2,
+        "name": "Blog",
+        "item": "https://flashq.dev/blog/"
+      }
+    ]
+  }
+  </script>
+
+  <!-- Blog Schema -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Blog",
+    "name": "flashQ Blog",
+    "description": "Learn about job queues, AI pipelines, and background processing. Tutorials, guides, and insights from the flashQ team.",
+    "url": "https://flashq.dev/blog/",
+    "publisher": {
+      "@type": "Organization",
+      "name": "flashQ",
+      "url": "https://flashq.dev",
+      "logo": "https://flashq.dev/og-image.png"
+    }
+  }
+  </script>
+
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -88,6 +128,76 @@
 
   <main class="container wide">
     <div class="blog-grid">
+      <!-- Article - Production Checklist -->
+      <article class="article-card featured">
+        <div class="article-card-image cover-1"></div>
+        <div class="article-card-content">
+          <div class="article-card-meta">
+            <span class="article-tag devops">DevOps</span>
+            <span class="article-date">Jan 19, 2026</span>
+          </div>
+          <h2><a href="production-checklist.html">flashQ Production Checklist: 15 Must-Do Steps</a></h2>
+          <p>Security, persistence, monitoring, and scaling configurations you must set before going live.</p>
+          <a href="production-checklist.html" class="read-more">Read more →</a>
+        </div>
+      </article>
+
+      <!-- Article - Debugging -->
+      <article class="article-card">
+        <div class="article-card-image cover-2"></div>
+        <div class="article-card-content">
+          <div class="article-card-meta">
+            <span class="article-tag troubleshooting">Troubleshooting</span>
+            <span class="article-date">Jan 19, 2026</span>
+          </div>
+          <h2><a href="debugging-queue-problems.html">Debugging flashQ: Logs, Metrics, and Troubleshooting</a></h2>
+          <p>Diagnose stuck jobs, memory issues, connection problems, and performance bottlenecks.</p>
+          <a href="debugging-queue-problems.html" class="read-more">Read more →</a>
+        </div>
+      </article>
+
+      <!-- Article - Error Handling -->
+      <article class="article-card">
+        <div class="article-card-image cover-3"></div>
+        <div class="article-card-content">
+          <div class="article-card-meta">
+            <span class="article-tag best-practices">Best Practices</span>
+            <span class="article-date">Jan 19, 2026</span>
+          </div>
+          <h2><a href="error-handling-retry-patterns.html">Error Handling & Retry Patterns in flashQ</a></h2>
+          <p>Retry strategies, exponential backoff, dead letter queues, circuit breakers, and more.</p>
+          <a href="error-handling-retry-patterns.html" class="read-more">Read more →</a>
+        </div>
+      </article>
+
+      <!-- Article - Scaling -->
+      <article class="article-card">
+        <div class="article-card-image cover-4"></div>
+        <div class="article-card-content">
+          <div class="article-card-meta">
+            <span class="article-tag infrastructure">Infrastructure</span>
+            <span class="article-date">Jan 19, 2026</span>
+          </div>
+          <h2><a href="scaling-clustering.html">Scaling flashQ with Clustering: High Availability Guide</a></h2>
+          <p>Multi-node deployment with automatic leader election and zero-downtime failover.</p>
+          <a href="scaling-clustering.html" class="read-more">Read more →</a>
+        </div>
+      </article>
+
+      <!-- Article - Webhooks -->
+      <article class="article-card">
+        <div class="article-card-image cover-5"></div>
+        <div class="article-card-content">
+          <div class="article-card-meta">
+            <span class="article-tag tutorial">Tutorial</span>
+            <span class="article-date">Jan 19, 2026</span>
+          </div>
+          <h2><a href="building-webhook-handlers.html">Building Webhook Handlers with flashQ</a></h2>
+          <p>Secure, reliable webhook handlers for Stripe, GitHub, and custom integrations.</p>
+          <a href="building-webhook-handlers.html" class="read-more">Read more →</a>
+        </div>
+      </article>
+
       <!-- Article - Live Demo -->
       <article class="article-card">
         <div class="article-card-image cover-1"></div>
