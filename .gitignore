@@ -135,3 +135,5 @@ flamegraph.svg
 
 # ============== Test Project ==============
 /test-project/
+.vercel
+.env*.local

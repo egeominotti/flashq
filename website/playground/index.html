@@ -12,7 +12,7 @@
   <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 
   <!-- Styles -->
   <link rel="stylesheet" href="../styles.css">
@@ -42,251 +42,237 @@
     <div class="container">
       <!-- Header -->
       <header class="playground-header fade-in">
-        <h1>Live Playground</h1>
-        <p>Connected to a real flashQ server. Push jobs, run benchmarks, see the speed.</p>
+        <div class="header-badge">LIVE DEMO</div>
+        <h1>flashQ Playground</h1>
+        <p>Real-time job queue testing connected to <code>api.flashq.dev</code></p>
       </header>
 
       <!-- Connection Status -->
-      <div class="connection-banner loading fade-in" id="connectionBanner">
-        <div class="status-indicator"></div>
-        <span>Connecting to</span>
-        <span class="connection-url">api.flashq.dev</span>
+      <div class="connection-status fade-in" id="connectionStatus">
+        <div class="status-dot"></div>
+        <span class="status-text">Connecting...</span>
+        <span class="status-url">api.flashq.dev</span>
       </div>
 
-      <!-- Main Grid -->
-      <div class="playground-grid">
-        <!-- Sidebar -->
-        <aside class="sidebar">
-          <!-- Push Job -->
-          <article class="card fade-in">
-            <header class="card-header">
-              <span class="icon">📤</span>
-              Push Job
-            </header>
-            <div class="card-body">
-              <div class="form-group">
-                <label class="form-label" for="queueName">Queue</label>
-                <input type="text" class="form-input" id="queueName" value="demo" placeholder="queue-name">
-              </div>
-              <div class="form-group">
-                <label class="form-label" for="jobData">Data (JSON)</label>
-                <textarea class="form-input" id="jobData">{"task": "process", "value": 42}</textarea>
-              </div>
-              <div class="form-row">
-                <div class="form-group">
-                  <label class="form-label" for="priority">Priority</label>
-                  <input type="number" class="form-input" id="priority" value="0" min="0">
-                </div>
-                <div class="form-group">
-                  <label class="form-label" for="delay">Delay (ms)</label>
-                  <input type="number" class="form-input" id="delay" value="0" min="0">
-                </div>
-              </div>
-              <button class="btn-action btn-primary" id="pushBtn">
-                <span>Push Job</span>
-              </button>
-            </div>
-          </article>
+      <!-- Main Dashboard -->
+      <div class="dashboard fade-in">
+        <!-- Left Panel - Controls -->
+        <div class="panel controls-panel">
+          <div class="panel-header">
+            <h3>Controls</h3>
+          </div>
 
-          <!-- Benchmark -->
-          <article class="card fade-in">
-            <header class="card-header">
+          <!-- Push Section -->
+          <div class="control-section">
+            <div class="section-title">
+              <span class="icon">📤</span>
+              Push Jobs
+            </div>
+            <div class="input-group">
+              <label>Queue</label>
+              <input type="text" id="queueName" value="demo" placeholder="queue-name">
+            </div>
+            <div class="input-group">
+              <label>Payload</label>
+              <textarea id="jobData" rows="2">{"task": "process", "id": 1}</textarea>
+            </div>
+            <div class="input-row">
+              <div class="input-group">
+                <label>Priority</label>
+                <input type="number" id="priority" value="0" min="0">
+              </div>
+              <div class="input-group">
+                <label>Delay (ms)</label>
+                <input type="number" id="delay" value="0" min="0">
+              </div>
+            </div>
+            <button class="btn btn-primary" id="pushBtn">
+              <span>Push Job</span>
+            </button>
+          </div>
+
+          <!-- Benchmark Section -->
+          <div class="control-section">
+            <div class="section-title">
               <span class="icon">🚀</span>
               Stress Test
-            </header>
-            <div class="card-body">
-              <div class="form-group">
-                <label class="form-label" for="benchmarkCount">Number of Jobs</label>
-                <input type="number" class="form-input" id="benchmarkCount" value="100" min="10" max="1000">
-              </div>
-              <button class="btn-action btn-danger" id="benchmarkBtn">
-                <span>Run Benchmark</span>
-              </button>
-
-              <!-- Results -->
-              <div id="benchmarkResults" class="benchmark-results hidden">
-                <div class="benchmark-row">
-                  <span class="benchmark-label">Jobs Pushed</span>
-                  <span class="benchmark-value" id="bmJobs">-</span>
-                </div>
-                <div class="benchmark-row">
-                  <span class="benchmark-label">Total Time</span>
-                  <span class="benchmark-value" id="bmTime">-</span>
-                </div>
-                <div class="benchmark-row">
-                  <span class="benchmark-label">Throughput</span>
-                  <span class="benchmark-value highlight" id="bmThroughput">-</span>
-                </div>
-              </div>
-
-              <!-- Progress -->
-              <div id="benchmarkProgress" class="progress-container hidden">
-                <div class="progress-bar">
-                  <div class="progress-fill" id="progressFill"></div>
-                </div>
-                <div class="progress-text">
-                  <span id="progressText">0 / 100</span>
-                  <span id="progressPercent">0%</span>
-                </div>
-              </div>
             </div>
-          </article>
-
-          <!-- Get Job -->
-          <article class="card fade-in">
-            <header class="card-header">
-              <span class="icon">🔍</span>
-              Get Job
-            </header>
-            <div class="card-body">
-              <div class="form-group">
-                <label class="form-label" for="getJobId">Job ID</label>
-                <input type="text" class="form-input" id="getJobId" placeholder="Enter job ID">
+            <div class="input-group">
+              <label>Number of Jobs</label>
+              <input type="number" id="benchmarkCount" value="1000" min="10" max="10000">
+            </div>
+            <button class="btn btn-danger" id="benchmarkBtn">
+              <span>Run Benchmark</span>
+            </button>
+            <div class="benchmark-result hidden" id="benchmarkResult">
+              <div class="result-item">
+                <span class="label">Throughput</span>
+                <span class="value" id="bmThroughput">-</span>
               </div>
-              <button class="btn-action btn-secondary" id="getJobBtn">
-                Get Job Details
-              </button>
-            </div>
-          </article>
-
-          <!-- Simulated Worker -->
-          <article class="card fade-in">
-            <header class="card-header">
-              <span class="icon">⚙️</span>
-              Worker Simulator
-            </header>
-            <div class="card-body">
-              <p class="form-hint">Simula un worker che processa i job dalla coda.</p>
-              <div class="form-group">
-                <label class="form-label" for="workerQueue">Queue</label>
-                <input type="text" class="form-input" id="workerQueue" value="demo" placeholder="queue-name">
+              <div class="result-item">
+                <span class="label">Total Time</span>
+                <span class="value" id="bmTime">-</span>
               </div>
-              <div class="form-row">
-                <button class="btn-action btn-success" id="pullAckBtn">
-                  <span>Pull & Ack</span>
-                </button>
-                <button class="btn-action btn-danger" id="pullFailBtn">
-                  <span>Pull & Fail</span>
-                </button>
-              </div>
-              <div id="workerResult" class="worker-result hidden"></div>
-            </div>
-          </article>
-
-          <!-- Queue Controls -->
-          <article class="card fade-in">
-            <header class="card-header">
-              <span class="icon">🎛️</span>
-              Queue Controls
-            </header>
-            <div class="card-body">
-              <div class="form-group">
-                <label class="form-label" for="controlQueue">Queue</label>
-                <input type="text" class="form-input" id="controlQueue" value="demo" placeholder="queue-name">
-              </div>
-              <div class="form-row">
-                <button class="btn-action btn-secondary" id="pauseBtn">
-                  <span>Pause</span>
-                </button>
-                <button class="btn-action btn-secondary" id="resumeBtn">
-                  <span>Resume</span>
-                </button>
-              </div>
-              <div class="form-row" style="margin-top: 8px;">
-                <button class="btn-action btn-danger" id="drainBtn">
-                  <span>Drain</span>
-                </button>
-              </div>
-            </div>
-          </article>
-        </aside>
-
-        <!-- Main Content -->
-        <main class="main-content">
-          <!-- Stats -->
-          <div class="stats-bar fade-in">
-            <div class="stat-card">
-              <div class="stat-value" id="statQueued">0</div>
-              <div class="stat-label">Queued</div>
-            </div>
-            <div class="stat-card">
-              <div class="stat-value" id="statProcessing">0</div>
-              <div class="stat-label">Processing</div>
-            </div>
-            <div class="stat-card">
-              <div class="stat-value" id="statDelayed">0</div>
-              <div class="stat-label">Delayed</div>
-            </div>
-            <div class="stat-card">
-              <div class="stat-value" id="statCompleted">0</div>
-              <div class="stat-label">Completed</div>
-            </div>
-            <div class="stat-card">
-              <div class="stat-value" id="statDlq">0</div>
-              <div class="stat-label">Failed</div>
             </div>
           </div>
 
-          <!-- Flow Visualization -->
-          <article class="card visualization-card fade-in">
-            <header class="card-header">
-              <span class="icon">📊</span>
-              Job Flow Visualization
-            </header>
-            <div class="card-body">
-              <div class="flow-container">
-                <div class="jobs-flow" id="jobsFlow"></div>
-
-                <div class="flow-stage">
-                  <div class="flow-circle" id="flowPush">📤</div>
-                  <div class="flow-label">Push</div>
-                  <div class="flow-count" id="flowPushCount">0</div>
-                </div>
-
-                <div class="flow-arrow"></div>
-
-                <div class="flow-stage">
-                  <div class="flow-circle" id="flowQueue">📋</div>
-                  <div class="flow-label">Queue</div>
-                  <div class="flow-count" id="flowQueueCount">0</div>
-                </div>
-
-                <div class="flow-arrow"></div>
-
-                <div class="flow-stage">
-                  <div class="flow-circle" id="flowProcess">⚙️</div>
-                  <div class="flow-label">Process</div>
-                  <div class="flow-count" id="flowProcessCount">0</div>
-                </div>
-
-                <div class="flow-arrow"></div>
-
-                <div class="flow-stage">
-                  <div class="flow-circle" id="flowComplete">✅</div>
-                  <div class="flow-label">Complete</div>
-                  <div class="flow-count" id="flowCompleteCount">0</div>
-                </div>
+          <!-- Auto Worker Section -->
+          <div class="control-section">
+            <div class="section-title">
+              <span class="icon">⚙️</span>
+              Auto Worker
+            </div>
+            <p class="section-desc">Automatically process jobs from queue</p>
+            <div class="input-group">
+              <label>Worker Queue</label>
+              <input type="text" id="workerQueue" value="demo" placeholder="queue-name">
+            </div>
+            <div class="input-group">
+              <label>Concurrency</label>
+              <input type="number" id="workerConcurrency" value="5" min="1" max="50">
+            </div>
+            <div class="worker-controls">
+              <button class="btn btn-success" id="startWorkerBtn">
+                <span>▶ Start</span>
+              </button>
+              <button class="btn btn-secondary" id="stopWorkerBtn" disabled>
+                <span>⏹ Stop</span>
+              </button>
+            </div>
+            <div class="worker-stats hidden" id="workerStats">
+              <div class="stat-mini">
+                <span class="label">Processed</span>
+                <span class="value" id="workerProcessed">0</span>
+              </div>
+              <div class="stat-mini">
+                <span class="label">Rate</span>
+                <span class="value" id="workerRate">0/s</span>
               </div>
             </div>
-          </article>
+          </div>
 
-          <!-- Activity Log -->
-          <article class="card fade-in">
-            <header class="card-header">
-              <span class="icon">📜</span>
-              Activity Log
-              <button class="btn-action btn-secondary btn-small" id="clearLogBtn">Clear</button>
-            </header>
-            <div class="card-body">
-              <div class="log-container" id="logContainer">
-                <div class="log-entry info">
-                  <span class="log-time">--:--:--</span>
-                  <span class="log-message">Waiting for activity...</span>
-                </div>
+          <!-- Queue Actions -->
+          <div class="control-section">
+            <div class="section-title">
+              <span class="icon">🎛️</span>
+              Queue Actions
+            </div>
+            <div class="input-group">
+              <label>Target Queue</label>
+              <input type="text" id="actionQueue" value="demo" placeholder="queue-name">
+            </div>
+            <div class="action-buttons">
+              <button class="btn btn-sm btn-secondary" id="pauseBtn">Pause</button>
+              <button class="btn btn-sm btn-secondary" id="resumeBtn">Resume</button>
+              <button class="btn btn-sm btn-warning" id="drainBtn">Drain</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Center Panel - Visualization -->
+        <div class="panel viz-panel">
+          <!-- Stats Row -->
+          <div class="stats-row">
+            <div class="stat-card">
+              <div class="stat-icon queued">📋</div>
+              <div class="stat-info">
+                <span class="stat-value" id="statQueued">0</span>
+                <span class="stat-label">Queued</span>
               </div>
             </div>
-          </article>
-        </main>
+            <div class="stat-card">
+              <div class="stat-icon processing">⚡</div>
+              <div class="stat-info">
+                <span class="stat-value" id="statProcessing">0</span>
+                <span class="stat-label">Processing</span>
+              </div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-icon completed">✅</div>
+              <div class="stat-info">
+                <span class="stat-value" id="statCompleted">0</span>
+                <span class="stat-label">Completed</span>
+              </div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-icon failed">❌</div>
+              <div class="stat-info">
+                <span class="stat-value" id="statFailed">0</span>
+                <span class="stat-label">Failed</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Pipeline Visualization -->
+          <div class="pipeline-viz">
+            <div class="pipeline-header">
+              <h3>Job Pipeline</h3>
+              <div class="throughput-badge" id="throughputBadge">
+                <span class="throughput-value" id="throughputValue">0</span>
+                <span class="throughput-unit">jobs/sec</span>
+              </div>
+            </div>
+            <div class="pipeline">
+              <div class="pipeline-stage" id="stagePush">
+                <div class="stage-icon">📤</div>
+                <div class="stage-label">Push</div>
+                <div class="stage-count" id="pushCount">0</div>
+              </div>
+              <div class="pipeline-arrow">
+                <div class="arrow-line"></div>
+                <div class="arrow-particles" id="particles1"></div>
+              </div>
+              <div class="pipeline-stage" id="stageQueue">
+                <div class="stage-icon">📋</div>
+                <div class="stage-label">Queue</div>
+                <div class="stage-count" id="queueCount">0</div>
+              </div>
+              <div class="pipeline-arrow">
+                <div class="arrow-line"></div>
+                <div class="arrow-particles" id="particles2"></div>
+              </div>
+              <div class="pipeline-stage" id="stageProcess">
+                <div class="stage-icon">⚙️</div>
+                <div class="stage-label">Process</div>
+                <div class="stage-count" id="processCount">0</div>
+              </div>
+              <div class="pipeline-arrow">
+                <div class="arrow-line"></div>
+                <div class="arrow-particles" id="particles3"></div>
+              </div>
+              <div class="pipeline-stage completed" id="stageComplete">
+                <div class="stage-icon">✅</div>
+                <div class="stage-label">Complete</div>
+                <div class="stage-count" id="completeCount">0</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Throughput Chart -->
+          <div class="chart-container">
+            <div class="chart-header">
+              <h3>Throughput (jobs/sec)</h3>
+              <span class="chart-legend">Last 60 seconds</span>
+            </div>
+            <div class="chart" id="throughputChart">
+              <canvas id="chartCanvas"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right Panel - Activity -->
+        <div class="panel activity-panel">
+          <div class="panel-header">
+            <h3>Activity Log</h3>
+            <button class="btn-icon" id="clearLogBtn" title="Clear log">🗑️</button>
+          </div>
+          <div class="activity-log" id="activityLog">
+            <div class="log-entry info">
+              <span class="log-time">--:--:--</span>
+              <span class="log-msg">Waiting for activity...</span>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </section>
