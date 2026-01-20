@@ -134,6 +134,27 @@ pub fn migrate(conn: &Connection) -> Result<(), rusqlite::Error> {
         applied_count += 1;
     }
 
+    // Migration 6: Add missing columns for flows and custom_id
+    if !applied.contains(&"006_add_flow_columns".to_string()) {
+        conn.execute_batch(
+            "ALTER TABLE jobs ADD COLUMN custom_id TEXT;
+             ALTER TABLE jobs ADD COLUMN parent_id INTEGER;
+             ALTER TABLE jobs ADD COLUMN children_ids TEXT;
+             ALTER TABLE jobs ADD COLUMN children_completed INTEGER NOT NULL DEFAULT 0;
+             ALTER TABLE jobs ADD COLUMN group_id TEXT;
+             ALTER TABLE jobs ADD COLUMN keep_completed_age INTEGER NOT NULL DEFAULT 0;
+             ALTER TABLE jobs ADD COLUMN keep_completed_count INTEGER NOT NULL DEFAULT 0;
+
+             CREATE INDEX idx_jobs_custom_id ON jobs(custom_id) WHERE custom_id IS NOT NULL;
+             CREATE INDEX idx_jobs_parent_id ON jobs(parent_id) WHERE parent_id IS NOT NULL;
+             CREATE INDEX idx_jobs_group_id ON jobs(group_id) WHERE group_id IS NOT NULL;
+
+             INSERT INTO migrations (name, applied_at) VALUES ('006_add_flow_columns', strftime('%s', 'now'));
+            ",
+        )?;
+        applied_count += 1;
+    }
+
     if applied_count > 0 {
         info!(count = applied_count, "Applied SQLite migrations");
     }

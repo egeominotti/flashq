@@ -11,18 +11,21 @@ pub fn insert_job(conn: &Connection, job: &Job, state: &str) -> Result<(), rusql
     let data = serde_json::to_string(&*job.data).unwrap_or_default();
     let depends_on = if job.depends_on.is_empty() { None } else { Some(serde_json::to_string(&job.depends_on).unwrap_or_default()) };
     let tags = if job.tags.is_empty() { None } else { Some(serde_json::to_string(&job.tags).unwrap_or_default()) };
+    let children_ids = if job.children_ids.is_empty() { None } else { Some(serde_json::to_string(&job.children_ids).unwrap_or_default()) };
 
     conn.execute(
         "INSERT INTO jobs (id, queue, data, priority, created_at, run_at, started_at, attempts,
-            max_attempts, backoff, ttl, timeout, unique_key, depends_on, progress, progress_msg, tags, state, lifo)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19)
+            max_attempts, backoff, ttl, timeout, unique_key, depends_on, progress, progress_msg, tags, state, lifo,
+            custom_id, parent_id, children_ids, children_completed, group_id, keep_completed_age, keep_completed_count)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26)
          ON CONFLICT(id) DO UPDATE SET
             state = excluded.state,
             run_at = excluded.run_at,
             started_at = excluded.started_at,
             attempts = excluded.attempts,
             progress = excluded.progress,
-            progress_msg = excluded.progress_msg",
+            progress_msg = excluded.progress_msg,
+            children_completed = excluded.children_completed",
         params![
             job.id as i64,
             job.queue,
@@ -43,6 +46,13 @@ pub fn insert_job(conn: &Connection, job: &Job, state: &str) -> Result<(), rusql
             tags,
             state,
             job.lifo as i32,
+            job.custom_id,
+            job.parent_id.map(|id| id as i64),
+            children_ids,
+            job.children_completed as i32,
+            job.group_id,
+            job.keep_completed_age as i64,
+            job.keep_completed_count as i32,
         ],
     )?;
     Ok(())
@@ -113,7 +123,8 @@ pub fn cancel_job(conn: &Connection, job_id: u64) -> Result<(), rusqlite::Error>
 pub fn load_pending_jobs(conn: &Connection) -> Result<Vec<(Job, String)>, rusqlite::Error> {
     let mut stmt = conn.prepare(
         "SELECT id, queue, data, priority, created_at, run_at, started_at, attempts, max_attempts,
-                backoff, ttl, timeout, unique_key, depends_on, progress, progress_msg, tags, state, lifo
+                backoff, ttl, timeout, unique_key, depends_on, progress, progress_msg, tags, state, lifo,
+                custom_id, parent_id, children_ids, children_completed, group_id, keep_completed_age, keep_completed_count
          FROM jobs WHERE state IN ('waiting', 'delayed', 'active', 'waiting_children')"
     )?;
 
@@ -180,10 +191,18 @@ fn row_to_job(row: &rusqlite::Row) -> Result<Job, rusqlite::Error> {
     let progress_msg: Option<String> = row.get(15)?;
     let tags_str: Option<String> = row.get(16)?;
     let lifo: i32 = row.get(18)?;
+    let custom_id: Option<String> = row.get(19)?;
+    let parent_id: Option<i64> = row.get(20)?;
+    let children_ids_str: Option<String> = row.get(21)?;
+    let children_completed: i32 = row.get(22)?;
+    let group_id: Option<String> = row.get(23)?;
+    let keep_completed_age: i64 = row.get(24)?;
+    let keep_completed_count: i32 = row.get(25)?;
 
     let data: Value = serde_json::from_str(&data_str).unwrap_or(Value::Null);
     let depends_on: Vec<u64> = depends_on_str.and_then(|s| serde_json::from_str(&s).ok()).unwrap_or_default();
     let tags: Vec<String> = tags_str.and_then(|s| serde_json::from_str(&s).ok()).unwrap_or_default();
+    let children_ids: Vec<u64> = children_ids_str.and_then(|s| serde_json::from_str(&s).ok()).unwrap_or_default();
 
     Ok(Job {
         id: id as u64, queue, data: Arc::new(data), priority,
@@ -193,8 +212,12 @@ fn row_to_job(row: &rusqlite::Row) -> Result<Job, rusqlite::Error> {
         unique_key, depends_on, progress: progress as u8, progress_msg, tags,
         lifo: lifo != 0, remove_on_complete: false, remove_on_fail: false,
         last_heartbeat: 0, stall_timeout: 0, stall_count: 0,
-        parent_id: None, children_ids: vec![], children_completed: 0,
-        custom_id: None, keep_completed_age: 0, keep_completed_count: 0,
-        completed_at: 0, group_id: None,
+        parent_id: parent_id.map(|id| id as u64),
+        children_ids,
+        children_completed: children_completed as u32,
+        custom_id,
+        keep_completed_age: keep_completed_age as u64,
+        keep_completed_count: keep_completed_count as usize,
+        completed_at: 0, group_id,
     })
 }

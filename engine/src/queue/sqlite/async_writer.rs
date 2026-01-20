@@ -412,18 +412,21 @@ impl AsyncWriter {
         let data = serde_json::to_string(&*job.data).unwrap_or_default();
         let depends_on = if job.depends_on.is_empty() { None } else { Some(serde_json::to_string(&job.depends_on).unwrap_or_default()) };
         let tags = if job.tags.is_empty() { None } else { Some(serde_json::to_string(&job.tags).unwrap_or_default()) };
+        let children_ids = if job.children_ids.is_empty() { None } else { Some(serde_json::to_string(&job.children_ids).unwrap_or_default()) };
 
         conn.execute(
             "INSERT INTO jobs (id, queue, data, priority, created_at, run_at, started_at, attempts,
-                max_attempts, backoff, ttl, timeout, unique_key, depends_on, progress, progress_msg, tags, state, lifo)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19)
+                max_attempts, backoff, ttl, timeout, unique_key, depends_on, progress, progress_msg, tags, state, lifo,
+                custom_id, parent_id, children_ids, children_completed, group_id, keep_completed_age, keep_completed_count)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26)
              ON CONFLICT(id) DO UPDATE SET
                 state = excluded.state,
                 run_at = excluded.run_at,
                 started_at = excluded.started_at,
                 attempts = excluded.attempts,
                 progress = excluded.progress,
-                progress_msg = excluded.progress_msg",
+                progress_msg = excluded.progress_msg,
+                children_completed = excluded.children_completed",
             rusqlite::params![
                 job.id as i64,
                 job.queue,
@@ -444,6 +447,13 @@ impl AsyncWriter {
                 tags,
                 state,
                 job.lifo as i32,
+                job.custom_id,
+                job.parent_id.map(|id| id as i64),
+                children_ids,
+                job.children_completed as i32,
+                job.group_id,
+                job.keep_completed_age as i64,
+                job.keep_completed_count as i32,
             ],
         )?;
         Ok(())
