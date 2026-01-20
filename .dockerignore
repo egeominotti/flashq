@@ -74,11 +74,11 @@ bun.lockb
 package-lock.json
 yarn.lock
 
-# Rust specific
-Cargo.lock
+# Rust specific (keep Cargo.lock for reproducible builds!)
+# Cargo.lock is REQUIRED for reproducible builds
 rustfmt.toml
 clippy.toml
-.cargo/
+# Keep .cargo/ for config, but Dockerfile removes config.toml
 
 # Benchmarks & profiling
 *.prof
