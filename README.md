@@ -21,7 +21,7 @@
 docker run -d -p 6789:6789 -p 6790:6790 -e HTTP=1 ghcr.io/egeominotti/flashq:latest
 
 # Install SDK
-npm install flashq
+npm install flashq  # or: bun add flashq
 ```
 
 ```typescript
