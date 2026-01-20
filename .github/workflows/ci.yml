@@ -6,6 +6,11 @@ on:
   pull_request:
     branches: [main]
 
+# Only one build at a time, cancel in-progress runs on new push
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
