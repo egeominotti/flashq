@@ -1,27 +1,26 @@
 //! Queue module - job queue management with sharding and persistence.
 //!
-//! ## Module Organization (after refactoring)
+//! ## Module Organization
 //!
 //! - `manager.rs` - Core QueueManager struct, constructors, shard helpers
 //! - `types.rs` - IndexedPriorityQueue, RateLimiter, Shard, GlobalMetrics
-//! - `postgres.rs` - PostgreSQL persistence layer
-//! - `cluster.rs` - Clustering and leader election
-//! - `background.rs` - Background tasks (cleanup, cron, timeout)
+//! - `sqlite/` - SQLite embedded persistence with S3 backup
+//! - `background.rs` - Background tasks (cleanup, cron, timeout, snapshots)
 //!
-//! ### Core operations (split from core.rs for maintainability)
+//! ### Core operations
 //!
 //! - `validation.rs` - Input validation and size limits
 //! - `push.rs` - Push and push_batch operations
-//! - `pull.rs` - Pull, pull_batch, and distributed pull operations
+//! - `pull.rs` - Pull and pull_batch operations
 //! - `ack.rs` - Ack, ack_batch, fail, and get_result operations
 //!
-//! ### Manager modules (split from manager.rs for maintainability)
+//! ### Manager modules
 //!
-//! - `persistence.rs` - PostgreSQL persistence methods (persist_*)
+//! - `persistence.rs` - SQLite persistence methods (persist_*)
 //! - `query.rs` - Job query operations (get_job, get_state, wait_for_job)
 //! - `admin.rs` - Admin operations (workers, webhooks, settings, reset)
 //!
-//! ### Feature modules (split from features.rs for maintainability)
+//! ### Feature modules
 //!
 //! - `dlq.rs` - Dead letter queue operations
 //! - `rate_limit.rs` - Rate limiting and concurrency control
@@ -34,10 +33,9 @@
 //! - `browser.rs` - Job browser (list, filter, clean, drain, obliterate)
 
 mod background;
-pub mod cluster;
 mod manager;
-mod postgres;
-mod types;
+pub mod sqlite;
+pub mod types;
 
 // Core operations (split from core.rs)
 mod ack;
@@ -66,5 +64,5 @@ mod rate_limit;
 #[cfg(test)]
 mod tests;
 
-pub use cluster::{generate_node_id, ClusterMetrics, LoadBalanceStrategy, NodeInfo, NodeMetrics};
 pub use manager::QueueManager;
+pub use sqlite::{S3BackupConfig, S3BackupManager, SnapshotManager, SqliteConfig, SqliteStorage, set_runtime_s3_config, get_runtime_s3_config, clear_runtime_s3_config};

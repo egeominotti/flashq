@@ -147,21 +147,14 @@ async fn process_command(
         }
         Command::Pull { queue, timeout } => {
             let timeout_ms = timeout.unwrap_or(60_000);
-            if queue_manager.is_distributed_pull() {
-                match queue_manager.pull_distributed(&queue, timeout_ms).await {
-                    Some(job) => Response::job(job),
-                    None => Response::null_job(),
-                }
-            } else {
-                match tokio::time::timeout(
-                    tokio::time::Duration::from_millis(timeout_ms),
-                    queue_manager.pull(&queue),
-                )
-                .await
-                {
-                    Ok(job) => Response::job(job),
-                    Err(_) => Response::null_job(),
-                }
+            match tokio::time::timeout(
+                tokio::time::Duration::from_millis(timeout_ms),
+                queue_manager.pull(&queue),
+            )
+            .await
+            {
+                Ok(job) => Response::job(job),
+                Err(_) => Response::null_job(),
             }
         }
         Command::Pullb {
@@ -170,21 +163,14 @@ async fn process_command(
             timeout,
         } => {
             let timeout_ms = timeout.unwrap_or(60_000);
-            if queue_manager.is_distributed_pull() {
-                let jobs = queue_manager
-                    .pull_distributed_batch(&queue, count, timeout_ms)
-                    .await;
-                Response::jobs(jobs)
-            } else {
-                match tokio::time::timeout(
-                    tokio::time::Duration::from_millis(timeout_ms),
-                    queue_manager.pull_batch(&queue, count),
-                )
-                .await
-                {
-                    Ok(jobs) => Response::jobs(jobs),
-                    Err(_) => Response::jobs(vec![]), // Return empty array on timeout
-                }
+            match tokio::time::timeout(
+                tokio::time::Duration::from_millis(timeout_ms),
+                queue_manager.pull_batch(&queue, count),
+            )
+            .await
+            {
+                Ok(jobs) => Response::jobs(jobs),
+                Err(_) => Response::jobs(vec![]),
             }
         }
         Command::Ack { id, result } => match queue_manager.ack(id, result).await {

@@ -216,9 +216,10 @@ async fn test_node_id_default() {
 }
 
 #[tokio::test]
-async fn test_cluster_default() {
+async fn test_cluster_disabled() {
     let qm = setup();
-    assert!(qm.cluster().is_none());
+    // Cluster is always disabled in single-node mode
+    assert!(!qm.is_cluster_enabled());
 }
 
 #[tokio::test]

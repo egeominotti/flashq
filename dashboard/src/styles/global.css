@@ -1,0 +1,240 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Base Styles */
+:root {
+  --font-sans: 'Outfit', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+
+  /* Colors */
+  --bg-primary: #09090b;
+  --bg-secondary: #111113;
+  --bg-tertiary: #18181b;
+  --bg-card: #141416;
+  --bg-hover: #1f1f23;
+
+  --border-primary: #27272a;
+  --border-secondary: #3f3f46;
+
+  --text-primary: #fafafa;
+  --text-secondary: #a1a1aa;
+  --text-muted: #71717a;
+
+  --accent-cyan: #00d4ff;
+  --accent-green: #10b981;
+  --accent-amber: #f59e0b;
+  --accent-red: #ef4444;
+  --accent-blue: #3b82f6;
+  --accent-violet: #8b5cf6;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  font-size: 20px;
+}
+
+body {
+  font-family: var(--font-sans);
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  min-height: 100vh;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+/* Typography */
+h1, h2, h3, h4, h5, h6 {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+code, pre, .mono {
+  font-family: var(--font-mono);
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-primary);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--border-secondary);
+}
+
+/* Selection */
+::selection {
+  background: rgba(0, 212, 255, 0.2);
+  color: var(--text-primary);
+}
+
+/* Focus */
+:focus-visible {
+  outline: 2px solid var(--accent-cyan);
+  outline-offset: 2px;
+}
+
+/* Transitions */
+* {
+  transition-property: background-color, border-color, color, fill, stroke, opacity, box-shadow, transform;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+
+/* Tremor Dark Theme Overrides */
+.dark {
+  /* Tremor backgrounds */
+  --tremor-background-default: #09090b;
+  --tremor-background-muted: #111113;
+  --tremor-background-subtle: #18181b;
+  --tremor-background-emphasis: #27272a;
+
+  /* Tremor text */
+  --tremor-content-subtle: #52525b;
+  --tremor-content-default: #a1a1aa;
+  --tremor-content-emphasis: #fafafa;
+  --tremor-content-strong: #ffffff;
+
+  /* Tremor borders */
+  --tremor-border-default: rgba(255, 255, 255, 0.06);
+}
+
+/* Tremor Component Overrides */
+.dark [data-tremor-card] {
+  background: rgba(255, 255, 255, 0.02);
+  border-color: rgba(255, 255, 255, 0.06);
+}
+
+.dark [data-tremor-input] {
+  background: rgba(255, 255, 255, 0.02);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: var(--text-primary);
+}
+
+.dark [data-tremor-input]:focus {
+  border-color: var(--accent-cyan);
+  box-shadow: 0 0 0 3px rgba(0, 212, 255, 0.1);
+}
+
+.dark [data-tremor-select] {
+  background: rgba(255, 255, 255, 0.02);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.dark [data-tremor-table-head] th {
+  background: rgba(0, 0, 0, 0.3);
+  color: var(--text-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  letter-spacing: 0.05em;
+}
+
+.dark [data-tremor-table-body] tr {
+  border-color: rgba(255, 255, 255, 0.04);
+}
+
+.dark [data-tremor-table-body] tr:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.dark [data-tremor-table-cell] {
+  color: var(--text-secondary);
+}
+
+/* Button Overrides */
+.dark button[class*="tremor-"] {
+  font-weight: 500;
+}
+
+/* Badge Colors */
+.dark [data-tremor-badge][data-color="cyan"] {
+  background: rgba(0, 212, 255, 0.15);
+  color: #00d4ff;
+}
+
+.dark [data-tremor-badge][data-color="emerald"] {
+  background: rgba(16, 185, 129, 0.15);
+  color: #10b981;
+}
+
+.dark [data-tremor-badge][data-color="rose"] {
+  background: rgba(244, 63, 94, 0.15);
+  color: #f43f5e;
+}
+
+.dark [data-tremor-badge][data-color="amber"] {
+  background: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
+}
+
+.dark [data-tremor-badge][data-color="blue"] {
+  background: rgba(59, 130, 246, 0.15);
+  color: #3b82f6;
+}
+
+.dark [data-tremor-badge][data-color="violet"] {
+  background: rgba(139, 92, 246, 0.15);
+  color: #8b5cf6;
+}
+
+/* Chart Colors */
+.dark [data-tremor-area-chart] .recharts-area-area {
+  fill-opacity: 0.15;
+}
+
+/* Animation */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 300ms ease-out;
+}
+
+/* Loading Spinner */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+/* Utility Classes */
+.text-gradient {
+  background: linear-gradient(135deg, var(--accent-cyan) 0%, var(--accent-blue) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.glow-cyan {
+  box-shadow: 0 0 20px rgba(0, 212, 255, 0.3);
+}
+
+.glow-green {
+  box-shadow: 0 0 20px rgba(16, 185, 129, 0.3);
+}

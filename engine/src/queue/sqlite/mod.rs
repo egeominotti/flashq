@@ -1,0 +1,364 @@
+//! SQLite storage layer for flashQ persistence.
+//!
+//! Embedded, zero-dependency persistence with:
+//! - WAL mode for durability
+//! - Configurable snapshot intervals
+//! - S3-compatible backup support (AWS S3, Cloudflare R2, MinIO)
+
+mod backup;
+mod jobs;
+mod jobs_advanced;
+mod migration;
+mod snapshot;
+
+use parking_lot::Mutex;
+use rusqlite::Connection;
+use std::path::PathBuf;
+use std::sync::Arc;
+use tracing::info;
+
+use crate::protocol::{CronJob, Job, WebhookConfig};
+use serde_json::Value;
+
+pub use backup::{S3BackupConfig, S3BackupManager, set_runtime_s3_config, get_runtime_s3_config, clear_runtime_s3_config};
+pub use snapshot::SnapshotManager;
+
+/// SQLite storage configuration
+#[derive(Debug, Clone)]
+pub struct SqliteConfig {
+    /// Path to the database file
+    pub path: PathBuf,
+    /// Enable WAL mode (recommended)
+    pub wal_mode: bool,
+    /// Synchronous mode: 0=OFF, 1=NORMAL, 2=FULL
+    pub synchronous: i32,
+    /// Cache size in pages (negative = KB)
+    pub cache_size: i32,
+}
+
+impl Default for SqliteConfig {
+    fn default() -> Self {
+        Self {
+            path: PathBuf::from("flashq.db"),
+            wal_mode: true,
+            synchronous: 1, // NORMAL - good balance of safety and speed
+            cache_size: -64000, // 64MB cache
+        }
+    }
+}
+
+impl SqliteConfig {
+    /// Create config from environment variables
+    pub fn from_env() -> Self {
+        let path = std::env::var("DATA_PATH")
+            .map(PathBuf::from)
+            .unwrap_or_else(|_| PathBuf::from("flashq.db"));
+
+        let synchronous = std::env::var("SQLITE_SYNCHRONOUS")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(1);
+
+        let cache_size = std::env::var("SQLITE_CACHE_SIZE")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(-64000);
+
+        Self {
+            path,
+            wal_mode: true,
+            synchronous,
+            cache_size,
+        }
+    }
+}
+
+/// SQLite storage layer for flashQ persistence.
+pub struct SqliteStorage {
+    /// Database connection (protected by Mutex for thread safety)
+    conn: Mutex<Connection>,
+    /// Path to the database file
+    pub path: PathBuf,
+    /// Snapshot manager
+    snapshot_manager: Option<Arc<SnapshotManager>>,
+    /// S3 backup manager
+    backup_manager: Option<Arc<S3BackupManager>>,
+}
+
+impl SqliteStorage {
+    /// Create a new SQLite storage connection.
+    pub fn new(config: SqliteConfig) -> Result<Self, rusqlite::Error> {
+        // Create parent directories if they don't exist
+        if let Some(parent) = config.path.parent() {
+            if !parent.as_os_str().is_empty() {
+                std::fs::create_dir_all(parent).ok();
+            }
+        }
+
+        let conn = Connection::open(&config.path)?;
+
+        // Configure SQLite for optimal performance
+        conn.execute_batch(&format!(
+            "PRAGMA journal_mode = {};
+             PRAGMA synchronous = {};
+             PRAGMA cache_size = {};
+             PRAGMA temp_store = MEMORY;
+             PRAGMA mmap_size = 268435456;
+             PRAGMA page_size = 4096;",
+            if config.wal_mode { "WAL" } else { "DELETE" },
+            config.synchronous,
+            config.cache_size,
+        ))?;
+
+        info!(path = ?config.path, "SQLite storage initialized");
+
+        Ok(Self {
+            conn: Mutex::new(conn),
+            path: config.path,
+            snapshot_manager: None,
+            backup_manager: None,
+        })
+    }
+
+    /// Create with default configuration
+    pub fn default_config() -> Result<Self, rusqlite::Error> {
+        Self::new(SqliteConfig::from_env())
+    }
+
+    /// Set snapshot manager
+    pub fn with_snapshot_manager(mut self, manager: Arc<SnapshotManager>) -> Self {
+        self.snapshot_manager = Some(manager);
+        self
+    }
+
+    /// Set S3 backup manager
+    pub fn with_backup_manager(mut self, manager: Arc<S3BackupManager>) -> Self {
+        self.backup_manager = Some(manager);
+        self
+    }
+
+    /// Run database migrations
+    pub fn migrate(&self) -> Result<(), rusqlite::Error> {
+        let conn = self.conn.lock();
+        migration::migrate(&conn)
+    }
+
+    // ============== Job Operations ==============
+
+    /// Insert or update a job
+    pub fn insert_job(&self, job: &Job, state: &str) -> Result<(), rusqlite::Error> {
+        let conn = self.conn.lock();
+        jobs::insert_job(&conn, job, state)
+    }
+
+    /// Insert multiple jobs in a batch
+    pub fn insert_jobs_batch(&self, jobs: &[Job], state: &str) -> Result<(), rusqlite::Error> {
+        let conn = self.conn.lock();
+        jobs::insert_jobs_batch(&conn, jobs, state)
+    }
+
+    /// Acknowledge a job as completed
+    pub fn ack_job(&self, job_id: u64, result: Option<Value>) -> Result<(), rusqlite::Error> {
+        let conn = self.conn.lock();
+        jobs::ack_job(&conn, job_id, result)
+    }
+
+    /// Acknowledge multiple jobs in a batch
+    pub fn ack_jobs_batch(&self, ids: &[u64]) -> Result<(), rusqlite::Error> {
+        let conn = self.conn.lock();
+        jobs::ack_jobs_batch(&conn, ids)
+    }
+
+    /// Mark job as failed and update for retry
+    pub fn fail_job(&self, job_id: u64, new_run_at: u64, attempts: u32) -> Result<(), rusqlite::Error> {
+        let conn = self.conn.lock();
+        jobs::fail_job(&conn, job_id, new_run_at, attempts)
+    }
+
+    /// Move job to DLQ
+    pub fn move_to_dlq(&self, job: &Job, error: Option<&str>) -> Result<(), rusqlite::Error> {
+        let conn = self.conn.lock();
+        jobs::move_to_dlq(&conn, job, error)
+    }
+
+    /// Cancel a job
+    pub fn cancel_job(&self, job_id: u64) -> Result<(), rusqlite::Error> {
+        let conn = self.conn.lock();
+        jobs::cancel_job(&conn, job_id)
+    }
+
+    /// Load all pending jobs for recovery
+    pub fn load_pending_jobs(&self) -> Result<Vec<(Job, String)>, rusqlite::Error> {
+        let conn = self.conn.lock();
+        jobs::load_pending_jobs(&conn)
+    }
+
+    /// Load DLQ jobs
+    pub fn load_dlq_jobs(&self) -> Result<Vec<Job>, rusqlite::Error> {
+        let conn = self.conn.lock();
+        jobs::load_dlq_jobs(&conn)
+    }
+
+    /// Get the maximum job ID (for recovery)
+    pub fn get_max_job_id(&self) -> Result<u64, rusqlite::Error> {
+        let conn = self.conn.lock();
+        jobs::get_max_job_id(&conn)
+    }
+
+    // ============== Cron Jobs ==============
+
+    /// Save a cron job
+    pub fn save_cron(&self, cron: &CronJob) -> Result<(), rusqlite::Error> {
+        let conn = self.conn.lock();
+        jobs_advanced::save_cron(&conn, cron)
+    }
+
+    /// Delete a cron job
+    pub fn delete_cron(&self, name: &str) -> Result<bool, rusqlite::Error> {
+        let conn = self.conn.lock();
+        jobs_advanced::delete_cron(&conn, name)
+    }
+
+    /// Load all cron jobs
+    pub fn load_crons(&self) -> Result<Vec<CronJob>, rusqlite::Error> {
+        let conn = self.conn.lock();
+        jobs_advanced::load_crons(&conn)
+    }
+
+    /// Update cron next_run time
+    pub fn update_cron_next_run(&self, name: &str, next_run: u64) -> Result<(), rusqlite::Error> {
+        let conn = self.conn.lock();
+        jobs_advanced::update_cron_next_run(&conn, name, next_run)
+    }
+
+    // ============== Webhooks ==============
+
+    /// Save a webhook
+    pub fn save_webhook(&self, webhook: &WebhookConfig) -> Result<(), rusqlite::Error> {
+        let conn = self.conn.lock();
+        jobs_advanced::save_webhook(&conn, webhook)
+    }
+
+    /// Delete a webhook
+    pub fn delete_webhook(&self, id: &str) -> Result<bool, rusqlite::Error> {
+        let conn = self.conn.lock();
+        jobs_advanced::delete_webhook(&conn, id)
+    }
+
+    /// Load all webhooks
+    pub fn load_webhooks(&self) -> Result<Vec<WebhookConfig>, rusqlite::Error> {
+        let conn = self.conn.lock();
+        jobs_advanced::load_webhooks(&conn)
+    }
+
+    // ============== Advanced Operations ==============
+
+    /// Drain all waiting jobs from a queue
+    pub fn drain_queue(&self, queue: &str) -> Result<u64, rusqlite::Error> {
+        let conn = self.conn.lock();
+        jobs_advanced::drain_queue(&conn, queue)
+    }
+
+    /// Obliterate all data for a queue
+    pub fn obliterate_queue(&self, queue: &str) -> Result<u64, rusqlite::Error> {
+        let conn = self.conn.lock();
+        jobs_advanced::obliterate_queue(&conn, queue)
+    }
+
+    /// Change priority of a job
+    pub fn change_priority(&self, job_id: u64, priority: i32) -> Result<(), rusqlite::Error> {
+        let conn = self.conn.lock();
+        jobs_advanced::change_priority(&conn, job_id, priority)
+    }
+
+    /// Move a job to delayed state
+    pub fn move_to_delayed(&self, job_id: u64, run_at: u64) -> Result<(), rusqlite::Error> {
+        let conn = self.conn.lock();
+        jobs_advanced::move_to_delayed(&conn, job_id, run_at)
+    }
+
+    /// Promote a delayed job to waiting
+    pub fn promote_job(&self, job_id: u64, run_at: u64) -> Result<(), rusqlite::Error> {
+        let conn = self.conn.lock();
+        jobs_advanced::promote_job(&conn, job_id, run_at)
+    }
+
+    /// Update job data
+    pub fn update_job_data(&self, job_id: u64, data: &Value) -> Result<(), rusqlite::Error> {
+        let conn = self.conn.lock();
+        jobs_advanced::update_job_data(&conn, job_id, data)
+    }
+
+    /// Clean jobs by age and state
+    pub fn clean_jobs(&self, queue: &str, cutoff: u64, state: &str) -> Result<u64, rusqlite::Error> {
+        let conn = self.conn.lock();
+        jobs_advanced::clean_jobs(&conn, queue, cutoff, state)
+    }
+
+    /// Discard a job (move to DLQ)
+    pub fn discard_job(&self, job_id: u64) -> Result<(), rusqlite::Error> {
+        let conn = self.conn.lock();
+        conn.execute(
+            "UPDATE jobs SET state = 'failed' WHERE id = ?1",
+            rusqlite::params![job_id as i64],
+        )?;
+        Ok(())
+    }
+
+    /// Purge all DLQ entries for a queue
+    pub fn purge_dlq(&self, queue: &str) -> Result<u64, rusqlite::Error> {
+        let conn = self.conn.lock();
+        let rows = conn.execute(
+            "DELETE FROM dlq_jobs WHERE queue = ?1",
+            rusqlite::params![queue],
+        )?;
+        Ok(rows as u64)
+    }
+
+    // ============== Snapshot Operations ==============
+
+    /// Take a snapshot of all jobs
+    pub fn snapshot_all(&self, jobs: &[(Job, String)], dlq_jobs: &[(Job, Option<String>)]) -> Result<(), rusqlite::Error> {
+        let conn = self.conn.lock();
+        snapshot::snapshot_all(&conn, jobs, dlq_jobs)
+    }
+
+    /// Create a backup file
+    pub fn create_backup(&self, backup_path: &std::path::Path) -> Result<(), rusqlite::Error> {
+        let conn = self.conn.lock();
+        snapshot::create_backup(&conn, backup_path)
+    }
+
+    /// Create a timestamped snapshot in the same directory
+    pub fn create_snapshot(&self) -> Result<(), String> {
+        let snapshot_dir = self.path.parent().unwrap_or_else(|| std::path::Path::new("."));
+        let timestamp = chrono::Utc::now().format("%Y%m%d_%H%M%S");
+        let snapshot_name = format!("flashq_snapshot_{}.db", timestamp);
+        let snapshot_path = snapshot_dir.join(&snapshot_name);
+
+        self.create_backup(&snapshot_path)
+            .map_err(|e| format!("Snapshot failed: {}", e))?;
+
+        info!(path = ?snapshot_path, "Snapshot created");
+        Ok(())
+    }
+
+    /// Trigger S3 backup if configured
+    pub async fn trigger_s3_backup(&self) -> Result<(), String> {
+        if let Some(ref manager) = self.backup_manager {
+            manager.backup(&self.path).await
+        } else {
+            Ok(())
+        }
+    }
+
+    /// Get snapshot manager
+    pub fn snapshot_manager(&self) -> Option<&Arc<SnapshotManager>> {
+        self.snapshot_manager.as_ref()
+    }
+
+    /// Get backup manager
+    pub fn backup_manager(&self) -> Option<&Arc<S3BackupManager>> {
+        self.backup_manager.as_ref()
+    }
+}

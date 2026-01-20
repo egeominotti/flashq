@@ -66,12 +66,6 @@ mod cleanup;
 // Background tasks
 mod background;
 
-// PostgreSQL integration (requires DATABASE_URL)
-mod postgres;
-
-// Cluster mode (requires CLUSTER_MODE + DATABASE_URL)
-mod cluster;
-
 // Advanced BullMQ-like operations: drain, obliterate, clean, etc.
 mod advanced;
 

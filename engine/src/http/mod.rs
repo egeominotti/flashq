@@ -22,8 +22,6 @@ use axum::{
 };
 use tower_http::cors::{AllowOrigin, CorsLayer};
 
-use crate::dashboard;
-
 pub use types::AppState;
 
 /// Create CORS layer based on environment configuration.
@@ -135,8 +133,6 @@ pub fn create_router(state: AppState) -> Router {
         )
         // Server management
         .route("/settings", get(settings::get_settings))
-        .route("/settings/test-db", post(settings::test_db_connection))
-        .route("/settings/database", post(settings::save_db_settings))
         .route("/settings/auth", post(settings::save_auth_settings))
         .route(
             "/settings/queue-defaults",
@@ -156,31 +152,22 @@ pub fn create_router(state: AppState) -> Router {
         .route("/server/reset-metrics", post(settings::reset_metrics))
         // System metrics
         .route("/system/metrics", get(settings::get_system_metrics))
-        // Health & Cluster
+        // SQLite Configuration
+        .route("/sqlite/settings", get(settings::get_sqlite_settings))
+        .route("/sqlite/settings", post(settings::save_sqlite_settings))
+        // S3 Backup Configuration
+        .route("/s3/settings", get(settings::get_s3_settings))
+        .route("/s3/settings", post(settings::save_s3_settings))
+        .route("/s3/test", post(settings::test_s3_connection))
+        // S3 Backup Operations
+        .route("/s3/backup", post(settings::trigger_s3_backup))
+        .route("/s3/backups", get(settings::list_s3_backups))
+        .route("/s3/restore", post(settings::restore_s3_backup))
+        // Health
         .route("/health", get(cluster::health_check))
-        .route("/cluster/nodes", get(cluster::cluster_nodes))
-        .route(
-            "/cluster/nodes/metrics",
-            get(cluster::cluster_nodes_metrics),
-        )
-        .route("/cluster/metrics", get(cluster::cluster_metrics))
-        .route("/cluster/best-node", get(cluster::cluster_best_node))
-        .route(
-            "/cluster/sticky-node/{key}",
-            get(cluster::cluster_sticky_node),
-        )
-        .route(
-            "/cluster/load-balance-strategy",
-            get(cluster::get_load_balance_strategy),
-        )
-        .route(
-            "/cluster/load-balance-strategy",
-            post(cluster::set_load_balance_strategy),
-        )
         .with_state(state);
 
     Router::new()
-        .merge(dashboard::dashboard_routes())
         .merge(api_routes)
         .layer(cors)
 }

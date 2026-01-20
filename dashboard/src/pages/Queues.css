@@ -1,0 +1,35 @@
+.queues-page {
+  padding: 2rem;
+  min-height: 100vh;
+}
+
+.page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 2rem;
+}
+
+.page-title {
+  font-size: 1.75rem !important;
+  font-weight: 700 !important;
+  color: #fafafa !important;
+  margin-bottom: 0.25rem !important;
+}
+
+.page-subtitle {
+  color: #71717a !important;
+  font-size: 1rem !important;
+}
+
+.queues-card {
+  background: rgba(255, 255, 255, 0.02) !important;
+  border: 1px solid rgba(255, 255, 255, 0.06) !important;
+  border-radius: 12px !important;
+}
+
+.queue-name {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}

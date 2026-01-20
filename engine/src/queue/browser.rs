@@ -215,7 +215,7 @@ impl QueueManager {
                 JobState::Failed => "failed",
                 _ => "unknown",
             };
-            let _ = storage.clean_jobs(queue_name, cutoff, state_str).await;
+            let _ = storage.clean_jobs(queue_name, cutoff, state_str);
         }
 
         removed
@@ -247,7 +247,7 @@ impl QueueManager {
 
         // Persist to PostgreSQL
         if let Some(ref storage) = self.storage {
-            let _ = storage.drain_queue(queue_name).await;
+            let _ = storage.drain_queue(queue_name);
         }
 
         removed
@@ -340,7 +340,7 @@ impl QueueManager {
 
         // 4. Persist
         if let Some(ref storage) = self.storage {
-            let _ = storage.obliterate_queue(queue_name).await;
+            let _ = storage.obliterate_queue(queue_name);
         }
 
         total_removed

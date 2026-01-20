@@ -22,14 +22,36 @@ pub fn get_start_time() -> Option<&'static std::time::Instant> {
     START_TIME.get()
 }
 
+/// S3 Backup settings.
+#[derive(Serialize)]
+pub struct S3BackupSettings {
+    pub enabled: bool,
+    pub endpoint: Option<String>,
+    pub bucket: Option<String>,
+    pub region: Option<String>,
+    pub interval_secs: u64,
+    pub keep_count: usize,
+    pub compress: bool,
+}
+
+/// SQLite settings.
+#[derive(Serialize)]
+pub struct SqliteSettings {
+    pub enabled: bool,
+    pub path: Option<String>,
+    pub synchronous: bool,
+    pub snapshot_interval: u64,
+    pub snapshot_min_changes: u64,
+}
+
 /// Server settings response.
 #[derive(Serialize)]
 pub struct ServerSettings {
     pub version: &'static str,
     pub tcp_port: u16,
     pub http_port: u16,
-    pub database_connected: bool,
-    pub database_url: Option<String>,
+    pub sqlite: SqliteSettings,
+    pub s3_backup: S3BackupSettings,
     pub auth_enabled: bool,
     pub auth_token_count: usize,
     pub uptime_seconds: u64,
@@ -39,8 +61,43 @@ pub struct ServerSettings {
 pub async fn get_settings(State(qm): State<AppState>) -> Json<ApiResponse<ServerSettings>> {
     let uptime = get_uptime_seconds();
 
-    let db_url = std::env::var("DATABASE_URL").ok();
-    let db_connected = qm.is_postgres_connected();
+    let sqlite = SqliteSettings {
+        enabled: qm.has_storage(),
+        path: std::env::var("DATA_PATH")
+            .or_else(|_| std::env::var("SQLITE_PATH"))
+            .ok(),
+        synchronous: std::env::var("SQLITE_SYNCHRONOUS")
+            .map(|v| v == "1" || v.to_lowercase() == "true")
+            .unwrap_or(true),
+        snapshot_interval: std::env::var("SNAPSHOT_INTERVAL")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(60),
+        snapshot_min_changes: std::env::var("SNAPSHOT_MIN_CHANGES")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(100),
+    };
+
+    let s3_backup = S3BackupSettings {
+        enabled: std::env::var("S3_BACKUP_ENABLED")
+            .map(|v| v == "1" || v.to_lowercase() == "true")
+            .unwrap_or(false),
+        endpoint: std::env::var("S3_ENDPOINT").ok(),
+        bucket: std::env::var("S3_BUCKET").ok(),
+        region: std::env::var("S3_REGION").ok(),
+        interval_secs: std::env::var("S3_BACKUP_INTERVAL_SECS")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(300),
+        keep_count: std::env::var("S3_BACKUP_KEEP_COUNT")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(24),
+        compress: std::env::var("S3_BACKUP_COMPRESS")
+            .map(|v| v == "1" || v.to_lowercase() == "true")
+            .unwrap_or(true),
+    };
 
     let settings = ServerSettings {
         version: env!("CARGO_PKG_VERSION"),
@@ -52,16 +109,8 @@ pub async fn get_settings(State(qm): State<AppState>) -> Json<ApiResponse<Server
             .ok()
             .and_then(|p| p.parse().ok())
             .unwrap_or(6790),
-        database_connected: db_connected,
-        database_url: db_url.map(|u| {
-            // Mask password in URL
-            if let Some(at_pos) = u.find('@') {
-                if let Some(colon_pos) = u[..at_pos].rfind(':') {
-                    return format!("{}:****{}", &u[..colon_pos], &u[at_pos..]);
-                }
-            }
-            u
-        }),
+        sqlite,
+        s3_backup,
         auth_enabled: !qm.verify_token(""),
         auth_token_count: qm.auth_token_count(),
         uptime_seconds: uptime,
@@ -71,7 +120,6 @@ pub async fn get_settings(State(qm): State<AppState>) -> Json<ApiResponse<Server
 
 /// Shutdown server.
 pub async fn shutdown_server() -> Json<ApiResponse<&'static str>> {
-    // Spawn task to exit after response is sent
     tokio::spawn(async {
         tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
         std::process::exit(0);
@@ -81,8 +129,6 @@ pub async fn shutdown_server() -> Json<ApiResponse<&'static str>> {
 
 /// Restart server.
 pub async fn restart_server() -> Json<ApiResponse<&'static str>> {
-    // Spawn task to exit with special code after response is sent
-    // Exit code 100 signals restart request (can be handled by process manager/wrapper)
     tokio::spawn(async {
         tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
         std::process::exit(100);
@@ -118,40 +164,6 @@ pub async fn clear_completed_jobs(State(qm): State<AppState>) -> Json<ApiRespons
 pub async fn reset_metrics(State(qm): State<AppState>) -> Json<ApiResponse<&'static str>> {
     qm.reset_metrics().await;
     ApiResponse::success("Metrics reset")
-}
-
-/// Test database connection request.
-#[derive(Deserialize)]
-pub struct TestDbRequest {
-    pub url: String,
-}
-
-/// Test database connection.
-pub async fn test_db_connection(Json(req): Json<TestDbRequest>) -> Json<ApiResponse<&'static str>> {
-    // Try to connect to the database
-    match sqlx::postgres::PgPoolOptions::new()
-        .max_connections(1)
-        .acquire_timeout(std::time::Duration::from_secs(5))
-        .connect(&req.url)
-        .await
-    {
-        Ok(_) => ApiResponse::success("Connection successful"),
-        Err(e) => ApiResponse::error(format!("Connection failed: {}", e)),
-    }
-}
-
-/// Save database settings request.
-#[derive(Deserialize)]
-#[allow(dead_code)]
-pub struct SaveDbRequest {
-    pub url: String,
-}
-
-/// Save database settings.
-pub async fn save_db_settings(Json(_req): Json<SaveDbRequest>) -> Json<ApiResponse<&'static str>> {
-    // Note: Cannot change DATABASE_URL at runtime safely
-    // This would require reconnecting all pool connections
-    ApiResponse::error("Cannot change database URL at runtime. Set DATABASE_URL environment variable and restart the server.")
 }
 
 /// Save auth settings request.
@@ -242,8 +254,6 @@ pub struct SystemMetrics {
 /// Get system metrics.
 pub async fn get_system_metrics(State(qm): State<AppState>) -> Json<ApiResponse<SystemMetrics>> {
     let uptime = get_uptime_seconds();
-
-    // Get memory info using sysinfo-like approach
     let (memory_used, memory_total) = get_memory_info();
     let tcp_connections = qm.connection_count();
 
@@ -255,7 +265,7 @@ pub async fn get_system_metrics(State(qm): State<AppState>) -> Json<ApiResponse<
         } else {
             0.0
         },
-        cpu_percent: 0.0, // CPU tracking requires background monitoring
+        cpu_percent: 0.0,
         tcp_connections,
         uptime_seconds: uptime,
         process_id: std::process::id(),
@@ -264,15 +274,13 @@ pub async fn get_system_metrics(State(qm): State<AppState>) -> Json<ApiResponse<
 }
 
 fn get_memory_info() -> (f64, f64) {
-    // Try to read from /proc/self/statm on Linux
     #[cfg(target_os = "linux")]
     {
         if let Ok(statm) = std::fs::read_to_string("/proc/self/statm") {
             let parts: Vec<&str> = statm.split_whitespace().collect();
             if parts.len() >= 2 {
-                let page_size = 4096.0; // Typically 4KB pages
+                let page_size = 4096.0;
                 let resident: f64 = parts[1].parse().unwrap_or(0.0) * page_size / 1024.0 / 1024.0;
-                // Get total memory from /proc/meminfo
                 if let Ok(meminfo) = std::fs::read_to_string("/proc/meminfo") {
                     for line in meminfo.lines() {
                         if line.starts_with("MemTotal:") {
@@ -291,16 +299,353 @@ fn get_memory_info() -> (f64, f64) {
         (0.0, 0.0)
     }
 
-    // macOS: use mach APIs or fallback
     #[cfg(target_os = "macos")]
     {
-        // Simple fallback - return approximate values
-        // In production, you'd use mach_task_basic_info
         (0.0, 0.0)
     }
 
     #[cfg(not(any(target_os = "linux", target_os = "macos")))]
     {
         (0.0, 0.0)
+    }
+}
+
+// ============================================================================
+// SQLite Configuration API
+// ============================================================================
+
+use std::io::Write;
+use parking_lot::RwLock;
+
+/// Runtime SQLite configuration (pending, requires restart)
+static PENDING_SQLITE_CONFIG: RwLock<Option<SqliteConfigRequest>> = RwLock::new(None);
+
+/// SQLite settings request.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct SqliteConfigRequest {
+    pub enabled: bool,
+    pub path: Option<String>,
+    pub synchronous: Option<bool>,
+    pub cache_size_mb: Option<i32>,
+}
+
+/// Get pending SQLite configuration (if any).
+pub fn get_pending_sqlite_config() -> Option<SqliteConfigRequest> {
+    PENDING_SQLITE_CONFIG.read().clone()
+}
+
+/// Save SQLite settings (writes to .env file, requires restart).
+pub async fn save_sqlite_settings(
+    Json(req): Json<SqliteConfigRequest>,
+) -> Json<ApiResponse<&'static str>> {
+    // Store pending config
+    {
+        let mut guard = PENDING_SQLITE_CONFIG.write();
+        *guard = Some(req.clone());
+    }
+
+    // Try to write to .env file for persistence across restarts
+    let env_content = if req.enabled {
+        let path = req.path.unwrap_or_else(|| "flashq.db".to_string());
+        let sync = if req.synchronous.unwrap_or(true) { "1" } else { "0" };
+        let cache = req.cache_size_mb.unwrap_or(64);
+        format!(
+            "# flashQ SQLite Configuration\nDATA_PATH={}\nSQLITE_SYNCHRONOUS={}\nSQLITE_CACHE_SIZE=-{}\n",
+            path, sync, cache * 1000
+        )
+    } else {
+        "# flashQ SQLite Configuration\n# DATA_PATH is not set - running in memory mode\n".to_string()
+    };
+
+    // Write to .env.flashq file
+    let env_path = std::path::Path::new(".env.flashq");
+    match std::fs::File::create(env_path) {
+        Ok(mut file) => {
+            if let Err(e) = file.write_all(env_content.as_bytes()) {
+                return ApiResponse::error_string(format!("Failed to write config: {}", e));
+            }
+        }
+        Err(e) => {
+            return ApiResponse::error_string(format!("Failed to create config file: {}", e));
+        }
+    }
+
+    ApiResponse::success("SQLite configuration saved. Restart server to apply changes.")
+}
+
+/// Get current SQLite configuration status.
+pub async fn get_sqlite_settings(State(qm): State<AppState>) -> Json<ApiResponse<SqliteSettings>> {
+    let pending = get_pending_sqlite_config();
+
+    let settings = SqliteSettings {
+        enabled: qm.has_storage(),
+        path: std::env::var("DATA_PATH")
+            .or_else(|_| std::env::var("SQLITE_PATH"))
+            .ok(),
+        synchronous: std::env::var("SQLITE_SYNCHRONOUS")
+            .map(|v| v == "1" || v.to_lowercase() == "true")
+            .unwrap_or(true),
+        snapshot_interval: std::env::var("SNAPSHOT_INTERVAL")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(60),
+        snapshot_min_changes: std::env::var("SNAPSHOT_MIN_CHANGES")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(100),
+    };
+
+    // If there's a pending config, indicate restart is needed
+    if pending.is_some() {
+        tracing::info!("Pending SQLite configuration exists - restart required to apply");
+    }
+
+    ApiResponse::success(settings)
+}
+
+// ============================================================================
+// S3 Backup Configuration API
+// ============================================================================
+
+use crate::queue::sqlite::{S3BackupConfig, set_runtime_s3_config, get_runtime_s3_config, clear_runtime_s3_config};
+
+/// S3 settings request.
+#[derive(Deserialize)]
+pub struct SaveS3SettingsRequest {
+    pub enabled: bool,
+    pub endpoint: Option<String>,
+    pub bucket: Option<String>,
+    pub region: Option<String>,
+    pub access_key: Option<String>,
+    pub secret_key: Option<String>,
+    pub interval_secs: Option<u64>,
+    pub keep_count: Option<usize>,
+    pub prefix: Option<String>,
+    pub compress: Option<bool>,
+}
+
+/// Save S3 settings (runtime configuration).
+pub async fn save_s3_settings(
+    Json(req): Json<SaveS3SettingsRequest>,
+) -> Json<ApiResponse<&'static str>> {
+    if !req.enabled {
+        clear_runtime_s3_config();
+        return ApiResponse::success("S3 backup disabled");
+    }
+
+    // Validate required fields
+    let endpoint = match req.endpoint {
+        Some(e) if !e.is_empty() => e,
+        _ => return ApiResponse::error("S3 endpoint is required"),
+    };
+    let bucket = match req.bucket {
+        Some(b) if !b.is_empty() => b,
+        _ => return ApiResponse::error("S3 bucket is required"),
+    };
+    let access_key = match req.access_key {
+        Some(k) if !k.is_empty() => k,
+        _ => return ApiResponse::error("S3 access key is required"),
+    };
+    let secret_key = match req.secret_key {
+        Some(s) if !s.is_empty() => s,
+        _ => return ApiResponse::error("S3 secret key is required"),
+    };
+
+    let config = S3BackupConfig::new(endpoint, bucket, access_key, secret_key)
+        .with_region(req.region.unwrap_or_else(|| "auto".to_string()))
+        .with_interval(req.interval_secs.unwrap_or(300))
+        .with_keep_count(req.keep_count.unwrap_or(24))
+        .with_prefix(req.prefix.unwrap_or_else(|| "backups/".to_string()))
+        .with_compress(req.compress.unwrap_or(true));
+
+    set_runtime_s3_config(config);
+    ApiResponse::success("S3 backup configuration saved")
+}
+
+/// Test S3 connection.
+pub async fn test_s3_connection(
+    Json(req): Json<SaveS3SettingsRequest>,
+) -> Json<ApiResponse<&'static str>> {
+    // Validate required fields
+    let endpoint = match req.endpoint {
+        Some(e) if !e.is_empty() => e,
+        _ => return ApiResponse::error("S3 endpoint is required"),
+    };
+    let bucket = match req.bucket {
+        Some(b) if !b.is_empty() => b,
+        _ => return ApiResponse::error("S3 bucket is required"),
+    };
+    let access_key = match req.access_key {
+        Some(k) if !k.is_empty() => k,
+        _ => return ApiResponse::error("S3 access key is required"),
+    };
+    let secret_key = match req.secret_key {
+        Some(s) if !s.is_empty() => s,
+        _ => return ApiResponse::error("S3 secret key is required"),
+    };
+
+    let config = S3BackupConfig::new(endpoint, bucket, access_key, secret_key)
+        .with_region(req.region.unwrap_or_else(|| "auto".to_string()));
+
+    // Try to create backup manager and list objects
+    match crate::queue::sqlite::S3BackupManager::new(config).await {
+        Ok(manager) => {
+            match manager.list_backups().await {
+                Ok(_) => ApiResponse::success("Connection successful"),
+                Err(e) => ApiResponse::error_string(format!("Connection failed: {}", e)),
+            }
+        }
+        Err(e) => ApiResponse::error_string(format!("Failed to initialize S3 client: {}", e)),
+    }
+}
+
+/// Get current S3 configuration (without secrets).
+pub async fn get_s3_settings() -> Json<ApiResponse<S3BackupSettings>> {
+    // Check runtime config first
+    if let Some(config) = get_runtime_s3_config() {
+        return ApiResponse::success(S3BackupSettings {
+            enabled: true,
+            endpoint: Some(config.endpoint),
+            bucket: Some(config.bucket),
+            region: Some(config.region),
+            interval_secs: config.interval_secs,
+            keep_count: config.keep_count,
+            compress: config.compress,
+        });
+    }
+
+    // Fall back to env settings
+    let settings = S3BackupSettings {
+        enabled: std::env::var("S3_BACKUP_ENABLED")
+            .map(|v| v == "1" || v.to_lowercase() == "true")
+            .unwrap_or(false),
+        endpoint: std::env::var("S3_ENDPOINT").ok(),
+        bucket: std::env::var("S3_BUCKET").ok(),
+        region: std::env::var("S3_REGION").ok(),
+        interval_secs: std::env::var("S3_BACKUP_INTERVAL_SECS")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(300),
+        keep_count: std::env::var("S3_BACKUP_KEEP_COUNT")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(24),
+        compress: std::env::var("S3_BACKUP_COMPRESS")
+            .map(|v| v == "1" || v.to_lowercase() == "true")
+            .unwrap_or(true),
+    };
+    ApiResponse::success(settings)
+}
+
+// ============================================================================
+// S3 Backup Operations API
+// ============================================================================
+
+/// S3 backup info response.
+#[derive(Serialize)]
+pub struct S3BackupInfo {
+    pub key: String,
+    pub size: i64,
+    pub last_modified: Option<String>,
+}
+
+/// Trigger manual S3 backup.
+pub async fn trigger_s3_backup() -> Json<ApiResponse<&'static str>> {
+    let config = match S3BackupConfig::from_env() {
+        Some(c) => c,
+        None => return ApiResponse::error("S3 backup not configured"),
+    };
+
+    let db_path = match std::env::var("DATA_PATH").or_else(|_| std::env::var("SQLITE_PATH")) {
+        Ok(p) => std::path::PathBuf::from(p),
+        Err(_) => return ApiResponse::error("DATA_PATH not configured"),
+    };
+
+    let backup_manager = match crate::queue::sqlite::S3BackupManager::new(config).await {
+        Ok(m) => m,
+        Err(e) => return ApiResponse::error_string(format!("Failed to create backup manager: {}", e)),
+    };
+
+    match backup_manager.backup(&db_path).await {
+        Ok(()) => ApiResponse::success("Backup completed successfully"),
+        Err(e) => ApiResponse::error_string(format!("Backup failed: {}", e)),
+    }
+}
+
+/// List available S3 backups.
+pub async fn list_s3_backups() -> Json<ApiResponse<Vec<S3BackupInfo>>> {
+    let config = match S3BackupConfig::from_env() {
+        Some(c) => c,
+        None => return ApiResponse::error("S3 backup not configured"),
+    };
+
+    let backup_manager = match crate::queue::sqlite::S3BackupManager::new(config).await {
+        Ok(m) => m,
+        Err(e) => return ApiResponse::error_string(format!("Failed to create backup manager: {}", e)),
+    };
+
+    match backup_manager.list_backups_detailed().await {
+        Ok(backups) => ApiResponse::success(backups.into_iter().map(|(key, size, modified)| {
+            S3BackupInfo {
+                key,
+                size,
+                last_modified: modified,
+            }
+        }).collect()),
+        Err(e) => ApiResponse::error_string(format!("Failed to list backups: {}", e)),
+    }
+}
+
+/// Restore request.
+#[derive(Deserialize)]
+pub struct RestoreRequest {
+    pub key: String,
+}
+
+/// Restore from S3 backup.
+pub async fn restore_s3_backup(
+    Json(req): Json<RestoreRequest>,
+) -> Json<ApiResponse<&'static str>> {
+    let config = match S3BackupConfig::from_env() {
+        Some(c) => c,
+        None => return ApiResponse::error("S3 backup not configured"),
+    };
+
+    let db_path = match std::env::var("DATA_PATH").or_else(|_| std::env::var("SQLITE_PATH")) {
+        Ok(p) => std::path::PathBuf::from(p),
+        Err(_) => return ApiResponse::error("DATA_PATH not configured"),
+    };
+
+    let backup_manager = match crate::queue::sqlite::S3BackupManager::new(config).await {
+        Ok(m) => m,
+        Err(e) => return ApiResponse::error_string(format!("Failed to create backup manager: {}", e)),
+    };
+
+    // Restore to a temporary file first, then swap
+    let restore_path = db_path.with_extension("restore.db");
+
+    match backup_manager.restore(&req.key, &restore_path).await {
+        Ok(()) => {
+            // Rename current db to .bak, then rename restore to current
+            let backup_path = db_path.with_extension("bak");
+            if db_path.exists() {
+                if let Err(e) = std::fs::rename(&db_path, &backup_path) {
+                    let _ = std::fs::remove_file(&restore_path);
+                    return ApiResponse::error_string(format!("Failed to backup current db: {}", e));
+                }
+            }
+            if let Err(e) = std::fs::rename(&restore_path, &db_path) {
+                // Try to restore the backup
+                let _ = std::fs::rename(&backup_path, &db_path);
+                return ApiResponse::error_string(format!("Failed to restore db: {}", e));
+            }
+            // Remove the backup
+            let _ = std::fs::remove_file(&backup_path);
+            ApiResponse::success("Restore completed. Please restart the server.")
+        }
+        Err(e) => {
+            let _ = std::fs::remove_file(&restore_path);
+            ApiResponse::error_string(format!("Restore failed: {}", e))
+        }
     }
 }

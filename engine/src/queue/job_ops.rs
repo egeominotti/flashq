@@ -154,7 +154,7 @@ impl QueueManager {
 
                 // Persist
                 if let Some(ref storage) = self.storage {
-                    let _ = storage.change_priority(job_id, new_priority).await;
+                    let _ = storage.change_priority(job_id, new_priority);
                 }
                 Ok(())
             }
@@ -194,7 +194,7 @@ impl QueueManager {
                 if found {
                     // Persist (lock dropped before await)
                     if let Some(ref storage) = self.storage {
-                        let _ = storage.change_priority(job_id, new_priority).await;
+                        let _ = storage.change_priority(job_id, new_priority);
                     }
                     return Ok(());
                 }
@@ -219,7 +219,7 @@ impl QueueManager {
                 if found {
                     // Persist (lock dropped before await)
                     if let Some(ref storage) = self.storage {
-                        let _ = storage.change_priority(job_id, new_priority).await;
+                        let _ = storage.change_priority(job_id, new_priority);
                     }
                     return Ok(());
                 }
@@ -240,7 +240,7 @@ impl QueueManager {
                 if found {
                     // Persist (lock dropped before await)
                     if let Some(ref storage) = self.storage {
-                        let _ = storage.change_priority(job_id, new_priority).await;
+                        let _ = storage.change_priority(job_id, new_priority);
                     }
                     return Ok(());
                 }
@@ -261,7 +261,7 @@ impl QueueManager {
                 if found {
                     // Persist (lock dropped before await)
                     if let Some(ref storage) = self.storage {
-                        let _ = storage.change_priority(job_id, new_priority).await;
+                        let _ = storage.change_priority(job_id, new_priority);
                     }
                     return Ok(());
                 }
@@ -301,7 +301,7 @@ impl QueueManager {
         // 5. Persist (needs run_at value)
         let run_at = job.run_at;
         if let Some(ref storage) = self.storage {
-            let _ = storage.move_to_delayed(job_id, run_at).await;
+            let _ = storage.move_to_delayed(job_id, run_at);
         }
 
         // 6. Push to queue (moves ownership, no clone needed)
@@ -374,7 +374,7 @@ impl QueueManager {
 
                 // Persist (lock dropped)
                 if let Some(ref storage) = self.storage {
-                    let _ = storage.promote_job(job_id, now).await;
+                    let _ = storage.promote_job(job_id, now);
                 }
 
                 Ok(())
@@ -398,7 +398,7 @@ impl QueueManager {
                 if found {
                     // Persist
                     if let Some(ref storage) = self.storage {
-                        let _ = storage.update_job_data(job_id, &new_data).await;
+                        let _ = storage.update_job_data(job_id, &new_data);
                     }
                     Ok(())
                 } else {
@@ -441,7 +441,7 @@ impl QueueManager {
                 if found {
                     // Persist (lock dropped)
                     if let Some(ref storage) = self.storage {
-                        let _ = storage.update_job_data(job_id, &new_data).await;
+                        let _ = storage.update_job_data(job_id, &new_data);
                     }
                     Ok(())
                 } else {
@@ -466,7 +466,7 @@ impl QueueManager {
                 if found {
                     // Persist (lock dropped)
                     if let Some(ref storage) = self.storage {
-                        let _ = storage.update_job_data(job_id, &new_data).await;
+                        let _ = storage.update_job_data(job_id, &new_data);
                     }
                     Ok(())
                 } else {
@@ -511,7 +511,7 @@ impl QueueManager {
 
                 // Persist
                 if let Some(ref storage) = self.storage {
-                    let _ = storage.discard_job(job_id).await;
+                    let _ = storage.discard_job(job_id);
                 }
 
                 Ok(())
@@ -557,7 +557,7 @@ impl QueueManager {
                 if found {
                     // Persist (lock dropped)
                     if let Some(ref storage) = self.storage {
-                        let _ = storage.discard_job(job_id).await;
+                        let _ = storage.discard_job(job_id);
                     }
                     Ok(())
                 } else {

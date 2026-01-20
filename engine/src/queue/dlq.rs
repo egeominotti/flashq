@@ -79,15 +79,11 @@ impl QueueManager {
                 self.job_index.remove(id);
             }
 
-            // Persist to PostgreSQL
+            // Persist to SQLite
             if let Some(ref storage) = self.storage {
-                let storage = std::sync::Arc::clone(storage);
-                let queue = queue_name.to_string();
-                tokio::spawn(async move {
-                    if let Err(e) = storage.purge_dlq(&queue).await {
-                        error!(queue = %queue, error = %e, "Failed to persist purge_dlq");
-                    }
-                });
+                if let Err(e) = storage.purge_dlq(queue_name) {
+                    error!(queue = %queue_name, error = %e, "Failed to persist purge_dlq");
+                }
             }
 
             count

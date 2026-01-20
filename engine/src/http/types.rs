@@ -201,6 +201,14 @@ impl<T> ApiResponse<T> {
             error: Some(msg.into()),
         })
     }
+
+    pub fn error_string(msg: String) -> Json<Self> {
+        Json(Self {
+            ok: false,
+            data: None,
+            error: Some(msg),
+        })
+    }
 }
 
 /// Job detail response with state and result.

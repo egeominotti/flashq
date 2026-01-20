@@ -38,8 +38,14 @@ ulid = "1.1"                    # Sortable IDs, faster than UUID v4
 croner = "2.0"                  # Full 6-field cron expression parsing
 chrono = { version = "0.4", default-features = false, features = ["std", "clock"] }
 
-# Database
-sqlx = { version = "0.8", features = ["runtime-tokio", "postgres", "json"] }
+# Database (SQLite embedded)
+rusqlite = { version = "0.32", features = ["bundled", "backup"] }
+
+# S3-compatible backup (AWS S3, Cloudflare R2, MinIO, etc.)
+aws-sdk-s3 = { version = "1.65", features = ["behavior-version-latest"] }
+aws-config = { version = "1.5", features = ["behavior-version-latest"] }
+aws-credential-types = "1.2"
+flate2 = "1.0"  # gzip compression for backups
 
 # HTTP Client
 reqwest = { version = "0.13", default-features = false, features = ["json", "rustls"] }

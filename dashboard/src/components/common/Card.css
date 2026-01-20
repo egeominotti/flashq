@@ -1,0 +1,39 @@
+.card {
+  background: #141416;
+  border: 1px solid #27272a;
+  border-radius: 0.75rem;
+  overflow: hidden;
+}
+
+.card-danger {
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid #27272a;
+}
+
+.card-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #fafafa;
+  margin: 0;
+}
+
+.card-danger .card-title {
+  color: #ef4444;
+}
+
+.card-subtitle {
+  font-size: 0.875rem;
+  color: #71717a;
+  margin-top: 0.125rem;
+}
+
+.card-body {
+  padding: 1.25rem;
+}
