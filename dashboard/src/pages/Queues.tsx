@@ -23,29 +23,18 @@ import {
   Trash2,
   RefreshCw,
 } from 'lucide-react';
-import { useStats } from '../hooks';
+import { useQueues } from '../hooks';
 import { api } from '../api/client';
 import { formatNumber } from '../utils';
+import type { Queue } from '../api/types';
 import './Queues.css';
 
-interface QueueStats {
-  name: string;
-  waiting: number;
-  processing: number;
-  completed: number;
-  failed: number;
-  delayed: number;
-  paused: boolean;
-  rate_limit?: number;
-  concurrency_limit?: number;
-}
-
 export function Queues() {
-  const { data: stats, refetch } = useStats();
+  const { data: queuesData, refetch } = useQueues();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
 
-  const queues: QueueStats[] = stats?.queues || [];
+  const queues: Queue[] = queuesData || [];
 
   const filteredQueues = queues.filter((queue) => {
     const matchesSearch = queue.name.toLowerCase().includes(searchTerm.toLowerCase());
@@ -73,10 +62,10 @@ export function Queues() {
     }
   };
 
-  const getQueueStatus = (queue: QueueStats) => {
+  const getQueueStatus = (queue: Queue) => {
     if (queue.paused) return { label: 'Paused', color: 'amber' as const };
     if (queue.processing > 0) return { label: 'Active', color: 'emerald' as const };
-    if (queue.waiting > 0) return { label: 'Pending', color: 'blue' as const };
+    if (queue.pending > 0) return { label: 'Pending', color: 'blue' as const };
     return { label: 'Idle', color: 'zinc' as const };
   };
 
@@ -163,24 +152,24 @@ export function Queues() {
                       <Badge color={status.color}>{status.label}</Badge>
                     </TableCell>
                     <TableCell className="text-right">
-                      <Badge color="cyan">{formatNumber(queue.waiting)}</Badge>
+                      <Badge color="cyan">{formatNumber(queue.pending)}</Badge>
                     </TableCell>
                     <TableCell className="text-right">
                       <Badge color="blue">{formatNumber(queue.processing)}</Badge>
                     </TableCell>
                     <TableCell className="text-right">
                       <span className="text-emerald-400 font-mono">
-                        {formatNumber(queue.completed)}
+                        {formatNumber(queue.completed || 0)}
                       </span>
                     </TableCell>
                     <TableCell className="text-right">
                       <span className="text-rose-400 font-mono">
-                        {formatNumber(queue.failed)}
+                        {formatNumber(queue.dlq)}
                       </span>
                     </TableCell>
                     <TableCell className="text-right">
                       <span className="text-amber-400 font-mono">
-                        {formatNumber(queue.delayed)}
+                        {formatNumber(queue.delayed || 0)}
                       </span>
                     </TableCell>
                     <TableCell className="text-right">
@@ -229,7 +218,7 @@ export function Queues() {
           </Text>
           <Flex className="gap-4">
             <Text>
-              Total Waiting: <span className="text-cyan-400 font-mono">{formatNumber(queues.reduce((sum, q) => sum + q.waiting, 0))}</span>
+              Total Waiting: <span className="text-cyan-400 font-mono">{formatNumber(queues.reduce((sum, q) => sum + q.pending, 0))}</span>
             </Text>
             <Text>
               Total Active: <span className="text-blue-400 font-mono">{formatNumber(queues.reduce((sum, q) => sum + q.processing, 0))}</span>

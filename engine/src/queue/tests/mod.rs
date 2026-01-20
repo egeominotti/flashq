@@ -92,3 +92,6 @@ mod kv;
 
 // Group support: FIFO processing within groups
 mod groups;
+
+// Async writer: non-blocking SQLite persistence
+mod async_writer;

@@ -28,9 +28,10 @@ import {
   RotateCcw,
   Trash2,
 } from 'lucide-react';
-import { useJobs, useStats } from '../hooks';
+import { useJobs, useQueues } from '../hooks';
 import { api } from '../api/client';
 import { formatNumber, formatRelativeTime } from '../utils';
+import type { Queue } from '../api/types';
 import './Jobs.css';
 
 type JobState = 'all' | 'waiting' | 'active' | 'completed' | 'failed' | 'delayed';
@@ -44,19 +45,19 @@ const stateConfig: Record<string, { label: string; color: 'cyan' | 'blue' | 'eme
 };
 
 export function Jobs() {
-  const { data: stats, refetch: refetchStats } = useStats();
-  const [selectedQueue, setSelectedQueue] = useState('');
+  const { data: queuesData, refetch: refetchQueues } = useQueues();
+  const [selectedQueue, setSelectedQueue] = useState(''); // Empty = all queues
   const [selectedState, setSelectedState] = useState<JobState>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedJob, setSelectedJob] = useState<any>(null);
 
-  const queues = stats?.queues || [];
-  const queueName = selectedQueue || queues[0]?.name || '';
+  const queues: Queue[] = queuesData || [];
 
+  // Fetch jobs - empty queue means all jobs
   const { data: jobsData, refetch: refetchJobs } = useJobs(
-    queueName,
+    selectedQueue || undefined, // Pass undefined to fetch all jobs
     selectedState === 'all' ? undefined : selectedState,
-    50
+    100
   );
 
   const jobs = jobsData?.jobs || [];
@@ -66,23 +67,23 @@ export function Jobs() {
     job.custom_id?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const handleRetry = async (jobId: string) => {
+  const handleRetry = async (queueName: string, jobId: string) => {
     await api.retryJob(queueName, jobId);
     refetchJobs();
-    refetchStats();
+    refetchQueues();
   };
 
   const handleCancel = async (jobId: number) => {
     if (confirm('Are you sure you want to cancel this job?')) {
       await api.cancelJob(jobId);
       refetchJobs();
-      refetchStats();
+      refetchQueues();
     }
   };
 
   const handleRefresh = () => {
     refetchJobs();
-    refetchStats();
+    refetchQueues();
   };
 
   return (
@@ -109,10 +110,11 @@ export function Jobs() {
           <Select
             value={selectedQueue}
             onValueChange={setSelectedQueue}
-            placeholder="Select queue"
+            placeholder="All Queues"
             className="max-w-xs"
           >
-            {queues.map((q: any) => (
+            <SelectItem value="">All Queues</SelectItem>
+            {queues.map((q: Queue) => (
               <SelectItem key={q.name} value={q.name}>
                 {q.name}
               </SelectItem>
@@ -145,8 +147,20 @@ export function Jobs() {
         <div className="state-summary mb-6">
           <Flex className="gap-3">
             {Object.entries(stateConfig).map(([state, config]) => {
-              const queue = queues.find((q: any) => q.name === queueName);
-              const count = queue ? queue[state as keyof typeof queue] || 0 : 0;
+              // Calculate totals across all queues or selected queue
+              let count = 0;
+              const relevantQueues = selectedQueue
+                ? queues.filter((q: Queue) => q.name === selectedQueue)
+                : queues;
+
+              for (const queue of relevantQueues) {
+                if (state === 'waiting') count += queue.pending || 0;
+                else if (state === 'active') count += queue.processing || 0;
+                else if (state === 'completed') count += queue.completed || 0;
+                else if (state === 'failed') count += queue.dlq || 0;
+                else if (state === 'delayed') count += queue.delayed || 0;
+              }
+
               const Icon = config.icon;
               return (
                 <button
@@ -157,7 +171,7 @@ export function Jobs() {
                   <Icon className="w-4 h-4" />
                   <span className="state-label">{config.label}</span>
                   <Badge size="xs" color={config.color}>
-                    {formatNumber(count as number)}
+                    {formatNumber(count)}
                   </Badge>
                 </button>
               );
@@ -170,7 +184,7 @@ export function Jobs() {
           <TableHead>
             <TableRow>
               <TableHeaderCell>Job ID</TableHeaderCell>
-              <TableHeaderCell>Custom ID</TableHeaderCell>
+              <TableHeaderCell>Queue</TableHeaderCell>
               <TableHeaderCell>State</TableHeaderCell>
               <TableHeaderCell>Priority</TableHeaderCell>
               <TableHeaderCell>Attempts</TableHeaderCell>
@@ -183,7 +197,7 @@ export function Jobs() {
               <TableRow>
                 <TableCell colSpan={7}>
                   <div className="text-center py-8">
-                    <Text>{queueName ? 'No jobs found' : 'Select a queue to view jobs'}</Text>
+                    <Text>No jobs found</Text>
                   </div>
                 </TableCell>
               </TableRow>
@@ -197,9 +211,7 @@ export function Jobs() {
                       <span className="font-mono text-white">{job.id}</span>
                     </TableCell>
                     <TableCell>
-                      <span className="font-mono text-zinc-400">
-                        {job.custom_id || '-'}
-                      </span>
+                      <Badge size="xs" color="cyan">{job.queue}</Badge>
                     </TableCell>
                     <TableCell>
                       <Badge color={config.color}>{config.label}</Badge>
@@ -232,7 +244,7 @@ export function Jobs() {
                             size="xs"
                             variant="secondary"
                             icon={RotateCcw}
-                            onClick={() => handleRetry(job.id)}
+                            onClick={() => handleRetry(job.queue, job.id)}
                           >
                             Retry
                           </Button>

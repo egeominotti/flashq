@@ -19,26 +19,35 @@ import {
   TrendingUp,
   Zap,
 } from 'lucide-react';
-import { useStats, useMetrics } from '../hooks';
+import { useStats, useMetrics, useMetricsHistory } from '../hooks';
 import { formatNumber } from '../utils';
 import './Overview.css';
 
 export function Overview() {
   const { data: stats } = useStats();
   const { data: metrics } = useMetrics();
+  const { data: metricsHistory } = useMetricsHistory();
+
+  // Calculate totals from actual API data
+  const totalQueued = stats?.queued || 0;
+  const totalProcessing = stats?.processing || 0;
+  const totalDelayed = stats?.delayed || 0;
+  const totalDlq = stats?.dlq || 0;
+  const totalCompleted = metrics?.total_completed || 0;
+  const totalPushed = metrics?.total_pushed || 0;
 
   const kpis = [
     {
-      title: 'Total Jobs',
-      value: formatNumber(stats?.total_jobs || 0),
+      title: 'Queued',
+      value: formatNumber(totalQueued),
       icon: Activity,
       color: 'cyan',
-      change: '+12.3%',
-      changeType: 'increase' as const,
+      change: `${totalDelayed} delayed`,
+      changeType: 'neutral' as const,
     },
     {
       title: 'Processing',
-      value: formatNumber(stats?.total_processing || 0),
+      value: formatNumber(totalProcessing),
       icon: Zap,
       color: 'blue',
       change: 'Active',
@@ -46,40 +55,48 @@ export function Overview() {
     },
     {
       title: 'Completed',
-      value: formatNumber(stats?.total_completed || 0),
+      value: formatNumber(totalCompleted),
       icon: CheckCircle2,
       color: 'emerald',
-      change: stats?.total_jobs ? `${((stats.total_completed / stats.total_jobs) * 100).toFixed(1)}%` : '0%',
+      change: totalPushed ? `${((totalCompleted / totalPushed) * 100).toFixed(1)}%` : '0%',
       changeType: 'increase' as const,
     },
     {
-      title: 'Failed',
-      value: formatNumber(stats?.total_dlq || 0),
+      title: 'Failed (DLQ)',
+      value: formatNumber(totalDlq),
       icon: XCircle,
       color: 'rose',
-      change: stats?.total_jobs ? `${((stats.total_dlq / stats.total_jobs) * 100).toFixed(1)}%` : '0%',
-      changeType: 'decrease' as const,
+      change: totalPushed ? `${((totalDlq / totalPushed) * 100).toFixed(1)}%` : '0%',
+      changeType: totalDlq > 0 ? 'decrease' as const : 'neutral' as const,
     },
   ];
 
-  // Transform metrics for charts
-  const throughputData = metrics?.history?.map((point: { timestamp: string; jobs_per_sec: number }) => ({
+  // Transform metrics history for throughput chart
+  const throughputData = metricsHistory?.map((point: { timestamp: number; throughput: number }) => ({
     date: new Date(point.timestamp).toLocaleTimeString('en-US', {
       hour: '2-digit',
       minute: '2-digit'
     }),
-    'Jobs/sec': point.jobs_per_sec,
+    'Jobs/sec': point.throughput || 0,
   })) || [];
 
-  const queueDistribution = stats?.queues?.map((q: { name: string; waiting: number }) => ({
-    name: q.name,
-    value: q.waiting,
-  })) || [];
+  // Get queue data from metrics endpoint
+  const queues = metrics?.queues || [];
 
-  const queueBarList = stats?.queues?.slice(0, 5).map((q: { name: string; waiting: number; processing: number }) => ({
-    name: q.name,
-    value: q.waiting + q.processing,
-  })) || [];
+  const queueDistribution = queues
+    .filter((q: { pending: number }) => q.pending > 0)
+    .map((q: { name: string; pending: number }) => ({
+      name: q.name,
+      value: q.pending,
+    })) || [];
+
+  const queueBarList = queues
+    .filter((q: { pending: number; processing: number }) => q.pending > 0 || q.processing > 0)
+    .slice(0, 5)
+    .map((q: { name: string; pending: number; processing: number }) => ({
+      name: q.name,
+      value: q.pending + q.processing,
+    })) || [];
 
   return (
     <div className="overview-page">
@@ -162,7 +179,7 @@ export function Overview() {
             </div>
             <Badge color="blue">
               <Layers className="w-3 h-3 mr-1" />
-              {stats?.queues?.length || 0} Queues
+              {queues.length} Queues
             </Badge>
           </Flex>
           {queueDistribution.length > 0 ? (
@@ -202,24 +219,24 @@ export function Overview() {
           <div className="mt-6 space-y-6">
             <div>
               <Flex>
-                <Text>Memory Usage</Text>
-                <Text>{metrics?.memory_mb?.toFixed(0) || 0} MB</Text>
+                <Text>Avg Latency</Text>
+                <Text>{metrics?.avg_latency_ms?.toFixed(1) || 0} ms</Text>
               </Flex>
-              <ProgressBar value={Math.min((metrics?.memory_mb || 0) / 1024 * 100, 100)} color="cyan" className="mt-2" />
+              <ProgressBar value={Math.min((metrics?.avg_latency_ms || 0) / 10, 100)} color="cyan" className="mt-2" />
             </div>
             <div>
               <Flex>
-                <Text>Active Workers</Text>
-                <Text>{stats?.active_connections || 0}</Text>
+                <Text>Jobs/sec</Text>
+                <Text>{metrics?.jobs_per_second?.toFixed(1) || 0}</Text>
               </Flex>
-              <ProgressBar value={Math.min((stats?.active_connections || 0) * 10, 100)} color="blue" className="mt-2" />
+              <ProgressBar value={Math.min((metrics?.jobs_per_second || 0) * 10, 100)} color="blue" className="mt-2" />
             </div>
             <div>
               <Flex>
-                <Text>Queue Utilization</Text>
-                <Text>{stats?.queues?.length || 0} active</Text>
+                <Text>Active Queues</Text>
+                <Text>{queues.length} queues</Text>
               </Flex>
-              <ProgressBar value={Math.min((stats?.queues?.length || 0) * 5, 100)} color="emerald" className="mt-2" />
+              <ProgressBar value={Math.min(queues.length * 10, 100)} color="emerald" className="mt-2" />
             </div>
           </div>
         </Card>

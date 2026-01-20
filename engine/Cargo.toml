@@ -25,7 +25,7 @@ dashmap = "6"                   # Lock-free concurrent HashMap (40% faster looku
 compact_str = "0.8"             # Inline strings up to 24 chars (zero heap alloc)
 
 # HTTP
-axum = { version = "0.8", features = ["ws"] }
+axum = { version = "0.8", features = ["ws", "multipart"] }
 tower-http = { version = "0.6", features = ["cors"] }
 
 # Hashing - OPTIMIZED

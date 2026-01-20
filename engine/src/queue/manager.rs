@@ -126,13 +126,21 @@ impl QueueManager {
     /// Create a new QueueManager with SQLite persistence.
     pub fn with_sqlite(config: SqliteConfig) -> Arc<Self> {
         match SqliteStorage::new(config) {
-            Ok(storage) => {
+            Ok(mut storage) => {
                 if let Err(e) = storage.migrate() {
                     error!(error = %e, "Failed to run SQLite migrations");
                 }
 
+                // Enable async writer for non-blocking persistence
+                let async_writer_config = super::sqlite::AsyncWriterConfig::default();
+                let async_writer = storage.enable_async_writer(async_writer_config);
+
                 let storage = Arc::new(storage);
                 let manager = Self::create(Some(storage.clone()), None);
+
+                // Start async writer background task
+                async_writer.start();
+                info!("SQLite async writer started for maximum throughput");
 
                 // Recover from SQLite
                 manager.recover_from_sqlite(&storage);
@@ -291,6 +299,46 @@ impl QueueManager {
     #[inline]
     pub fn has_storage(&self) -> bool {
         self.storage.is_some()
+    }
+
+    /// Get async writer stats if enabled.
+    /// Returns: (queue_len, ops_queued, ops_written, batches_written, batch_interval_ms, max_batch_size)
+    pub fn get_async_writer_stats(&self) -> Option<(usize, u64, u64, u64, u64, usize)> {
+        self.storage.as_ref().and_then(|s| {
+            s.async_writer().map(|w| {
+                let stats = w.stats();
+                (
+                    w.queue_len(),
+                    stats.ops_queued.load(std::sync::atomic::Ordering::Relaxed),
+                    stats.ops_written.load(std::sync::atomic::Ordering::Relaxed),
+                    stats.batches_written.load(std::sync::atomic::Ordering::Relaxed),
+                    w.get_batch_interval_ms(),
+                    w.get_max_batch_size(),
+                )
+            })
+        })
+    }
+
+    /// Check if async writer is enabled.
+    pub fn has_async_writer(&self) -> bool {
+        self.storage.as_ref().map(|s| s.has_async_writer()).unwrap_or(false)
+    }
+
+    /// Update async writer configuration at runtime.
+    /// Returns true if the configuration was updated, false if async writer is not enabled.
+    pub fn update_async_writer_config(&self, batch_interval_ms: Option<u64>, max_batch_size: Option<usize>) -> bool {
+        if let Some(storage) = &self.storage {
+            if let Some(writer) = storage.async_writer() {
+                if let Some(interval) = batch_interval_ms {
+                    writer.set_batch_interval_ms(interval);
+                }
+                if let Some(size) = max_batch_size {
+                    writer.set_max_batch_size(size);
+                }
+                return true;
+            }
+        }
+        false
     }
 
     // Compatibility aliases

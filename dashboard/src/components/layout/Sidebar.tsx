@@ -11,7 +11,7 @@ import {
   Database,
 } from 'lucide-react';
 import { Badge } from '@tremor/react';
-import { useSettings, useStats } from '../../hooks';
+import { useSettings, useStats, useMetrics } from '../../hooks';
 import { formatUptime } from '../../utils';
 import './Sidebar.css';
 
@@ -31,17 +31,18 @@ export function Sidebar() {
   const location = useLocation();
   const { data: settings } = useSettings();
   const { data: stats } = useStats();
+  const { data: metrics } = useMetrics();
 
-  const totalJobs = stats?.total_jobs ?? 0;
-  const activeWorkers = stats?.active_connections ?? 0;
+  const totalQueued = stats?.queued ?? 0;
+  const queueCount = metrics?.queues?.length ?? 0;
 
   const navGroups: NavGroup[] = [
     {
       section: 'MONITORING',
       items: [
         { to: '/', icon: LayoutDashboard, label: 'Overview' },
-        { to: '/queues', icon: Layers, label: 'Queues', badge: stats?.queues?.length },
-        { to: '/jobs', icon: FileStack, label: 'Jobs', badge: totalJobs > 0 ? totalJobs : undefined },
+        { to: '/queues', icon: Layers, label: 'Queues', badge: queueCount > 0 ? queueCount : undefined },
+        { to: '/jobs', icon: FileStack, label: 'Jobs', badge: totalQueued > 0 ? totalQueued : undefined },
         { to: '/analytics', icon: BarChart3, label: 'Analytics' },
       ],
     },
@@ -49,7 +50,7 @@ export function Sidebar() {
       section: 'AUTOMATION',
       items: [
         { to: '/crons', icon: Clock, label: 'Cron Jobs' },
-        { to: '/workers', icon: Server, label: 'Workers', badge: activeWorkers > 0 ? activeWorkers : undefined },
+        { to: '/workers', icon: Server, label: 'Workers' },
       ],
     },
     {

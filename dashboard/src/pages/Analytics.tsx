@@ -9,55 +9,56 @@ import {
   BarChart,
   LineChart,
   Badge,
-  ProgressBar,
 } from '@tremor/react';
 import {
   TrendingUp,
   Activity,
   Clock,
   Zap,
-  HardDrive,
+  CheckCircle2,
   RefreshCw,
 } from 'lucide-react';
-import { useMetrics, useStats } from '../hooks';
+import { useMetrics, useMetricsHistory } from '../hooks';
 import { formatNumber } from '../utils';
 import './Analytics.css';
 
 export function Analytics() {
   const { data: metrics, refetch } = useMetrics();
-  const { data: stats } = useStats();
+  const { data: metricsHistory, refetch: refetchHistory } = useMetricsHistory();
 
-  const throughputHistory = metrics?.history?.map((point: any) => ({
+  const handleRefresh = () => {
+    refetch();
+    refetchHistory();
+  };
+
+  const throughputHistory = metricsHistory?.map((point: any) => ({
     timestamp: new Date(point.timestamp).toLocaleTimeString('en-US', {
       hour: '2-digit',
       minute: '2-digit',
     }),
-    'Jobs/sec': point.jobs_per_sec,
-    'Push': point.push_rate || 0,
-    'Pull': point.pull_rate || 0,
+    'Jobs/sec': point.throughput || 0,
   })) || [];
 
-  const latencyHistory = metrics?.history?.map((point: any) => ({
+  const latencyHistory = metricsHistory?.map((point: any) => ({
     timestamp: new Date(point.timestamp).toLocaleTimeString('en-US', {
       hour: '2-digit',
       minute: '2-digit',
     }),
-    'Avg Latency': point.avg_latency_ms || 0,
-    'P99 Latency': point.p99_latency_ms || 0,
+    'Avg Latency': point.latency_ms || 0,
   })) || [];
 
-  const queueData = stats?.queues?.map((q: any) => ({
+  // Get queue data from metrics endpoint
+  const queueData = metrics?.queues?.map((q: any) => ({
     name: q.name,
-    Waiting: q.waiting,
+    Waiting: q.pending,
     Active: q.processing,
-    Completed: q.completed,
-    Failed: q.failed,
+    DLQ: q.dlq,
   })) || [];
 
-  const totalOps = metrics?.total_operations || 0;
+  const totalPushed = metrics?.total_pushed || 0;
+  const totalCompleted = metrics?.total_completed || 0;
   const avgLatency = metrics?.avg_latency_ms || 0;
-  const peakThroughput = metrics?.peak_throughput || 0;
-  const memoryUsage = metrics?.memory_mb || 0;
+  const currentThroughput = metrics?.jobs_per_second || 0;
 
   return (
     <div className="analytics-page">
@@ -68,7 +69,7 @@ export function Analytics() {
             Performance metrics and system analytics
           </Text>
         </div>
-        <button className="refresh-btn" onClick={() => refetch()}>
+        <button className="refresh-btn" onClick={handleRefresh}>
           <RefreshCw className="w-4 h-4" />
           Refresh
         </button>
@@ -79,8 +80,8 @@ export function Analytics() {
         <Card className="metric-card" decoration="top" decorationColor="cyan">
           <Flex alignItems="start" justifyContent="between">
             <div>
-              <Text>Total Operations</Text>
-              <Metric>{formatNumber(totalOps)}</Metric>
+              <Text>Total Pushed</Text>
+              <Metric>{formatNumber(totalPushed)}</Metric>
             </div>
             <div className="metric-icon cyan">
               <Activity className="w-5 h-5" />
@@ -90,6 +91,23 @@ export function Analytics() {
             <Badge color="emerald">
               <TrendingUp className="w-3 h-3 mr-1" />
               All time
+            </Badge>
+          </Flex>
+        </Card>
+
+        <Card className="metric-card" decoration="top" decorationColor="emerald">
+          <Flex alignItems="start" justifyContent="between">
+            <div>
+              <Text>Total Completed</Text>
+              <Metric>{formatNumber(totalCompleted)}</Metric>
+            </div>
+            <div className="metric-icon emerald">
+              <CheckCircle2 className="w-5 h-5" />
+            </div>
+          </Flex>
+          <Flex className="mt-4">
+            <Badge color="emerald">
+              {totalPushed > 0 ? `${((totalCompleted / totalPushed) * 100).toFixed(1)}%` : '0%'}
             </Badge>
           </Flex>
         </Card>
@@ -111,36 +129,18 @@ export function Analytics() {
           </Flex>
         </Card>
 
-        <Card className="metric-card" decoration="top" decorationColor="emerald">
+        <Card className="metric-card" decoration="top" decorationColor="violet">
           <Flex alignItems="start" justifyContent="between">
             <div>
-              <Text>Peak Throughput</Text>
-              <Metric>{formatNumber(peakThroughput)}/s</Metric>
+              <Text>Current Throughput</Text>
+              <Metric>{currentThroughput.toFixed(1)}/s</Metric>
             </div>
-            <div className="metric-icon emerald">
+            <div className="metric-icon violet">
               <Zap className="w-5 h-5" />
             </div>
           </Flex>
           <Flex className="mt-4">
-            <Badge color="cyan">
-              <TrendingUp className="w-3 h-3 mr-1" />
-              Maximum
-            </Badge>
-          </Flex>
-        </Card>
-
-        <Card className="metric-card" decoration="top" decorationColor="violet">
-          <Flex alignItems="start" justifyContent="between">
-            <div>
-              <Text>Memory Usage</Text>
-              <Metric>{memoryUsage.toFixed(0)} MB</Metric>
-            </div>
-            <div className="metric-icon violet">
-              <HardDrive className="w-5 h-5" />
-            </div>
-          </Flex>
-          <Flex className="mt-4">
-            <ProgressBar value={Math.min(memoryUsage / 1024 * 100, 100)} color="violet" className="w-full" />
+            <Badge color="cyan">Live</Badge>
           </Flex>
         </Card>
       </Grid>
@@ -171,8 +171,8 @@ export function Analytics() {
         <Card className="chart-card">
           <Flex alignItems="start" justifyContent="between" className="mb-6">
             <div>
-              <Title>Latency Distribution</Title>
-              <Text>Average and P99 latency in milliseconds</Text>
+              <Title>Latency Over Time</Title>
+              <Text>Average latency in milliseconds</Text>
             </div>
             <Badge color="blue">Live</Badge>
           </Flex>
@@ -180,8 +180,8 @@ export function Analytics() {
             className="h-80"
             data={latencyHistory}
             index="timestamp"
-            categories={['Avg Latency', 'P99 Latency']}
-            colors={['blue', 'rose']}
+            categories={['Avg Latency']}
+            colors={['blue']}
             showAnimation
             curveType="monotone"
             valueFormatter={(v) => `${v.toFixed(2)}ms`}
@@ -204,8 +204,8 @@ export function Analytics() {
               className="h-80"
               data={queueData}
               index="name"
-              categories={['Waiting', 'Active', 'Completed', 'Failed']}
-              colors={['cyan', 'blue', 'emerald', 'rose']}
+              categories={['Waiting', 'Active', 'DLQ']}
+              colors={['cyan', 'blue', 'rose']}
               showAnimation
               stack
               valueFormatter={formatNumber}
@@ -220,21 +220,34 @@ export function Analytics() {
         <Card className="chart-card">
           <Flex alignItems="start" justifyContent="between" className="mb-6">
             <div>
-              <Title>Push vs Pull Rate</Title>
-              <Text>Operation rates over time</Text>
+              <Title>Jobs in Queue Over Time</Title>
+              <Text>Queue depth over time</Text>
             </div>
             <Badge color="emerald">Live</Badge>
           </Flex>
-          <AreaChart
-            className="h-80"
-            data={throughputHistory}
-            index="timestamp"
-            categories={['Push', 'Pull']}
-            colors={['emerald', 'blue']}
-            showAnimation
-            curveType="monotone"
-            valueFormatter={(v) => `${v.toFixed(1)}/s`}
-          />
+          {metricsHistory && metricsHistory.length > 0 ? (
+            <AreaChart
+              className="h-80"
+              data={metricsHistory.map((point: any) => ({
+                timestamp: new Date(point.timestamp).toLocaleTimeString('en-US', {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                }),
+                Queued: point.queued || 0,
+                Processing: point.processing || 0,
+              }))}
+              index="timestamp"
+              categories={['Queued', 'Processing']}
+              colors={['cyan', 'blue']}
+              showAnimation
+              curveType="monotone"
+              valueFormatter={formatNumber}
+            />
+          ) : (
+            <div className="h-80 flex items-center justify-center">
+              <Text>No history data available</Text>
+            </div>
+          )}
         </Card>
       </Grid>
     </div>

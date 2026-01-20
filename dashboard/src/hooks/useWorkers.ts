@@ -13,6 +13,6 @@ export function useWorkers() {
       }
       return workers as WorkersResponse | null;
     },
-    refetchInterval: 5000,
+    refetchInterval: 1000, // Refresh every 1 second
   });
 }

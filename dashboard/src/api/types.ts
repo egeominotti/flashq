@@ -23,22 +23,24 @@ export interface Stats {
   processing: number;
   delayed: number;
   dlq: number;
-  // Extended stats
-  total_jobs: number;
-  total_processing: number;
-  total_completed: number;
-  total_dlq: number;
-  active_connections: number;
-  queues: QueueStats[];
 }
 
 export interface MetricsHistory {
-  timestamp: string;
-  jobs_per_sec: number;
-  push_rate?: number;
-  pull_rate?: number;
-  avg_latency_ms?: number;
-  p99_latency_ms?: number;
+  timestamp: number;
+  queued: number;
+  processing: number;
+  completed: number;
+  failed: number;
+  throughput: number;
+  latency_ms: number;
+}
+
+export interface MetricsQueue {
+  name: string;
+  pending: number;
+  processing: number;
+  dlq: number;
+  rate_limit: number | null;
 }
 
 export interface Metrics {
@@ -46,13 +48,8 @@ export interface Metrics {
   total_completed: number;
   total_failed: number;
   jobs_per_second: number;
-  avg_processing_time_ms: number;
-  // Extended metrics
-  total_operations: number;
   avg_latency_ms: number;
-  peak_throughput: number;
-  memory_mb: number;
-  history?: MetricsHistory[];
+  queues: MetricsQueue[];
 }
 
 export interface Queue {
@@ -110,14 +107,10 @@ export interface CronsResponse {
 
 export interface Worker {
   id: string;
-  host?: string;
   queues: string[];
-  status: 'active' | 'idle' | 'disconnected';
   concurrency: number;
+  last_heartbeat: number;
   jobs_processed: number;
-  current_job?: string;
-  connected_at: string;
-  last_heartbeat: string;
 }
 
 export interface WorkersResponse {

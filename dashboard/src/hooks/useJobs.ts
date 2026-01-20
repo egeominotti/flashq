@@ -6,15 +6,19 @@ export function useJobs(queue?: string, state?: string, limit?: number, offset?:
   return useQuery<JobsResponse | null>({
     queryKey: ['jobs', queue, state, limit, offset],
     queryFn: async () => {
-      const jobs = await fetchJobs({ queue, state, limit, offset });
+      const jobs = await fetchJobs({
+        queue: queue || undefined,
+        state: state || undefined,
+        limit,
+        offset
+      });
       // Wrap in response object if array
       if (Array.isArray(jobs)) {
         return { jobs, total: jobs.length };
       }
       return jobs as JobsResponse | null;
     },
-    enabled: !!queue,
-    refetchInterval: 5000,
+    refetchInterval: 1000, // Real-time: refresh every 1 second
   });
 }
 

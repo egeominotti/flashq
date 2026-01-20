@@ -29,21 +29,30 @@ import './Workers.css';
 
 interface Worker {
   id: string;
-  host?: string;
   queues: string[];
-  status: 'active' | 'idle' | 'disconnected';
+  concurrency: number;
+  last_heartbeat: number;
   jobs_processed: number;
-  current_job?: string;
-  connected_at: string;
-  last_heartbeat: string;
 }
 
 export function Workers() {
   const { data: workersData, refetch } = useWorkers();
 
   const workers: Worker[] = workersData?.workers || [];
-  const activeWorkers = workers.filter(w => w.status === 'active').length;
-  const idleWorkers = workers.filter(w => w.status === 'idle').length;
+
+  // Determine worker status based on last heartbeat (active if heartbeat within last 30 seconds)
+  const getWorkerStatus = (worker: Worker): 'active' | 'idle' | 'disconnected' => {
+    const now = Date.now();
+    const lastHeartbeat = worker.last_heartbeat;
+    const secondsSinceHeartbeat = (now - lastHeartbeat) / 1000;
+
+    if (secondsSinceHeartbeat < 30) return 'active';
+    if (secondsSinceHeartbeat < 60) return 'idle';
+    return 'disconnected';
+  };
+
+  const activeWorkers = workers.filter(w => getWorkerStatus(w) === 'active').length;
+  const idleWorkers = workers.filter(w => getWorkerStatus(w) === 'idle').length;
   const totalProcessed = workers.reduce((sum, w) => sum + w.jobs_processed, 0);
 
   const getStatusColor = (status: string) => {
@@ -140,18 +149,17 @@ export function Workers() {
           <TableHead>
             <TableRow>
               <TableHeaderCell>Worker ID</TableHeaderCell>
-              <TableHeaderCell>Host</TableHeaderCell>
               <TableHeaderCell>Queues</TableHeaderCell>
               <TableHeaderCell>Status</TableHeaderCell>
-              <TableHeaderCell>Current Job</TableHeaderCell>
+              <TableHeaderCell>Concurrency</TableHeaderCell>
               <TableHeaderCell className="text-right">Jobs Processed</TableHeaderCell>
-              <TableHeaderCell>Connected</TableHeaderCell>
+              <TableHeaderCell>Last Heartbeat</TableHeaderCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {workers.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7}>
+                <TableCell colSpan={6}>
                   <div className="text-center py-12">
                     <Server className="w-12 h-12 text-zinc-600 mx-auto mb-4" />
                     <Text className="text-lg font-medium text-zinc-400 mb-2">
@@ -164,58 +172,52 @@ export function Workers() {
                 </TableCell>
               </TableRow>
             ) : (
-              workers.map((worker) => (
-                <TableRow key={worker.id}>
-                  <TableCell>
-                    <span className="font-mono font-semibold text-white">
-                      {worker.id.slice(0, 8)}...
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    <span className="text-zinc-400">
-                      {worker.host || 'Unknown'}
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    <Flex className="gap-1 flex-wrap">
-                      {worker.queues.slice(0, 3).map((q) => (
-                        <Badge key={q} size="xs" color="cyan">
-                          {q}
-                        </Badge>
-                      ))}
-                      {worker.queues.length > 3 && (
-                        <Badge size="xs" color="zinc">
-                          +{worker.queues.length - 3}
-                        </Badge>
-                      )}
-                    </Flex>
-                  </TableCell>
-                  <TableCell>
-                    <Badge color={getStatusColor(worker.status)}>
-                      {worker.status.charAt(0).toUpperCase() + worker.status.slice(1)}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    {worker.current_job ? (
-                      <span className="font-mono text-blue-400">
-                        {worker.current_job}
+              workers.map((worker) => {
+                const status = getWorkerStatus(worker);
+                return (
+                  <TableRow key={worker.id}>
+                    <TableCell>
+                      <span className="font-mono font-semibold text-white">
+                        {worker.id.length > 20 ? `${worker.id.slice(0, 20)}...` : worker.id}
                       </span>
-                    ) : (
-                      <span className="text-zinc-500">-</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <span className="font-mono text-emerald-400">
-                      {worker.jobs_processed.toLocaleString()}
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    <span className="text-zinc-400">
-                      {formatRelativeTime(worker.connected_at)}
-                    </span>
-                  </TableCell>
-                </TableRow>
-              ))
+                    </TableCell>
+                    <TableCell>
+                      <Flex className="gap-1 flex-wrap">
+                        {worker.queues.slice(0, 3).map((q) => (
+                          <Badge key={q} size="xs" color="cyan">
+                            {q}
+                          </Badge>
+                        ))}
+                        {worker.queues.length > 3 && (
+                          <Badge size="xs" color="zinc">
+                            +{worker.queues.length - 3}
+                          </Badge>
+                        )}
+                      </Flex>
+                    </TableCell>
+                    <TableCell>
+                      <Badge color={getStatusColor(status)}>
+                        {status.charAt(0).toUpperCase() + status.slice(1)}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <span className="font-mono text-blue-400">
+                        {worker.concurrency}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <span className="font-mono text-emerald-400">
+                        {worker.jobs_processed.toLocaleString()}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <span className="text-zinc-400">
+                        {formatRelativeTime(worker.last_heartbeat)}
+                      </span>
+                    </TableCell>
+                  </TableRow>
+                );
+              })
             )}
           </TableBody>
         </Table>

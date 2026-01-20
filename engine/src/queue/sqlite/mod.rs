@@ -2,9 +2,11 @@
 //!
 //! Embedded, zero-dependency persistence with:
 //! - WAL mode for durability
+//! - Async write queue for maximum throughput
 //! - Configurable snapshot intervals
 //! - S3-compatible backup support (AWS S3, Cloudflare R2, MinIO)
 
+mod async_writer;
 mod backup;
 mod jobs;
 mod jobs_advanced;
@@ -20,6 +22,7 @@ use tracing::info;
 use crate::protocol::{CronJob, Job, WebhookConfig};
 use serde_json::Value;
 
+pub use async_writer::{AsyncWriter, AsyncWriterConfig, WriteOp};
 pub use backup::{S3BackupConfig, S3BackupManager, set_runtime_s3_config, get_runtime_s3_config, clear_runtime_s3_config};
 pub use snapshot::SnapshotManager;
 
@@ -83,6 +86,8 @@ pub struct SqliteStorage {
     snapshot_manager: Option<Arc<SnapshotManager>>,
     /// S3 backup manager
     backup_manager: Option<Arc<S3BackupManager>>,
+    /// Async writer for non-blocking persistence (optional)
+    async_writer: Option<Arc<AsyncWriter>>,
 }
 
 impl SqliteStorage {
@@ -117,6 +122,7 @@ impl SqliteStorage {
             path: config.path,
             snapshot_manager: None,
             backup_manager: None,
+            async_writer: None,
         })
     }
 
@@ -137,6 +143,25 @@ impl SqliteStorage {
         self
     }
 
+    /// Enable async writer for non-blocking persistence.
+    /// Returns the async writer handle that must be started.
+    pub fn enable_async_writer(&mut self, config: AsyncWriterConfig) -> Arc<AsyncWriter> {
+        let writer = AsyncWriter::new(self.path.clone(), config);
+        self.async_writer = Some(Arc::clone(&writer));
+        info!("Async writer enabled for SQLite persistence");
+        writer
+    }
+
+    /// Get async writer if enabled.
+    pub fn async_writer(&self) -> Option<&Arc<AsyncWriter>> {
+        self.async_writer.as_ref()
+    }
+
+    /// Check if async writer is enabled.
+    pub fn has_async_writer(&self) -> bool {
+        self.async_writer.is_some()
+    }
+
     /// Run database migrations
     pub fn migrate(&self) -> Result<(), rusqlite::Error> {
         let conn = self.conn.lock();
@@ -144,45 +169,83 @@ impl SqliteStorage {
     }
 
     // ============== Job Operations ==============
+    // These methods use async writer when enabled for non-blocking writes.
 
-    /// Insert or update a job
+    /// Insert or update a job (async if writer enabled)
     pub fn insert_job(&self, job: &Job, state: &str) -> Result<(), rusqlite::Error> {
+        if let Some(ref writer) = self.async_writer {
+            writer.queue_op(WriteOp::InsertJob {
+                job: Box::new(job.clone()),
+                state: state.to_string(),
+            });
+            return Ok(());
+        }
         let conn = self.conn.lock();
         jobs::insert_job(&conn, job, state)
     }
 
-    /// Insert multiple jobs in a batch
+    /// Insert multiple jobs in a batch (async if writer enabled)
     pub fn insert_jobs_batch(&self, jobs: &[Job], state: &str) -> Result<(), rusqlite::Error> {
+        if let Some(ref writer) = self.async_writer {
+            writer.queue_op(WriteOp::InsertJobsBatch {
+                jobs: jobs.to_vec(),
+                state: state.to_string(),
+            });
+            return Ok(());
+        }
         let conn = self.conn.lock();
         jobs::insert_jobs_batch(&conn, jobs, state)
     }
 
-    /// Acknowledge a job as completed
+    /// Acknowledge a job as completed (async if writer enabled)
     pub fn ack_job(&self, job_id: u64, result: Option<Value>) -> Result<(), rusqlite::Error> {
+        if let Some(ref writer) = self.async_writer {
+            writer.queue_op(WriteOp::AckJob { job_id, result });
+            return Ok(());
+        }
         let conn = self.conn.lock();
         jobs::ack_job(&conn, job_id, result)
     }
 
-    /// Acknowledge multiple jobs in a batch
+    /// Acknowledge multiple jobs in a batch (async if writer enabled)
     pub fn ack_jobs_batch(&self, ids: &[u64]) -> Result<(), rusqlite::Error> {
+        if let Some(ref writer) = self.async_writer {
+            writer.queue_op(WriteOp::AckJobsBatch { ids: ids.to_vec() });
+            return Ok(());
+        }
         let conn = self.conn.lock();
         jobs::ack_jobs_batch(&conn, ids)
     }
 
-    /// Mark job as failed and update for retry
+    /// Mark job as failed and update for retry (async if writer enabled)
     pub fn fail_job(&self, job_id: u64, new_run_at: u64, attempts: u32) -> Result<(), rusqlite::Error> {
+        if let Some(ref writer) = self.async_writer {
+            writer.queue_op(WriteOp::FailJob { job_id, new_run_at, attempts });
+            return Ok(());
+        }
         let conn = self.conn.lock();
         jobs::fail_job(&conn, job_id, new_run_at, attempts)
     }
 
-    /// Move job to DLQ
+    /// Move job to DLQ (async if writer enabled)
     pub fn move_to_dlq(&self, job: &Job, error: Option<&str>) -> Result<(), rusqlite::Error> {
+        if let Some(ref writer) = self.async_writer {
+            writer.queue_op(WriteOp::MoveToDlq {
+                job: Box::new(job.clone()),
+                error: error.map(String::from),
+            });
+            return Ok(());
+        }
         let conn = self.conn.lock();
         jobs::move_to_dlq(&conn, job, error)
     }
 
-    /// Cancel a job
+    /// Cancel a job (async if writer enabled)
     pub fn cancel_job(&self, job_id: u64) -> Result<(), rusqlite::Error> {
+        if let Some(ref writer) = self.async_writer {
+            writer.queue_op(WriteOp::CancelJob { job_id });
+            return Ok(());
+        }
         let conn = self.conn.lock();
         jobs::cancel_job(&conn, job_id)
     }

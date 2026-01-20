@@ -18,7 +18,8 @@ export function useSettings() {
   return useQuery({
     queryKey: ['settings'],
     queryFn: fetchSettings,
-    refetchInterval: 10000,
+    refetchInterval: false, // No auto-refresh to avoid overwriting user edits
+    staleTime: 30000, // Consider data fresh for 30 seconds
   });
 }
 

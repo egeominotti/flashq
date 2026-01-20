@@ -155,6 +155,11 @@ pub fn create_router(state: AppState) -> Router {
         // SQLite Configuration
         .route("/sqlite/settings", get(settings::get_sqlite_settings))
         .route("/sqlite/settings", post(settings::save_sqlite_settings))
+        .route("/sqlite/stats", get(settings::get_sqlite_stats))
+        .route("/sqlite/export", get(settings::export_sqlite_database))
+        .route("/sqlite/download", get(settings::download_sqlite_database))
+        .route("/sqlite/restore", post(settings::restore_sqlite_database))
+        .route("/sqlite/async-writer", post(settings::update_async_writer_config))
         // S3 Backup Configuration
         .route("/s3/settings", get(settings::get_s3_settings))
         .route("/s3/settings", post(settings::save_s3_settings))
