@@ -18,7 +18,7 @@ export function useJobs(queue?: string, state?: string, limit?: number, offset?:
       }
       return jobs as JobsResponse | null;
     },
-    refetchInterval: 1000, // Real-time: refresh every 1 second
+    refetchInterval: 5000, // Refresh every 5 seconds (WebSocket handles real-time)
   });
 }
 

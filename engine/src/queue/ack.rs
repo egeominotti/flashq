@@ -40,6 +40,16 @@ impl QueueManager {
                 }
                 self.completed_jobs.write().insert(job_id);
                 self.index_job(job_id, JobLocation::Completed);
+
+                // Store completed job data for browsing (respects max_completed_jobs setting)
+                {
+                    let max_completed = self.cleanup_settings.read().max_completed_jobs;
+                    let mut completed_data = self.completed_jobs_data.write();
+                    completed_data.push_back((job.clone(), now_ms(), result.clone()));
+                    while completed_data.len() > max_completed {
+                        completed_data.pop_front();
+                    }
+                }
             }
 
             // Persist to PostgreSQL - use sync mode if enabled for durability

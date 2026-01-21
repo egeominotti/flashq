@@ -16,7 +16,7 @@ impl QueueManager {
     pub async fn background_tasks(self: Arc<Self>) {
         let mut wakeup_ticker = interval(Duration::from_millis(500));
         let mut cron_ticker = interval(Duration::from_secs(1));
-        let mut cleanup_ticker = interval(Duration::from_secs(60));
+        let mut cleanup_ticker = interval(Duration::from_secs(10));
         let mut timeout_ticker = interval(Duration::from_millis(500));
         let mut stalled_ticker = interval(Duration::from_secs(10));
         let mut metrics_ticker = interval(Duration::from_secs(5));
@@ -201,11 +201,16 @@ impl QueueManager {
 
     pub(crate) fn cleanup_completed_jobs(&self) {
         const MAX_COMPLETED: usize = 50_000;
-        const CLEANUP_BATCH: usize = 25_000;
 
         let mut completed = self.completed_jobs.write();
-        if completed.len() > MAX_COMPLETED {
-            let to_remove: Vec<_> = completed.iter().take(CLEANUP_BATCH).copied().collect();
+        let len = completed.len();
+        if len > MAX_COMPLETED {
+            // Remove everything above threshold (aggressive cleanup)
+            let to_remove: Vec<_> = completed
+                .iter()
+                .take(len - MAX_COMPLETED / 2)
+                .copied()
+                .collect();
 
             for &id in &to_remove {
                 self.job_index.remove(&id);
@@ -223,12 +228,17 @@ impl QueueManager {
     }
 
     pub(crate) fn cleanup_job_results(&self) {
-        const MAX_RESULTS: usize = 5_000;
-        const CLEANUP_BATCH: usize = 2_500;
+        const MAX_RESULTS: usize = 10_000;
 
         let mut results = self.job_results.write();
-        if results.len() > MAX_RESULTS {
-            let to_remove: Vec<_> = results.keys().take(CLEANUP_BATCH).copied().collect();
+        let len = results.len();
+        if len > MAX_RESULTS {
+            // Remove everything above threshold (aggressive cleanup)
+            let to_remove: Vec<_> = results
+                .keys()
+                .take(len - MAX_RESULTS / 2)
+                .copied()
+                .collect();
             for id in to_remove {
                 results.remove(&id);
             }
@@ -249,18 +259,19 @@ impl QueueManager {
 
     pub(crate) fn cleanup_stale_index_entries(&self) {
         const MAX_INDEX_SIZE: usize = 100_000;
-        const CLEANUP_BATCH: usize = 10_000;
 
         let index_len = self.job_index.len();
         if index_len <= MAX_INDEX_SIZE {
             return;
         }
 
-        let mut to_remove = Vec::with_capacity(CLEANUP_BATCH);
+        // Aggressive: remove all stale entries above threshold
+        let target_remove = index_len - MAX_INDEX_SIZE / 2;
+        let mut to_remove = Vec::with_capacity(target_remove);
         let completed_jobs = self.completed_jobs.read();
 
         for entry in self.job_index.iter() {
-            if to_remove.len() >= CLEANUP_BATCH {
+            if to_remove.len() >= target_remove {
                 break;
             }
 

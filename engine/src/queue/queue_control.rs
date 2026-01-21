@@ -106,8 +106,14 @@ impl QueueManager {
         // Count active (processing) - use sharded method
         let active = self.processing_count_by_queue(queue_name);
 
-        // Count completed (we don't track per-queue completed, so return 0 or estimate)
-        let completed = 0; // Note: completed_jobs doesn't track per-queue
+        // Count completed from completed_jobs_data
+        let completed = {
+            let completed_data = self.completed_jobs_data.read();
+            completed_data
+                .iter()
+                .filter(|(job, _, _)| job.queue == queue_name)
+                .count()
+        };
 
         (waiting, active, delayed, completed, failed)
     }

@@ -118,6 +118,22 @@ impl QueueManager {
             }
         }
 
+        // Add completed jobs from completed_jobs_data
+        if state_filter.is_none() || state_filter == Some(JobState::Completed) {
+            let completed_data = self.completed_jobs_data.read();
+            for (job, _completed_at, _result) in completed_data.iter() {
+                if let Some(filter) = queue_filter {
+                    if job.queue != filter {
+                        continue;
+                    }
+                }
+                jobs.push(JobBrowserItem {
+                    job: job.clone(),
+                    state: JobState::Completed,
+                });
+            }
+        }
+
         // Sort by created_at descending (newest first)
         jobs.sort_by(|a, b| b.job.created_at.cmp(&a.job.created_at));
 

@@ -147,14 +147,14 @@ async fn handle_dashboard_websocket(mut socket: WebSocket, qm: Arc<QueueManager>
         tokio::select! {
             _ = interval.tick() => {
                 // Collect all dashboard data
-                let (queued, processing, delayed, dlq) = qm.stats().await;
+                let (queued, processing, delayed, dlq, completed) = qm.stats().await;
                 let metrics = qm.get_metrics().await;
                 let queues = qm.list_queues().await;
                 let workers = qm.list_workers().await;
                 let metrics_history = qm.get_metrics_history();
 
                 let update = DashboardUpdate {
-                    stats: StatsResponse { queued, processing, delayed, dlq },
+                    stats: StatsResponse { queued, processing, delayed, dlq, completed },
                     metrics,
                     queues,
                     workers,

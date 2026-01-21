@@ -272,8 +272,8 @@ async fn process_command(
             Response::metrics(metrics)
         }
         Command::Stats => {
-            let (queued, processing, delayed, dlq) = queue_manager.stats().await;
-            Response::stats(queued, processing, delayed, dlq)
+            let (queued, processing, delayed, dlq, completed) = queue_manager.stats().await;
+            Response::stats(queued, processing, delayed, dlq, completed)
         }
 
         // === Cron Jobs / Repeatable Jobs ===

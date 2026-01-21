@@ -38,18 +38,19 @@ impl QueueManager {
             total_pushed: self.metrics.total_pushed.load(Ordering::Relaxed),
             total_completed: self.metrics.total_completed.load(Ordering::Relaxed),
             total_failed: self.metrics.total_failed.load(Ordering::Relaxed),
-            jobs_per_second: 0.0,
+            jobs_per_second: self.metrics.get_throughput(),
             avg_latency_ms: avg_latency,
             queues,
         }
     }
 
     /// Get summary statistics.
-    /// Returns (ready, processing, delayed, dlq).
-    pub async fn stats(&self) -> (usize, usize, usize, usize) {
+    /// Returns (ready, processing, delayed, dlq, completed).
+    pub async fn stats(&self) -> (usize, usize, usize, usize, usize) {
         let now = now_ms();
         let (mut ready, mut delayed, mut dlq) = (0, 0, 0);
         let processing = self.processing_len();
+        let completed = self.completed_jobs.read().len();
 
         for shard in &self.shards {
             let s = shard.read();
@@ -66,7 +67,7 @@ impl QueueManager {
                 }
             }
         }
-        (ready, processing, delayed, dlq)
+        (ready, processing, delayed, dlq, completed)
     }
 
     // === Pub/Sub ===

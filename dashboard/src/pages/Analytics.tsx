@@ -1,9 +1,9 @@
 import { useMemo } from 'react';
 import { Title, Text, AreaChart, BarChart, LineChart, Badge, Grid } from '@tremor/react';
 import { TrendingUp, Activity, Clock, Zap, CheckCircle2, RefreshCw, BarChart3 } from 'lucide-react';
-import { useMetrics, useMetricsHistory } from '../hooks';
+import { useMetrics, useMetricsHistory, useSparklineData } from '../hooks';
 import { formatNumber } from '../utils';
-import { GlowCard, AnimatedCounter, formatCompact, EmptyState, Sparkline } from '../components/common';
+import { GlowCard, EmptyState, MetricGlowCard } from '../components/common';
 import './Analytics.css';
 
 interface MetricsPoint {
@@ -78,16 +78,9 @@ export function Analytics() {
     [metricsHistory]
   );
 
-  // Sparkline data
-  const throughputSparkline = useMemo(
-    () => metricsHistory?.slice(-20).map((p: MetricsPoint) => p.throughput || 0) || [],
-    [metricsHistory]
-  );
-
-  const latencySparkline = useMemo(
-    () => metricsHistory?.slice(-20).map((p: MetricsPoint) => p.latency_ms || 0) || [],
-    [metricsHistory]
-  );
+  // DRY: Use custom hook for sparkline data extraction
+  const throughputSparkline = useSparklineData(metricsHistory, 'throughput');
+  const latencySparkline = useSparklineData(metricsHistory, 'latency_ms');
 
   const totalPushed = metrics?.total_pushed || 0;
   const totalCompleted = metrics?.total_completed || 0;
@@ -107,82 +100,59 @@ export function Analytics() {
         </button>
       </header>
 
-      {/* Key Metrics with Glow Cards */}
+      {/* Key Metrics with Glow Cards - DRY: Using MetricGlowCard */}
       <Grid numItemsSm={2} numItemsLg={4} className="mb-8 gap-6">
-        <GlowCard glowColor="cyan" className="metric-glow-card">
-          <div className="metric-glow-header">
-            <span className="metric-glow-title">Total Pushed</span>
-            <div className="metric-glow-icon icon-cyan">
-              <Activity className="h-5 w-5" />
-            </div>
-          </div>
-          <div className="metric-glow-value">
-            <AnimatedCounter value={totalPushed} formatter={formatCompact} />
-          </div>
-          <div className="metric-glow-footer">
-            <Badge color="emerald" size="xs">
-              <TrendingUp className="mr-1 h-3 w-3" />
-              All time
-            </Badge>
-            <Sparkline data={throughputSparkline} width={60} height={24} color="#06b6d4" />
-          </div>
-        </GlowCard>
+        <MetricGlowCard
+          title="Total Pushed"
+          value={totalPushed}
+          icon={<Activity className="h-5 w-5" />}
+          glowColor="cyan"
+          badge={{
+            text: 'All time',
+            color: 'emerald',
+            icon: <TrendingUp className="mr-1 h-3 w-3" />,
+          }}
+          sparkline={{ data: throughputSparkline, color: '#06b6d4' }}
+        />
 
-        <GlowCard glowColor="emerald" className="metric-glow-card">
-          <div className="metric-glow-header">
-            <span className="metric-glow-title">Total Completed</span>
-            <div className="metric-glow-icon icon-emerald">
-              <CheckCircle2 className="h-5 w-5" />
-            </div>
-          </div>
-          <div className="metric-glow-value">
-            <AnimatedCounter value={totalCompleted} formatter={formatCompact} />
-          </div>
-          <div className="metric-glow-footer">
-            <Badge color="emerald" size="xs">
-              {totalPushed > 0 ? `${((totalCompleted / totalPushed) * 100).toFixed(1)}%` : '0%'}
-            </Badge>
-          </div>
-        </GlowCard>
+        <MetricGlowCard
+          title="Total Completed"
+          value={totalCompleted}
+          icon={<CheckCircle2 className="h-5 w-5" />}
+          glowColor="emerald"
+          badge={{
+            text: totalPushed > 0 ? `${((totalCompleted / totalPushed) * 100).toFixed(1)}%` : '0%',
+            color: 'emerald',
+          }}
+        />
 
-        <GlowCard glowColor="blue" className="metric-glow-card">
-          <div className="metric-glow-header">
-            <span className="metric-glow-title">Avg Latency</span>
-            <div className="metric-glow-icon icon-blue">
-              <Clock className="h-5 w-5" />
-            </div>
-          </div>
-          <div className="metric-glow-value">
-            <AnimatedCounter value={avgLatency} decimals={2} suffix="ms" />
-          </div>
-          <div className="metric-glow-footer">
-            <Badge
-              size="xs"
-              color={avgLatency < 10 ? 'emerald' : avgLatency < 50 ? 'amber' : 'rose'}
-            >
-              {avgLatency < 10 ? 'Excellent' : avgLatency < 50 ? 'Good' : 'Slow'}
-            </Badge>
-            <Sparkline data={latencySparkline} width={60} height={24} color="#3b82f6" />
-          </div>
-        </GlowCard>
+        <MetricGlowCard
+          title="Avg Latency"
+          value={avgLatency}
+          icon={<Clock className="h-5 w-5" />}
+          glowColor="blue"
+          decimals={2}
+          suffix="ms"
+          badge={{
+            text: avgLatency < 10 ? 'Excellent' : avgLatency < 50 ? 'Good' : 'Slow',
+            color: avgLatency < 10 ? 'emerald' : avgLatency < 50 ? 'amber' : 'rose',
+          }}
+          sparkline={{ data: latencySparkline, color: '#3b82f6' }}
+        />
 
-        <GlowCard glowColor="violet" className="metric-glow-card">
-          <div className="metric-glow-header">
-            <span className="metric-glow-title">Throughput</span>
-            <div className="metric-glow-icon icon-violet">
-              <Zap className="h-5 w-5" />
-            </div>
-          </div>
-          <div className="metric-glow-value">
-            <AnimatedCounter value={currentThroughput} decimals={1} suffix="/s" />
-          </div>
-          <div className="metric-glow-footer">
-            <Badge color="cyan" size="xs">
-              <span className="live-dot" />
-              Live
-            </Badge>
-          </div>
-        </GlowCard>
+        <MetricGlowCard
+          title="Throughput"
+          value={currentThroughput}
+          icon={<Zap className="h-5 w-5" />}
+          glowColor="violet"
+          decimals={1}
+          suffix="/s"
+          badge={{
+            text: 'Live',
+            color: 'cyan',
+            icon: <span className="live-dot" />,
+          }}
+        />
       </Grid>
 
       {/* Charts Row 1 */}

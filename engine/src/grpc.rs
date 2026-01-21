@@ -277,12 +277,13 @@ impl QueueService for QueueServiceImpl {
         &self,
         _request: Request<StatsRequest>,
     ) -> Result<Response<StatsResponse>, Status> {
-        let (queued, processing, delayed, dlq) = self.queue_manager.stats().await;
+        let (queued, processing, delayed, dlq, completed) = self.queue_manager.stats().await;
         Ok(Response::new(StatsResponse {
             queued: queued as u64,
             processing: processing as u64,
             delayed: delayed as u64,
             dlq: dlq as u64,
+            completed: completed as u64,
         }))
     }
 

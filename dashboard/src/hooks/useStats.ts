@@ -5,6 +5,6 @@ export function useStats() {
   return useQuery({
     queryKey: ['stats'],
     queryFn: fetchStats,
-    refetchInterval: 2000,
+    refetchInterval: 3000, // Refresh every 3 seconds
   });
 }

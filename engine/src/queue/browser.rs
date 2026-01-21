@@ -106,7 +106,21 @@ impl QueueManager {
             });
         }
 
-        // 3. Sort by ID desc (newest first)
+        // 3. Completed jobs - from completed_jobs_data
+        if state_filter.is_none() || state_filter == Some(JobState::Completed) {
+            let completed_data = self.completed_jobs_data.read();
+            for (job, _completed_at, _result) in completed_data.iter() {
+                if skip_queue(job.queue.as_str(), queue_filter) {
+                    continue;
+                }
+                jobs.push(JobBrowserItem {
+                    job: job.clone(),
+                    state: JobState::Completed,
+                });
+            }
+        }
+
+        // 4. Sort by ID desc (newest first)
         jobs.sort_by(|a, b| b.job.id.cmp(&a.job.id));
 
         // 4. Paginate

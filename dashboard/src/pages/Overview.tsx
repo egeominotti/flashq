@@ -1,9 +1,9 @@
 import { useMemo } from 'react';
 import { Title, Text, AreaChart, DonutChart, BarList, Badge, ProgressBar, Grid } from '@tremor/react';
 import { Activity, CheckCircle2, XCircle, Layers, TrendingUp, Zap, Clock } from 'lucide-react';
-import { useStats, useMetrics, useMetricsHistory } from '../hooks';
+import { useStats, useMetrics, useMetricsHistory, useSparklineData } from '../hooks';
 import { formatNumber } from '../utils';
-import { GlowCard, AnimatedCounter, formatCompact, EmptyState, Sparkline } from '../components/common';
+import { GlowCard, EmptyState, MetricGlowCard } from '../components/common';
 import './Overview.css';
 
 interface MetricsPoint {
@@ -31,16 +31,9 @@ export function Overview() {
   const totalCompleted = metrics?.total_completed || 0;
   const totalPushed = metrics?.total_pushed || 0;
 
-  // Sparkline data
-  const throughputSparkline = useMemo(
-    () => metricsHistory?.slice(-20).map((p: MetricsPoint) => p.throughput || 0) || [],
-    [metricsHistory]
-  );
-
-  const queuedSparkline = useMemo(
-    () => metricsHistory?.slice(-20).map((p: MetricsPoint) => p.queued || 0) || [],
-    [metricsHistory]
-  );
+  // DRY: Use custom hook for sparkline data extraction
+  const throughputSparkline = useSparklineData(metricsHistory, 'throughput');
+  const queuedSparkline = useSparklineData(metricsHistory, 'queued');
 
   // Transform metrics history for throughput chart
   const throughputData = useMemo(
@@ -102,80 +95,56 @@ export function Overview() {
         </div>
       </header>
 
-      {/* KPI Cards with Glow Effect */}
+      {/* KPI Cards with Glow Effect - DRY: Using MetricGlowCard */}
       <Grid numItemsSm={2} numItemsLg={4} className="mb-8 gap-6">
-        <GlowCard glowColor="cyan" className="metric-glow-card">
-          <div className="metric-glow-header">
-            <span className="metric-glow-title">Queued</span>
-            <div className="metric-glow-icon icon-cyan">
-              <Activity className="h-5 w-5" />
-            </div>
-          </div>
-          <div className="metric-glow-value">
-            <AnimatedCounter value={totalQueued} formatter={formatCompact} />
-          </div>
-          <div className="metric-glow-footer">
-            <Badge color="zinc" size="xs">
-              <Clock className="mr-1 h-3 w-3" />
-              {totalDelayed} delayed
-            </Badge>
-            <Sparkline data={queuedSparkline} width={60} height={24} color="#06b6d4" />
-          </div>
-        </GlowCard>
+        <MetricGlowCard
+          title="Queued"
+          value={totalQueued}
+          icon={<Activity className="h-5 w-5" />}
+          glowColor="cyan"
+          badge={{
+            text: `${totalDelayed} delayed`,
+            color: 'zinc',
+            icon: <Clock className="mr-1 h-3 w-3" />,
+          }}
+          sparkline={{ data: queuedSparkline, color: '#06b6d4' }}
+        />
 
-        <GlowCard glowColor="blue" className="metric-glow-card">
-          <div className="metric-glow-header">
-            <span className="metric-glow-title">Processing</span>
-            <div className="metric-glow-icon icon-blue">
-              <Zap className="h-5 w-5" />
-            </div>
-          </div>
-          <div className="metric-glow-value">
-            <AnimatedCounter value={totalProcessing} formatter={formatCompact} />
-          </div>
-          <div className="metric-glow-footer">
-            <Badge color="blue" size="xs">
-              <span className="live-dot live-dot-blue" />
-              Active
-            </Badge>
-          </div>
-        </GlowCard>
+        <MetricGlowCard
+          title="Processing"
+          value={totalProcessing}
+          icon={<Zap className="h-5 w-5" />}
+          glowColor="blue"
+          badge={{
+            text: 'Active',
+            color: 'blue',
+            icon: <span className="live-dot live-dot-blue" />,
+          }}
+        />
 
-        <GlowCard glowColor="emerald" className="metric-glow-card">
-          <div className="metric-glow-header">
-            <span className="metric-glow-title">Completed</span>
-            <div className="metric-glow-icon icon-emerald">
-              <CheckCircle2 className="h-5 w-5" />
-            </div>
-          </div>
-          <div className="metric-glow-value">
-            <AnimatedCounter value={totalCompleted} formatter={formatCompact} />
-          </div>
-          <div className="metric-glow-footer">
-            <Badge color="emerald" size="xs">
-              <TrendingUp className="mr-1 h-3 w-3" />
-              {completionRate}%
-            </Badge>
-            <Sparkline data={throughputSparkline} width={60} height={24} color="#10b981" />
-          </div>
-        </GlowCard>
+        <MetricGlowCard
+          title="Completed"
+          value={totalCompleted}
+          icon={<CheckCircle2 className="h-5 w-5" />}
+          glowColor="emerald"
+          badge={{
+            text: `${completionRate}%`,
+            color: 'emerald',
+            icon: <TrendingUp className="mr-1 h-3 w-3" />,
+          }}
+          sparkline={{ data: throughputSparkline, color: '#10b981' }}
+        />
 
-        <GlowCard glowColor="rose" className="metric-glow-card">
-          <div className="metric-glow-header">
-            <span className="metric-glow-title">Failed (DLQ)</span>
-            <div className="metric-glow-icon icon-rose">
-              <XCircle className="h-5 w-5" />
-            </div>
-          </div>
-          <div className="metric-glow-value">
-            <AnimatedCounter value={totalDlq} formatter={formatCompact} />
-          </div>
-          <div className="metric-glow-footer">
-            <Badge color={totalDlq > 0 ? 'rose' : 'zinc'} size="xs">
-              {failureRate}% failure
-            </Badge>
-          </div>
-        </GlowCard>
+        <MetricGlowCard
+          title="Failed (DLQ)"
+          value={totalDlq}
+          icon={<XCircle className="h-5 w-5" />}
+          glowColor="rose"
+          badge={{
+            text: `${failureRate}% failure`,
+            color: totalDlq > 0 ? 'rose' : 'zinc',
+          }}
+        />
       </Grid>
 
       {/* Charts Row */}

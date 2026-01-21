@@ -11,12 +11,13 @@ use super::types::{ApiResponse, AppState, StatsResponse};
 
 /// Get queue statistics.
 pub async fn get_stats(State(qm): State<AppState>) -> Json<ApiResponse<StatsResponse>> {
-    let (queued, processing, delayed, dlq) = qm.stats().await;
+    let (queued, processing, delayed, dlq, completed) = qm.stats().await;
     ApiResponse::success(StatsResponse {
         queued,
         processing,
         delayed,
         dlq,
+        completed,
     })
 }
 
@@ -37,7 +38,7 @@ pub async fn get_metrics_history(
 /// Get Prometheus-formatted metrics.
 pub async fn get_prometheus_metrics(State(qm): State<AppState>) -> impl IntoResponse {
     let metrics = qm.get_metrics().await;
-    let (queued, processing, delayed, dlq) = qm.stats().await;
+    let (queued, processing, delayed, dlq, completed) = qm.stats().await;
 
     let mut output = String::with_capacity(2048);
 
@@ -72,6 +73,10 @@ pub async fn get_prometheus_metrics(State(qm): State<AppState>) -> impl IntoResp
         delayed
     ));
     output.push_str(&format!("flashq_jobs_current{{state=\"dlq\"}} {}\n", dlq));
+    output.push_str(&format!(
+        "flashq_jobs_current{{state=\"completed\"}} {}\n",
+        completed
+    ));
 
     output.push_str("# HELP flashq_throughput_per_second Jobs processed per second\n");
     output.push_str("# TYPE flashq_throughput_per_second gauge\n");

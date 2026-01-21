@@ -8,3 +8,5 @@ export * from './useWorkers';
 export * from './useSettings';
 export * from './useToast';
 export * from './useTheme';
+export * from './useSparklineData';
+export * from './useJobEvents';

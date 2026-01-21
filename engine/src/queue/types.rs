@@ -521,6 +521,13 @@ pub struct GlobalMetrics {
     pub current_processing: AtomicU64,
     /// Current number of jobs in DLQ
     pub current_dlq: AtomicU64,
+    // === Throughput Tracking ===
+    /// Completed jobs in current window
+    pub throughput_window_count: AtomicU64,
+    /// Timestamp when window started (ms)
+    pub throughput_window_start: AtomicU64,
+    /// Last calculated throughput (jobs/sec * 100 for precision)
+    pub throughput_per_second_x100: AtomicU64,
 }
 
 impl GlobalMetrics {
@@ -535,6 +542,9 @@ impl GlobalMetrics {
             current_queued: AtomicU64::new(0),
             current_processing: AtomicU64::new(0),
             current_dlq: AtomicU64::new(0),
+            throughput_window_count: AtomicU64::new(0),
+            throughput_window_start: AtomicU64::new(now_ms()),
+            throughput_per_second_x100: AtomicU64::new(0),
         }
     }
 
@@ -557,6 +567,38 @@ impl GlobalMetrics {
         self.latency_sum.fetch_add(latency, Ordering::Relaxed);
         self.latency_count.fetch_add(1, Ordering::Relaxed);
         self.current_processing.fetch_sub(1, Ordering::Relaxed);
+        // Track throughput
+        self.throughput_window_count.fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// Calculate and return current throughput (jobs per second)
+    pub fn get_throughput(&self) -> f64 {
+        let now = now_ms();
+        let window_start = self.throughput_window_start.load(Ordering::Relaxed);
+        let window_count = self.throughput_window_count.load(Ordering::Relaxed);
+        let elapsed_ms = now.saturating_sub(window_start);
+
+        // Calculate throughput every second
+        if elapsed_ms >= 1000 {
+            let throughput = if elapsed_ms > 0 {
+                (window_count as f64 * 1000.0) / elapsed_ms as f64
+            } else {
+                0.0
+            };
+            // Store the calculated throughput (x100 for precision)
+            self.throughput_per_second_x100
+                .store((throughput * 100.0) as u64, Ordering::Relaxed);
+            // Reset window
+            self.throughput_window_start.store(now, Ordering::Relaxed);
+            self.throughput_window_count.store(0, Ordering::Relaxed);
+            throughput
+        } else if elapsed_ms > 0 {
+            // Return extrapolated throughput for partial window
+            (window_count as f64 * 1000.0) / elapsed_ms as f64
+        } else {
+            // Return last stored throughput
+            self.throughput_per_second_x100.load(Ordering::Relaxed) as f64 / 100.0
+        }
     }
 
     #[inline(always)]

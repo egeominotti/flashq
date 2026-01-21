@@ -48,6 +48,8 @@ pub struct QueueManager {
     pub(crate) storage: Option<Arc<SqliteStorage>>,
     pub(crate) cron_jobs: RwLock<GxHashMap<String, CronJob>>,
     pub(crate) completed_jobs: RwLock<GxHashSet<u64>>,
+    /// Stores completed job data for browsing (job_id -> (Job, completed_at, result))
+    pub(crate) completed_jobs_data: RwLock<VecDeque<(crate::protocol::Job, u64, Option<Value>)>>,
     pub(crate) job_results: RwLock<GxHashMap<u64, Value>>,
     pub(crate) subscribers: RwLock<Vec<Subscriber>>,
     pub(crate) auth_tokens: RwLock<GxHashSet<String>>,
@@ -213,6 +215,7 @@ impl QueueManager {
             storage,
             cron_jobs: RwLock::new(GxHashMap::default()),
             completed_jobs: RwLock::new(GxHashSet::default()),
+            completed_jobs_data: RwLock::new(VecDeque::with_capacity(50_000)),
             job_results: RwLock::new(GxHashMap::default()),
             subscribers: RwLock::new(Vec::new()),
             auth_tokens: RwLock::new(GxHashSet::default()),

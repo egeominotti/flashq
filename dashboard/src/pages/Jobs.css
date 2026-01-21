@@ -10,6 +10,69 @@
   margin-bottom: 2rem;
 }
 
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+/* Status Dot */
+.status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #52525b;
+  margin-right: 0.375rem;
+  display: inline-block;
+}
+
+.status-dot-live {
+  background: #10b981;
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.6);
+  animation: status-pulse 2s ease-in-out infinite;
+}
+
+@keyframes status-pulse {
+  0%, 100% {
+    opacity: 1;
+    box-shadow: 0 0 8px rgba(16, 185, 129, 0.6);
+  }
+  50% {
+    opacity: 0.7;
+    box-shadow: 0 0 12px rgba(16, 185, 129, 0.8);
+  }
+}
+
+/* Layout with Sidebar */
+.jobs-layout {
+  display: flex;
+  gap: 1.5rem;
+}
+
+.jobs-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.jobs-sidebar {
+  width: 300px;
+  flex-shrink: 0;
+  position: sticky;
+  top: 2rem;
+  align-self: flex-start;
+}
+
+@media (max-width: 1200px) {
+  .jobs-layout {
+    flex-direction: column;
+  }
+
+  .jobs-sidebar {
+    width: 100%;
+    position: static;
+  }
+}
+
 .page-title {
   font-size: 1.75rem !important;
   font-weight: 700 !important;
@@ -28,7 +91,52 @@
   border-radius: 12px !important;
 }
 
-/* State Tabs */
+/* Filters Header */
+.filters-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.filters-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #71717a;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.filters-title svg {
+  color: #52525b;
+}
+
+.clear-filter {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.375rem 0.75rem;
+  background: rgba(0, 212, 255, 0.1);
+  border: 1px solid rgba(0, 212, 255, 0.2);
+  border-radius: 6px;
+  color: #00d4ff;
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+
+.clear-filter:hover {
+  background: rgba(0, 212, 255, 0.15);
+  border-color: rgba(0, 212, 255, 0.3);
+}
+
+/* State Tabs (keeping for backwards compatibility) */
 .state-summary {
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
   padding-bottom: 1rem;

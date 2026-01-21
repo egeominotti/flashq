@@ -23,6 +23,7 @@ export interface Stats {
   processing: number;
   delayed: number;
   dlq: number;
+  completed: number;
 }
 
 export interface MetricsHistory {

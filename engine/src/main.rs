@@ -93,8 +93,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
 
     let use_unix = std::env::var("UNIX_SOCKET").is_ok();
-    let enable_http = std::env::var("HTTP").is_ok();
-    let enable_grpc = std::env::var("GRPC").is_ok();
+    // HTTP is enabled by default, can be disabled with NO_HTTP=1
+    let enable_http = std::env::var("NO_HTTP").is_err();
+    // gRPC is enabled by default, can be disabled with NO_GRPC=1
+    let enable_grpc = std::env::var("NO_GRPC").is_err();
 
     // Parse auth tokens from environment
     let auth_tokens: Vec<String> = std::env::var("AUTH_TOKENS")
@@ -255,9 +257,11 @@ async fn run_tcp_server(
                                 break;
                             }
                             let qm = Arc::clone(queue_manager);
+                            qm.increment_connections();
                             tokio::spawn(async move {
                                 let (reader, writer) = socket.into_split();
-                                let _ = handle_connection(reader, writer, qm).await;
+                                let _ = handle_connection(reader, writer, Arc::clone(&qm)).await;
+                                qm.decrement_connections();
                             });
                         }
                         Err(e) => {
@@ -289,9 +293,11 @@ async fn run_tcp_server(
                             }
                             socket.set_nodelay(true)?;
                             let qm = Arc::clone(queue_manager);
+                            qm.increment_connections();
                             tokio::spawn(async move {
                                 let (reader, writer) = socket.into_split();
-                                let _ = handle_connection(reader, writer, qm).await;
+                                let _ = handle_connection(reader, writer, Arc::clone(&qm)).await;
+                                qm.decrement_connections();
                             });
                         }
                         Err(e) => {

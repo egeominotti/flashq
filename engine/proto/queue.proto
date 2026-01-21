@@ -173,6 +173,7 @@ message StatsResponse {
   uint64 processing = 2;
   uint64 delayed = 3;
   uint64 dlq = 4;
+  uint64 completed = 5;
 }
 
 // === Streaming Messages ===

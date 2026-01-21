@@ -194,4 +194,5 @@ pub struct StatsResponse {
     pub processing: usize,
     pub delayed: usize,
     pub dlq: usize,
+    pub completed: usize,
 }
