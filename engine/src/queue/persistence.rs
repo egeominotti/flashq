@@ -2,7 +2,6 @@
 //!
 //! All persist_* methods for storing job state changes to SQLite.
 
-
 use serde_json::Value;
 use tracing::error;
 
@@ -26,7 +25,9 @@ impl QueueManager {
     #[inline]
     pub(crate) async fn persist_push_sync(&self, job: &Job, state: &str) -> Result<(), String> {
         if let Some(ref storage) = self.storage {
-            storage.insert_job(job, state).map_err(|e| format!("Failed to persist job: {}", e))?;
+            storage
+                .insert_job(job, state)
+                .map_err(|e| format!("Failed to persist job: {}", e))?;
         }
         Ok(())
     }
@@ -61,13 +62,19 @@ impl QueueManager {
 
     /// Persist job acknowledgment synchronously.
     #[inline]
-    pub(crate) async fn persist_ack_sync(&self, job_id: u64, result: Option<Value>) -> Result<(), String> {
+    pub(crate) async fn persist_ack_sync(
+        &self,
+        job_id: u64,
+        result: Option<Value>,
+    ) -> Result<(), String> {
         if let Some(ref res) = result {
             self.job_results.write().insert(job_id, res.clone());
         }
 
         if let Some(ref storage) = self.storage {
-            storage.ack_job(job_id, result).map_err(|e| format!("Failed to persist ack: {}", e))?;
+            storage
+                .ack_job(job_id, result)
+                .map_err(|e| format!("Failed to persist ack: {}", e))?;
         }
         Ok(())
     }
@@ -97,9 +104,15 @@ impl QueueManager {
 
     /// Persist job failure synchronously.
     #[inline]
-    pub(crate) async fn persist_fail_sync(&self, job_id: u64, new_run_at: u64, attempts: u32) -> Result<(), String> {
+    pub(crate) async fn persist_fail_sync(
+        &self,
+        job_id: u64,
+        new_run_at: u64,
+        attempts: u32,
+    ) -> Result<(), String> {
         if let Some(ref storage) = self.storage {
-            storage.fail_job(job_id, new_run_at, attempts)
+            storage
+                .fail_job(job_id, new_run_at, attempts)
                 .map_err(|e| format!("Failed to persist fail: {}", e))?;
         }
         Ok(())

@@ -229,7 +229,10 @@ impl QueueManager {
             job_logs: RwLock::new(GxHashMap::default()),
             stalled_count: RwLock::new(GxHashMap::default()),
             sync_persistence,
-            debounce_cache: RwLock::new(GxHashMap::with_capacity_and_hasher(64, Default::default())),
+            debounce_cache: RwLock::new(GxHashMap::with_capacity_and_hasher(
+                64,
+                Default::default(),
+            )),
             custom_id_map: RwLock::new(GxHashMap::default()),
             job_waiters: RwLock::new(GxHashMap::default()),
             completed_retention: RwLock::new(GxHashMap::default()),
@@ -314,7 +317,9 @@ impl QueueManager {
                     w.queue_len(),
                     stats.ops_queued.load(std::sync::atomic::Ordering::Relaxed),
                     stats.ops_written.load(std::sync::atomic::Ordering::Relaxed),
-                    stats.batches_written.load(std::sync::atomic::Ordering::Relaxed),
+                    stats
+                        .batches_written
+                        .load(std::sync::atomic::Ordering::Relaxed),
                     w.get_batch_interval_ms(),
                     w.get_max_batch_size(),
                 )
@@ -325,12 +330,19 @@ impl QueueManager {
     /// Check if async writer is enabled.
     #[allow(dead_code)]
     pub fn has_async_writer(&self) -> bool {
-        self.storage.as_ref().map(|s| s.has_async_writer()).unwrap_or(false)
+        self.storage
+            .as_ref()
+            .map(|s| s.has_async_writer())
+            .unwrap_or(false)
     }
 
     /// Update async writer configuration at runtime.
     /// Returns true if the configuration was updated, false if async writer is not enabled.
-    pub fn update_async_writer_config(&self, batch_interval_ms: Option<u64>, max_batch_size: Option<usize>) -> bool {
+    pub fn update_async_writer_config(
+        &self,
+        batch_interval_ms: Option<u64>,
+        max_batch_size: Option<usize>,
+    ) -> bool {
         if let Some(storage) = &self.storage {
             if let Some(writer) = storage.async_writer() {
                 if let Some(interval) = batch_interval_ms {
@@ -361,13 +373,15 @@ impl QueueManager {
     #[inline]
     #[allow(dead_code)]
     pub(crate) fn record_change(&self) {
-        self.snapshot_changes.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        self.snapshot_changes
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     }
 
     #[inline]
     #[allow(dead_code)]
     pub fn snapshot_change_count(&self) -> u64 {
-        self.snapshot_changes.load(std::sync::atomic::Ordering::Relaxed)
+        self.snapshot_changes
+            .load(std::sync::atomic::Ordering::Relaxed)
     }
 
     /// Get next job ID (simple atomic counter for single node).
@@ -414,12 +428,14 @@ impl QueueManager {
     }
 
     pub fn shutdown(&self) {
-        self.shutdown_flag.store(true, std::sync::atomic::Ordering::Relaxed);
+        self.shutdown_flag
+            .store(true, std::sync::atomic::Ordering::Relaxed);
     }
 
     #[inline]
     pub fn is_shutdown(&self) -> bool {
-        self.shutdown_flag.load(std::sync::atomic::Ordering::Relaxed)
+        self.shutdown_flag
+            .load(std::sync::atomic::Ordering::Relaxed)
     }
 
     #[inline(always)]

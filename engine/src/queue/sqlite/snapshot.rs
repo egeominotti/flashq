@@ -105,14 +105,17 @@ impl SnapshotManager {
 
     /// Mark snapshot as done
     pub fn mark_snapshot_done(&self) {
-        self.last_snapshot.store(crate::queue::types::now_ms(), Ordering::Relaxed);
+        self.last_snapshot
+            .store(crate::queue::types::now_ms(), Ordering::Relaxed);
         self.change_count.store(0, Ordering::Relaxed);
     }
 
     /// Get snapshot filename with timestamp
     pub fn snapshot_filename(&self) -> PathBuf {
         let timestamp = chrono::Utc::now().format("%Y%m%d_%H%M%S");
-        self.config.snapshot_dir.join(format!("flashq_{}.db", timestamp))
+        self.config
+            .snapshot_dir
+            .join(format!("flashq_{}.db", timestamp))
     }
 
     /// Cleanup old snapshots, keeping only the most recent N
@@ -194,7 +197,11 @@ pub fn snapshot_all(
     }
 
     tx.commit()?;
-    info!(jobs = jobs.len(), dlq = dlq_jobs.len(), "Snapshot completed");
+    info!(
+        jobs = jobs.len(),
+        dlq = dlq_jobs.len(),
+        "Snapshot completed"
+    );
     Ok(())
 }
 
@@ -209,7 +216,10 @@ pub fn create_backup(conn: &Connection, backup_path: &Path) -> Result<(), rusqli
 }
 
 /// Restore from a snapshot file.
-pub fn restore_from_snapshot(target_conn: &mut Connection, snapshot_path: &Path) -> Result<(), rusqlite::Error> {
+pub fn restore_from_snapshot(
+    target_conn: &mut Connection,
+    snapshot_path: &Path,
+) -> Result<(), rusqlite::Error> {
     if !snapshot_path.exists() {
         return Err(rusqlite::Error::InvalidPath(snapshot_path.to_path_buf()));
     }

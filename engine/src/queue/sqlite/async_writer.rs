@@ -21,24 +21,13 @@ use crate::protocol::Job;
 #[allow(dead_code)]
 pub enum WriteOp {
     /// Insert or update a job
-    InsertJob {
-        job: Box<Job>,
-        state: String,
-    },
+    InsertJob { job: Box<Job>, state: String },
     /// Insert multiple jobs in batch
-    InsertJobsBatch {
-        jobs: Vec<Job>,
-        state: String,
-    },
+    InsertJobsBatch { jobs: Vec<Job>, state: String },
     /// Acknowledge job completion
-    AckJob {
-        job_id: u64,
-        result: Option<Value>,
-    },
+    AckJob { job_id: u64, result: Option<Value> },
     /// Acknowledge multiple jobs
-    AckJobsBatch {
-        ids: Vec<u64>,
-    },
+    AckJobsBatch { ids: Vec<u64> },
     /// Fail job (for retry)
     FailJob {
         job_id: u64,
@@ -51,14 +40,9 @@ pub enum WriteOp {
         error: Option<String>,
     },
     /// Cancel a job
-    CancelJob {
-        job_id: u64,
-    },
+    CancelJob { job_id: u64 },
     /// Update job state
-    UpdateState {
-        job_id: u64,
-        state: String,
-    },
+    UpdateState { job_id: u64, state: String },
     /// Update job progress
     UpdateProgress {
         job_id: u64,
@@ -66,10 +50,7 @@ pub enum WriteOp {
         message: Option<String>,
     },
     /// Change job priority
-    ChangePriority {
-        job_id: u64,
-        priority: i32,
-    },
+    ChangePriority { job_id: u64, priority: i32 },
     /// Flush all pending writes (for graceful shutdown)
     Flush,
 }
@@ -210,13 +191,21 @@ impl AsyncWriter {
     /// Set batch interval (takes effect immediately on next batch).
     pub fn set_batch_interval_ms(&self, interval_ms: u64) {
         let old = self.batch_interval_ms.swap(interval_ms, Ordering::SeqCst);
-        info!(old_interval = old, new_interval = interval_ms, "Async writer batch interval updated");
+        info!(
+            old_interval = old,
+            new_interval = interval_ms,
+            "Async writer batch interval updated"
+        );
     }
 
     /// Set max batch size (takes effect immediately on next batch).
     pub fn set_max_batch_size(&self, size: usize) {
         let old = self.max_batch_size.swap(size, Ordering::SeqCst);
-        info!(old_size = old, new_size = size, "Async writer max batch size updated");
+        info!(
+            old_size = old,
+            new_size = size,
+            "Async writer max batch size updated"
+        );
     }
 
     /// Request flush and wait for completion.
@@ -280,7 +269,7 @@ impl AsyncWriter {
              PRAGMA synchronous = OFF;
              PRAGMA cache_size = -64000;
              PRAGMA temp_store = MEMORY;
-             PRAGMA wal_autocheckpoint = 1000;"
+             PRAGMA wal_autocheckpoint = 1000;",
         ) {
             error!(error = %e, "Failed to configure SQLite pragmas");
         }
@@ -289,7 +278,8 @@ impl AsyncWriter {
 
         while self.running.load(Ordering::SeqCst) {
             // Read current config values (allows runtime changes)
-            let batch_interval = Duration::from_millis(self.batch_interval_ms.load(Ordering::Relaxed));
+            let batch_interval =
+                Duration::from_millis(self.batch_interval_ms.load(Ordering::Relaxed));
             let max_batch = self.max_batch_size.load(Ordering::Relaxed);
 
             // Wait for notification or timeout
@@ -316,7 +306,9 @@ impl AsyncWriter {
                 if let Err(e) = self.process_batch(&conn, &mut ops_buffer) {
                     error!(error = %e, batch_size, "Failed to process write batch");
                 } else {
-                    self.stats.ops_written.fetch_add(batch_size as u64, Ordering::Relaxed);
+                    self.stats
+                        .ops_written
+                        .fetch_add(batch_size as u64, Ordering::Relaxed);
                     self.stats.batches_written.fetch_add(1, Ordering::Relaxed);
                     debug!(batch_size, "Write batch committed");
                 }
@@ -349,7 +341,11 @@ impl AsyncWriter {
     }
 
     /// Process a batch of operations in a single transaction.
-    fn process_batch(&self, conn: &Connection, ops: &mut Vec<WriteOp>) -> Result<(), rusqlite::Error> {
+    fn process_batch(
+        &self,
+        conn: &Connection,
+        ops: &mut Vec<WriteOp>,
+    ) -> Result<(), rusqlite::Error> {
         if ops.is_empty() {
             return Ok(());
         }
@@ -371,10 +367,17 @@ impl AsyncWriter {
                 }
                 WriteOp::AckJobsBatch { ids } => {
                     for id in ids {
-                        tx.execute("DELETE FROM jobs WHERE id = ?1", rusqlite::params![id as i64])?;
+                        tx.execute(
+                            "DELETE FROM jobs WHERE id = ?1",
+                            rusqlite::params![id as i64],
+                        )?;
                     }
                 }
-                WriteOp::FailJob { job_id, new_run_at, attempts } => {
+                WriteOp::FailJob {
+                    job_id,
+                    new_run_at,
+                    attempts,
+                } => {
                     tx.execute(
                         "UPDATE jobs SET state = 'waiting', run_at = ?2, attempts = ?3, started_at = NULL WHERE id = ?1",
                         rusqlite::params![job_id as i64, new_run_at as i64, attempts],
@@ -384,7 +387,10 @@ impl AsyncWriter {
                     self.exec_move_to_dlq(&tx, &job, error.as_deref())?;
                 }
                 WriteOp::CancelJob { job_id } => {
-                    tx.execute("DELETE FROM jobs WHERE id = ?1", rusqlite::params![job_id as i64])?;
+                    tx.execute(
+                        "DELETE FROM jobs WHERE id = ?1",
+                        rusqlite::params![job_id as i64],
+                    )?;
                 }
                 WriteOp::UpdateState { job_id, state } => {
                     tx.execute(
@@ -392,7 +398,11 @@ impl AsyncWriter {
                         rusqlite::params![job_id as i64, state],
                     )?;
                 }
-                WriteOp::UpdateProgress { job_id, progress, message } => {
+                WriteOp::UpdateProgress {
+                    job_id,
+                    progress,
+                    message,
+                } => {
                     tx.execute(
                         "UPDATE jobs SET progress = ?2, progress_msg = ?3 WHERE id = ?1",
                         rusqlite::params![job_id as i64, progress as i32, message],
@@ -414,11 +424,28 @@ impl AsyncWriter {
     }
 
     /// Execute insert job SQL.
-    fn exec_insert_job(&self, conn: &Connection, job: &Job, state: &str) -> Result<(), rusqlite::Error> {
+    fn exec_insert_job(
+        &self,
+        conn: &Connection,
+        job: &Job,
+        state: &str,
+    ) -> Result<(), rusqlite::Error> {
         let data = serde_json::to_string(&*job.data).unwrap_or_default();
-        let depends_on = if job.depends_on.is_empty() { None } else { Some(serde_json::to_string(&job.depends_on).unwrap_or_default()) };
-        let tags = if job.tags.is_empty() { None } else { Some(serde_json::to_string(&job.tags).unwrap_or_default()) };
-        let children_ids = if job.children_ids.is_empty() { None } else { Some(serde_json::to_string(&job.children_ids).unwrap_or_default()) };
+        let depends_on = if job.depends_on.is_empty() {
+            None
+        } else {
+            Some(serde_json::to_string(&job.depends_on).unwrap_or_default())
+        };
+        let tags = if job.tags.is_empty() {
+            None
+        } else {
+            Some(serde_json::to_string(&job.tags).unwrap_or_default())
+        };
+        let children_ids = if job.children_ids.is_empty() {
+            None
+        } else {
+            Some(serde_json::to_string(&job.children_ids).unwrap_or_default())
+        };
 
         conn.execute(
             "INSERT INTO jobs (id, queue, data, priority, created_at, run_at, started_at, attempts,
@@ -466,9 +493,17 @@ impl AsyncWriter {
     }
 
     /// Execute ack job SQL.
-    fn exec_ack_job(&self, conn: &Connection, job_id: u64, result: Option<Value>) -> Result<(), rusqlite::Error> {
+    fn exec_ack_job(
+        &self,
+        conn: &Connection,
+        job_id: u64,
+        result: Option<Value>,
+    ) -> Result<(), rusqlite::Error> {
         let now = crate::queue::types::now_ms();
-        conn.execute("DELETE FROM jobs WHERE id = ?1", rusqlite::params![job_id as i64])?;
+        conn.execute(
+            "DELETE FROM jobs WHERE id = ?1",
+            rusqlite::params![job_id as i64],
+        )?;
         if let Some(res) = result {
             let result_str = serde_json::to_string(&res).unwrap_or_default();
             conn.execute(
@@ -480,10 +515,18 @@ impl AsyncWriter {
     }
 
     /// Execute move to DLQ SQL.
-    fn exec_move_to_dlq(&self, conn: &Connection, job: &Job, error: Option<&str>) -> Result<(), rusqlite::Error> {
+    fn exec_move_to_dlq(
+        &self,
+        conn: &Connection,
+        job: &Job,
+        error: Option<&str>,
+    ) -> Result<(), rusqlite::Error> {
         let now = crate::queue::types::now_ms();
         let data = serde_json::to_string(&*job.data).unwrap_or_default();
-        conn.execute("DELETE FROM jobs WHERE id = ?1", rusqlite::params![job.id as i64])?;
+        conn.execute(
+            "DELETE FROM jobs WHERE id = ?1",
+            rusqlite::params![job.id as i64],
+        )?;
         conn.execute(
             "INSERT INTO dlq_jobs (job_id, queue, data, error, failed_at, attempts) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
             rusqlite::params![job.id as i64, job.queue, data, error, now as i64, job.attempts],

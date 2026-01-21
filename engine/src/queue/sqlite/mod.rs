@@ -23,7 +23,10 @@ use crate::protocol::{CronJob, Job, WebhookConfig};
 use serde_json::Value;
 
 pub use async_writer::{AsyncWriter, AsyncWriterConfig, WriteOp};
-pub use backup::{S3BackupConfig, S3BackupManager, set_runtime_s3_config, get_runtime_s3_config, clear_runtime_s3_config};
+pub use backup::{
+    clear_runtime_s3_config, get_runtime_s3_config, set_runtime_s3_config, S3BackupConfig,
+    S3BackupManager,
+};
 pub use snapshot::SnapshotManager;
 
 /// SQLite storage configuration
@@ -44,7 +47,7 @@ impl Default for SqliteConfig {
         Self {
             path: PathBuf::from("flashq.db"),
             wal_mode: true,
-            synchronous: 1, // NORMAL - good balance of safety and speed
+            synchronous: 1,     // NORMAL - good balance of safety and speed
             cache_size: -64000, // 64MB cache
         }
     }
@@ -225,9 +228,18 @@ impl SqliteStorage {
     }
 
     /// Mark job as failed and update for retry (async if writer enabled)
-    pub fn fail_job(&self, job_id: u64, new_run_at: u64, attempts: u32) -> Result<(), rusqlite::Error> {
+    pub fn fail_job(
+        &self,
+        job_id: u64,
+        new_run_at: u64,
+        attempts: u32,
+    ) -> Result<(), rusqlite::Error> {
         if let Some(ref writer) = self.async_writer {
-            writer.queue_op(WriteOp::FailJob { job_id, new_run_at, attempts });
+            writer.queue_op(WriteOp::FailJob {
+                job_id,
+                new_run_at,
+                attempts,
+            });
             return Ok(());
         }
         let conn = self.conn.lock();
@@ -360,7 +372,12 @@ impl SqliteStorage {
     }
 
     /// Clean jobs by age and state
-    pub fn clean_jobs(&self, queue: &str, cutoff: u64, state: &str) -> Result<u64, rusqlite::Error> {
+    pub fn clean_jobs(
+        &self,
+        queue: &str,
+        cutoff: u64,
+        state: &str,
+    ) -> Result<u64, rusqlite::Error> {
         let conn = self.conn.lock();
         jobs_advanced::clean_jobs(&conn, queue, cutoff, state)
     }
@@ -389,7 +406,11 @@ impl SqliteStorage {
 
     /// Take a snapshot of all jobs
     #[allow(dead_code)]
-    pub fn snapshot_all(&self, jobs: &[(Job, String)], dlq_jobs: &[(Job, Option<String>)]) -> Result<(), rusqlite::Error> {
+    pub fn snapshot_all(
+        &self,
+        jobs: &[(Job, String)],
+        dlq_jobs: &[(Job, Option<String>)],
+    ) -> Result<(), rusqlite::Error> {
         let conn = self.conn.lock();
         snapshot::snapshot_all(&conn, jobs, dlq_jobs)
     }
@@ -402,7 +423,10 @@ impl SqliteStorage {
 
     /// Create a timestamped snapshot in the same directory
     pub fn create_snapshot(&self) -> Result<(), String> {
-        let snapshot_dir = self.path.parent().unwrap_or_else(|| std::path::Path::new("."));
+        let snapshot_dir = self
+            .path
+            .parent()
+            .unwrap_or_else(|| std::path::Path::new("."));
         let timestamp = chrono::Utc::now().format("%Y%m%d_%H%M%S");
         let snapshot_name = format!("flashq_snapshot_{}.db", timestamp);
         let snapshot_path = snapshot_dir.join(&snapshot_name);

@@ -141,7 +141,11 @@ impl QueueManager {
                         .push_back(job);
                 } else {
                     let backoff = job.next_backoff();
-                    let new_run_at = if backoff > 0 { now + backoff } else { job.run_at };
+                    let new_run_at = if backoff > 0 {
+                        now + backoff
+                    } else {
+                        job.run_at
+                    };
                     job.run_at = new_run_at;
                     job.started_at = 0;
                     job.progress_msg = Some("Job timed out".to_string());

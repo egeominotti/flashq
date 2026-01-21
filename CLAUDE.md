@@ -502,26 +502,25 @@ GitHub Actions runs on every push to `main` and on PRs.
 
 ### Pre-Push Checklist
 
-**Always run these commands before pushing:**
+⚠️ **MANDATORY: Run these commands before EVERY push:**
 
 ```bash
 cd engine
 
-# Check formatting (must pass)
+# 1. Format code (auto-fix)
+cargo fmt
+
+# 2. Check formatting passes
 cargo fmt --check
 
-# Run clippy (warnings = errors)
+# 3. Run clippy (warnings = errors) - MUST PASS
 cargo clippy -- -D warnings
 
-# Run tests
+# 4. Run tests - MUST PASS
 cargo test
 ```
 
-Or fix formatting automatically:
-
-```bash
-cargo fmt
-```
+**CI will fail if any of these checks fail.** Always verify locally first.
 
 ### CI Requirements
 

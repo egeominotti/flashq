@@ -19,8 +19,8 @@ use tokio::net::{TcpListener, UnixListener};
 use tokio::signal;
 use tokio::sync::broadcast;
 
-use queue::QueueManager;
 use queue::sqlite::{S3BackupConfig, S3BackupManager};
+use queue::QueueManager;
 use server::handle_connection;
 
 const DEFAULT_TCP_PORT: u16 = 6789;
@@ -144,7 +144,9 @@ fn create_queue_manager(auth_tokens: &[String]) -> Arc<QueueManager> {
         (Some(path), false) => {
             info!(path = %path, token_count = auth_tokens.len(), "Using SQLite with authentication");
             let mut qm = QueueManager::with_sqlite_from_env();
-            Arc::get_mut(&mut qm).map(|q| q.set_auth_tokens(auth_tokens.to_vec()));
+            if let Some(q) = Arc::get_mut(&mut qm) {
+                q.set_auth_tokens(auth_tokens.to_vec());
+            }
             qm
         }
         (None, true) => {
@@ -152,7 +154,10 @@ fn create_queue_manager(auth_tokens: &[String]) -> Arc<QueueManager> {
             QueueManager::new(false)
         }
         (None, false) => {
-            info!(token_count = auth_tokens.len(), "Running in-memory mode with authentication");
+            info!(
+                token_count = auth_tokens.len(),
+                "Running in-memory mode with authentication"
+            );
             QueueManager::with_auth_tokens(false, auth_tokens.to_vec())
         }
     }
@@ -353,7 +358,8 @@ async fn start_s3_backup_task(queue_manager: &Arc<QueueManager>) {
 
     // Start background backup task
     tokio::spawn(async move {
-        let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(config.interval_secs));
+        let mut interval =
+            tokio::time::interval(tokio::time::Duration::from_secs(config.interval_secs));
 
         loop {
             interval.tick().await;

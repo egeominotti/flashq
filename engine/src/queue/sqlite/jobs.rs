@@ -9,9 +9,21 @@ use crate::protocol::Job;
 /// Insert or update a job.
 pub fn insert_job(conn: &Connection, job: &Job, state: &str) -> Result<(), rusqlite::Error> {
     let data = serde_json::to_string(&*job.data).unwrap_or_default();
-    let depends_on = if job.depends_on.is_empty() { None } else { Some(serde_json::to_string(&job.depends_on).unwrap_or_default()) };
-    let tags = if job.tags.is_empty() { None } else { Some(serde_json::to_string(&job.tags).unwrap_or_default()) };
-    let children_ids = if job.children_ids.is_empty() { None } else { Some(serde_json::to_string(&job.children_ids).unwrap_or_default()) };
+    let depends_on = if job.depends_on.is_empty() {
+        None
+    } else {
+        Some(serde_json::to_string(&job.depends_on).unwrap_or_default())
+    };
+    let tags = if job.tags.is_empty() {
+        None
+    } else {
+        Some(serde_json::to_string(&job.tags).unwrap_or_default())
+    };
+    let children_ids = if job.children_ids.is_empty() {
+        None
+    } else {
+        Some(serde_json::to_string(&job.children_ids).unwrap_or_default())
+    };
 
     conn.execute(
         "INSERT INTO jobs (id, queue, data, priority, created_at, run_at, started_at, attempts,
@@ -59,7 +71,11 @@ pub fn insert_job(conn: &Connection, job: &Job, state: &str) -> Result<(), rusql
 }
 
 /// Insert multiple jobs in a batch.
-pub fn insert_jobs_batch(conn: &Connection, jobs: &[Job], state: &str) -> Result<(), rusqlite::Error> {
+pub fn insert_jobs_batch(
+    conn: &Connection,
+    jobs: &[Job],
+    state: &str,
+) -> Result<(), rusqlite::Error> {
     let tx = conn.unchecked_transaction()?;
     for job in jobs {
         insert_job(&tx, job, state)?;
@@ -68,7 +84,11 @@ pub fn insert_jobs_batch(conn: &Connection, jobs: &[Job], state: &str) -> Result
 }
 
 /// Acknowledge a job as completed.
-pub fn ack_job(conn: &Connection, job_id: u64, result: Option<Value>) -> Result<(), rusqlite::Error> {
+pub fn ack_job(
+    conn: &Connection,
+    job_id: u64,
+    result: Option<Value>,
+) -> Result<(), rusqlite::Error> {
     let now = crate::queue::types::now_ms();
     conn.execute("DELETE FROM jobs WHERE id = ?1", params![job_id as i64])?;
     if let Some(res) = result {
@@ -83,7 +103,9 @@ pub fn ack_job(conn: &Connection, job_id: u64, result: Option<Value>) -> Result<
 
 /// Acknowledge multiple jobs in a batch.
 pub fn ack_jobs_batch(conn: &Connection, ids: &[u64]) -> Result<(), rusqlite::Error> {
-    if ids.is_empty() { return Ok(()); }
+    if ids.is_empty() {
+        return Ok(());
+    }
     let tx = conn.unchecked_transaction()?;
     for &id in ids {
         tx.execute("DELETE FROM jobs WHERE id = ?1", params![id as i64])?;
@@ -92,7 +114,12 @@ pub fn ack_jobs_batch(conn: &Connection, ids: &[u64]) -> Result<(), rusqlite::Er
 }
 
 /// Mark job as failed and update for retry.
-pub fn fail_job(conn: &Connection, job_id: u64, new_run_at: u64, attempts: u32) -> Result<(), rusqlite::Error> {
+pub fn fail_job(
+    conn: &Connection,
+    job_id: u64,
+    new_run_at: u64,
+    attempts: u32,
+) -> Result<(), rusqlite::Error> {
     conn.execute(
         "UPDATE jobs SET state = 'waiting', run_at = ?2, attempts = ?3, started_at = NULL WHERE id = ?1",
         params![job_id as i64, new_run_at as i64, attempts],
@@ -101,7 +128,11 @@ pub fn fail_job(conn: &Connection, job_id: u64, new_run_at: u64, attempts: u32) 
 }
 
 /// Move job to DLQ.
-pub fn move_to_dlq(conn: &Connection, job: &Job, error: Option<&str>) -> Result<(), rusqlite::Error> {
+pub fn move_to_dlq(
+    conn: &Connection,
+    job: &Job,
+    error: Option<&str>,
+) -> Result<(), rusqlite::Error> {
     let now = crate::queue::types::now_ms();
     let data = serde_json::to_string(&*job.data).unwrap_or_default();
     let tx = conn.unchecked_transaction()?;
@@ -150,15 +181,37 @@ pub fn load_dlq_jobs(conn: &Connection) -> Result<Vec<Job>, rusqlite::Error> {
         let data: Value = serde_json::from_str(&data_str).unwrap_or(Value::Null);
 
         Ok(Job {
-            id: id as u64, queue, data: Arc::new(data), priority: 0,
-            created_at: now, run_at: now, started_at: 0, attempts, max_attempts: attempts,
-            backoff: 1000, ttl: 0, timeout: 0, unique_key: None,
-            depends_on: vec![], progress: 0, progress_msg: None, tags: vec![],
-            lifo: false, remove_on_complete: false, remove_on_fail: false,
-            last_heartbeat: 0, stall_timeout: 0, stall_count: 0,
-            parent_id: None, children_ids: vec![], children_completed: 0,
-            custom_id: None, keep_completed_age: 0, keep_completed_count: 0,
-            completed_at: 0, group_id: None,
+            id: id as u64,
+            queue,
+            data: Arc::new(data),
+            priority: 0,
+            created_at: now,
+            run_at: now,
+            started_at: 0,
+            attempts,
+            max_attempts: attempts,
+            backoff: 1000,
+            ttl: 0,
+            timeout: 0,
+            unique_key: None,
+            depends_on: vec![],
+            progress: 0,
+            progress_msg: None,
+            tags: vec![],
+            lifo: false,
+            remove_on_complete: false,
+            remove_on_fail: false,
+            last_heartbeat: 0,
+            stall_timeout: 0,
+            stall_count: 0,
+            parent_id: None,
+            children_ids: vec![],
+            children_completed: 0,
+            custom_id: None,
+            keep_completed_age: 0,
+            keep_completed_count: 0,
+            completed_at: 0,
+            group_id: None,
         })
     })?;
 
@@ -167,7 +220,10 @@ pub fn load_dlq_jobs(conn: &Connection) -> Result<Vec<Job>, rusqlite::Error> {
 
 /// Get the maximum job ID.
 pub fn get_max_job_id(conn: &Connection) -> Result<u64, rusqlite::Error> {
-    let max: Option<i64> = conn.query_row("SELECT MAX(id) FROM jobs", [], |row| row.get(0)).optional()?.flatten();
+    let max: Option<i64> = conn
+        .query_row("SELECT MAX(id) FROM jobs", [], |row| row.get(0))
+        .optional()?
+        .flatten();
     Ok(max.unwrap_or(0) as u64)
 }
 
@@ -200,24 +256,47 @@ fn row_to_job(row: &rusqlite::Row) -> Result<Job, rusqlite::Error> {
     let keep_completed_count: i32 = row.get(25)?;
 
     let data: Value = serde_json::from_str(&data_str).unwrap_or(Value::Null);
-    let depends_on: Vec<u64> = depends_on_str.and_then(|s| serde_json::from_str(&s).ok()).unwrap_or_default();
-    let tags: Vec<String> = tags_str.and_then(|s| serde_json::from_str(&s).ok()).unwrap_or_default();
-    let children_ids: Vec<u64> = children_ids_str.and_then(|s| serde_json::from_str(&s).ok()).unwrap_or_default();
+    let depends_on: Vec<u64> = depends_on_str
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_default();
+    let tags: Vec<String> = tags_str
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_default();
+    let children_ids: Vec<u64> = children_ids_str
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_default();
 
     Ok(Job {
-        id: id as u64, queue, data: Arc::new(data), priority,
-        created_at: created_at as u64, run_at: run_at as u64,
-        started_at: started_at.unwrap_or(0) as u64, attempts, max_attempts,
-        backoff: backoff as u64, ttl: ttl.unwrap_or(0) as u64, timeout: timeout.unwrap_or(0) as u64,
-        unique_key, depends_on, progress: progress as u8, progress_msg, tags,
-        lifo: lifo != 0, remove_on_complete: false, remove_on_fail: false,
-        last_heartbeat: 0, stall_timeout: 0, stall_count: 0,
+        id: id as u64,
+        queue,
+        data: Arc::new(data),
+        priority,
+        created_at: created_at as u64,
+        run_at: run_at as u64,
+        started_at: started_at.unwrap_or(0) as u64,
+        attempts,
+        max_attempts,
+        backoff: backoff as u64,
+        ttl: ttl.unwrap_or(0) as u64,
+        timeout: timeout.unwrap_or(0) as u64,
+        unique_key,
+        depends_on,
+        progress: progress as u8,
+        progress_msg,
+        tags,
+        lifo: lifo != 0,
+        remove_on_complete: false,
+        remove_on_fail: false,
+        last_heartbeat: 0,
+        stall_timeout: 0,
+        stall_count: 0,
         parent_id: parent_id.map(|id| id as u64),
         children_ids,
         children_completed: children_completed as u32,
         custom_id,
         keep_completed_age: keep_completed_age as u64,
         keep_completed_count: keep_completed_count as usize,
-        completed_at: 0, group_id,
+        completed_at: 0,
+        group_id,
     })
 }

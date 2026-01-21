@@ -215,9 +215,7 @@ fn test_write_op_variants() {
     });
 
     // Test AckJobsBatch
-    writer.queue_op(WriteOp::AckJobsBatch {
-        ids: vec![2, 3, 4],
-    });
+    writer.queue_op(WriteOp::AckJobsBatch { ids: vec![2, 3, 4] });
 
     // Test FailJob
     writer.queue_op(WriteOp::FailJob {

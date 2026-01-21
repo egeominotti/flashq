@@ -101,12 +101,7 @@ impl S3BackupConfig {
     }
 
     /// Create a new S3BackupConfig with required fields
-    pub fn new(
-        endpoint: String,
-        bucket: String,
-        access_key: String,
-        secret_key: String,
-    ) -> Self {
+    pub fn new(endpoint: String, bucket: String, access_key: String, secret_key: String) -> Self {
         Self {
             endpoint,
             bucket,
@@ -161,13 +156,8 @@ pub struct S3BackupManager {
 impl S3BackupManager {
     /// Create a new S3 backup manager
     pub async fn new(config: S3BackupConfig) -> Result<Self, String> {
-        let credentials = Credentials::new(
-            &config.access_key,
-            &config.secret_key,
-            None,
-            None,
-            "flashq",
-        );
+        let credentials =
+            Credentials::new(&config.access_key, &config.secret_key, None, None, "flashq");
 
         let s3_config = aws_sdk_s3::Config::builder()
             .endpoint_url(&config.endpoint)
@@ -211,8 +201,12 @@ impl S3BackupManager {
         // Compress if enabled
         let body = if self.config.compress {
             let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
-            encoder.write_all(&data).map_err(|e| format!("Compression failed: {}", e))?;
-            encoder.finish().map_err(|e| format!("Compression finish failed: {}", e))?
+            encoder
+                .write_all(&data)
+                .map_err(|e| format!("Compression failed: {}", e))?;
+            encoder
+                .finish()
+                .map_err(|e| format!("Compression finish failed: {}", e))?
         } else {
             data
         };
@@ -229,7 +223,8 @@ impl S3BackupManager {
             .await
             .map_err(|e| format!("S3 upload failed: {}", e))?;
 
-        self.last_backup.store(crate::queue::types::now_ms(), Ordering::Relaxed);
+        self.last_backup
+            .store(crate::queue::types::now_ms(), Ordering::Relaxed);
         info!(key = %key, size = body_size, "Backup uploaded to S3");
 
         // Cleanup old backups
@@ -240,7 +235,8 @@ impl S3BackupManager {
 
     /// Cleanup old backups, keeping only the most recent N
     async fn cleanup_old_backups(&self) -> Result<(), String> {
-        let list = self.client
+        let list = self
+            .client
             .list_objects_v2()
             .bucket(&self.config.bucket)
             .prefix(&self.config.prefix)
@@ -248,7 +244,9 @@ impl S3BackupManager {
             .await
             .map_err(|e| format!("Failed to list objects: {}", e))?;
 
-        let mut objects: Vec<_> = list.contents().iter()
+        let mut objects: Vec<_> = list
+            .contents()
+            .iter()
             .filter_map(|obj| obj.key().map(|k| k.to_string()))
             .collect();
 
@@ -257,7 +255,8 @@ impl S3BackupManager {
 
         // Delete old backups
         for key in objects.iter().skip(self.config.keep_count) {
-            if let Err(e) = self.client
+            if let Err(e) = self
+                .client
                 .delete_object()
                 .bucket(&self.config.bucket)
                 .key(key)
@@ -273,7 +272,8 @@ impl S3BackupManager {
 
     /// List available backups in S3
     pub async fn list_backups(&self) -> Result<Vec<String>, String> {
-        let list = self.client
+        let list = self
+            .client
             .list_objects_v2()
             .bucket(&self.config.bucket)
             .prefix(&self.config.prefix)
@@ -281,7 +281,9 @@ impl S3BackupManager {
             .await
             .map_err(|e| format!("Failed to list objects: {}", e))?;
 
-        let mut objects: Vec<_> = list.contents().iter()
+        let mut objects: Vec<_> = list
+            .contents()
+            .iter()
             .filter_map(|obj| obj.key().map(|k| k.to_string()))
             .collect();
 
@@ -290,8 +292,11 @@ impl S3BackupManager {
     }
 
     /// List available backups in S3 with detailed info (key, size, last_modified)
-    pub async fn list_backups_detailed(&self) -> Result<Vec<(String, i64, Option<String>)>, String> {
-        let list = self.client
+    pub async fn list_backups_detailed(
+        &self,
+    ) -> Result<Vec<(String, i64, Option<String>)>, String> {
+        let list = self
+            .client
             .list_objects_v2()
             .bucket(&self.config.bucket)
             .prefix(&self.config.prefix)
@@ -299,12 +304,13 @@ impl S3BackupManager {
             .await
             .map_err(|e| format!("Failed to list objects: {}", e))?;
 
-        let mut objects: Vec<_> = list.contents().iter()
+        let mut objects: Vec<_> = list
+            .contents()
+            .iter()
             .filter_map(|obj| {
                 obj.key().map(|k| {
                     let size = obj.size().unwrap_or(0);
-                    let modified = obj.last_modified()
-                        .map(|dt| dt.to_string());
+                    let modified = obj.last_modified().map(|dt| dt.to_string());
                     (k.to_string(), size, modified)
                 })
             })
@@ -317,7 +323,8 @@ impl S3BackupManager {
 
     /// Download and restore from S3 backup
     pub async fn restore(&self, key: &str, target_path: &Path) -> Result<(), String> {
-        let response = self.client
+        let response = self
+            .client
             .get_object()
             .bucket(&self.config.bucket)
             .key(key)
@@ -325,7 +332,10 @@ impl S3BackupManager {
             .await
             .map_err(|e| format!("Failed to download backup: {}", e))?;
 
-        let data = response.body.collect().await
+        let data = response
+            .body
+            .collect()
+            .await
             .map_err(|e| format!("Failed to read response: {}", e))?
             .into_bytes();
 
@@ -335,7 +345,8 @@ impl S3BackupManager {
             use std::io::Read;
             let mut decoder = GzDecoder::new(&data[..]);
             let mut decompressed = Vec::new();
-            decoder.read_to_end(&mut decompressed)
+            decoder
+                .read_to_end(&mut decompressed)
                 .map_err(|e| format!("Decompression failed: {}", e))?;
             decompressed
         } else {

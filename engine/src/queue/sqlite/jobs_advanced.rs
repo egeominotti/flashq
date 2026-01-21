@@ -73,7 +73,11 @@ pub fn load_crons(conn: &Connection) -> Result<Vec<CronJob>, rusqlite::Error> {
 }
 
 /// Update cron next_run time.
-pub fn update_cron_next_run(conn: &Connection, name: &str, next_run: u64) -> Result<(), rusqlite::Error> {
+pub fn update_cron_next_run(
+    conn: &Connection,
+    name: &str,
+    next_run: u64,
+) -> Result<(), rusqlite::Error> {
     conn.execute(
         "UPDATE cron_jobs SET next_run = ?2 WHERE name = ?1",
         params![name, next_run as i64],
@@ -90,7 +94,14 @@ pub fn save_webhook(conn: &Connection, webhook: &WebhookConfig) -> Result<(), ru
     conn.execute(
         "INSERT OR REPLACE INTO webhooks (id, url, events, queue, secret, created_at)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-        params![webhook.id, webhook.url, events, webhook.queue, webhook.secret, webhook.created_at as i64],
+        params![
+            webhook.id,
+            webhook.url,
+            events,
+            webhook.queue,
+            webhook.secret,
+            webhook.created_at as i64
+        ],
     )?;
     Ok(())
 }
@@ -103,7 +114,8 @@ pub fn delete_webhook(conn: &Connection, id: &str) -> Result<bool, rusqlite::Err
 
 /// Load all webhooks.
 pub fn load_webhooks(conn: &Connection) -> Result<Vec<WebhookConfig>, rusqlite::Error> {
-    let mut stmt = conn.prepare("SELECT id, url, events, queue, secret, created_at FROM webhooks")?;
+    let mut stmt =
+        conn.prepare("SELECT id, url, events, queue, secret, created_at FROM webhooks")?;
 
     let rows = stmt.query_map([], |row| {
         let id: String = row.get(0)?;
@@ -115,7 +127,14 @@ pub fn load_webhooks(conn: &Connection) -> Result<Vec<WebhookConfig>, rusqlite::
 
         let events: Vec<String> = serde_json::from_str(&events_str).unwrap_or_default();
 
-        Ok(WebhookConfig { id, url, events, queue, secret, created_at: created_at as u64 })
+        Ok(WebhookConfig {
+            id,
+            url,
+            events,
+            queue,
+            secret,
+            created_at: created_at as u64,
+        })
     })?;
 
     rows.collect()
@@ -125,7 +144,10 @@ pub fn load_webhooks(conn: &Connection) -> Result<Vec<WebhookConfig>, rusqlite::
 
 /// Drain all waiting jobs from a queue.
 pub fn drain_queue(conn: &Connection, queue: &str) -> Result<u64, rusqlite::Error> {
-    let rows = conn.execute("DELETE FROM jobs WHERE queue = ?1 AND state = 'waiting'", params![queue])?;
+    let rows = conn.execute(
+        "DELETE FROM jobs WHERE queue = ?1 AND state = 'waiting'",
+        params![queue],
+    )?;
     Ok(rows as u64)
 }
 
@@ -140,32 +162,57 @@ pub fn obliterate_queue(conn: &Connection, queue: &str) -> Result<u64, rusqlite:
 }
 
 /// Change priority of a job.
-pub fn change_priority(conn: &Connection, job_id: u64, priority: i32) -> Result<(), rusqlite::Error> {
-    conn.execute("UPDATE jobs SET priority = ?2 WHERE id = ?1", params![job_id as i64, priority])?;
+pub fn change_priority(
+    conn: &Connection,
+    job_id: u64,
+    priority: i32,
+) -> Result<(), rusqlite::Error> {
+    conn.execute(
+        "UPDATE jobs SET priority = ?2 WHERE id = ?1",
+        params![job_id as i64, priority],
+    )?;
     Ok(())
 }
 
 /// Move a job to delayed state.
 pub fn move_to_delayed(conn: &Connection, job_id: u64, run_at: u64) -> Result<(), rusqlite::Error> {
-    conn.execute("UPDATE jobs SET state = 'delayed', run_at = ?2 WHERE id = ?1", params![job_id as i64, run_at as i64])?;
+    conn.execute(
+        "UPDATE jobs SET state = 'delayed', run_at = ?2 WHERE id = ?1",
+        params![job_id as i64, run_at as i64],
+    )?;
     Ok(())
 }
 
 /// Promote a delayed job to waiting.
 pub fn promote_job(conn: &Connection, job_id: u64, run_at: u64) -> Result<(), rusqlite::Error> {
-    conn.execute("UPDATE jobs SET state = 'waiting', run_at = ?2 WHERE id = ?1", params![job_id as i64, run_at as i64])?;
+    conn.execute(
+        "UPDATE jobs SET state = 'waiting', run_at = ?2 WHERE id = ?1",
+        params![job_id as i64, run_at as i64],
+    )?;
     Ok(())
 }
 
 /// Update job data.
-pub fn update_job_data(conn: &Connection, job_id: u64, data: &serde_json::Value) -> Result<(), rusqlite::Error> {
+pub fn update_job_data(
+    conn: &Connection,
+    job_id: u64,
+    data: &serde_json::Value,
+) -> Result<(), rusqlite::Error> {
     let data_str = serde_json::to_string(data).unwrap_or_default();
-    conn.execute("UPDATE jobs SET data = ?2 WHERE id = ?1", params![job_id as i64, data_str])?;
+    conn.execute(
+        "UPDATE jobs SET data = ?2 WHERE id = ?1",
+        params![job_id as i64, data_str],
+    )?;
     Ok(())
 }
 
 /// Clean jobs by age and state.
-pub fn clean_jobs(conn: &Connection, queue: &str, cutoff: u64, state: &str) -> Result<u64, rusqlite::Error> {
+pub fn clean_jobs(
+    conn: &Connection,
+    queue: &str,
+    cutoff: u64,
+    state: &str,
+) -> Result<u64, rusqlite::Error> {
     let rows = conn.execute(
         "DELETE FROM jobs WHERE queue = ?1 AND state = ?2 AND created_at < ?3",
         params![queue, state, cutoff as i64],
