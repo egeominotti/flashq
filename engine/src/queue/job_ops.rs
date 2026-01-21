@@ -6,6 +6,7 @@ use std::sync::Arc;
 
 use compact_str::CompactString;
 use serde_json::Value;
+use tracing::warn;
 
 use super::manager::QueueManager;
 use super::types::{intern, now_ms, JobLocation};
@@ -151,7 +152,9 @@ impl QueueManager {
 
                 // Persist
                 if let Some(ref storage) = self.storage {
-                    let _ = storage.change_priority(job_id, new_priority);
+                    if let Err(e) = storage.change_priority(job_id, new_priority) {
+                        warn!(job_id, error = %e, "Failed to persist priority change to SQLite");
+                    }
                 }
                 Ok(())
             }
@@ -191,7 +194,9 @@ impl QueueManager {
                 if found {
                     // Persist (lock dropped before await)
                     if let Some(ref storage) = self.storage {
-                        let _ = storage.change_priority(job_id, new_priority);
+                        if let Err(e) = storage.change_priority(job_id, new_priority) {
+                            warn!(job_id, error = %e, "Failed to persist priority change to SQLite");
+                        }
                     }
                     return Ok(());
                 }
@@ -216,7 +221,9 @@ impl QueueManager {
                 if found {
                     // Persist (lock dropped before await)
                     if let Some(ref storage) = self.storage {
-                        let _ = storage.change_priority(job_id, new_priority);
+                        if let Err(e) = storage.change_priority(job_id, new_priority) {
+                            warn!(job_id, error = %e, "Failed to persist priority change to SQLite");
+                        }
                     }
                     return Ok(());
                 }
@@ -237,7 +244,9 @@ impl QueueManager {
                 if found {
                     // Persist (lock dropped before await)
                     if let Some(ref storage) = self.storage {
-                        let _ = storage.change_priority(job_id, new_priority);
+                        if let Err(e) = storage.change_priority(job_id, new_priority) {
+                            warn!(job_id, error = %e, "Failed to persist priority change to SQLite");
+                        }
                     }
                     return Ok(());
                 }
@@ -258,7 +267,9 @@ impl QueueManager {
                 if found {
                     // Persist (lock dropped before await)
                     if let Some(ref storage) = self.storage {
-                        let _ = storage.change_priority(job_id, new_priority);
+                        if let Err(e) = storage.change_priority(job_id, new_priority) {
+                            warn!(job_id, error = %e, "Failed to persist priority change to SQLite");
+                        }
                     }
                     return Ok(());
                 }
@@ -298,7 +309,9 @@ impl QueueManager {
         // 5. Persist (needs run_at value)
         let run_at = job.run_at;
         if let Some(ref storage) = self.storage {
-            let _ = storage.move_to_delayed(job_id, run_at);
+            if let Err(e) = storage.move_to_delayed(job_id, run_at) {
+                warn!(job_id, error = %e, "Failed to persist move_to_delayed to SQLite");
+            }
         }
 
         // 6. Push to queue (moves ownership, no clone needed)
@@ -371,7 +384,9 @@ impl QueueManager {
 
                 // Persist (lock dropped)
                 if let Some(ref storage) = self.storage {
-                    let _ = storage.promote_job(job_id, now);
+                    if let Err(e) = storage.promote_job(job_id, now) {
+                        warn!(job_id, error = %e, "Failed to persist job promotion to SQLite");
+                    }
                 }
 
                 Ok(())
@@ -395,7 +410,9 @@ impl QueueManager {
                 if found {
                     // Persist
                     if let Some(ref storage) = self.storage {
-                        let _ = storage.update_job_data(job_id, &new_data);
+                        if let Err(e) = storage.update_job_data(job_id, &new_data) {
+                            warn!(job_id, error = %e, "Failed to persist job data update to SQLite");
+                        }
                     }
                     Ok(())
                 } else {
@@ -438,7 +455,9 @@ impl QueueManager {
                 if found {
                     // Persist (lock dropped)
                     if let Some(ref storage) = self.storage {
-                        let _ = storage.update_job_data(job_id, &new_data);
+                        if let Err(e) = storage.update_job_data(job_id, &new_data) {
+                            warn!(job_id, error = %e, "Failed to persist job data update to SQLite");
+                        }
                     }
                     Ok(())
                 } else {
@@ -463,7 +482,9 @@ impl QueueManager {
                 if found {
                     // Persist (lock dropped)
                     if let Some(ref storage) = self.storage {
-                        let _ = storage.update_job_data(job_id, &new_data);
+                        if let Err(e) = storage.update_job_data(job_id, &new_data) {
+                            warn!(job_id, error = %e, "Failed to persist job data update to SQLite");
+                        }
                     }
                     Ok(())
                 } else {
@@ -508,7 +529,9 @@ impl QueueManager {
 
                 // Persist
                 if let Some(ref storage) = self.storage {
-                    let _ = storage.discard_job(job_id);
+                    if let Err(e) = storage.discard_job(job_id) {
+                        warn!(job_id, error = %e, "Failed to persist job discard to SQLite");
+                    }
                 }
 
                 Ok(())
@@ -554,7 +577,9 @@ impl QueueManager {
                 if found {
                     // Persist (lock dropped)
                     if let Some(ref storage) = self.storage {
-                        let _ = storage.discard_job(job_id);
+                        if let Err(e) = storage.discard_job(job_id) {
+                            warn!(job_id, error = %e, "Failed to persist job discard to SQLite");
+                        }
                     }
                     Ok(())
                 } else {

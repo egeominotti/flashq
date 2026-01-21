@@ -2,6 +2,8 @@
 //!
 //! List, filter, and cleanup jobs across states.
 
+use tracing::warn;
+
 use super::manager::QueueManager;
 use super::types::{intern, now_ms};
 use crate::protocol::{JobBrowserItem, JobState};
@@ -235,7 +237,9 @@ impl QueueManager {
                 JobState::Failed => "failed",
                 _ => "unknown",
             };
-            let _ = storage.clean_jobs(queue_name, cutoff, state_str);
+            if let Err(e) = storage.clean_jobs(queue_name, cutoff, state_str) {
+                warn!(queue = queue_name, error = %e, "Failed to persist clean_jobs to SQLite");
+            }
         }
 
         removed
@@ -265,9 +269,11 @@ impl QueueManager {
             }
         }
 
-        // Persist to PostgreSQL
+        // Persist to SQLite
         if let Some(ref storage) = self.storage {
-            let _ = storage.drain_queue(queue_name);
+            if let Err(e) = storage.drain_queue(queue_name) {
+                warn!(queue = queue_name, error = %e, "Failed to persist drain_queue to SQLite");
+            }
         }
 
         removed
@@ -360,7 +366,9 @@ impl QueueManager {
 
         // 4. Persist
         if let Some(ref storage) = self.storage {
-            let _ = storage.obliterate_queue(queue_name);
+            if let Err(e) = storage.obliterate_queue(queue_name) {
+                warn!(queue = queue_name, error = %e, "Failed to persist obliterate_queue to SQLite");
+            }
         }
 
         total_removed
