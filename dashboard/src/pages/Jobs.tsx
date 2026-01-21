@@ -104,7 +104,7 @@ export function Jobs() {
     data: jobsData,
     refetch: refetchJobs,
     isLoading: jobsLoading,
-  } = useJobs(selectedQueue || undefined, selectedState === 'all' ? undefined : selectedState, 500);
+  } = useJobs(selectedQueue || undefined, selectedState === 'all' ? undefined : selectedState, 5000);
 
   const jobs = useMemo(() => jobsData?.jobs || [], [jobsData]);
 
