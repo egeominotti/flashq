@@ -21,7 +21,7 @@ impl QueueManager {
         let mut queues = Vec::new();
 
         for shard in &self.shards {
-            let s = shard.write();
+            let s = shard.read();
             for (name, heap) in &s.queues {
                 let state = s.queue_state.get(name);
                 queues.push(QueueMetrics {

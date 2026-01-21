@@ -200,30 +200,18 @@ impl QueueManager {
     }
 
     /// Synchronous stats helper for internal use.
+    /// Uses O(1) atomic counters instead of iterating all shards.
     fn stats_sync(&self) -> (usize, usize, usize, usize) {
-        let now = now_ms();
-        let mut queued = 0;
-        let mut delayed = 0;
-        let mut dlq_count = 0;
+        use std::sync::atomic::Ordering;
 
-        for shard in &self.shards {
-            let shard = shard.read();
-            for heap in shard.queues.values() {
-                for job in heap.iter() {
-                    if job.run_at > now {
-                        delayed += 1;
-                    } else {
-                        queued += 1;
-                    }
-                }
-            }
-            for dlq in shard.dlq.values() {
-                dlq_count += dlq.len();
-            }
-        }
+        // Use atomic counters for O(1) stats - no lock contention
+        let queued = self.metrics.current_queued.load(Ordering::Relaxed) as usize;
+        let processing = self.metrics.current_processing.load(Ordering::Relaxed) as usize;
+        let dlq_count = self.metrics.current_dlq.load(Ordering::Relaxed) as usize;
 
-        let processing = self.processing_len();
-        (queued, processing, delayed, dlq_count)
+        // Note: We don't distinguish queued vs delayed here (both in current_queued).
+        // For detailed breakdown, use stats() which iterates shards.
+        (queued, processing, 0, dlq_count)
     }
 
     // ============== Worker Registration ==============
