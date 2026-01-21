@@ -24,6 +24,7 @@ pub enum JobState {
 
 impl JobState {
     /// Parse a state string to JobState enum.
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &str) -> Option<Self> {
         match s.to_lowercase().as_str() {
             "waiting" => Some(JobState::Waiting),
