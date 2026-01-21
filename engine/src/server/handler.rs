@@ -335,7 +335,9 @@ async fn process_command(
         }
 
         // === Job Logs ===
-        Command::Log { id, message, level } => ok_or_error!(queue_manager.add_job_log(id, message, level)),
+        Command::Log { id, message, level } => {
+            ok_or_error!(queue_manager.add_job_log(id, message, level))
+        }
         Command::GetLogs { id } => {
             let logs = queue_manager.get_job_logs(id);
             Response::logs(id, logs)
@@ -417,7 +419,9 @@ async fn process_command(
             ok_or_error!(queue_manager.move_to_delayed(id, delay).await)
         }
         Command::Promote { id } => ok_or_error!(queue_manager.promote(id).await),
-        Command::UpdateJob { id, data } => ok_or_error!(queue_manager.update_job_data(id, data).await),
+        Command::UpdateJob { id, data } => {
+            ok_or_error!(queue_manager.update_job_data(id, data).await)
+        }
         Command::Discard { id } => ok_or_error!(queue_manager.discard(id).await),
         Command::IsPaused { queue } => {
             let paused = queue_manager.is_paused(&queue);
@@ -479,7 +483,7 @@ async fn process_command(
         Command::KvIncr { key, by } => match queue_manager.kv_incr(&key, by) {
             Ok(value) => Response::kv_incr(value),
             Err(e) => Response::error(e),
-        }
+        },
 
         // === Pub/Sub Commands ===
         Command::Pub { channel, message } => {

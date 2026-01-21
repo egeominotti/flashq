@@ -150,7 +150,9 @@ pub async fn clean_queue(
 ) -> Json<ApiResponse<usize>> {
     let state_enum = match JobState::from_str(&req.state) {
         Some(s) => s,
-        None => return ApiResponse::error("Invalid state. Use: waiting, delayed, completed, failed"),
+        None => {
+            return ApiResponse::error("Invalid state. Use: waiting, delayed, completed, failed")
+        }
     };
     let count = qm.clean(&queue, req.grace, state_enum, req.limit).await;
     ApiResponse::success(count)

@@ -232,7 +232,13 @@ impl Response {
     }
 
     #[inline(always)]
-    pub fn stats(queued: usize, processing: usize, delayed: usize, dlq: usize, completed: usize) -> Self {
+    pub fn stats(
+        queued: usize,
+        processing: usize,
+        delayed: usize,
+        dlq: usize,
+        completed: usize,
+    ) -> Self {
         Response::Stats {
             ok: true,
             queued,

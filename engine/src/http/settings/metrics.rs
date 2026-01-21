@@ -142,9 +142,7 @@ fn get_memory_info() -> (f64, f64) {
                 let used_mb = rss_kb / 1024.0;
 
                 // Get total system memory using sysctl
-                if let Ok(total_output) = Command::new("sysctl")
-                    .args(["-n", "hw.memsize"])
-                    .output()
+                if let Ok(total_output) = Command::new("sysctl").args(["-n", "hw.memsize"]).output()
                 {
                     if let Ok(total_str) = String::from_utf8(total_output.stdout) {
                         let total_bytes: f64 = total_str.trim().parse().unwrap_or(0.0);
