@@ -16,7 +16,9 @@
 .sparkline-animated .sparkline-endpoint {
   opacity: 0;
   transform-origin: center;
-  animation: sparkline-pulse 0.5s ease-out 1.2s forwards, sparkline-glow 2s ease-in-out 1.7s infinite;
+  animation:
+    sparkline-pulse 0.5s ease-out 1.2s forwards,
+    sparkline-glow 2s ease-in-out 1.7s infinite;
 }
 
 .sparkline-dot {
@@ -62,7 +64,8 @@
 }
 
 @keyframes sparkline-glow {
-  0%, 100% {
+  0%,
+  100% {
     filter: drop-shadow(0 0 4px currentColor);
   }
   50% {

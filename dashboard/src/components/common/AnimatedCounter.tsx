@@ -57,9 +57,7 @@ export function AnimatedCounter({
     };
   }, [value, duration]);
 
-  const formattedValue = formatter
-    ? formatter(displayValue)
-    : displayValue.toFixed(decimals);
+  const formattedValue = formatter ? formatter(displayValue) : displayValue.toFixed(decimals);
 
   return (
     <span className={cn('animated-counter', className)}>

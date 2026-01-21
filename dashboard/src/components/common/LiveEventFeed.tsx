@@ -57,7 +57,10 @@ function useSoundNotification() {
 
   const playSound = useCallback((type: 'error' | 'burst') => {
     if (!audioContextRef.current) {
-      audioContextRef.current = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
+      audioContextRef.current = new (
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
+      )();
     }
     const ctx = audioContextRef.current;
     const oscillator = ctx.createOscillator();
@@ -133,7 +136,13 @@ function ThroughputChart({ data, maxValue }: { data: number[]; maxValue: number 
       {/* Area fill */}
       <path d={areaPath} fill="url(#areaGradient)" />
       {/* Line */}
-      <path d={linePath} fill="none" stroke="url(#lineGradient)" strokeWidth="2" strokeLinecap="round" />
+      <path
+        d={linePath}
+        fill="none"
+        stroke="url(#lineGradient)"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
       {/* Current value dot */}
       {data.length > 0 && (
         <circle
@@ -149,7 +158,15 @@ function ThroughputChart({ data, maxValue }: { data: number[]; maxValue: number 
 }
 
 // Queue health indicator
-function QueueHealth({ queue, events, totalEvents }: { queue: string; events: number; totalEvents: number }) {
+function QueueHealth({
+  queue,
+  events,
+  totalEvents,
+}: {
+  queue: string;
+  events: number;
+  totalEvents: number;
+}) {
   const percentage = totalEvents > 0 ? (events / totalEvents) * 100 : 0;
   const isHot = percentage > 30;
   const isWarm = percentage > 15;
@@ -157,22 +174,25 @@ function QueueHealth({ queue, events, totalEvents }: { queue: string; events: nu
   return (
     <div className={cn('queue-health-item', isHot && 'hot', isWarm && !isHot && 'warm')}>
       <div className="queue-health-bar">
-        <div
-          className="queue-health-fill"
-          style={{ width: `${Math.min(percentage, 100)}%` }}
-        />
+        <div className="queue-health-fill" style={{ width: `${Math.min(percentage, 100)}%` }} />
       </div>
       <div className="queue-health-info">
         <span className="queue-health-name">{queue}</span>
         <span className="queue-health-count">{events}</span>
       </div>
-      {isHot && <Thermometer className="h-3 w-3 queue-health-icon" />}
+      {isHot && <Thermometer className="queue-health-icon h-3 w-3" />}
     </div>
   );
 }
 
 // Particle system for visual effects
-function ParticleEffect({ active, type }: { active: boolean; type: 'pushed' | 'completed' | 'failed' }) {
+function ParticleEffect({
+  active,
+  type,
+}: {
+  active: boolean;
+  type: 'pushed' | 'completed' | 'failed';
+}) {
   const [particles, setParticles] = useState<Array<{ id: number; x: number; y: number }>>([]);
   const idRef = useRef(0);
 
@@ -185,20 +205,25 @@ function ParticleEffect({ active, type }: { active: boolean; type: 'pushed' | 'c
       y: Math.random() * 100,
     }));
 
-    setParticles(prev => [...prev, ...newParticles].slice(-20));
+    setParticles((prev) => [...prev, ...newParticles].slice(-20));
 
     const timer = setTimeout(() => {
-      setParticles(prev => prev.filter(p => !newParticles.find(np => np.id === p.id)));
+      setParticles((prev) => prev.filter((p) => !newParticles.find((np) => np.id === p.id)));
     }, 1000);
 
     return () => clearTimeout(timer);
   }, [active]);
 
-  const colorClass = type === 'pushed' ? 'particle-cyan' : type === 'completed' ? 'particle-emerald' : 'particle-rose';
+  const colorClass =
+    type === 'pushed'
+      ? 'particle-cyan'
+      : type === 'completed'
+        ? 'particle-emerald'
+        : 'particle-rose';
 
   return (
     <div className="particle-container">
-      {particles.map(p => (
+      {particles.map((p) => (
         <div
           key={p.id}
           className={cn('particle', colorClass)}
@@ -210,7 +235,15 @@ function ParticleEffect({ active, type }: { active: boolean; type: 'pushed' | 'c
 }
 
 // Animated event item
-function AnimatedEvent({ event, isNew, onClick }: { event: JobEvent; isNew?: boolean; onClick?: () => void }) {
+function AnimatedEvent({
+  event,
+  isNew,
+  onClick,
+}: {
+  event: JobEvent;
+  isNew?: boolean;
+  onClick?: () => void;
+}) {
   const config = eventConfig[event.event_type] || eventConfig.pushed;
   const Icon = config.icon;
   const [timeAgo, setTimeAgo] = useState(formatTimeAgo(event.timestamp));
@@ -224,7 +257,12 @@ function AnimatedEvent({ event, isNew, onClick }: { event: JobEvent; isNew?: boo
 
   return (
     <div
-      className={cn('live-event-item', `event-${config.color}`, isNew && 'event-new', onClick && 'event-clickable')}
+      className={cn(
+        'live-event-item',
+        `event-${config.color}`,
+        isNew && 'event-new',
+        onClick && 'event-clickable'
+      )}
       onClick={onClick}
     >
       <div className="event-icon">
@@ -243,7 +281,15 @@ function AnimatedEvent({ event, isNew, onClick }: { event: JobEvent; isNew?: boo
 }
 
 // Latency display component
-function LatencyMetric({ avgLatency, minLatency, maxLatency }: { avgLatency: number; minLatency: number; maxLatency: number }) {
+function LatencyMetric({
+  avgLatency,
+  minLatency,
+  maxLatency,
+}: {
+  avgLatency: number;
+  minLatency: number;
+  maxLatency: number;
+}) {
   const formatLatency = (ms: number) => {
     if (ms < 1000) return `${ms.toFixed(0)}ms`;
     return `${(ms / 1000).toFixed(2)}s`;
@@ -297,7 +343,9 @@ function EventDetailModal({ event, onClose }: { event: JobEvent; onClose: () => 
             </div>
             <div>
               <h3>Job #{event.job_id}</h3>
-              <Badge size="sm" color={config.color as 'cyan'}>{config.label}</Badge>
+              <Badge size="sm" color={config.color as 'cyan'}>
+                {config.label}
+              </Badge>
             </div>
           </div>
           <button className="event-modal-close" onClick={onClose}>
@@ -318,7 +366,9 @@ function EventDetailModal({ event, onClose }: { event: JobEvent; onClose: () => 
             </div>
             <div className="event-detail-item">
               <span className="event-detail-label">Queue</span>
-              <Badge size="xs" color="cyan">{event.queue}</Badge>
+              <Badge size="xs" color="cyan">
+                {event.queue}
+              </Badge>
             </div>
             <div className="event-detail-item">
               <span className="event-detail-label">Event Type</span>
@@ -328,11 +378,13 @@ function EventDetailModal({ event, onClose }: { event: JobEvent; onClose: () => 
               <span className="event-detail-label">Timestamp</span>
               <span className="event-detail-value">{formatTimestamp(event.timestamp)}</span>
             </div>
-            {event.data && (
+            {event.data !== undefined && event.data !== null && (
               <div className="event-detail-item full-width">
                 <span className="event-detail-label">Data</span>
                 <pre className="event-detail-code">
-                  {typeof event.data === 'string' ? event.data : JSON.stringify(event.data, null, 2)}
+                  {typeof event.data === 'string'
+                    ? event.data
+                    : JSON.stringify(event.data, null, 2)}
                 </pre>
               </div>
             )}
@@ -342,11 +394,13 @@ function EventDetailModal({ event, onClose }: { event: JobEvent; onClose: () => 
                 <pre className="event-detail-code error">{event.error}</pre>
               </div>
             )}
-            {event.result && (
+            {event.result !== undefined && event.result !== null && (
               <div className="event-detail-item full-width">
                 <span className="event-detail-label">Result</span>
                 <pre className="event-detail-code">
-                  {typeof event.result === 'string' ? event.result : JSON.stringify(event.result, null, 2)}
+                  {typeof event.result === 'string'
+                    ? event.result
+                    : JSON.stringify(event.result, null, 2)}
                 </pre>
               </div>
             )}
@@ -374,7 +428,10 @@ export function LiveEventFeed({ isConnected, recentEvents, eventCounts }: LiveEv
   const [soundEnabled, setSoundEnabled] = useState(false);
   const [filterQueue, setFilterQueue] = useState<string>('all');
   const [filterType, setFilterType] = useState<string>('all');
-  const [particleTrigger, setParticleTrigger] = useState<{ active: boolean; type: 'pushed' | 'completed' | 'failed' }>({ active: false, type: 'pushed' });
+  const [particleTrigger, setParticleTrigger] = useState<{
+    active: boolean;
+    type: 'pushed' | 'completed' | 'failed';
+  }>({ active: false, type: 'pushed' });
 
   // Refs
   const lastCountRef = useRef(0);
@@ -392,13 +449,13 @@ export function LiveEventFeed({ isConnected, recentEvents, eventCounts }: LiveEv
 
     if (diff > 0) {
       setThroughput(diff);
-      setThroughputHistory(prev => [...prev.slice(1), diff]);
+      setThroughputHistory((prev) => [...prev.slice(1), diff]);
       maxThroughputRef.current = Math.max(maxThroughputRef.current, diff);
 
       // Trigger particle effect
       if (diff > 5) {
         setParticleTrigger({ active: true, type: 'pushed' });
-        setTimeout(() => setParticleTrigger(p => ({ ...p, active: false })), 100);
+        setTimeout(() => setParticleTrigger((p) => ({ ...p, active: false })), 100);
       }
 
       // Sound for burst activity
@@ -455,18 +512,18 @@ export function LiveEventFeed({ isConnected, recentEvents, eventCounts }: LiveEv
         if (event.event_type === 'failed' && soundEnabled) {
           playSound('error');
           setParticleTrigger({ active: true, type: 'failed' });
-          setTimeout(() => setParticleTrigger(p => ({ ...p, active: false })), 100);
+          setTimeout(() => setParticleTrigger((p) => ({ ...p, active: false })), 100);
         }
       }
     }
 
     if (newEvents.length > 0) {
-      setEventHistory(prev => [...newEvents, ...prev].slice(0, 50));
+      setEventHistory((prev) => [...newEvents, ...prev].slice(0, 50));
       setQueueStats(queueCounts);
 
       // Update latency stats
       if (latencies.length > 0) {
-        setLatencyStats(prev => {
+        setLatencyStats((prev) => {
           const allLatencies = [...latencies];
           const avg = allLatencies.reduce((a, b) => a + b, 0) / allLatencies.length;
           return {
@@ -481,12 +538,12 @@ export function LiveEventFeed({ isConnected, recentEvents, eventCounts }: LiveEv
     // Cleanup old keys
     if (processedIdsRef.current.size > 500) {
       const keys = Array.from(processedIdsRef.current);
-      keys.slice(0, 250).forEach(k => processedIdsRef.current.delete(k));
+      keys.slice(0, 250).forEach((k) => processedIdsRef.current.delete(k));
     }
 
     // Cleanup old latency tracking
     const now = Date.now();
-    Object.keys(lastEventTimeRef.current).forEach(key => {
+    Object.keys(lastEventTimeRef.current).forEach((key) => {
       if (now - lastEventTimeRef.current[Number(key)] > 60000) {
         delete lastEventTimeRef.current[Number(key)];
       }
@@ -502,7 +559,7 @@ export function LiveEventFeed({ isConnected, recentEvents, eventCounts }: LiveEv
 
   // Filter events
   const filteredEvents = useMemo(() => {
-    return eventHistory.filter(e => {
+    return eventHistory.filter((e) => {
       if (filterQueue !== 'all' && e.queue !== filterQueue) return false;
       if (filterType !== 'all' && e.event_type !== filterType) return false;
       return true;
@@ -511,7 +568,7 @@ export function LiveEventFeed({ isConnected, recentEvents, eventCounts }: LiveEv
 
   // Get unique queues for filter
   const uniqueQueues = useMemo(() => {
-    return Array.from(new Set(eventHistory.map(e => e.queue)));
+    return Array.from(new Set(eventHistory.map((e) => e.queue)));
   }, [eventHistory]);
 
   // Top queues by activity
@@ -616,7 +673,7 @@ export function LiveEventFeed({ isConnected, recentEvents, eventCounts }: LiveEv
                 <span>Queue Activity</span>
                 {topQueues.length > 0 && topQueues[0][1] > totalQueueEvents * 0.3 && (
                   <Badge size="xs" color="amber" className="ml-auto">
-                    <AlertTriangle className="h-3 w-3 mr-1" />
+                    <AlertTriangle className="mr-1 h-3 w-3" />
                     Hot
                   </Badge>
                 )}
@@ -663,8 +720,10 @@ export function LiveEventFeed({ isConnected, recentEvents, eventCounts }: LiveEv
               className="stream-filter-select"
             >
               <option value="all">All Queues</option>
-              {uniqueQueues.map(q => (
-                <option key={q} value={q}>{q}</option>
+              {uniqueQueues.map((q) => (
+                <option key={q} value={q}>
+                  {q}
+                </option>
               ))}
             </select>
             <select
@@ -703,10 +762,7 @@ export function LiveEventFeed({ isConnected, recentEvents, eventCounts }: LiveEv
 
       {/* Event Detail Modal */}
       {selectedEvent && (
-        <EventDetailModal
-          event={selectedEvent}
-          onClose={() => setSelectedEvent(null)}
-        />
+        <EventDetailModal event={selectedEvent} onClose={() => setSelectedEvent(null)} />
       )}
     </div>
   );

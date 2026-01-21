@@ -9,6 +9,7 @@ export interface JobEvent {
   data?: unknown;
   error?: string;
   progress?: number;
+  result?: unknown;
 }
 
 export interface UseJobEventsOptions {
@@ -93,7 +94,9 @@ export function useJobEvents(options: UseJobEventsOptions = {}): UseJobEventsRet
 
     const connect = () => {
       try {
-        const wsUrl = queue ? getWebSocketUrl(`/ws/${encodeURIComponent(queue)}`) : getWebSocketUrl('/ws');
+        const wsUrl = queue
+          ? getWebSocketUrl(`/ws/${encodeURIComponent(queue)}`)
+          : getWebSocketUrl('/ws');
         const ws = new WebSocket(wsUrl);
         wsRef.current = ws;
 

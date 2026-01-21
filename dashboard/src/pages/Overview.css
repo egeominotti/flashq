@@ -34,7 +34,11 @@
   align-items: center;
   gap: 0.5rem;
   padding: 0.5rem 1rem !important;
-  background: linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(16, 185, 129, 0.05) 100%) !important;
+  background: linear-gradient(
+    135deg,
+    rgba(16, 185, 129, 0.15) 0%,
+    rgba(16, 185, 129, 0.05) 100%
+  ) !important;
   border: 1px solid rgba(16, 185, 129, 0.3) !important;
 }
 
@@ -48,7 +52,8 @@
 }
 
 @keyframes status-pulse {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 1;
     box-shadow: 0 0 10px rgba(16, 185, 129, 0.6);
   }
@@ -103,8 +108,12 @@
   margin-top: 1rem;
 }
 
-.bar-list [data-tremor-element="BarListBar"] {
-  background: linear-gradient(90deg, rgba(6, 182, 212, 0.3) 0%, rgba(6, 182, 212, 0.1) 100%) !important;
+.bar-list [data-tremor-element='BarListBar'] {
+  background: linear-gradient(
+    90deg,
+    rgba(6, 182, 212, 0.3) 0%,
+    rgba(6, 182, 212, 0.1) 100%
+  ) !important;
   border-radius: 6px;
 }
 
@@ -167,7 +176,8 @@
 }
 
 @keyframes live-pulse {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 1;
     transform: scale(1);
   }

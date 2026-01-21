@@ -1,4 +1,4 @@
-import { ReactNode } from 'react';
+import type { ReactNode } from 'react';
 
 interface StorageItemProps {
   icon: ReactNode;
@@ -19,9 +19,7 @@ const iconColorClasses: Record<string, string> = {
 export function StorageItem({ icon, iconColor, label, value, className = '' }: StorageItemProps) {
   return (
     <div className={`storage-item ${className}`}>
-      <div className={`storage-item-icon ${iconColorClasses[iconColor]}`}>
-        {icon}
-      </div>
+      <div className={`storage-item-icon ${iconColorClasses[iconColor]}`}>{icon}</div>
       <div className="storage-item-info">
         <span className="storage-item-label">{label}</span>
         <span className="storage-item-value">{value}</span>

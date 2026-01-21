@@ -1,4 +1,4 @@
-import { ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { Badge } from '@tremor/react';
 import { GlowCard } from './GlowCard';
 import { AnimatedCounter, formatCompact } from './AnimatedCounter';
@@ -48,9 +48,7 @@ export function MetricGlowCard({
     <GlowCard glowColor={glowColor} className={`metric-glow-card ${className}`}>
       <div className="metric-glow-header">
         <span className="metric-glow-title">{title}</span>
-        <div className={`metric-glow-icon ${iconColorClasses[glowColor]}`}>
-          {icon}
-        </div>
+        <div className={`metric-glow-icon ${iconColorClasses[glowColor]}`}>{icon}</div>
       </div>
       <div className="metric-glow-value">
         <AnimatedCounter
@@ -68,12 +66,7 @@ export function MetricGlowCard({
           </Badge>
         )}
         {sparkline && (
-          <Sparkline
-            data={sparkline.data}
-            width={60}
-            height={24}
-            color={sparkline.color}
-          />
+          <Sparkline data={sparkline.data} width={60} height={24} color={sparkline.color} />
         )}
       </div>
     </GlowCard>

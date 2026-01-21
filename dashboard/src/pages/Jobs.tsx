@@ -104,7 +104,11 @@ export function Jobs() {
     data: jobsData,
     refetch: refetchJobs,
     isLoading: jobsLoading,
-  } = useJobs(selectedQueue || undefined, selectedState === 'all' ? undefined : selectedState, 5000);
+  } = useJobs(
+    selectedQueue || undefined,
+    selectedState === 'all' ? undefined : selectedState,
+    5000
+  );
 
   const jobs = useMemo(() => jobsData?.jobs || [], [jobsData]);
 
@@ -252,183 +256,186 @@ export function Jobs() {
           {/* DETAILS TAB */}
           <TabPanel>
             <Card className="jobs-card">
-            {/* Filters */}
-            <div className="filters-header">
-              <div className="filters-title">
-                <Filter className="h-4 w-4" />
-                <span>Filters</span>
+              {/* Filters */}
+              <div className="filters-header">
+                <div className="filters-title">
+                  <Filter className="h-4 w-4" />
+                  <span>Filters</span>
+                </div>
+                {selectedState !== 'all' && (
+                  <button className="clear-filter" onClick={() => setSelectedState('all')}>
+                    Clear filter
+                    <X className="h-3 w-3" />
+                  </button>
+                )}
               </div>
-              {selectedState !== 'all' && (
-                <button className="clear-filter" onClick={() => setSelectedState('all')}>
-                  Clear filter
-                  <X className="h-3 w-3" />
-                </button>
-              )}
-            </div>
-            <Flex className="mb-6 flex-wrap gap-4">
-              <Select
-                value={selectedQueue}
-                onValueChange={(v) => {
-                  setSelectedQueue(v);
-                  handleFilterChange();
-                }}
-                placeholder="All Queues"
-                className="max-w-xs"
-              >
-                <SelectItem value="">All Queues</SelectItem>
-                {queues.map((q: Queue) => (
-                  <SelectItem key={q.name} value={q.name}>
-                    {q.name}
-                  </SelectItem>
-                ))}
-              </Select>
+              <Flex className="mb-6 flex-wrap gap-4">
+                <Select
+                  value={selectedQueue}
+                  onValueChange={(v) => {
+                    setSelectedQueue(v);
+                    handleFilterChange();
+                  }}
+                  placeholder="All Queues"
+                  className="max-w-xs"
+                >
+                  <SelectItem value="">All Queues</SelectItem>
+                  {queues.map((q: Queue) => (
+                    <SelectItem key={q.name} value={q.name}>
+                      {q.name}
+                    </SelectItem>
+                  ))}
+                </Select>
 
-              <Select
-                value={selectedState}
-                onValueChange={(v) => {
-                  setSelectedState(v as JobState);
-                  handleFilterChange();
-                }}
-                className="max-w-xs"
-              >
-                <SelectItem value="all">All States</SelectItem>
-                <SelectItem value="waiting">Waiting</SelectItem>
-                <SelectItem value="active">Active</SelectItem>
-                <SelectItem value="completed">Completed</SelectItem>
-                <SelectItem value="failed">Failed</SelectItem>
-                <SelectItem value="delayed">Delayed</SelectItem>
-              </Select>
+                <Select
+                  value={selectedState}
+                  onValueChange={(v) => {
+                    setSelectedState(v as JobState);
+                    handleFilterChange();
+                  }}
+                  className="max-w-xs"
+                >
+                  <SelectItem value="all">All States</SelectItem>
+                  <SelectItem value="waiting">Waiting</SelectItem>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="completed">Completed</SelectItem>
+                  <SelectItem value="failed">Failed</SelectItem>
+                  <SelectItem value="delayed">Delayed</SelectItem>
+                </Select>
 
-              <TextInput
-                icon={Search}
-                placeholder="Search by ID..."
-                value={searchTerm}
-                onChange={(e) => {
-                  setSearchTerm(e.target.value);
-                  handleFilterChange();
-                }}
-                className="max-w-xs"
-              />
-            </Flex>
+                <TextInput
+                  icon={Search}
+                  placeholder="Search by ID..."
+                  value={searchTerm}
+                  onChange={(e) => {
+                    setSearchTerm(e.target.value);
+                    handleFilterChange();
+                  }}
+                  className="max-w-xs"
+                />
+              </Flex>
 
-            {/* Table */}
-            {isLoading ? (
-              <SkeletonTable rows={10} columns={7} />
-            ) : (
-              <Table>
-                <TableHead>
-                  <TableRow>
-                    <TableHeaderCell>Job ID</TableHeaderCell>
-                    <TableHeaderCell>Queue</TableHeaderCell>
-                    <TableHeaderCell>State</TableHeaderCell>
-                    <TableHeaderCell>Priority</TableHeaderCell>
-                    <TableHeaderCell>Attempts</TableHeaderCell>
-                    <TableHeaderCell>Created</TableHeaderCell>
-                    <TableHeaderCell className="text-right">Actions</TableHeaderCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {paginatedJobs.length === 0 ? (
+              {/* Table */}
+              {isLoading ? (
+                <SkeletonTable rows={10} columns={7} />
+              ) : (
+                <Table>
+                  <TableHead>
                     <TableRow>
-                      <TableCell colSpan={7}>
-                        <div className="py-8 text-center">
-                          <Text>No jobs found</Text>
-                        </div>
-                      </TableCell>
+                      <TableHeaderCell>Job ID</TableHeaderCell>
+                      <TableHeaderCell>Queue</TableHeaderCell>
+                      <TableHeaderCell>State</TableHeaderCell>
+                      <TableHeaderCell>Priority</TableHeaderCell>
+                      <TableHeaderCell>Attempts</TableHeaderCell>
+                      <TableHeaderCell>Created</TableHeaderCell>
+                      <TableHeaderCell className="text-right">Actions</TableHeaderCell>
                     </TableRow>
-                  ) : (
-                    paginatedJobs.map((job: Job) => {
-                      const state = job.state || 'unknown';
-                      const config = stateConfig[state] || { label: state, color: 'zinc' as const };
-                      return (
-                        <TableRow key={job.id} className="job-row">
-                          <TableCell>
-                            <span className="font-mono text-white">{job.id}</span>
-                          </TableCell>
-                          <TableCell>
-                            <Badge size="xs" color="cyan">
-                              {job.queue}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            <Badge color={config.color}>{config.label}</Badge>
-                          </TableCell>
-                          <TableCell>
-                            <span className="font-mono">{job.priority || 0}</span>
-                          </TableCell>
-                          <TableCell>
-                            <span className="font-mono">
-                              {job.attempts || 0}/{job.max_attempts || 3}
-                            </span>
-                          </TableCell>
-                          <TableCell>
-                            <span className="text-zinc-400">
-                              {job.created_at ? formatRelativeTime(job.created_at) : '-'}
-                            </span>
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <Flex justifyContent="end" className="gap-2">
-                              <Button
-                                size="xs"
-                                variant="secondary"
-                                icon={History}
-                                onClick={() => handleViewJob(job)}
-                              >
-                                Journey
-                              </Button>
-                              <Button
-                                size="xs"
-                                variant="secondary"
-                                icon={Eye}
-                                onClick={() => handleViewJob(job)}
-                              >
-                                View
-                              </Button>
-                              {state === 'failed' && (
+                  </TableHead>
+                  <TableBody>
+                    {paginatedJobs.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={7}>
+                          <div className="py-8 text-center">
+                            <Text>No jobs found</Text>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      paginatedJobs.map((job: Job) => {
+                        const state = job.state || 'unknown';
+                        const config = stateConfig[state] || {
+                          label: state,
+                          color: 'zinc' as const,
+                        };
+                        return (
+                          <TableRow key={job.id} className="job-row">
+                            <TableCell>
+                              <span className="font-mono text-white">{job.id}</span>
+                            </TableCell>
+                            <TableCell>
+                              <Badge size="xs" color="cyan">
+                                {job.queue}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <Badge color={config.color}>{config.label}</Badge>
+                            </TableCell>
+                            <TableCell>
+                              <span className="font-mono">{job.priority || 0}</span>
+                            </TableCell>
+                            <TableCell>
+                              <span className="font-mono">
+                                {job.attempts || 0}/{job.max_attempts || 3}
+                              </span>
+                            </TableCell>
+                            <TableCell>
+                              <span className="text-zinc-400">
+                                {job.created_at ? formatRelativeTime(job.created_at) : '-'}
+                              </span>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <Flex justifyContent="end" className="gap-2">
                                 <Button
                                   size="xs"
                                   variant="secondary"
-                                  icon={RotateCcw}
-                                  onClick={() => handleRetry(job.queue, job.id)}
+                                  icon={History}
+                                  onClick={() => handleViewJob(job)}
                                 >
-                                  Retry
+                                  Journey
                                 </Button>
-                              )}
-                              {(state === 'waiting' || state === 'delayed') && (
                                 <Button
                                   size="xs"
                                   variant="secondary"
-                                  color="rose"
-                                  icon={Trash2}
-                                  onClick={() => handleCancel(job.id)}
+                                  icon={Eye}
+                                  onClick={() => handleViewJob(job)}
                                 >
-                                  Cancel
+                                  View
                                 </Button>
-                              )}
-                            </Flex>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })
-                  )}
-                </TableBody>
-              </Table>
-            )}
+                                {state === 'failed' && (
+                                  <Button
+                                    size="xs"
+                                    variant="secondary"
+                                    icon={RotateCcw}
+                                    onClick={() => handleRetry(job.queue, job.id)}
+                                  >
+                                    Retry
+                                  </Button>
+                                )}
+                                {(state === 'waiting' || state === 'delayed') && (
+                                  <Button
+                                    size="xs"
+                                    variant="secondary"
+                                    color="rose"
+                                    icon={Trash2}
+                                    onClick={() => handleCancel(job.id)}
+                                  >
+                                    Cancel
+                                  </Button>
+                                )}
+                              </Flex>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })
+                    )}
+                  </TableBody>
+                </Table>
+              )}
 
-            {/* Pagination */}
-            {!isLoading && totalItems > 0 && (
-              <Pagination
-                currentPage={currentPage}
-                totalPages={totalPages}
-                totalItems={totalItems}
-                pageSize={pageSize}
-                onPageChange={setCurrentPage}
-                onPageSizeChange={(size) => {
-                  setPageSize(size);
-                  setCurrentPage(1);
-                }}
-              />
-            )}
+              {/* Pagination */}
+              {!isLoading && totalItems > 0 && (
+                <Pagination
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  totalItems={totalItems}
+                  pageSize={pageSize}
+                  onPageChange={setCurrentPage}
+                  onPageSizeChange={(size) => {
+                    setPageSize(size);
+                    setCurrentPage(1);
+                  }}
+                />
+              )}
             </Card>
           </TabPanel>
         </TabPanels>

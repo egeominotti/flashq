@@ -1,5 +1,14 @@
 import { useMemo } from 'react';
-import { Title, Text, AreaChart, DonutChart, BarList, Badge, ProgressBar, Grid } from '@tremor/react';
+import {
+  Title,
+  Text,
+  AreaChart,
+  DonutChart,
+  BarList,
+  Badge,
+  ProgressBar,
+  Grid,
+} from '@tremor/react';
 import { Activity, CheckCircle2, XCircle, Layers, TrendingUp, Zap, Clock } from 'lucide-react';
 import { useStats, useMetrics, useMetricsHistory, useSparklineData } from '../hooks';
 import { formatNumber } from '../utils';
@@ -74,8 +83,7 @@ export function Overview() {
     [queues]
   );
 
-  const completionRate =
-    totalPushed > 0 ? ((totalCompleted / totalPushed) * 100).toFixed(1) : '0';
+  const completionRate = totalPushed > 0 ? ((totalCompleted / totalPushed) * 100).toFixed(1) : '0';
   const failureRate = totalPushed > 0 ? ((totalDlq / totalPushed) * 100).toFixed(1) : '0';
 
   return (
@@ -224,7 +232,12 @@ export function Overview() {
             </div>
           </div>
           {queueBarList.length > 0 ? (
-            <BarList data={queueBarList} className="bar-list" color="cyan" valueFormatter={formatNumber} />
+            <BarList
+              data={queueBarList}
+              className="bar-list"
+              color="cyan"
+              valueFormatter={formatNumber}
+            />
           ) : (
             <EmptyState
               variant="chart"

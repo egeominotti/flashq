@@ -1,4 +1,4 @@
-import { ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { Card, Badge } from '@tremor/react';
 import { AnimatedCounter, formatCompact } from './AnimatedCounter';
 import { Sparkline } from './Sparkline';
@@ -43,9 +43,7 @@ export function StatCard({
     <Card className={`stat-card ${className}`}>
       <div className="stat-card-header">
         <span className="stat-card-title">{title}</span>
-        <div className={`stat-card-icon ${iconColorClasses[iconColor]}`}>
-          {icon}
-        </div>
+        <div className={`stat-card-icon ${iconColorClasses[iconColor]}`}>{icon}</div>
       </div>
       <div className="stat-card-value">
         <AnimatedCounter value={value} formatter={formatter} />
@@ -58,12 +56,7 @@ export function StatCard({
           </Badge>
         )}
         {sparkline && (
-          <Sparkline
-            data={sparkline.data}
-            width={60}
-            height={24}
-            color={sparkline.color}
-          />
+          <Sparkline data={sparkline.data} width={60} height={24} color={sparkline.color} />
         )}
       </div>
     </Card>

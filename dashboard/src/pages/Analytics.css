@@ -47,12 +47,7 @@
   left: -100%;
   width: 100%;
   height: 100%;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgba(6, 182, 212, 0.2),
-    transparent
-  );
+  background: linear-gradient(90deg, transparent, rgba(6, 182, 212, 0.2), transparent);
   transition: left 0.5s ease;
 }
 
@@ -129,7 +124,8 @@
 }
 
 @keyframes live-pulse {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 1;
     transform: scale(1);
   }
@@ -140,9 +136,9 @@
 }
 
 /* Tremor Chart Overrides for Dark Theme */
-.analytics-page [data-tremor-element="AreaChart"],
-.analytics-page [data-tremor-element="LineChart"],
-.analytics-page [data-tremor-element="BarChart"] {
+.analytics-page [data-tremor-element='AreaChart'],
+.analytics-page [data-tremor-element='LineChart'],
+.analytics-page [data-tremor-element='BarChart'] {
   --tremor-content-subtle: rgba(255, 255, 255, 0.3);
   --tremor-border-default: rgba(255, 255, 255, 0.1);
 }

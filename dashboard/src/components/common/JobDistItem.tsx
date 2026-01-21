@@ -15,7 +15,9 @@ export function JobDistItem({ label, count, total, color, className = '' }: JobD
   return (
     <div className={`job-dist-item ${className}`}>
       <div className="job-dist-header">
-        <Badge color={color} size="xs">{label}</Badge>
+        <Badge color={color} size="xs">
+          {label}
+        </Badge>
         <span className="job-dist-count">{formatNumber(count)}</span>
       </div>
       <ProgressBar value={percent} color={color} />

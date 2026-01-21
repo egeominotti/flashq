@@ -1,4 +1,4 @@
-import { ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { Text, ProgressBar } from '@tremor/react';
 
 interface ResourceItemProps {
@@ -38,9 +38,7 @@ export function ResourceItem({
         <Text className="resource-item-value">{value}</Text>
       </div>
       <ProgressBar value={percent} color={barColor} />
-      {percentLabel && (
-        <Text className="resource-item-percent">{percentLabel}</Text>
-      )}
+      {percentLabel && <Text className="resource-item-percent">{percentLabel}</Text>}
     </div>
   );
 }

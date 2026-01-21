@@ -40,9 +40,7 @@ function FlowNode({ label, count, icon, color, isSelected, onClick, pulse }: Flo
     >
       <div className="flow-node-glow" />
       <div className="flow-node-content">
-        <div className={cn('flow-node-icon', `icon-${color}`)}>
-          {icon}
-        </div>
+        <div className={cn('flow-node-icon', `icon-${color}`)}>{icon}</div>
         <div className="flow-node-info">
           <span className="flow-node-count">{formatNumber(count)}</span>
           <span className="flow-node-label">{label}</span>
@@ -61,7 +59,11 @@ function FlowArrow({ animated = false }: { animated?: boolean }) {
   );
 }
 
-export function JobFlowVisualization({ data, selectedState, onStateSelect }: JobFlowVisualizationProps) {
+export function JobFlowVisualization({
+  data,
+  selectedState,
+  onStateSelect,
+}: JobFlowVisualizationProps) {
   const hasActiveJobs = data.active > 0;
 
   return (
@@ -114,7 +116,7 @@ export function JobFlowVisualization({ data, selectedState, onStateSelect }: Job
             id="active"
             label="Active"
             count={data.active}
-            icon={<Loader2 className={cn("h-5 w-5", hasActiveJobs && "animate-spin")} />}
+            icon={<Loader2 className={cn('h-5 w-5', hasActiveJobs && 'animate-spin')} />}
             color="blue"
             isSelected={selectedState === 'active'}
             onClick={() => onStateSelect('active')}
@@ -164,7 +166,8 @@ export function JobFlowVisualization({ data, selectedState, onStateSelect }: Job
           <span className="flow-stat-value">
             {data.completed + data.failed > 0
               ? ((data.completed / (data.completed + data.failed)) * 100).toFixed(1)
-              : '0'}%
+              : '0'}
+            %
           </span>
           <span className="flow-stat-label">Success Rate</span>
         </div>

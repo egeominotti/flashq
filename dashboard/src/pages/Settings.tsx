@@ -1532,7 +1532,7 @@ export function Settings() {
                 <Flex
                   alignItems="center"
                   justifyContent="between"
-                  className="rounded-lg bg-red-900/20 p-3 border border-red-900/50"
+                  className="rounded-lg border border-red-900/50 bg-red-900/20 p-3"
                 >
                   <div>
                     <Text className="font-medium text-rose-400">Restart Server</Text>
@@ -1554,7 +1554,7 @@ export function Settings() {
                 <Flex
                   alignItems="center"
                   justifyContent="between"
-                  className="rounded-lg bg-red-900/20 p-3 border border-red-900/50"
+                  className="rounded-lg border border-red-900/50 bg-red-900/20 p-3"
                 >
                   <div>
                     <Text className="font-medium text-rose-400">Shutdown Server</Text>
@@ -1576,7 +1576,7 @@ export function Settings() {
                 <Flex
                   alignItems="center"
                   justifyContent="between"
-                  className="rounded-lg bg-red-900/30 p-3 border border-red-800"
+                  className="rounded-lg border border-red-800 bg-red-900/30 p-3"
                 >
                   <div>
                     <Text className="font-bold text-rose-400">Factory Reset</Text>
@@ -1584,12 +1584,7 @@ export function Settings() {
                       Delete ALL data and reset server to factory defaults
                     </Text>
                   </div>
-                  <Button
-                    size="xs"
-                    color="rose"
-                    icon={AlertCircle}
-                    onClick={handleResetServer}
-                  >
+                  <Button size="xs" color="rose" icon={AlertCircle} onClick={handleResetServer}>
                     Factory Reset
                   </Button>
                 </Flex>

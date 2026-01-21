@@ -1,4 +1,4 @@
-import { ReactNode } from 'react';
+import type { ReactNode } from 'react';
 
 interface InfoItemProps {
   icon: ReactNode;
@@ -19,9 +19,7 @@ const iconColorClasses: Record<string, string> = {
 export function InfoItem({ icon, iconColor, label, value, className = '' }: InfoItemProps) {
   return (
     <div className={`info-item ${className}`}>
-      <div className={`info-item-icon ${iconColorClasses[iconColor]}`}>
-        {icon}
-      </div>
+      <div className={`info-item-icon ${iconColorClasses[iconColor]}`}>{icon}</div>
       <div className="info-item-content">
         <span className="info-item-label">{label}</span>
         <span className="info-item-value">{value}</span>

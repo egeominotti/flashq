@@ -57,10 +57,7 @@ export function ServerMetrics() {
   const { data: metricsHistory } = useMetricsHistory();
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const {
-    data: systemMetrics,
-    refetch: refetchSystem,
-  } = useQuery({
+  const { data: systemMetrics, refetch: refetchSystem } = useQuery({
     queryKey: ['systemMetrics'],
     queryFn: fetchSystemMetrics,
     refetchInterval: 2000,
@@ -209,7 +206,9 @@ export function ServerMetrics() {
                     <Title className="info-card-title">Server Information</Title>
                     <Text className="info-card-subtitle">Runtime configuration and status</Text>
                   </div>
-                  <Badge color="cyan" size="xs">v{settings?.version ?? '0.2.0'}</Badge>
+                  <Badge color="cyan" size="xs">
+                    v{settings?.version ?? '0.2.0'}
+                  </Badge>
                 </div>
                 {/* DRY: Using InfoItem component */}
                 <div className="info-grid">
@@ -292,7 +291,7 @@ export function ServerMetrics() {
                 </div>
                 {performanceChartData.length > 0 ? (
                   <AreaChart
-                    className="h-56 mt-4"
+                    className="mt-4 h-56"
                     data={performanceChartData}
                     index="date"
                     categories={['Latency (ms)', 'Throughput']}
@@ -324,7 +323,7 @@ export function ServerMetrics() {
                 </div>
                 {loadChartData.length > 0 ? (
                   <AreaChart
-                    className="h-56 mt-4"
+                    className="mt-4 h-56"
                     data={loadChartData}
                     index="date"
                     categories={['Queued', 'Processing']}
@@ -357,7 +356,10 @@ export function ServerMetrics() {
                     </div>
                     <div className="job-stat-content">
                       <span className="job-stat-value">
-                        <AnimatedCounter value={metrics?.total_pushed ?? 0} formatter={formatNumber} />
+                        <AnimatedCounter
+                          value={metrics?.total_pushed ?? 0}
+                          formatter={formatNumber}
+                        />
                       </span>
                       <span className="job-stat-label">Total Pushed</span>
                     </div>
@@ -369,7 +371,10 @@ export function ServerMetrics() {
                     </div>
                     <div className="job-stat-content">
                       <span className="job-stat-value">
-                        <AnimatedCounter value={metrics?.total_completed ?? 0} formatter={formatNumber} />
+                        <AnimatedCounter
+                          value={metrics?.total_completed ?? 0}
+                          formatter={formatNumber}
+                        />
                       </span>
                       <span className="job-stat-label">Total Completed</span>
                     </div>
@@ -381,7 +386,10 @@ export function ServerMetrics() {
                     </div>
                     <div className="job-stat-content">
                       <span className="job-stat-value">
-                        <AnimatedCounter value={metrics?.total_failed ?? 0} formatter={formatNumber} />
+                        <AnimatedCounter
+                          value={metrics?.total_failed ?? 0}
+                          formatter={formatNumber}
+                        />
                       </span>
                       <span className="job-stat-label">Total Failed</span>
                     </div>
@@ -394,7 +402,8 @@ export function ServerMetrics() {
                       <span className="job-stat-value">
                         {metrics?.total_pushed
                           ? ((metrics.total_completed / metrics.total_pushed) * 100).toFixed(1)
-                          : 0}%
+                          : 0}
+                        %
                       </span>
                       <span className="job-stat-label">Success Rate</span>
                     </div>
@@ -476,11 +485,15 @@ export function ServerMetrics() {
                     <div className="writer-stat-main">
                       <div className="writer-stat-header">
                         <Text>Queue Length</Text>
-                        <Text className="writer-stat-value">{sqliteStats.async_writer_queue_len ?? 0}</Text>
+                        <Text className="writer-stat-value">
+                          {sqliteStats.async_writer_queue_len ?? 0}
+                        </Text>
                       </div>
                       <ProgressBar
                         value={Math.min(
-                          ((sqliteStats.async_writer_queue_len ?? 0) / (sqliteStats.async_writer_max_batch_size ?? 100)) * 100,
+                          ((sqliteStats.async_writer_queue_len ?? 0) /
+                            (sqliteStats.async_writer_max_batch_size ?? 100)) *
+                            100,
                           100
                         )}
                         color="cyan"
@@ -489,19 +502,27 @@ export function ServerMetrics() {
                     <div className="writer-info-grid">
                       <div className="writer-info-item">
                         <span className="writer-info-label">Ops Queued</span>
-                        <span className="writer-info-value">{formatNumber(sqliteStats.async_writer_ops_queued ?? 0)}</span>
+                        <span className="writer-info-value">
+                          {formatNumber(sqliteStats.async_writer_ops_queued ?? 0)}
+                        </span>
                       </div>
                       <div className="writer-info-item">
                         <span className="writer-info-label">Ops Written</span>
-                        <span className="writer-info-value">{formatNumber(sqliteStats.async_writer_ops_written ?? 0)}</span>
+                        <span className="writer-info-value">
+                          {formatNumber(sqliteStats.async_writer_ops_written ?? 0)}
+                        </span>
                       </div>
                       <div className="writer-info-item">
                         <span className="writer-info-label">Batches</span>
-                        <span className="writer-info-value">{formatNumber(sqliteStats.async_writer_batches_written ?? 0)}</span>
+                        <span className="writer-info-value">
+                          {formatNumber(sqliteStats.async_writer_batches_written ?? 0)}
+                        </span>
                       </div>
                       <div className="writer-info-item">
                         <span className="writer-info-label">Batch Size</span>
-                        <span className="writer-info-value">{sqliteStats.async_writer_max_batch_size ?? 0}</span>
+                        <span className="writer-info-value">
+                          {sqliteStats.async_writer_max_batch_size ?? 0}
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -524,11 +545,36 @@ export function ServerMetrics() {
                   </div>
                   {/* DRY: Using JobDistItem component */}
                   <div className="job-dist-grid">
-                    <JobDistItem label="Queued" count={sqliteStats.queued_jobs ?? 0} total={sqliteStats.total_jobs ?? 0} color="cyan" />
-                    <JobDistItem label="Processing" count={sqliteStats.processing_jobs ?? 0} total={sqliteStats.total_jobs ?? 0} color="blue" />
-                    <JobDistItem label="Completed" count={sqliteStats.completed_jobs ?? 0} total={sqliteStats.total_jobs ?? 0} color="emerald" />
-                    <JobDistItem label="Delayed" count={sqliteStats.delayed_jobs ?? 0} total={sqliteStats.total_jobs ?? 0} color="amber" />
-                    <JobDistItem label="Failed" count={sqliteStats.failed_jobs ?? 0} total={sqliteStats.total_jobs ?? 0} color="rose" />
+                    <JobDistItem
+                      label="Queued"
+                      count={sqliteStats.queued_jobs ?? 0}
+                      total={sqliteStats.total_jobs ?? 0}
+                      color="cyan"
+                    />
+                    <JobDistItem
+                      label="Processing"
+                      count={sqliteStats.processing_jobs ?? 0}
+                      total={sqliteStats.total_jobs ?? 0}
+                      color="blue"
+                    />
+                    <JobDistItem
+                      label="Completed"
+                      count={sqliteStats.completed_jobs ?? 0}
+                      total={sqliteStats.total_jobs ?? 0}
+                      color="emerald"
+                    />
+                    <JobDistItem
+                      label="Delayed"
+                      count={sqliteStats.delayed_jobs ?? 0}
+                      total={sqliteStats.total_jobs ?? 0}
+                      color="amber"
+                    />
+                    <JobDistItem
+                      label="Failed"
+                      count={sqliteStats.failed_jobs ?? 0}
+                      total={sqliteStats.total_jobs ?? 0}
+                      color="rose"
+                    />
                   </div>
                 </Card>
               )}

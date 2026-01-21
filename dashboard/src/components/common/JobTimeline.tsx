@@ -275,9 +275,15 @@ export function JobTimeline({ job, onClose }: JobTimelineProps) {
                 <ArrowRight className="h-3 w-3" />
                 <Badge
                   size="xs"
-                  color={job.state === 'completed' ? 'emerald' : job.state === 'failed' ? 'rose' : 'blue'}
+                  color={
+                    job.state === 'completed' ? 'emerald' : job.state === 'failed' ? 'rose' : 'blue'
+                  }
                 >
-                  {job.state === 'completed' ? 'Success' : job.state === 'failed' ? 'Failed' : 'In Progress'}
+                  {job.state === 'completed'
+                    ? 'Success'
+                    : job.state === 'failed'
+                      ? 'Failed'
+                      : 'In Progress'}
                 </Badge>
               </div>
             </div>

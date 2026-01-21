@@ -123,13 +123,7 @@ export function Sparkline({
       </defs>
 
       {/* Area fill */}
-      {showArea && (
-        <path
-          d={areaPath}
-          fill={`url(#${id}-gradient)`}
-          className="sparkline-area"
-        />
-      )}
+      {showArea && <path d={areaPath} fill={`url(#${id}-gradient)`} className="sparkline-area" />}
 
       {/* Line */}
       <path
@@ -146,14 +140,7 @@ export function Sparkline({
       {/* Dots */}
       {showDots &&
         points.map((point, i) => (
-          <circle
-            key={i}
-            cx={point.x}
-            cy={point.y}
-            r={3}
-            fill={color}
-            className="sparkline-dot"
-          />
+          <circle key={i} cx={point.x} cy={point.y} r={3} fill={color} className="sparkline-dot" />
         ))}
 
       {/* Last point indicator */}

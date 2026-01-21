@@ -18,7 +18,9 @@
 
 .live-feed-advanced.feed-active {
   border-color: rgba(0, 212, 255, 0.3);
-  box-shadow: 0 0 40px rgba(0, 212, 255, 0.1), inset 0 0 60px rgba(0, 212, 255, 0.02);
+  box-shadow:
+    0 0 40px rgba(0, 212, 255, 0.1),
+    inset 0 0 60px rgba(0, 212, 255, 0.02);
 }
 
 /* Particle System */
@@ -186,8 +188,12 @@
 }
 
 @keyframes fire-glow {
-  from { filter: drop-shadow(0 0 4px #f97316); }
-  to { filter: drop-shadow(0 0 12px #f97316); }
+  from {
+    filter: drop-shadow(0 0 4px #f97316);
+  }
+  to {
+    filter: drop-shadow(0 0 12px #f97316);
+  }
 }
 
 .chart-value {
@@ -224,8 +230,15 @@
 }
 
 @keyframes pulse-dot {
-  0%, 100% { r: 3; opacity: 1; }
-  50% { r: 5; opacity: 0.7; }
+  0%,
+  100% {
+    r: 3;
+    opacity: 1;
+  }
+  50% {
+    r: 5;
+    opacity: 0.7;
+  }
 }
 
 .chart-labels {
@@ -269,10 +282,18 @@
   flex-shrink: 0;
 }
 
-.stat-cyan svg { color: #00d4ff; }
-.stat-emerald svg { color: #10b981; }
-.stat-rose svg { color: #f43f5e; }
-.stat-success svg { color: #10b981; }
+.stat-cyan svg {
+  color: #00d4ff;
+}
+.stat-emerald svg {
+  color: #10b981;
+}
+.stat-rose svg {
+  color: #f43f5e;
+}
+.stat-success svg {
+  color: #10b981;
+}
 
 .stat-info {
   display: flex;
@@ -352,8 +373,13 @@
 }
 
 @keyframes hot-pulse {
-  0%, 100% { background: rgba(244, 63, 94, 0.1); }
-  50% { background: rgba(244, 63, 94, 0.15); }
+  0%,
+  100% {
+    background: rgba(244, 63, 94, 0.1);
+  }
+  50% {
+    background: rgba(244, 63, 94, 0.15);
+  }
 }
 
 .queue-health-bar {
@@ -405,8 +431,13 @@
 }
 
 @keyframes thermometer-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
 }
 
 /* Latency Metric */
@@ -444,9 +475,15 @@
   line-height: 1;
 }
 
-.latency-emerald { color: #10b981; }
-.latency-amber { color: #fbbf24; }
-.latency-rose { color: #f43f5e; }
+.latency-emerald {
+  color: #10b981;
+}
+.latency-amber {
+  color: #fbbf24;
+}
+.latency-rose {
+  color: #f43f5e;
+}
 
 .latency-range {
   display: flex;
@@ -665,17 +702,37 @@
 }
 
 /* Event Color Variants */
-.event-cyan { border-left-color: #00d4ff; }
-.event-cyan .event-icon { background: rgba(0, 212, 255, 0.15); color: #00d4ff; }
+.event-cyan {
+  border-left-color: #00d4ff;
+}
+.event-cyan .event-icon {
+  background: rgba(0, 212, 255, 0.15);
+  color: #00d4ff;
+}
 
-.event-emerald { border-left-color: #10b981; }
-.event-emerald .event-icon { background: rgba(16, 185, 129, 0.15); color: #10b981; }
+.event-emerald {
+  border-left-color: #10b981;
+}
+.event-emerald .event-icon {
+  background: rgba(16, 185, 129, 0.15);
+  color: #10b981;
+}
 
-.event-rose { border-left-color: #f43f5e; }
-.event-rose .event-icon { background: rgba(244, 63, 94, 0.15); color: #f43f5e; }
+.event-rose {
+  border-left-color: #f43f5e;
+}
+.event-rose .event-icon {
+  background: rgba(244, 63, 94, 0.15);
+  color: #f43f5e;
+}
 
-.event-blue { border-left-color: #3b82f6; }
-.event-blue .event-icon { background: rgba(59, 130, 246, 0.15); color: #3b82f6; }
+.event-blue {
+  border-left-color: #3b82f6;
+}
+.event-blue .event-icon {
+  background: rgba(59, 130, 246, 0.15);
+  color: #3b82f6;
+}
 
 /* Icon Animations */
 .icon-pulse {
@@ -683,8 +740,15 @@
 }
 
 @keyframes icon-pulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.6; transform: scale(0.95); }
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.6;
+    transform: scale(0.95);
+  }
 }
 
 /* Responsive */
@@ -749,8 +813,12 @@
 }
 
 @keyframes modal-fade-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 .event-modal {
