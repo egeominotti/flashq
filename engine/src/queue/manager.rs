@@ -79,7 +79,9 @@ pub struct QueueManager {
     pub(crate) shutdown_flag: std::sync::atomic::AtomicBool,
     pub(crate) kv_store: DashMap<String, super::kv::KvValue, BuildHasherDefault<GxHasher>>,
     pub(crate) pubsub: super::pubsub::PubSub,
+    #[allow(dead_code)]
     pub(crate) s3_backup: Option<Arc<S3BackupManager>>,
+    #[allow(dead_code)]
     pub(crate) snapshot_config: Option<SnapshotConfig>,
 }
 
@@ -292,6 +294,7 @@ impl QueueManager {
     }
 
     #[inline]
+    #[allow(dead_code)]
     pub fn is_sqlite_connected(&self) -> bool {
         self.storage.is_some()
     }
@@ -320,6 +323,7 @@ impl QueueManager {
     }
 
     /// Check if async writer is enabled.
+    #[allow(dead_code)]
     pub fn has_async_writer(&self) -> bool {
         self.storage.as_ref().map(|s| s.has_async_writer()).unwrap_or(false)
     }
@@ -343,21 +347,25 @@ impl QueueManager {
 
     // Compatibility aliases
     #[inline]
+    #[allow(dead_code)]
     pub fn is_postgres_connected(&self) -> bool {
         self.is_sqlite_connected()
     }
 
     #[inline]
+    #[allow(dead_code)]
     pub fn is_snapshot_mode(&self) -> bool {
         false // Simplified: always use direct persistence
     }
 
     #[inline]
+    #[allow(dead_code)]
     pub(crate) fn record_change(&self) {
         self.snapshot_changes.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     }
 
     #[inline]
+    #[allow(dead_code)]
     pub fn snapshot_change_count(&self) -> u64 {
         self.snapshot_changes.load(std::sync::atomic::Ordering::Relaxed)
     }
@@ -379,24 +387,28 @@ impl QueueManager {
 
     /// Always leader in single-node mode.
     #[inline]
+    #[allow(dead_code)]
     pub fn is_leader(&self) -> bool {
         true
     }
 
     /// Cluster is never enabled in single-node mode.
     #[inline]
+    #[allow(dead_code)]
     pub fn is_cluster_enabled(&self) -> bool {
         false
     }
 
     /// Distributed pull is never enabled in single-node mode.
     #[inline]
+    #[allow(dead_code)]
     pub fn is_distributed_pull(&self) -> bool {
         false
     }
 
     /// No node ID in single-node mode.
     #[inline]
+    #[allow(dead_code)]
     pub fn node_id(&self) -> Option<String> {
         None
     }

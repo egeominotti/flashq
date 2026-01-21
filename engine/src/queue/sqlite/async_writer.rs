@@ -18,6 +18,7 @@ use crate::protocol::Job;
 
 /// Write operation types for the async queue.
 #[derive(Debug)]
+#[allow(dead_code)]
 pub enum WriteOp {
     /// Insert or update a job
     InsertJob {
@@ -112,6 +113,7 @@ pub struct AsyncWriter {
     /// Database path
     db_path: PathBuf,
     /// Configuration (initial values)
+    #[allow(dead_code)]
     config: AsyncWriterConfig,
     /// Runtime batch interval (atomic for runtime changes)
     batch_interval_ms: AtomicU64,
@@ -166,6 +168,7 @@ impl AsyncWriter {
 
     /// Queue multiple operations at once.
     #[inline]
+    #[allow(dead_code)]
     pub fn queue_ops(&self, ops: impl IntoIterator<Item = WriteOp>) {
         let mut queue = self.queue.lock();
         let mut count = 0u64;
@@ -189,6 +192,7 @@ impl AsyncWriter {
     }
 
     /// Get configuration.
+    #[allow(dead_code)]
     pub fn config(&self) -> &AsyncWriterConfig {
         &self.config
     }
@@ -216,6 +220,7 @@ impl AsyncWriter {
     }
 
     /// Request flush and wait for completion.
+    #[allow(dead_code)]
     pub async fn flush(&self) {
         self.queue_op(WriteOp::Flush);
         self.notify.notify_one();
@@ -225,6 +230,7 @@ impl AsyncWriter {
     }
 
     /// Shutdown the writer gracefully.
+    #[allow(dead_code)]
     pub async fn shutdown(&self) {
         info!("Async writer shutting down...");
         self.running.store(false, Ordering::SeqCst);

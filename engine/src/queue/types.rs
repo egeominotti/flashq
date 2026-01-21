@@ -609,6 +609,7 @@ impl Worker {
 // ============== Snapshot Config ==============
 // Redis-style periodic snapshot persistence
 
+#[allow(dead_code)]
 pub struct SnapshotConfig {
     /// Interval between snapshots in seconds (default: 60)
     pub interval_secs: u64,
@@ -617,6 +618,7 @@ pub struct SnapshotConfig {
 }
 
 impl SnapshotConfig {
+    #[allow(dead_code)]
     pub fn from_env() -> Option<Self> {
         let enabled = std::env::var("SNAPSHOT_MODE")
             .map(|v| v == "1" || v.to_lowercase() == "true")

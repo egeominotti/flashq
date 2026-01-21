@@ -52,6 +52,7 @@ impl Default for SqliteConfig {
 
 impl SqliteConfig {
     /// Create config from environment variables
+    #[allow(dead_code)]
     pub fn from_env() -> Self {
         let path = std::env::var("DATA_PATH")
             .map(PathBuf::from)
@@ -83,8 +84,10 @@ pub struct SqliteStorage {
     /// Path to the database file
     pub path: PathBuf,
     /// Snapshot manager
+    #[allow(dead_code)]
     snapshot_manager: Option<Arc<SnapshotManager>>,
     /// S3 backup manager
+    #[allow(dead_code)]
     backup_manager: Option<Arc<S3BackupManager>>,
     /// Async writer for non-blocking persistence (optional)
     async_writer: Option<Arc<AsyncWriter>>,
@@ -127,17 +130,20 @@ impl SqliteStorage {
     }
 
     /// Create with default configuration
+    #[allow(dead_code)]
     pub fn default_config() -> Result<Self, rusqlite::Error> {
         Self::new(SqliteConfig::from_env())
     }
 
     /// Set snapshot manager
+    #[allow(dead_code)]
     pub fn with_snapshot_manager(mut self, manager: Arc<SnapshotManager>) -> Self {
         self.snapshot_manager = Some(manager);
         self
     }
 
     /// Set S3 backup manager
+    #[allow(dead_code)]
     pub fn with_backup_manager(mut self, manager: Arc<S3BackupManager>) -> Self {
         self.backup_manager = Some(manager);
         self
@@ -158,6 +164,7 @@ impl SqliteStorage {
     }
 
     /// Check if async writer is enabled.
+    #[allow(dead_code)]
     pub fn has_async_writer(&self) -> bool {
         self.async_writer.is_some()
     }
@@ -381,6 +388,7 @@ impl SqliteStorage {
     // ============== Snapshot Operations ==============
 
     /// Take a snapshot of all jobs
+    #[allow(dead_code)]
     pub fn snapshot_all(&self, jobs: &[(Job, String)], dlq_jobs: &[(Job, Option<String>)]) -> Result<(), rusqlite::Error> {
         let conn = self.conn.lock();
         snapshot::snapshot_all(&conn, jobs, dlq_jobs)
@@ -407,6 +415,7 @@ impl SqliteStorage {
     }
 
     /// Trigger S3 backup if configured
+    #[allow(dead_code)]
     pub async fn trigger_s3_backup(&self) -> Result<(), String> {
         if let Some(ref manager) = self.backup_manager {
             manager.backup(&self.path).await
@@ -416,11 +425,13 @@ impl SqliteStorage {
     }
 
     /// Get snapshot manager
+    #[allow(dead_code)]
     pub fn snapshot_manager(&self) -> Option<&Arc<SnapshotManager>> {
         self.snapshot_manager.as_ref()
     }
 
     /// Get backup manager
+    #[allow(dead_code)]
     pub fn backup_manager(&self) -> Option<&Arc<S3BackupManager>> {
         self.backup_manager.as_ref()
     }

@@ -5,6 +5,8 @@
 //! - Local backup files with retention
 //! - Restore from snapshot
 
+#![allow(dead_code)]
+
 use rusqlite::Connection;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};

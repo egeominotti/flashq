@@ -65,4 +65,3 @@ mod rate_limit;
 mod tests;
 
 pub use manager::QueueManager;
-pub use sqlite::{S3BackupConfig, S3BackupManager, SnapshotManager, SqliteConfig, SqliteStorage, set_runtime_s3_config, get_runtime_s3_config, clear_runtime_s3_config};
