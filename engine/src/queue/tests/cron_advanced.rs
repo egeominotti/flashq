@@ -163,3 +163,78 @@ async fn test_cron_duplicate_name_replaces() {
 
     qm.delete_cron("same-name").await;
 }
+
+// ==================== CRON EXECUTION ====================
+
+#[tokio::test]
+async fn test_cron_job_execution_creates_job() {
+    let qm = setup();
+
+    // Add cron with very short repeat interval (1ms) - will be due immediately
+    qm.add_cron_with_repeat(
+        "fast-cron".to_string(),
+        "cron-queue".to_string(),
+        json!({"from_cron": true}),
+        None,
+        Some(1), // 1ms repeat - will be due immediately
+        5,       // priority
+        None,
+    )
+    .await
+    .unwrap();
+
+    // Wait a tiny bit to ensure cron is due
+    tokio::time::sleep(tokio::time::Duration::from_millis(5)).await;
+
+    // Run cron jobs manually
+    qm.run_cron_jobs().await;
+
+    // A job should have been created in the queue
+    let (queued, _, _, _, _) = qm.stats().await;
+    assert!(queued >= 1, "Cron should have created at least 1 job");
+
+    // Pull the job and verify it's from cron
+    let pulled = qm.pull("cron-queue").await;
+    assert_eq!(pulled.priority, 5, "Job should have cron priority");
+    assert_eq!(
+        *pulled.data,
+        json!({"from_cron": true}),
+        "Job data should match cron data"
+    );
+
+    // Cleanup
+    qm.delete_cron("fast-cron").await;
+}
+
+#[tokio::test]
+async fn test_cron_job_respects_execution_limit() {
+    let qm = setup();
+
+    // Add cron with limit of 2 executions
+    qm.add_cron_with_repeat(
+        "limited-cron".to_string(),
+        "limited-queue".to_string(),
+        json!({}),
+        None,
+        Some(1), // 1ms repeat
+        0,
+        Some(2), // Only 2 executions
+    )
+    .await
+    .unwrap();
+
+    // Run cron multiple times
+    for _ in 0..5 {
+        tokio::time::sleep(tokio::time::Duration::from_millis(2)).await;
+        qm.run_cron_jobs().await;
+    }
+
+    // Should have created exactly 2 jobs (limited)
+    let (queued, _, _, _, _) = qm.stats().await;
+    assert_eq!(queued, 2, "Should have created exactly 2 jobs due to limit");
+
+    // Cron should be removed after reaching limit
+    let crons = qm.list_crons().await;
+    let still_exists = crons.iter().any(|c| c.name == "limited-cron");
+    assert!(!still_exists, "Cron should be removed after reaching limit");
+}

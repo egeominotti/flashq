@@ -288,3 +288,142 @@ async fn test_webhook_signature_generation() {
     assert_eq!(webhooks.len(), 1);
     assert_eq!(webhooks[0].secret, Some("my-secret-key".to_string()));
 }
+
+// ==================== CIRCUIT BREAKER ====================
+
+#[test]
+fn test_circuit_breaker_opens_after_failures() {
+    use crate::queue::types::{CircuitBreakerEntry, CircuitState};
+
+    let mut circuit = CircuitBreakerEntry::default();
+    assert_eq!(circuit.state, CircuitState::Closed);
+
+    // Record 5 failures (default threshold)
+    for i in 0..5 {
+        circuit.record_failure(i as u64 * 1000, 5);
+    }
+
+    // Circuit should be open after 5 failures
+    assert_eq!(circuit.state, CircuitState::Open);
+    assert_eq!(circuit.failures, 5);
+}
+
+#[test]
+fn test_circuit_breaker_blocks_when_open() {
+    use crate::queue::types::{CircuitBreakerEntry, CircuitState};
+
+    let mut circuit = CircuitBreakerEntry::default();
+
+    // Open the circuit
+    for i in 0..5 {
+        circuit.record_failure(i as u64 * 1000, 5);
+    }
+    assert_eq!(circuit.state, CircuitState::Open);
+
+    // Should not allow requests when open (before recovery timeout)
+    let now = 10_000; // 10 seconds after last failure
+    let recovery_timeout = 30_000; // 30 seconds
+    assert!(
+        !circuit.should_allow(now, recovery_timeout),
+        "Circuit should block requests when open"
+    );
+}
+
+#[test]
+fn test_circuit_breaker_half_open_after_recovery_timeout() {
+    use crate::queue::types::{CircuitBreakerEntry, CircuitState};
+
+    let mut circuit = CircuitBreakerEntry::default();
+
+    // Open the circuit at time 0
+    for _ in 0..5 {
+        circuit.record_failure(0, 5);
+    }
+    assert_eq!(circuit.state, CircuitState::Open);
+
+    // After recovery timeout, should transition to half-open
+    let recovery_timeout = 30_000;
+    let now = 35_000; // 35 seconds later
+
+    // try_half_open should succeed
+    let transitioned = circuit.try_half_open(now, recovery_timeout);
+    assert!(transitioned, "Should transition to half-open");
+    assert_eq!(circuit.state, CircuitState::HalfOpen);
+
+    // Should allow requests in half-open state
+    assert!(
+        circuit.should_allow(now, recovery_timeout),
+        "Should allow requests in half-open"
+    );
+}
+
+#[test]
+fn test_circuit_breaker_closes_after_successes_in_half_open() {
+    use crate::queue::types::{CircuitBreakerEntry, CircuitState};
+
+    let mut circuit = CircuitBreakerEntry::default();
+
+    // Open and transition to half-open
+    for _ in 0..5 {
+        circuit.record_failure(0, 5);
+    }
+    circuit.try_half_open(35_000, 30_000);
+    assert_eq!(circuit.state, CircuitState::HalfOpen);
+
+    // Record 2 successes (required to close)
+    circuit.record_success();
+    assert_eq!(
+        circuit.state,
+        CircuitState::HalfOpen,
+        "Still half-open after 1 success"
+    );
+
+    circuit.record_success();
+    assert_eq!(
+        circuit.state,
+        CircuitState::Closed,
+        "Should be closed after 2 successes"
+    );
+    assert_eq!(circuit.failures, 0, "Failures should be reset");
+}
+
+#[test]
+fn test_circuit_breaker_reopens_on_failure_in_half_open() {
+    use crate::queue::types::{CircuitBreakerEntry, CircuitState};
+
+    let mut circuit = CircuitBreakerEntry::default();
+
+    // Open and transition to half-open
+    for _ in 0..5 {
+        circuit.record_failure(0, 5);
+    }
+    circuit.try_half_open(35_000, 30_000);
+    assert_eq!(circuit.state, CircuitState::HalfOpen);
+
+    // A single failure in half-open should reopen
+    circuit.record_failure(40_000, 5);
+    assert_eq!(
+        circuit.state,
+        CircuitState::Open,
+        "Should reopen after failure in half-open"
+    );
+}
+
+#[test]
+fn test_circuit_breaker_success_resets_failures() {
+    use crate::queue::types::{CircuitBreakerEntry, CircuitState};
+
+    let mut circuit = CircuitBreakerEntry::default();
+
+    // Record some failures (but less than threshold)
+    circuit.record_failure(0, 5);
+    circuit.record_failure(1000, 5);
+    circuit.record_failure(2000, 5);
+    assert_eq!(circuit.failures, 3);
+    assert_eq!(circuit.state, CircuitState::Closed);
+
+    // A success should reset failures
+    circuit.record_success();
+    assert_eq!(circuit.failures, 0, "Failures should be reset on success");
+    assert_eq!(circuit.state, CircuitState::Closed);
+}
