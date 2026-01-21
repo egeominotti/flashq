@@ -16,7 +16,7 @@ async fn test_drain_removes_all_waiting_jobs() {
             .unwrap();
     }
 
-    let (queued, _, _, _) = qm.stats().await;
+    let (queued, _, _, _, _) = qm.stats().await;
     assert_eq!(queued, 10);
 
     // Drain the queue
@@ -24,7 +24,7 @@ async fn test_drain_removes_all_waiting_jobs() {
     assert_eq!(removed, 10);
 
     // Queue should be empty
-    let (queued_after, _, _, _) = qm.stats().await;
+    let (queued_after, _, _, _, _) = qm.stats().await;
     assert_eq!(queued_after, 0);
 }
 
@@ -249,7 +249,7 @@ async fn test_move_to_delayed() {
     assert_eq!(state, crate::protocol::JobState::Delayed);
 
     // Processing count should be 0
-    let (_, processing, _, _) = qm.stats().await;
+    let (_, processing, _, _, _) = qm.stats().await;
     assert_eq!(processing, 0);
 }
 

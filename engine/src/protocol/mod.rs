@@ -231,7 +231,7 @@ mod tests {
 
     #[test]
     fn test_response_stats() {
-        let response = Response::stats(10, 5, 3, 2);
+        let response = Response::stats(10, 5, 3, 2, 100);
         let json = serde_json::to_string(&response).unwrap();
         assert!(json.contains("\"queued\":10"));
         assert!(json.contains("\"processing\":5"));

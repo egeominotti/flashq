@@ -166,7 +166,7 @@ async fn test_pull_batch() {
     let jobs = qm.pull_batch("test", 5).await;
     assert_eq!(jobs.len(), 5);
 
-    let (queued, processing, _, _) = qm.stats().await;
+    let (queued, processing, _, _, _) = qm.stats().await;
     assert_eq!(queued, 5);
     assert_eq!(processing, 5);
 }
@@ -187,7 +187,7 @@ async fn test_ack_batch() {
     let acked = qm.ack_batch(&ids).await;
     assert_eq!(acked, 5);
 
-    let (_, processing, _, _) = qm.stats().await;
+    let (_, processing, _, _, _) = qm.stats().await;
     assert_eq!(processing, 0);
 }
 

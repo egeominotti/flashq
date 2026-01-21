@@ -175,7 +175,7 @@ async fn test_cancel_processing_job() {
     let result = qm.cancel(job.id).await;
     assert!(result.is_ok());
 
-    let (_, processing, _, _) = qm.stats().await;
+    let (_, processing, _, _, _) = qm.stats().await;
     assert_eq!(processing, 0);
 }
 
@@ -209,7 +209,7 @@ async fn test_cancel_job_in_queue_preserves_others() {
     assert_eq!(pulled2.id, job3.id);
 
     // Queue should be empty now
-    let (queued, _, _, _) = qm.stats().await;
+    let (queued, _, _, _, _) = qm.stats().await;
     assert_eq!(queued, 0);
 }
 
@@ -239,7 +239,7 @@ async fn test_concurrent_cancel_operations() {
     }
 
     // All should be cancelled
-    let (queued, _, _, _) = qm.stats().await;
+    let (queued, _, _, _, _) = qm.stats().await;
     assert_eq!(queued, 0);
 }
 

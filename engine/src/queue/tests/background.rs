@@ -64,7 +64,7 @@ async fn test_job_timeout_retry() {
     qm.check_timed_out_jobs().await;
 
     // Job should be back in queue (attempt 1 of 3)
-    let (queued, processing, _, _) = qm.stats().await;
+    let (queued, processing, _, _, _) = qm.stats().await;
     assert_eq!(processing, 0, "Job should not be processing");
     assert_eq!(queued, 1, "Job should be back in queue");
 

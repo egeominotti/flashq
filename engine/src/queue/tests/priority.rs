@@ -323,6 +323,6 @@ async fn test_job_dependencies_multiple() {
     qm.check_dependencies().await;
 
     // Now child should be available
-    let (queued, _, _, _) = qm.stats().await;
+    let (queued, _, _, _, _) = qm.stats().await;
     assert_eq!(queued, 1); // child is now queued
 }

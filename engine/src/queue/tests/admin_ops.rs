@@ -31,14 +31,14 @@ async fn test_reset_clears_everything() {
     qm.fail(job2.id, None).await.unwrap();
 
     // Verify state before reset
-    let (queued, _processing, _, _) = qm.stats().await;
+    let (queued, _processing, _, _, _) = qm.stats().await;
     assert!(queued > 0);
 
     // Reset everything
     qm.reset().await;
 
     // Everything should be cleared
-    let (queued_after, processing_after, _, _) = qm.stats().await;
+    let (queued_after, processing_after, _, _, _) = qm.stats().await;
     assert_eq!(queued_after, 0);
     assert_eq!(processing_after, 0);
 
@@ -62,7 +62,7 @@ async fn test_clear_all_queues() {
     let cleared = qm.clear_all_queues().await;
     assert_eq!(cleared, 5);
 
-    let (queued, _, _, _) = qm.stats().await;
+    let (queued, _, _, _, _) = qm.stats().await;
     assert_eq!(queued, 0);
 }
 

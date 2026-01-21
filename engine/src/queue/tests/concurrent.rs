@@ -21,7 +21,7 @@ async fn test_concurrent_push() {
         handle.await.unwrap();
     }
 
-    let (queued, _, _, _) = qm.stats().await;
+    let (queued, _, _, _, _) = qm.stats().await;
     assert_eq!(queued, 100);
 }
 
@@ -63,6 +63,6 @@ async fn test_concurrent_push_pull() {
         handle.await.unwrap();
     }
 
-    let (queued, processing, _, _) = qm.stats().await;
+    let (queued, processing, _, _, _) = qm.stats().await;
     assert_eq!(queued + processing, 100);
 }

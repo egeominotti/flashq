@@ -13,7 +13,7 @@ async fn test_stats() {
             .unwrap();
     }
 
-    let (queued, processing, delayed, dlq) = qm.stats().await;
+    let (queued, processing, delayed, dlq, _) = qm.stats().await;
     assert_eq!(queued, 5);
     assert_eq!(processing, 0);
     assert_eq!(delayed, 0);
@@ -22,7 +22,7 @@ async fn test_stats() {
     // Pull one
     let _ = qm.pull("test").await;
 
-    let (queued2, processing2, _, _) = qm.stats().await;
+    let (queued2, processing2, _, _, _) = qm.stats().await;
     assert_eq!(queued2, 4);
     assert_eq!(processing2, 1);
 }
