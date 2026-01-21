@@ -1,0 +1,913 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>flashQ | Job Queue System</title>
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="/static/css/dashboard.css">
+</head>
+<body>
+    <!-- Noise Overlay -->
+    <div class="noise"></div>
+
+    <!-- App Container -->
+    <div class="app">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <div class="logo-text">
+                        <span class="logo-name">flashQ</span>
+                        <span class="logo-version">v<span id="header-version">0.2.0</span></span>
+                    </div>
+                </div>
+            </div>
+
+            <nav class="sidebar-nav">
+                <div class="nav-section">
+                    <span class="nav-label">MONITORING</span>
+                    <button class="nav-item active" data-section="overview">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="3" width="7" height="7"/>
+                            <rect x="14" y="3" width="7" height="7"/>
+                            <rect x="3" y="14" width="7" height="7"/>
+                            <rect x="14" y="14" width="7" height="7"/>
+                        </svg>
+                        <span>Overview</span>
+                    </button>
+                    <button class="nav-item" data-section="queues">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+                        </svg>
+                        <span>Queues</span>
+                    </button>
+                    <button class="nav-item" data-section="jobs">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                            <polyline points="14 2 14 8 20 8"/>
+                            <line x1="16" y1="13" x2="8" y2="13"/>
+                            <line x1="16" y1="17" x2="8" y2="17"/>
+                        </svg>
+                        <span>Jobs</span>
+                    </button>
+                    <button class="nav-item" data-section="analytics">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="18" y1="20" x2="18" y2="10"/>
+                            <line x1="12" y1="20" x2="12" y2="4"/>
+                            <line x1="6" y1="20" x2="6" y2="14"/>
+                        </svg>
+                        <span>Analytics</span>
+                    </button>
+                </div>
+
+                <div class="nav-section">
+                    <span class="nav-label">AUTOMATION</span>
+                    <button class="nav-item" data-section="crons">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"/>
+                            <polyline points="12 6 12 12 16 14"/>
+                        </svg>
+                        <span>Cron Jobs</span>
+                    </button>
+                    <button class="nav-item" data-section="workers">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                            <circle cx="9" cy="7" r="4"/>
+                            <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                            <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                        </svg>
+                        <span>Workers</span>
+                    </button>
+                </div>
+
+                <div class="nav-section">
+                    <span class="nav-label">SYSTEM</span>
+                    <button class="nav-item" data-section="settings">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="3"/>
+                            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                        </svg>
+                        <span>Settings</span>
+                    </button>
+                </div>
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="status-card">
+                    <div class="status-row">
+                        <span class="status-label">STATUS</span>
+                        <div class="status-indicator">
+                            <span class="status-dot" id="connection-status"></span>
+                            <span class="status-text" id="connection-text">Connected</span>
+                        </div>
+                    </div>
+                    <div class="status-row">
+                        <span class="status-label">UPTIME</span>
+                        <span class="status-value mono" id="sidebar-uptime">--:--:--</span>
+                    </div>
+                    <div class="status-row">
+                        <span class="status-label">REFRESH</span>
+                        <span class="status-value mono">2s</span>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main">
+            <!-- Header -->
+            <header class="header">
+                <div class="header-left">
+                    <h1 class="page-title" id="page-title">Overview</h1>
+                    <span class="page-subtitle" id="page-subtitle">Real-time system monitoring</span>
+                </div>
+                <div class="header-right">
+                    <div class="header-stat">
+                        <span class="header-stat-label">TCP</span>
+                        <span class="header-stat-value mono" id="header-tcp">6789</span>
+                    </div>
+                    <div class="header-stat">
+                        <span class="header-stat-label">HTTP</span>
+                        <span class="header-stat-value mono" id="header-http">6790</span>
+                    </div>
+                    <button class="btn btn-ghost" onclick="refreshData()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="23 4 23 10 17 10"/>
+                            <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+                        </svg>
+                        Refresh
+                    </button>
+                </div>
+            </header>
+
+            <!-- Content -->
+            <div class="content">
+                <!-- Overview Section -->
+                <section id="section-overview" class="section active">
+                    <!-- Primary Stats -->
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-header">
+                                <span class="stat-label">QUEUED</span>
+                                <div class="stat-icon blue">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+                                    </svg>
+                                </div>
+                            </div>
+                            <div class="stat-value mono" id="stat-queued">0</div>
+                            <div class="stat-bar">
+                                <div class="stat-bar-fill blue" id="bar-queued" style="width: 0%"></div>
+                            </div>
+                            <span class="stat-desc">Ready to process</span>
+                        </div>
+
+                        <div class="stat-card">
+                            <div class="stat-header">
+                                <span class="stat-label">PROCESSING</span>
+                                <div class="stat-icon cyan">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+                                    </svg>
+                                </div>
+                            </div>
+                            <div class="stat-value mono" id="stat-processing">0</div>
+                            <div class="stat-bar">
+                                <div class="stat-bar-fill cyan" id="bar-processing" style="width: 0%"></div>
+                            </div>
+                            <span class="stat-desc">Currently active</span>
+                        </div>
+
+                        <div class="stat-card">
+                            <div class="stat-header">
+                                <span class="stat-label">DELAYED</span>
+                                <div class="stat-icon amber">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <circle cx="12" cy="12" r="10"/>
+                                        <polyline points="12 6 12 12 16 14"/>
+                                    </svg>
+                                </div>
+                            </div>
+                            <div class="stat-value mono" id="stat-delayed">0</div>
+                            <div class="stat-bar">
+                                <div class="stat-bar-fill amber" id="bar-delayed" style="width: 0%"></div>
+                            </div>
+                            <span class="stat-desc">Scheduled</span>
+                        </div>
+
+                        <div class="stat-card">
+                            <div class="stat-header">
+                                <span class="stat-label">FAILED (DLQ)</span>
+                                <div class="stat-icon red">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <circle cx="12" cy="12" r="10"/>
+                                        <line x1="15" y1="9" x2="9" y2="15"/>
+                                        <line x1="9" y1="9" x2="15" y2="15"/>
+                                    </svg>
+                                </div>
+                            </div>
+                            <div class="stat-value mono" id="stat-dlq">0</div>
+                            <div class="stat-bar">
+                                <div class="stat-bar-fill red" id="bar-dlq" style="width: 0%"></div>
+                            </div>
+                            <span class="stat-desc">Needs attention</span>
+                        </div>
+                    </div>
+
+                    <!-- Metrics Row -->
+                    <div class="metrics-row">
+                        <div class="metric-card">
+                            <div class="metric-icon">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/>
+                                </svg>
+                            </div>
+                            <div class="metric-data">
+                                <span class="metric-value mono" id="metric-pushed">0</span>
+                                <span class="metric-label">Total Pushed</span>
+                            </div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-icon green">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                                    <polyline points="22 4 12 14.01 9 11.01"/>
+                                </svg>
+                            </div>
+                            <div class="metric-data">
+                                <span class="metric-value mono green" id="metric-completed">0</span>
+                                <span class="metric-label">Completed</span>
+                            </div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-icon red">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <circle cx="12" cy="12" r="10"/>
+                                    <line x1="15" y1="9" x2="9" y2="15"/>
+                                    <line x1="9" y1="9" x2="15" y2="15"/>
+                                </svg>
+                            </div>
+                            <div class="metric-data">
+                                <span class="metric-value mono red" id="metric-failed">0</span>
+                                <span class="metric-label">Failed</span>
+                            </div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-icon cyan">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polyline points="13 17 18 12 13 7"/>
+                                    <polyline points="6 17 11 12 6 7"/>
+                                </svg>
+                            </div>
+                            <div class="metric-data">
+                                <span class="metric-value mono cyan" id="metric-throughput">0/s</span>
+                                <span class="metric-label">Throughput</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Charts -->
+                    <div class="charts-grid">
+                        <div class="card">
+                            <div class="card-header">
+                                <h3 class="card-title">Throughput</h3>
+                                <div class="chart-range">
+                                    <button class="range-btn active" onclick="setChartRange('5m')" id="range-5m">5m</button>
+                                    <button class="range-btn" onclick="setChartRange('15m')" id="range-15m">15m</button>
+                                    <button class="range-btn" onclick="setChartRange('1h')" id="range-1h">1h</button>
+                                </div>
+                            </div>
+                            <div class="card-body">
+                                <div class="chart-container"><canvas id="throughput-chart"></canvas></div>
+                            </div>
+                        </div>
+                        <div class="card">
+                            <div class="card-header">
+                                <h3 class="card-title">Distribution</h3>
+                            </div>
+                            <div class="card-body">
+                                <div class="chart-container"><canvas id="distribution-chart"></canvas></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Queue Table -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">Active Queues</h3>
+                            <button class="btn btn-ghost btn-sm" onclick="showSection('queues')">View All</button>
+                        </div>
+                        <div class="table-wrapper">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>Queue</th>
+                                        <th class="text-right">Pending</th>
+                                        <th class="text-right">Processing</th>
+                                        <th class="text-right">DLQ</th>
+                                        <th>Status</th>
+                                        <th class="text-right">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="overview-queues"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Queues Section -->
+                <section id="section-queues" class="section">
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-header-left">
+                                <h3 class="card-title">Queue Management</h3>
+                                <span class="card-subtitle">Monitor and control your queues</span>
+                            </div>
+                            <div class="card-header-right">
+                                <input type="text" id="queue-search" placeholder="Search queues..." class="input" oninput="filterQueues()">
+                            </div>
+                        </div>
+                        <div class="table-wrapper">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>Queue Name</th>
+                                        <th class="text-right">Pending</th>
+                                        <th class="text-right">Processing</th>
+                                        <th class="text-right">DLQ</th>
+                                        <th class="text-right">Rate Limit</th>
+                                        <th class="text-right">Concurrency</th>
+                                        <th>Status</th>
+                                        <th class="text-right">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="queues-table"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Jobs Section -->
+                <section id="section-jobs" class="section">
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="filters-row">
+                                <div class="filter-group flex-1">
+                                    <label class="filter-label">Search Job ID</label>
+                                    <input type="text" id="job-search" placeholder="Enter job ID..." class="input">
+                                </div>
+                                <div class="filter-group">
+                                    <label class="filter-label">Queue</label>
+                                    <select id="job-queue-filter" class="input select">
+                                        <option value="">All Queues</option>
+                                    </select>
+                                </div>
+                                <div class="filter-group">
+                                    <label class="filter-label">State</label>
+                                    <select id="job-state-filter" class="input select">
+                                        <option value="">All States</option>
+                                        <option value="waiting">Waiting</option>
+                                        <option value="delayed">Delayed</option>
+                                        <option value="active">Active</option>
+                                        <option value="completed">Completed</option>
+                                        <option value="failed">Failed</option>
+                                    </select>
+                                </div>
+                                <div class="filter-actions">
+                                    <button class="btn btn-primary" onclick="searchJobs()">Search</button>
+                                    <button class="btn btn-ghost" onclick="clearJobFilters()">Clear</button>
+                                </div>
+                            </div>
+                            <div id="bulk-actions" class="bulk-actions hidden">
+                                <span class="bulk-count"><span id="selected-count">0</span> selected</span>
+                                <button onclick="window.dashboard.bulkCancel()" class="btn btn-danger btn-sm">Cancel</button>
+                                <button onclick="window.dashboard.bulkRetry()" class="btn btn-success btn-sm">Retry</button>
+                                <button onclick="clearSelection()" class="btn btn-ghost btn-sm">Clear</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-header-left">
+                                <h3 class="card-title">Jobs</h3>
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="select-all-jobs" onchange="toggleSelectAll()">
+                                    Select All
+                                </label>
+                            </div>
+                            <div class="card-header-right">
+                                <span class="jobs-count" id="jobs-count">0 jobs</span>
+                                <div class="pagination">
+                                    <button onclick="prevJobPage()" id="prev-page-btn" class="btn btn-ghost btn-sm" disabled>Prev</button>
+                                    <span class="page-info" id="page-info">Page 1</span>
+                                    <button onclick="nextJobPage()" id="next-page-btn" class="btn btn-ghost btn-sm">Next</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="table-wrapper">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th class="w-10"></th>
+                                        <th>ID</th>
+                                        <th>Queue</th>
+                                        <th>State</th>
+                                        <th class="text-right">Priority</th>
+                                        <th class="text-right">Attempts</th>
+                                        <th>Created</th>
+                                        <th class="text-right">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="jobs-table"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Crons Section -->
+                <section id="section-crons" class="section">
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-header-left">
+                                <h3 class="card-title">Create Cron Job</h3>
+                                <span class="card-subtitle">Schedule recurring jobs</span>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div class="form-grid">
+                                <div class="form-group">
+                                    <label class="form-label">Name</label>
+                                    <input type="text" id="cron-name" placeholder="my-cron-job" class="input">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Queue</label>
+                                    <input type="text" id="cron-queue" placeholder="tasks" class="input">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Schedule</label>
+                                    <input type="text" id="cron-schedule" placeholder="*/5 * * * *" class="input mono">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Priority</label>
+                                    <input type="number" id="cron-priority" value="0" class="input">
+                                </div>
+                                <div class="form-group span-2">
+                                    <label class="form-label">Data (JSON)</label>
+                                    <input type="text" id="cron-data" placeholder='{"key": "value"}' class="input mono">
+                                </div>
+                            </div>
+                            <div class="form-actions">
+                                <button onclick="window.dashboard.createCron()" class="btn btn-primary">Create Cron Job</button>
+                                <span class="form-hint">Format: sec min hour day month weekday (6-field)</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">Scheduled Cron Jobs</h3>
+                        </div>
+                        <div class="table-wrapper">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>Name</th>
+                                        <th>Queue</th>
+                                        <th>Schedule</th>
+                                        <th class="text-right">Priority</th>
+                                        <th>Next Run</th>
+                                        <th>Data</th>
+                                        <th class="text-right">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="crons-table"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Workers Section -->
+                <section id="section-workers" class="section">
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-header-left">
+                                <h3 class="card-title">Connected Workers</h3>
+                                <span class="card-subtitle">Workers with heartbeat in last 30s</span>
+                            </div>
+                            <div class="card-header-right">
+                                <div class="legend">
+                                    <span class="legend-item"><span class="legend-dot green"></span> Online</span>
+                                    <span class="legend-item"><span class="legend-dot red"></span> Offline</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="table-wrapper">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>Worker ID</th>
+                                        <th>Queues</th>
+                                        <th class="text-right">Concurrency</th>
+                                        <th class="text-right">Jobs Processed</th>
+                                        <th>Last Heartbeat</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="workers-table"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Analytics Section -->
+                <section id="section-analytics" class="section">
+                    <div class="charts-grid cols-2">
+                        <div class="card">
+                            <div class="card-header">
+                                <h3 class="card-title">Throughput Over Time</h3>
+                            </div>
+                            <div class="card-body">
+                                <div class="chart-container tall"><canvas id="analytics-throughput"></canvas></div>
+                            </div>
+                        </div>
+                        <div class="card">
+                            <div class="card-header">
+                                <h3 class="card-title">Jobs in System</h3>
+                            </div>
+                            <div class="card-body">
+                                <div class="chart-container tall"><canvas id="analytics-jobs"></canvas></div>
+                            </div>
+                        </div>
+                        <div class="card">
+                            <div class="card-header">
+                                <h3 class="card-title">Completed vs Failed</h3>
+                            </div>
+                            <div class="card-body">
+                                <div class="chart-container tall"><canvas id="analytics-completion"></canvas></div>
+                            </div>
+                        </div>
+                        <div class="card">
+                            <div class="card-header">
+                                <h3 class="card-title">Average Latency (ms)</h3>
+                            </div>
+                            <div class="card-body">
+                                <div class="chart-container tall"><canvas id="analytics-latency"></canvas></div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Settings Section -->
+                <section id="section-settings" class="section">
+                    <!-- Server Info -->
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-header-left">
+                                <h3 class="card-title">Server Information</h3>
+                                <span class="card-subtitle">Current configuration</span>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div class="info-grid">
+                                <div class="info-card">
+                                    <span class="info-label">TCP PORT</span>
+                                    <span class="info-value mono" id="settings-tcp-port">6789</span>
+                                </div>
+                                <div class="info-card">
+                                    <span class="info-label">HTTP PORT</span>
+                                    <span class="info-value mono" id="settings-http-port">6790</span>
+                                </div>
+                                <div class="info-card">
+                                    <span class="info-label">UPTIME</span>
+                                    <span class="info-value mono" id="settings-uptime">--</span>
+                                </div>
+                                <div class="info-card">
+                                    <span class="info-label">VERSION</span>
+                                    <span class="info-value mono" id="settings-version">0.2.0</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- SQLite -->
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-header-left">
+                                <h3 class="card-title">SQLite Persistence</h3>
+                                <span class="card-subtitle">Embedded database storage</span>
+                            </div>
+                            <div class="status-badge" id="sqlite-status">
+                                <span class="status-dot"></span>
+                                <span id="sqlite-status-text">Checking...</span>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div class="form-grid cols-2">
+                                <div class="form-group">
+                                    <label class="form-label">Database Path</label>
+                                    <input type="text" id="sqlite-path" placeholder="./flashq.db" class="input mono">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Synchronous Mode</label>
+                                    <select id="sqlite-synchronous" class="input select">
+                                        <option value="1">FULL (Safe)</option>
+                                        <option value="0">NORMAL (Faster)</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Snapshot Interval (sec)</label>
+                                    <input type="number" id="sqlite-snapshot-interval" value="60" class="input">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Min Changes for Snapshot</label>
+                                    <input type="number" id="sqlite-min-changes" value="100" class="input">
+                                </div>
+                            </div>
+                            <div class="form-actions">
+                                <button onclick="window.dashboard.saveSqliteSettings()" class="btn btn-primary">Save Settings</button>
+                                <span class="form-hint">Requires restart</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- S3 Backup -->
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-header-left">
+                                <h3 class="card-title">S3 Backup</h3>
+                                <span class="card-subtitle">Cloud backup (AWS S3, Cloudflare R2, MinIO)</span>
+                            </div>
+                            <div class="status-badge" id="s3-status">
+                                <span class="status-dot"></span>
+                                <span id="s3-status-text">Checking...</span>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div class="toggle-row">
+                                <label class="toggle">
+                                    <input type="checkbox" id="s3-enabled">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                                <span class="toggle-label">Enable S3 Backup</span>
+                                <label class="toggle" style="margin-left: 2rem;">
+                                    <input type="checkbox" id="s3-compress" checked>
+                                    <span class="toggle-slider"></span>
+                                </label>
+                                <span class="toggle-label">Compression (gzip)</span>
+                            </div>
+                            <div class="form-grid cols-2">
+                                <div class="form-group">
+                                    <label class="form-label">S3 Endpoint</label>
+                                    <input type="text" id="s3-endpoint" placeholder="https://s3.amazonaws.com" class="input mono">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Bucket Name</label>
+                                    <input type="text" id="s3-bucket" placeholder="flashq-backups" class="input">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Region</label>
+                                    <input type="text" id="s3-region" placeholder="auto" value="auto" class="input">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Access Key</label>
+                                    <input type="password" id="s3-access-key" placeholder="Access Key ID" class="input mono">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Secret Key</label>
+                                    <input type="password" id="s3-secret-key" placeholder="Secret Access Key" class="input mono">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Backup Interval (sec)</label>
+                                    <input type="number" id="s3-interval" value="300" class="input">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Keep Last N Backups</label>
+                                    <input type="number" id="s3-keep-count" value="24" class="input">
+                                </div>
+                            </div>
+                            <div class="form-actions">
+                                <button onclick="window.dashboard.saveS3Settings()" class="btn btn-primary">Save Settings</button>
+                                <button onclick="window.dashboard.triggerS3Backup()" class="btn btn-success">Backup Now</button>
+                                <button onclick="window.dashboard.showS3RestoreModal()" class="btn btn-warning">Restore from S3</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Authentication -->
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-header-left">
+                                <h3 class="card-title">Authentication</h3>
+                                <span class="card-subtitle">API token security</span>
+                            </div>
+                            <div class="status-badge" id="auth-status">
+                                <span class="status-dot"></span>
+                                <span id="auth-status-text">Disabled</span>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div class="form-grid cols-1">
+                                <div class="form-group">
+                                    <label class="form-label">Auth Tokens (comma-separated)</label>
+                                    <div class="input-group">
+                                        <input type="password" id="settings-auth-tokens" placeholder="token1,token2,token3" class="input mono flex-1">
+                                        <button onclick="window.dashboard.toggleTokenVisibility()" class="btn btn-ghost">
+                                            <svg id="token-eye-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="icon">
+                                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                                                <circle cx="12" cy="12" r="3"/>
+                                            </svg>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Generate New Token</label>
+                                    <div class="input-group">
+                                        <input type="text" id="generated-token" class="input mono flex-1" readonly placeholder="Click Generate">
+                                        <button onclick="window.dashboard.generateToken()" class="btn btn-ghost">Generate</button>
+                                        <button onclick="window.dashboard.copyToken()" class="btn btn-ghost">Copy</button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="form-actions">
+                                <button onclick="window.dashboard.saveAuthSettings()" class="btn btn-primary">Save Auth Settings</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Queue Defaults -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">Queue Defaults</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="form-grid cols-4">
+                                <div class="form-group">
+                                    <label class="form-label">Timeout (ms)</label>
+                                    <input type="number" id="settings-default-timeout" value="30000" class="input">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Max Attempts</label>
+                                    <input type="number" id="settings-default-attempts" value="3" class="input">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Backoff (ms)</label>
+                                    <input type="number" id="settings-default-backoff" value="1000" class="input">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">TTL (ms)</label>
+                                    <input type="number" id="settings-default-ttl" value="0" class="input">
+                                </div>
+                            </div>
+                            <div class="form-actions">
+                                <button onclick="window.dashboard.saveQueueDefaults()" class="btn btn-primary">Save Defaults</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Cleanup -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">Cleanup & Maintenance</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="form-grid cols-4">
+                                <div class="form-group">
+                                    <label class="form-label">Max Completed Jobs</label>
+                                    <input type="number" id="settings-max-completed" value="50000" class="input">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Max Job Results</label>
+                                    <input type="number" id="settings-max-results" value="5000" class="input">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Cleanup Interval (sec)</label>
+                                    <input type="number" id="settings-cleanup-interval" value="60" class="input">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Metrics History</label>
+                                    <input type="number" id="settings-metrics-history" value="1000" class="input">
+                                </div>
+                            </div>
+                            <div class="form-actions">
+                                <button onclick="window.dashboard.saveCleanupSettings()" class="btn btn-primary">Save Settings</button>
+                                <button onclick="window.dashboard.runCleanupNow()" class="btn btn-ghost">Run Cleanup Now</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Danger Zone -->
+                    <div class="card danger">
+                        <div class="card-header">
+                            <h3 class="card-title danger">Danger Zone</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="danger-actions">
+                                <button onclick="window.dashboard.clearAllQueues()" class="btn btn-danger">Clear All Queues</button>
+                                <button onclick="window.dashboard.clearAllDlq()" class="btn btn-danger">Clear All DLQ</button>
+                                <button onclick="window.dashboard.clearCompletedJobs()" class="btn btn-danger">Clear Completed</button>
+                                <button onclick="window.dashboard.resetMetrics()" class="btn btn-danger">Reset Metrics</button>
+                            </div>
+                            <div class="divider"></div>
+                            <div class="danger-actions">
+                                <button onclick="window.dashboard.restartServer()" class="btn btn-warning">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="icon">
+                                        <polyline points="23 4 23 10 17 10"/>
+                                        <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+                                    </svg>
+                                    Restart Server
+                                </button>
+                                <button onclick="window.dashboard.shutdownServer()" class="btn btn-danger">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="icon">
+                                        <path d="M18.36 6.64a9 9 0 1 1-12.73 0"/>
+                                        <line x1="12" y1="2" x2="12" y2="12"/>
+                                    </svg>
+                                    Shutdown Server
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <!-- Job Modal -->
+    <div id="job-modal" class="modal hidden">
+        <div class="modal-backdrop" onclick="window.dashboard.closeJobModal()"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">Job Details</h3>
+                <button class="modal-close" onclick="window.dashboard.closeJobModal()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"/>
+                        <line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body" id="job-modal-content"></div>
+        </div>
+    </div>
+
+    <!-- Queue Modal -->
+    <div id="queue-modal" class="modal hidden">
+        <div class="modal-backdrop" onclick="window.dashboard.closeQueueModal()"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">Queue Settings</h3>
+                <button class="modal-close" onclick="window.dashboard.closeQueueModal()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"/>
+                        <line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body" id="queue-modal-content"></div>
+        </div>
+    </div>
+
+    <!-- Restore Modal -->
+    <div id="restore-modal" class="modal hidden">
+        <div class="modal-backdrop" onclick="window.dashboard.closeRestoreModal()"></div>
+        <div class="modal-content modal-lg">
+            <div class="modal-header">
+                <h3 class="modal-title">Restore from S3 Backup</h3>
+                <button class="modal-close" onclick="window.dashboard.closeRestoreModal()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"/>
+                        <line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p class="modal-description" style="color: var(--text-secondary); margin-bottom: 1rem;">
+                    Select a backup to restore. This will replace the current database.
+                    <strong style="color: var(--amber);">The server will need to be restarted after restore.</strong>
+                </p>
+                <div id="restore-backup-list" class="backup-list"></div>
+            </div>
+            <div class="modal-footer">
+                <button onclick="window.dashboard.closeRestoreModal()" class="btn btn-ghost">Cancel</button>
+                <button onclick="window.dashboard.confirmRestore()" class="btn btn-warning">Restore Selected</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="/static/js/utils.js"></script>
+    <script src="/static/js/api.js"></script>
+    <script src="/static/js/charts.js"></script>
+    <script src="/static/js/settings.js"></script>
+    <script src="/static/js/dashboard.js"></script>
+</body>
+</html>
