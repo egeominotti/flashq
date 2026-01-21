@@ -80,5 +80,10 @@ overflow-checks = false         # Disable overflow checks (faster)
 debug = false                   # No debug info
 incremental = false             # Full rebuild for max optimization
 
+[dev-dependencies]
+tower = { version = "0.5", features = ["util"] }
+http-body-util = "0.1"
+tempfile = "3"
+
 [profile.dev]
 opt-level = 1                   # Some optimization in dev for faster tests

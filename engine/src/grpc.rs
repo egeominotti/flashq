@@ -427,3 +427,181 @@ pub async fn run_grpc_server(
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::protocol::Job as InternalJob;
+    use serde_json::json;
+
+    /// Helper to create a test internal job.
+    fn create_test_internal_job(id: u64) -> InternalJob {
+        InternalJob {
+            id,
+            queue: "test-queue".to_string(),
+            data: Arc::new(json!({"test": "data"})),
+            priority: 10,
+            created_at: 1000,
+            run_at: 1000,
+            started_at: 500,
+            attempts: 1,
+            max_attempts: 3,
+            backoff: 1000,
+            ttl: 60000,
+            timeout: 30000,
+            unique_key: Some("unique".to_string()),
+            depends_on: vec![1, 2],
+            progress: 50,
+            progress_msg: Some("halfway".to_string()),
+            tags: vec!["tag1".to_string()],
+            lifo: true,
+            remove_on_complete: false,
+            remove_on_fail: false,
+            last_heartbeat: 0,
+            stall_timeout: 0,
+            stall_count: 0,
+            parent_id: None,
+            children_ids: vec![],
+            children_completed: 0,
+            custom_id: None,
+            keep_completed_age: 0,
+            keep_completed_count: 0,
+            completed_at: 0,
+            group_id: None,
+        }
+    }
+
+    #[test]
+    fn test_internal_job_to_grpc_job_conversion() {
+        let internal = create_test_internal_job(123);
+        let grpc_job: Job = internal.into();
+
+        assert_eq!(grpc_job.id, 123);
+        assert_eq!(grpc_job.queue, "test-queue");
+        assert_eq!(grpc_job.priority, 10);
+        assert_eq!(grpc_job.created_at, 1000);
+        assert_eq!(grpc_job.run_at, 1000);
+        assert_eq!(grpc_job.started_at, 500);
+        assert_eq!(grpc_job.attempts, 1);
+        assert_eq!(grpc_job.max_attempts, 3);
+        assert_eq!(grpc_job.backoff, 1000);
+        assert_eq!(grpc_job.ttl, 60000);
+        assert_eq!(grpc_job.timeout, 30000);
+        assert_eq!(grpc_job.unique_key, Some("unique".to_string()));
+        assert_eq!(grpc_job.depends_on, vec![1, 2]);
+        assert_eq!(grpc_job.progress, 50);
+        assert_eq!(grpc_job.progress_msg, Some("halfway".to_string()));
+        assert!(grpc_job.lifo);
+    }
+
+    #[test]
+    fn test_internal_job_data_serialization() {
+        let internal = create_test_internal_job(1);
+        let grpc_job: Job = internal.into();
+
+        // Data should be serialized as JSON bytes
+        let data: serde_json::Value =
+            serde_json::from_slice(&grpc_job.data).expect("Data should be valid JSON");
+        assert_eq!(data["test"], "data");
+    }
+
+    #[test]
+    fn test_job_state_conversion_waiting() {
+        let state: JobState = InternalJobState::Waiting.into();
+        assert_eq!(state, JobState::Waiting);
+    }
+
+    #[test]
+    fn test_job_state_conversion_delayed() {
+        let state: JobState = InternalJobState::Delayed.into();
+        assert_eq!(state, JobState::Delayed);
+    }
+
+    #[test]
+    fn test_job_state_conversion_active() {
+        let state: JobState = InternalJobState::Active.into();
+        assert_eq!(state, JobState::Active);
+    }
+
+    #[test]
+    fn test_job_state_conversion_completed() {
+        let state: JobState = InternalJobState::Completed.into();
+        assert_eq!(state, JobState::Completed);
+    }
+
+    #[test]
+    fn test_job_state_conversion_failed() {
+        let state: JobState = InternalJobState::Failed.into();
+        assert_eq!(state, JobState::Failed);
+    }
+
+    #[test]
+    fn test_job_state_conversion_waiting_children() {
+        let state: JobState = InternalJobState::WaitingChildren.into();
+        assert_eq!(state, JobState::WaitingChildren);
+    }
+
+    #[test]
+    fn test_job_state_conversion_stalled_maps_to_active() {
+        // Stalled is mapped to Active in gRPC
+        let state: JobState = InternalJobState::Stalled.into();
+        assert_eq!(state, JobState::Active);
+    }
+
+    #[test]
+    fn test_job_state_conversion_unknown() {
+        let state: JobState = InternalJobState::Unknown.into();
+        assert_eq!(state, JobState::Unknown);
+    }
+
+    #[tokio::test]
+    async fn test_queue_service_impl_creation() {
+        let qm = crate::queue::QueueManager::new(false);
+        let service = QueueServiceImpl::new(qm);
+        // Service should be created successfully
+        let _ = service.into_server();
+    }
+
+    #[test]
+    fn test_job_with_empty_optional_fields() {
+        let internal = InternalJob {
+            id: 1,
+            queue: "q".to_string(),
+            data: Arc::new(json!(null)),
+            priority: 0,
+            created_at: 0,
+            run_at: 0,
+            started_at: 0,
+            attempts: 0,
+            max_attempts: 0,
+            backoff: 0,
+            ttl: 0,
+            timeout: 0,
+            unique_key: None,
+            depends_on: vec![],
+            progress: 0,
+            progress_msg: None,
+            tags: vec![],
+            lifo: false,
+            remove_on_complete: false,
+            remove_on_fail: false,
+            last_heartbeat: 0,
+            stall_timeout: 0,
+            stall_count: 0,
+            parent_id: None,
+            children_ids: vec![],
+            children_completed: 0,
+            custom_id: None,
+            keep_completed_age: 0,
+            keep_completed_count: 0,
+            completed_at: 0,
+            group_id: None,
+        };
+
+        let grpc_job: Job = internal.into();
+        assert_eq!(grpc_job.id, 1);
+        assert!(grpc_job.unique_key.is_none());
+        assert!(grpc_job.depends_on.is_empty());
+        assert!(grpc_job.progress_msg.is_none());
+    }
+}

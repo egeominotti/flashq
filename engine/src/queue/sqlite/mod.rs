@@ -13,6 +13,9 @@ mod jobs_advanced;
 mod migration;
 mod snapshot;
 
+#[cfg(test)]
+mod tests;
+
 use parking_lot::Mutex;
 use rusqlite::Connection;
 use std::path::PathBuf;
