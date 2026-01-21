@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Card,
   Title,
@@ -237,6 +237,7 @@ export function Settings() {
   const [isSqliteRestoring, setIsSqliteRestoring] = useState(false);
   const [sqliteRestoreError, setSqliteRestoreError] = useState('');
   const [sqliteRestoreSuccess, setSqliteRestoreSuccess] = useState(false);
+  const sqliteFileInputRef = useRef<HTMLInputElement>(null);
 
   const handleRestoreSqlite = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -276,8 +277,10 @@ export function Settings() {
       showToast('Restore failed', 'error');
     } finally {
       setIsSqliteRestoring(false);
-      // Reset file input
-      e.target.value = '';
+      // Reset file input using ref for cross-browser compatibility
+      if (sqliteFileInputRef.current) {
+        sqliteFileInputRef.current.value = '';
+      }
     }
   };
 
@@ -959,6 +962,7 @@ export function Settings() {
                           </Button>
                           <label className="inline-flex">
                             <input
+                              ref={sqliteFileInputRef}
                               type="file"
                               accept=".db,.sqlite,.sqlite3"
                               onChange={handleRestoreSqlite}

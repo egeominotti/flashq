@@ -15,7 +15,6 @@ export function useSparklineData<T>(
 ): number[] {
   return useMemo(
     () => history?.slice(-count).map((p) => (p[field] as number) || 0) || [],
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [history, count]
+    [history, count, field]
   );
 }

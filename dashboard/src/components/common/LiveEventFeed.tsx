@@ -424,7 +424,7 @@ export function LiveEventFeed({ isConnected, recentEvents, eventCounts }: LiveEv
   const [throughput, setThroughput] = useState(0);
   const [throughputHistory, setThroughputHistory] = useState<number[]>(new Array(60).fill(0));
   const [queueStats, setQueueStats] = useState<Record<string, number>>({});
-  const [latencyStats, setLatencyStats] = useState({ avg: 0, min: 0, max: 0 });
+  const [latencyStats, setLatencyStats] = useState({ avg: 0, min: Infinity, max: 0 });
   const [soundEnabled, setSoundEnabled] = useState(false);
   const [filterQueue, setFilterQueue] = useState<string>('all');
   const [filterType, setFilterType] = useState<string>('all');
@@ -500,7 +500,12 @@ export function LiveEventFeed({ isConnected, recentEvents, eventCounts }: LiveEv
         // Calculate latency for completed events
         if (event.event_type === 'completed' && lastEventTimeRef.current[event.job_id]) {
           const latency = event.timestamp - lastEventTimeRef.current[event.job_id];
-          latencies.push(latency);
+          // Only track positive, reasonable latencies (< 5 minutes)
+          if (latency > 0 && latency < 300000) {
+            latencies.push(latency);
+          }
+          // Clean up after calculation
+          delete lastEventTimeRef.current[event.job_id];
         }
 
         // Track push time for latency calculation
@@ -524,31 +529,39 @@ export function LiveEventFeed({ isConnected, recentEvents, eventCounts }: LiveEv
       // Update latency stats
       if (latencies.length > 0) {
         setLatencyStats((prev) => {
-          const allLatencies = [...latencies];
-          const avg = allLatencies.reduce((a, b) => a + b, 0) / allLatencies.length;
+          const avg = latencies.reduce((a, b) => a + b, 0) / latencies.length;
+          const prevAvg = prev.avg > 0 ? prev.avg : avg;
           return {
-            avg: prev.avg ? (prev.avg + avg) / 2 : avg,
-            min: Math.min(prev.min || Infinity, ...allLatencies),
-            max: Math.max(prev.max || 0, ...allLatencies),
+            avg: (prevAvg + avg) / 2,
+            min: Math.min(prev.min, ...latencies),
+            max: Math.max(prev.max, ...latencies),
           };
         });
       }
     }
 
-    // Cleanup old keys
-    if (processedIdsRef.current.size > 500) {
-      const keys = Array.from(processedIdsRef.current);
-      keys.slice(0, 250).forEach((k) => processedIdsRef.current.delete(k));
-    }
-
-    // Cleanup old latency tracking
-    const now = Date.now();
-    Object.keys(lastEventTimeRef.current).forEach((key) => {
-      if (now - lastEventTimeRef.current[Number(key)] > 60000) {
-        delete lastEventTimeRef.current[Number(key)];
-      }
-    });
   }, [recentEvents, soundEnabled, playSound, queueStats]);
+
+  // Periodic cleanup of old tracking data (every 30 seconds)
+  useEffect(() => {
+    const cleanupInterval = setInterval(() => {
+      // Cleanup old processed IDs
+      if (processedIdsRef.current.size > 500) {
+        const keys = Array.from(processedIdsRef.current);
+        keys.slice(0, 250).forEach((k) => processedIdsRef.current.delete(k));
+      }
+
+      // Cleanup old latency tracking (older than 60 seconds)
+      const now = Date.now();
+      Object.keys(lastEventTimeRef.current).forEach((key) => {
+        if (now - lastEventTimeRef.current[Number(key)] > 60000) {
+          delete lastEventTimeRef.current[Number(key)];
+        }
+      });
+    }, 30000);
+
+    return () => clearInterval(cleanupInterval);
+  }, []);
 
   // Computed values
   const totalEvents = eventCounts.pushed + eventCounts.completed + eventCounts.failed;
@@ -697,7 +710,7 @@ export function LiveEventFeed({ isConnected, recentEvents, eventCounts }: LiveEv
             {/* Latency metric */}
             <LatencyMetric
               avgLatency={latencyStats.avg || 0}
-              minLatency={latencyStats.min || 0}
+              minLatency={latencyStats.min === Infinity ? 0 : latencyStats.min}
               maxLatency={latencyStats.max || 0}
             />
           </div>

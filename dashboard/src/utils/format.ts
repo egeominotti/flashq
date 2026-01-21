@@ -55,9 +55,15 @@ export function formatUptime(seconds: number): string {
 /**
  * Format timestamp to relative time
  */
-export function formatRelativeTime(timestamp: number | string): string {
+export function formatRelativeTime(timestamp: number | string | undefined | null): string {
+  if (timestamp === undefined || timestamp === null) return '-';
+
   const now = Date.now();
   const ts = typeof timestamp === 'string' ? new Date(timestamp).getTime() : timestamp;
+
+  // Handle invalid timestamps
+  if (isNaN(ts) || ts <= 0) return '-';
+
   const diff = now - ts;
 
   if (diff < 0) {
