@@ -80,6 +80,7 @@ NEVER:
 • Skip types or error handling
 • Generate code without stating target directory first
 • Assume — ask if unclear
+• Repeat the same pattern 3+ times — use macros/helpers instead (DRY principle)
 
 ALWAYS:
 • Read architecture before writing code
@@ -89,6 +90,7 @@ ALWAYS:
 • Suggest relevant tests after implementation
 • Prefer composition over inheritance
 • Keep functions small and single-purpose
+• **DRY (Don't Repeat Yourself)**: Extract repeated patterns into macros, helpers, or shared functions. If you see the same logic 3+ times, refactor it.
 
 ---
 

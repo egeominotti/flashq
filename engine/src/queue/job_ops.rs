@@ -23,18 +23,13 @@ impl QueueManager {
                     let queue_arc = intern(&job.queue);
                     {
                         let mut shard = self.shards[idx].write();
-                        let state = shard.get_state(&queue_arc);
-                        if let Some(ref mut conc) = state.concurrency {
-                            conc.release();
-                        }
-                        if let Some(ref key) = job.unique_key {
-                            if let Some(keys) = shard.unique_keys.get_mut(&queue_arc) {
-                                keys.remove(key);
-                            }
-                        }
+                        shard.release_concurrency(&queue_arc);
+                        shard.remove_unique_key(&queue_arc, job.unique_key.as_ref());
                     }
                     self.unindex_job(job_id);
                     self.persist_cancel(job_id);
+                    // Notify waiters that job was cancelled (prevents memory leak)
+                    self.notify_job_waiters(job_id, None);
                     return Ok(());
                 }
             }
@@ -47,6 +42,8 @@ impl QueueManager {
                 {
                     self.unindex_job(job_id);
                     self.persist_cancel(job_id);
+                    // Notify waiters that job was cancelled (prevents memory leak)
+                    self.notify_job_waiters(job_id, None);
                     return Ok(());
                 }
             }
@@ -74,14 +71,12 @@ impl QueueManager {
                 }
 
                 if let Some((queue_name, unique_key)) = found_key {
-                    if let Some(key) = unique_key {
-                        if let Some(keys) = shard.unique_keys.get_mut(&queue_name) {
-                            keys.remove(&key);
-                        }
-                    }
+                    shard.remove_unique_key(&queue_name, unique_key.as_ref());
                     drop(shard);
                     self.unindex_job(job_id);
                     self.persist_cancel(job_id);
+                    // Notify waiters that job was cancelled (prevents memory leak)
+                    self.notify_job_waiters(job_id, None);
                     return Ok(());
                 }
             }
@@ -94,6 +89,8 @@ impl QueueManager {
                 {
                     self.unindex_job(job_id);
                     self.persist_cancel(job_id);
+                    // Notify waiters that job was cancelled (prevents memory leak)
+                    self.notify_job_waiters(job_id, None);
                     return Ok(());
                 }
             }

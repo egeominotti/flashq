@@ -1,26 +1,25 @@
-import {
-  Card,
-  Title,
-  Text,
-  Metric,
-  Flex,
-  Grid,
-  AreaChart,
-  BarChart,
-  LineChart,
-  Badge,
-} from '@tremor/react';
-import {
-  TrendingUp,
-  Activity,
-  Clock,
-  Zap,
-  CheckCircle2,
-  RefreshCw,
-} from 'lucide-react';
+import { useMemo } from 'react';
+import { Title, Text, AreaChart, BarChart, LineChart, Badge, Grid } from '@tremor/react';
+import { TrendingUp, Activity, Clock, Zap, CheckCircle2, RefreshCw, BarChart3 } from 'lucide-react';
 import { useMetrics, useMetricsHistory } from '../hooks';
 import { formatNumber } from '../utils';
+import { GlowCard, AnimatedCounter, formatCompact, EmptyState, Sparkline } from '../components/common';
 import './Analytics.css';
+
+interface MetricsPoint {
+  timestamp: number;
+  throughput?: number;
+  latency_ms?: number;
+  queued?: number;
+  processing?: number;
+}
+
+interface QueueMetric {
+  name: string;
+  pending: number;
+  processing: number;
+  dlq: number;
+}
 
 export function Analytics() {
   const { data: metrics, refetch } = useMetrics();
@@ -31,29 +30,64 @@ export function Analytics() {
     refetchHistory();
   };
 
-  const throughputHistory = metricsHistory?.map((point: any) => ({
-    timestamp: new Date(point.timestamp).toLocaleTimeString('en-US', {
-      hour: '2-digit',
-      minute: '2-digit',
-    }),
-    'Jobs/sec': point.throughput || 0,
-  })) || [];
+  const throughputHistory = useMemo(
+    () =>
+      metricsHistory?.map((point: MetricsPoint) => ({
+        timestamp: new Date(point.timestamp).toLocaleTimeString('en-US', {
+          hour: '2-digit',
+          minute: '2-digit',
+        }),
+        'Jobs/sec': point.throughput || 0,
+      })) || [],
+    [metricsHistory]
+  );
 
-  const latencyHistory = metricsHistory?.map((point: any) => ({
-    timestamp: new Date(point.timestamp).toLocaleTimeString('en-US', {
-      hour: '2-digit',
-      minute: '2-digit',
-    }),
-    'Avg Latency': point.latency_ms || 0,
-  })) || [];
+  const latencyHistory = useMemo(
+    () =>
+      metricsHistory?.map((point: MetricsPoint) => ({
+        timestamp: new Date(point.timestamp).toLocaleTimeString('en-US', {
+          hour: '2-digit',
+          minute: '2-digit',
+        }),
+        'Avg Latency': point.latency_ms || 0,
+      })) || [],
+    [metricsHistory]
+  );
 
-  // Get queue data from metrics endpoint
-  const queueData = metrics?.queues?.map((q: any) => ({
-    name: q.name,
-    Waiting: q.pending,
-    Active: q.processing,
-    DLQ: q.dlq,
-  })) || [];
+  const queueData = useMemo(
+    () =>
+      metrics?.queues?.map((q: QueueMetric) => ({
+        name: q.name,
+        Waiting: q.pending,
+        Active: q.processing,
+        DLQ: q.dlq,
+      })) || [],
+    [metrics?.queues]
+  );
+
+  const jobsQueueHistory = useMemo(
+    () =>
+      metricsHistory?.map((point: MetricsPoint) => ({
+        timestamp: new Date(point.timestamp).toLocaleTimeString('en-US', {
+          hour: '2-digit',
+          minute: '2-digit',
+        }),
+        Queued: point.queued || 0,
+        Processing: point.processing || 0,
+      })) || [],
+    [metricsHistory]
+  );
+
+  // Sparkline data
+  const throughputSparkline = useMemo(
+    () => metricsHistory?.slice(-20).map((p: MetricsPoint) => p.throughput || 0) || [],
+    [metricsHistory]
+  );
+
+  const latencySparkline = useMemo(
+    () => metricsHistory?.slice(-20).map((p: MetricsPoint) => p.latency_ms || 0) || [],
+    [metricsHistory]
+  );
 
   const totalPushed = metrics?.total_pushed || 0;
   const totalCompleted = metrics?.total_completed || 0;
@@ -65,143 +99,176 @@ export function Analytics() {
       <header className="page-header">
         <div>
           <Title className="page-title">Analytics</Title>
-          <Text className="page-subtitle">
-            Performance metrics and system analytics
-          </Text>
+          <Text className="page-subtitle">Performance metrics and system analytics</Text>
         </div>
-        <button className="refresh-btn" onClick={handleRefresh}>
-          <RefreshCw className="w-4 h-4" />
+        <button className="refresh-btn-glow" onClick={handleRefresh}>
+          <RefreshCw className="h-4 w-4" />
           Refresh
         </button>
       </header>
 
-      {/* Key Metrics */}
-      <Grid numItemsSm={2} numItemsLg={4} className="gap-6 mb-8">
-        <Card className="metric-card" decoration="top" decorationColor="cyan">
-          <Flex alignItems="start" justifyContent="between">
-            <div>
-              <Text>Total Pushed</Text>
-              <Metric>{formatNumber(totalPushed)}</Metric>
+      {/* Key Metrics with Glow Cards */}
+      <Grid numItemsSm={2} numItemsLg={4} className="mb-8 gap-6">
+        <GlowCard glowColor="cyan" className="metric-glow-card">
+          <div className="metric-glow-header">
+            <span className="metric-glow-title">Total Pushed</span>
+            <div className="metric-glow-icon icon-cyan">
+              <Activity className="h-5 w-5" />
             </div>
-            <div className="metric-icon cyan">
-              <Activity className="w-5 h-5" />
-            </div>
-          </Flex>
-          <Flex className="mt-4">
-            <Badge color="emerald">
-              <TrendingUp className="w-3 h-3 mr-1" />
+          </div>
+          <div className="metric-glow-value">
+            <AnimatedCounter value={totalPushed} formatter={formatCompact} />
+          </div>
+          <div className="metric-glow-footer">
+            <Badge color="emerald" size="xs">
+              <TrendingUp className="mr-1 h-3 w-3" />
               All time
             </Badge>
-          </Flex>
-        </Card>
+            <Sparkline data={throughputSparkline} width={60} height={24} color="#06b6d4" />
+          </div>
+        </GlowCard>
 
-        <Card className="metric-card" decoration="top" decorationColor="emerald">
-          <Flex alignItems="start" justifyContent="between">
-            <div>
-              <Text>Total Completed</Text>
-              <Metric>{formatNumber(totalCompleted)}</Metric>
+        <GlowCard glowColor="emerald" className="metric-glow-card">
+          <div className="metric-glow-header">
+            <span className="metric-glow-title">Total Completed</span>
+            <div className="metric-glow-icon icon-emerald">
+              <CheckCircle2 className="h-5 w-5" />
             </div>
-            <div className="metric-icon emerald">
-              <CheckCircle2 className="w-5 h-5" />
-            </div>
-          </Flex>
-          <Flex className="mt-4">
-            <Badge color="emerald">
+          </div>
+          <div className="metric-glow-value">
+            <AnimatedCounter value={totalCompleted} formatter={formatCompact} />
+          </div>
+          <div className="metric-glow-footer">
+            <Badge color="emerald" size="xs">
               {totalPushed > 0 ? `${((totalCompleted / totalPushed) * 100).toFixed(1)}%` : '0%'}
             </Badge>
-          </Flex>
-        </Card>
+          </div>
+        </GlowCard>
 
-        <Card className="metric-card" decoration="top" decorationColor="blue">
-          <Flex alignItems="start" justifyContent="between">
-            <div>
-              <Text>Avg Latency</Text>
-              <Metric>{avgLatency.toFixed(2)}ms</Metric>
+        <GlowCard glowColor="blue" className="metric-glow-card">
+          <div className="metric-glow-header">
+            <span className="metric-glow-title">Avg Latency</span>
+            <div className="metric-glow-icon icon-blue">
+              <Clock className="h-5 w-5" />
             </div>
-            <div className="metric-icon blue">
-              <Clock className="w-5 h-5" />
-            </div>
-          </Flex>
-          <Flex className="mt-4">
-            <Badge color={avgLatency < 10 ? 'emerald' : avgLatency < 50 ? 'amber' : 'rose'}>
+          </div>
+          <div className="metric-glow-value">
+            <AnimatedCounter value={avgLatency} decimals={2} suffix="ms" />
+          </div>
+          <div className="metric-glow-footer">
+            <Badge
+              size="xs"
+              color={avgLatency < 10 ? 'emerald' : avgLatency < 50 ? 'amber' : 'rose'}
+            >
               {avgLatency < 10 ? 'Excellent' : avgLatency < 50 ? 'Good' : 'Slow'}
             </Badge>
-          </Flex>
-        </Card>
+            <Sparkline data={latencySparkline} width={60} height={24} color="#3b82f6" />
+          </div>
+        </GlowCard>
 
-        <Card className="metric-card" decoration="top" decorationColor="violet">
-          <Flex alignItems="start" justifyContent="between">
-            <div>
-              <Text>Current Throughput</Text>
-              <Metric>{currentThroughput.toFixed(1)}/s</Metric>
+        <GlowCard glowColor="violet" className="metric-glow-card">
+          <div className="metric-glow-header">
+            <span className="metric-glow-title">Throughput</span>
+            <div className="metric-glow-icon icon-violet">
+              <Zap className="h-5 w-5" />
             </div>
-            <div className="metric-icon violet">
-              <Zap className="w-5 h-5" />
-            </div>
-          </Flex>
-          <Flex className="mt-4">
-            <Badge color="cyan">Live</Badge>
-          </Flex>
-        </Card>
+          </div>
+          <div className="metric-glow-value">
+            <AnimatedCounter value={currentThroughput} decimals={1} suffix="/s" />
+          </div>
+          <div className="metric-glow-footer">
+            <Badge color="cyan" size="xs">
+              <span className="live-dot" />
+              Live
+            </Badge>
+          </div>
+        </GlowCard>
       </Grid>
 
       {/* Charts Row 1 */}
-      <Grid numItemsSm={1} numItemsLg={2} className="gap-6 mb-8">
-        <Card className="chart-card">
-          <Flex alignItems="start" justifyContent="between" className="mb-6">
+      <Grid numItemsSm={1} numItemsLg={2} className="mb-8 gap-6">
+        <GlowCard glowColor="cyan" className="chart-glow-card">
+          <div className="chart-header">
             <div>
-              <Title>Throughput Over Time</Title>
-              <Text>Jobs processed per second</Text>
+              <Title className="chart-title">Throughput Over Time</Title>
+              <Text className="chart-subtitle">Jobs processed per second</Text>
             </div>
-            <Badge color="cyan">Live</Badge>
-          </Flex>
-          <AreaChart
-            className="h-80"
-            data={throughputHistory}
-            index="timestamp"
-            categories={['Jobs/sec']}
-            colors={['cyan']}
-            showAnimation
-            showLegend={false}
-            curveType="monotone"
-            valueFormatter={(v) => `${v.toFixed(1)}/s`}
-          />
-        </Card>
+            <Badge color="cyan" size="xs">
+              <span className="live-dot" />
+              Live
+            </Badge>
+          </div>
+          {throughputHistory.length > 0 ? (
+            <AreaChart
+              className="chart-area"
+              data={throughputHistory}
+              index="timestamp"
+              categories={['Jobs/sec']}
+              colors={['cyan']}
+              showAnimation
+              showLegend={false}
+              curveType="monotone"
+              valueFormatter={(v) => `${v.toFixed(1)}/s`}
+              showGridLines={false}
+            />
+          ) : (
+            <EmptyState
+              variant="chart"
+              title="No throughput data yet"
+              description="Start processing jobs to see throughput metrics"
+            />
+          )}
+        </GlowCard>
 
-        <Card className="chart-card">
-          <Flex alignItems="start" justifyContent="between" className="mb-6">
+        <GlowCard glowColor="blue" className="chart-glow-card">
+          <div className="chart-header">
             <div>
-              <Title>Latency Over Time</Title>
-              <Text>Average latency in milliseconds</Text>
+              <Title className="chart-title">Latency Over Time</Title>
+              <Text className="chart-subtitle">Average processing latency</Text>
             </div>
-            <Badge color="blue">Live</Badge>
-          </Flex>
-          <LineChart
-            className="h-80"
-            data={latencyHistory}
-            index="timestamp"
-            categories={['Avg Latency']}
-            colors={['blue']}
-            showAnimation
-            curveType="monotone"
-            valueFormatter={(v) => `${v.toFixed(2)}ms`}
-          />
-        </Card>
+            <Badge color="blue" size="xs">
+              <span className="live-dot live-dot-blue" />
+              Live
+            </Badge>
+          </div>
+          {latencyHistory.length > 0 ? (
+            <LineChart
+              className="chart-area"
+              data={latencyHistory}
+              index="timestamp"
+              categories={['Avg Latency']}
+              colors={['blue']}
+              showAnimation
+              curveType="monotone"
+              valueFormatter={(v) => `${v.toFixed(2)}ms`}
+              showGridLines={false}
+            />
+          ) : (
+            <EmptyState
+              variant="chart"
+              title="No latency data yet"
+              description="Start processing jobs to see latency metrics"
+            />
+          )}
+        </GlowCard>
       </Grid>
 
       {/* Charts Row 2 */}
       <Grid numItemsSm={1} numItemsLg={2} className="gap-6">
-        <Card className="chart-card">
-          <Flex alignItems="start" justifyContent="between" className="mb-6">
+        <GlowCard glowColor="violet" className="chart-glow-card">
+          <div className="chart-header">
             <div>
-              <Title>Queue Comparison</Title>
-              <Text>Jobs by state across queues</Text>
+              <Title className="chart-title">Queue Comparison</Title>
+              <Text className="chart-subtitle">Jobs by state across queues</Text>
             </div>
-            <Badge color="violet">{queueData.length} Queues</Badge>
-          </Flex>
+            <Badge color="violet" size="xs">
+              <BarChart3 className="mr-1 h-3 w-3" />
+              {queueData.length} Queues
+            </Badge>
+          </div>
           {queueData.length > 0 ? (
             <BarChart
-              className="h-80"
+              className="chart-area"
               data={queueData}
               index="name"
               categories={['Waiting', 'Active', 'DLQ']}
@@ -209,46 +276,48 @@ export function Analytics() {
               showAnimation
               stack
               valueFormatter={formatNumber}
+              showGridLines={false}
             />
           ) : (
-            <div className="h-80 flex items-center justify-center">
-              <Text>No queue data available</Text>
-            </div>
+            <EmptyState
+              variant="chart"
+              title="No queues available"
+              description="Create a queue to see comparison data"
+            />
           )}
-        </Card>
+        </GlowCard>
 
-        <Card className="chart-card">
-          <Flex alignItems="start" justifyContent="between" className="mb-6">
+        <GlowCard glowColor="emerald" className="chart-glow-card">
+          <div className="chart-header">
             <div>
-              <Title>Jobs in Queue Over Time</Title>
-              <Text>Queue depth over time</Text>
+              <Title className="chart-title">Jobs in Queue</Title>
+              <Text className="chart-subtitle">Queue depth over time</Text>
             </div>
-            <Badge color="emerald">Live</Badge>
-          </Flex>
-          {metricsHistory && metricsHistory.length > 0 ? (
+            <Badge color="emerald" size="xs">
+              <span className="live-dot live-dot-emerald" />
+              Live
+            </Badge>
+          </div>
+          {jobsQueueHistory.length > 0 ? (
             <AreaChart
-              className="h-80"
-              data={metricsHistory.map((point: any) => ({
-                timestamp: new Date(point.timestamp).toLocaleTimeString('en-US', {
-                  hour: '2-digit',
-                  minute: '2-digit',
-                }),
-                Queued: point.queued || 0,
-                Processing: point.processing || 0,
-              }))}
+              className="chart-area"
+              data={jobsQueueHistory}
               index="timestamp"
               categories={['Queued', 'Processing']}
               colors={['cyan', 'blue']}
               showAnimation
               curveType="monotone"
               valueFormatter={formatNumber}
+              showGridLines={false}
             />
           ) : (
-            <div className="h-80 flex items-center justify-center">
-              <Text>No history data available</Text>
-            </div>
+            <EmptyState
+              variant="chart"
+              title="No queue history yet"
+              description="Queue depth will appear as jobs are processed"
+            />
           )}
-        </Card>
+        </GlowCard>
       </Grid>
     </div>
   );

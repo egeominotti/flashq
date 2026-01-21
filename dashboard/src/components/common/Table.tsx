@@ -47,11 +47,7 @@ interface TableHeaderProps {
 }
 
 export function TableHeader({ children, className, align = 'left' }: TableHeaderProps) {
-  return (
-    <th className={cn(`text-${align}`, className)}>
-      {children}
-    </th>
-  );
+  return <th className={cn(`text-${align}`, className)}>{children}</th>;
 }
 
 interface TableCellProps {
@@ -62,11 +58,7 @@ interface TableCellProps {
 }
 
 export function TableCell({ children, className, align = 'left', mono }: TableCellProps) {
-  return (
-    <td className={cn(`text-${align}`, mono && 'font-mono', className)}>
-      {children}
-    </td>
-  );
+  return <td className={cn(`text-${align}`, mono && 'font-mono', className)}>{children}</td>;
 }
 
 interface TableEmptyProps {

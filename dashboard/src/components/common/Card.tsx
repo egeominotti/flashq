@@ -9,11 +9,7 @@ interface CardProps {
 }
 
 export function Card({ children, className, danger }: CardProps) {
-  return (
-    <div className={cn('card', danger && 'card-danger', className)}>
-      {children}
-    </div>
-  );
+  return <div className={cn('card', danger && 'card-danger', className)}>{children}</div>;
 }
 
 interface CardHeaderProps {
@@ -22,11 +18,7 @@ interface CardHeaderProps {
 }
 
 export function CardHeader({ children, className }: CardHeaderProps) {
-  return (
-    <div className={cn('card-header', className)}>
-      {children}
-    </div>
-  );
+  return <div className={cn('card-header', className)}>{children}</div>;
 }
 
 interface CardTitleProps {
@@ -35,11 +27,7 @@ interface CardTitleProps {
 }
 
 export function CardTitle({ children, className }: CardTitleProps) {
-  return (
-    <h3 className={cn('card-title', className)}>
-      {children}
-    </h3>
-  );
+  return <h3 className={cn('card-title', className)}>{children}</h3>;
 }
 
 interface CardSubtitleProps {
@@ -48,11 +36,7 @@ interface CardSubtitleProps {
 }
 
 export function CardSubtitle({ children, className }: CardSubtitleProps) {
-  return (
-    <span className={cn('card-subtitle', className)}>
-      {children}
-    </span>
-  );
+  return <span className={cn('card-subtitle', className)}>{children}</span>;
 }
 
 interface CardBodyProps {
@@ -61,9 +45,5 @@ interface CardBodyProps {
 }
 
 export function CardBody({ children, className }: CardBodyProps) {
-  return (
-    <div className={cn('card-body', className)}>
-      {children}
-    </div>
-  );
+  return <div className={cn('card-body', className)}>{children}</div>;
 }

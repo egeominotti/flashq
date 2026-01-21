@@ -6,3 +6,5 @@ export * from './useJobs';
 export * from './useCrons';
 export * from './useWorkers';
 export * from './useSettings';
+export * from './useToast';
+export * from './useTheme';

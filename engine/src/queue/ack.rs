@@ -14,29 +14,16 @@ impl QueueManager {
     pub async fn ack(&self, job_id: u64, result: Option<Value>) -> Result<(), String> {
         let job = self.processing_remove(job_id);
         if let Some(job) = job {
-            // Release concurrency and group
+            // Release concurrency, group, and unique key
             let idx = Self::shard_index(&job.queue);
             let queue_arc = intern(&job.queue);
             {
                 let mut shard = self.shards[idx].write();
-                let state = shard.get_state(&queue_arc);
-                if let Some(ref mut conc) = state.concurrency {
-                    conc.release();
-                }
-
-                // Remove unique key
-                if let Some(ref key) = job.unique_key {
-                    if let Some(keys) = shard.unique_keys.get_mut(&queue_arc) {
-                        keys.remove(key);
-                    }
-                }
-
-                // Release group if job has a group_id
-                if let Some(ref group_id) = job.group_id {
-                    if let Some(groups) = shard.active_groups.get_mut(&queue_arc) {
-                        groups.remove(group_id);
-                    }
-                }
+                shard.release_job_resources(
+                    &queue_arc,
+                    job.unique_key.as_ref(),
+                    job.group_id.as_ref(),
+                );
             }
 
             // Handle remove_on_complete option
@@ -123,26 +110,22 @@ impl QueueManager {
                 };
                 {
                     let mut shard = self.shards[idx].write();
-                    let state = shard.get_state(&queue_arc);
-                    if let Some(ref mut conc) = state.concurrency {
-                        conc.release();
-                    }
-
-                    if let Some(ref key) = job.unique_key {
-                        if let Some(keys) = shard.unique_keys.get_mut(&queue_arc) {
-                            keys.remove(key);
-                        }
-                    }
-
-                    // Release group if job has a group_id
-                    if let Some(ref group_id) = job.group_id {
-                        if let Some(groups) = shard.active_groups.get_mut(&queue_arc) {
-                            groups.remove(group_id);
-                        }
-                    }
+                    shard.release_job_resources(
+                        &queue_arc,
+                        job.unique_key.as_ref(),
+                        job.group_id.as_ref(),
+                    );
                 }
-                self.completed_jobs.write().insert(id);
-                self.index_job(id, JobLocation::Completed);
+
+                // Handle remove_on_complete option (same as single ack)
+                if job.remove_on_complete {
+                    self.unindex_job(id);
+                    self.job_logs.write().remove(&id);
+                    self.stalled_count.write().remove(&id);
+                } else {
+                    self.completed_jobs.write().insert(id);
+                    self.index_job(id, JobLocation::Completed);
+                }
 
                 // Notify any waiters (finished() promise) - no result for batch ack
                 self.notify_job_waiters(id, None);
@@ -156,9 +139,13 @@ impl QueueManager {
             self.persist_ack_batch(ids);
         }
 
+        // Update metrics: increment completed, decrement processing
         self.metrics
             .total_completed
             .fetch_add(acked as u64, Ordering::Relaxed);
+        self.metrics
+            .current_processing
+            .fetch_sub(acked as u64, Ordering::Relaxed);
         acked
     }
 
@@ -173,21 +160,16 @@ impl QueueManager {
             if job.should_go_to_dlq() {
                 self.notify_subscribers("failed", &job.queue, &job);
 
+                // Notify waiters that job failed (prevents memory leak in job_waiters)
+                self.notify_job_waiters(job_id, None);
+
                 // Handle remove_on_fail option
                 if job.remove_on_fail {
                     // OPTIMIZATION: Single lock scope for release concurrency and group
                     {
                         let mut shard = self.shards[idx].write();
-                        let state = shard.get_state(&queue_arc);
-                        if let Some(ref mut conc) = state.concurrency {
-                            conc.release();
-                        }
-                        // Release group if job has a group_id
-                        if let Some(ref group_id) = job.group_id {
-                            if let Some(groups) = shard.active_groups.get_mut(&queue_arc) {
-                                groups.remove(group_id);
-                            }
-                        }
+                        shard.release_concurrency(&queue_arc);
+                        shard.release_group(&queue_arc, job.group_id.as_ref());
                     }
                     // Don't store in DLQ, just discard
                     self.unindex_job(job_id);
@@ -210,16 +192,8 @@ impl QueueManager {
                     // OPTIMIZATION: Single lock scope for release concurrency, group + DLQ push
                     {
                         let mut shard = self.shards[idx].write();
-                        let state = shard.get_state(&queue_arc);
-                        if let Some(ref mut conc) = state.concurrency {
-                            conc.release();
-                        }
-                        // Release group if job has a group_id
-                        if let Some(ref group_id) = group_id_to_release {
-                            if let Some(groups) = shard.active_groups.get_mut(&queue_arc) {
-                                groups.remove(group_id);
-                            }
-                        }
+                        shard.release_concurrency(&queue_arc);
+                        shard.release_group(&queue_arc, group_id_to_release.as_ref());
                         shard.dlq.entry(queue_arc).or_default().push_back(job);
                     }
 
@@ -286,16 +260,8 @@ impl QueueManager {
             // OPTIMIZATION: Single lock scope for release concurrency, group + queue push
             {
                 let mut shard = self.shards[idx].write();
-                let state = shard.get_state(&queue_arc);
-                if let Some(ref mut conc) = state.concurrency {
-                    conc.release();
-                }
-                // Release group if job has a group_id (job will be re-queued and can be picked up again)
-                if let Some(ref group_id) = job.group_id {
-                    if let Some(groups) = shard.active_groups.get_mut(&queue_arc) {
-                        groups.remove(group_id);
-                    }
-                }
+                shard.release_concurrency(&queue_arc);
+                shard.release_group(&queue_arc, job.group_id.as_ref());
                 shard.queues.entry(queue_arc).or_default().push(job);
             }
 

@@ -15,14 +15,7 @@ import {
   Metric,
   ProgressBar,
 } from '@tremor/react';
-import {
-  RefreshCw,
-  Server,
-  Cpu,
-  Activity,
-  Clock,
-  Users,
-} from 'lucide-react';
+import { RefreshCw, Server, Cpu, Activity, Clock, Users } from 'lucide-react';
 import { useWorkers } from '../hooks';
 import { formatRelativeTime } from '../utils';
 import './Workers.css';
@@ -51,16 +44,20 @@ export function Workers() {
     return 'disconnected';
   };
 
-  const activeWorkers = workers.filter(w => getWorkerStatus(w) === 'active').length;
-  const idleWorkers = workers.filter(w => getWorkerStatus(w) === 'idle').length;
+  const activeWorkers = workers.filter((w) => getWorkerStatus(w) === 'active').length;
+  const idleWorkers = workers.filter((w) => getWorkerStatus(w) === 'idle').length;
   const totalProcessed = workers.reduce((sum, w) => sum + w.jobs_processed, 0);
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'active': return 'emerald';
-      case 'idle': return 'amber';
-      case 'disconnected': return 'rose';
-      default: return 'zinc';
+      case 'active':
+        return 'emerald';
+      case 'idle':
+        return 'amber';
+      case 'disconnected':
+        return 'rose';
+      default:
+        return 'zinc';
     }
   };
 
@@ -69,21 +66,15 @@ export function Workers() {
       <header className="page-header">
         <div>
           <Title className="page-title">Workers</Title>
-          <Text className="page-subtitle">
-            Monitor connected workers and their status
-          </Text>
+          <Text className="page-subtitle">Monitor connected workers and their status</Text>
         </div>
-        <Button
-          icon={RefreshCw}
-          variant="secondary"
-          onClick={() => refetch()}
-        >
+        <Button icon={RefreshCw} variant="secondary" onClick={() => refetch()}>
           Refresh
         </Button>
       </header>
 
       {/* Stats Cards */}
-      <Grid numItemsSm={2} numItemsLg={4} className="gap-6 mb-8">
+      <Grid numItemsSm={2} numItemsLg={4} className="mb-8 gap-6">
         <Card className="stat-card" decoration="top" decorationColor="cyan">
           <Flex alignItems="start" justifyContent="between">
             <div>
@@ -91,7 +82,7 @@ export function Workers() {
               <Metric>{workers.length}</Metric>
             </div>
             <div className="stat-icon cyan">
-              <Users className="w-5 h-5" />
+              <Users className="h-5 w-5" />
             </div>
           </Flex>
         </Card>
@@ -103,7 +94,7 @@ export function Workers() {
               <Metric>{activeWorkers}</Metric>
             </div>
             <div className="stat-icon emerald">
-              <Activity className="w-5 h-5" />
+              <Activity className="h-5 w-5" />
             </div>
           </Flex>
           <ProgressBar
@@ -120,7 +111,7 @@ export function Workers() {
               <Metric>{idleWorkers}</Metric>
             </div>
             <div className="stat-icon amber">
-              <Clock className="w-5 h-5" />
+              <Clock className="h-5 w-5" />
             </div>
           </Flex>
           <ProgressBar
@@ -137,7 +128,7 @@ export function Workers() {
               <Metric>{totalProcessed.toLocaleString()}</Metric>
             </div>
             <div className="stat-icon blue">
-              <Cpu className="w-5 h-5" />
+              <Cpu className="h-5 w-5" />
             </div>
           </Flex>
         </Card>
@@ -160,9 +151,9 @@ export function Workers() {
             {workers.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={6}>
-                  <div className="text-center py-12">
-                    <Server className="w-12 h-12 text-zinc-600 mx-auto mb-4" />
-                    <Text className="text-lg font-medium text-zinc-400 mb-2">
+                  <div className="py-12 text-center">
+                    <Server className="mx-auto mb-4 h-12 w-12 text-zinc-600" />
+                    <Text className="mb-2 text-lg font-medium text-zinc-400">
                       No workers connected
                     </Text>
                     <Text className="text-zinc-500">
@@ -182,7 +173,7 @@ export function Workers() {
                       </span>
                     </TableCell>
                     <TableCell>
-                      <Flex className="gap-1 flex-wrap">
+                      <Flex className="flex-wrap gap-1">
                         {worker.queues.slice(0, 3).map((q) => (
                           <Badge key={q} size="xs" color="cyan">
                             {q}
@@ -201,9 +192,7 @@ export function Workers() {
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <span className="font-mono text-blue-400">
-                        {worker.concurrency}
-                      </span>
+                      <span className="font-mono text-blue-400">{worker.concurrency}</span>
                     </TableCell>
                     <TableCell className="text-right">
                       <span className="font-mono text-emerald-400">

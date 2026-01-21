@@ -262,8 +262,21 @@ impl QueueManager {
     }
 }
 
+/// Maximum recursion depth for glob matching to prevent DoS attacks
+const MAX_GLOB_DEPTH: usize = 10;
+
 /// Simple glob pattern matching (* = any chars, ? = one char)
+/// Protected against DoS with recursion depth limit.
 pub fn glob_match(pattern: &str, text: &str) -> bool {
+    glob_match_inner(pattern, text, 0)
+}
+
+fn glob_match_inner(pattern: &str, text: &str, depth: usize) -> bool {
+    // Prevent DoS via exponential backtracking
+    if depth > MAX_GLOB_DEPTH {
+        return false;
+    }
+
     let mut p_chars = pattern.chars().peekable();
     let mut t_chars = text.chars().peekable();
 
@@ -278,7 +291,7 @@ pub fn glob_match(pattern: &str, text: &str) -> bool {
                 let rest_pattern: String = p_chars.collect();
                 let mut remaining: String = t_chars.collect();
                 loop {
-                    if glob_match(&rest_pattern, &remaining) {
+                    if glob_match_inner(&rest_pattern, &remaining, depth + 1) {
                         return true;
                     }
                     if remaining.is_empty() {

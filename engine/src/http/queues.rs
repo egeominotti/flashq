@@ -74,11 +74,15 @@ pub async fn get_dlq(
 }
 
 /// Retry dead letter queue jobs.
+/// If job_id is provided in the body, retries only that job.
+/// Otherwise, retries all jobs in the DLQ for the queue.
 pub async fn retry_dlq(
     State(qm): State<AppState>,
     Path(queue): Path<String>,
+    body: Option<Json<RetryDlqRequest>>,
 ) -> Json<ApiResponse<usize>> {
-    let count = qm.retry_dlq(&queue, None).await;
+    let job_id = body.and_then(|b| b.job_id);
+    let count = qm.retry_dlq(&queue, job_id).await;
     ApiResponse::success(count)
 }
 
@@ -144,12 +148,9 @@ pub async fn clean_queue(
     Path(queue): Path<String>,
     Json(req): Json<CleanRequest>,
 ) -> Json<ApiResponse<usize>> {
-    let state_enum = match req.state.to_lowercase().as_str() {
-        "waiting" => JobState::Waiting,
-        "delayed" => JobState::Delayed,
-        "completed" => JobState::Completed,
-        "failed" => JobState::Failed,
-        _ => return ApiResponse::error("Invalid state. Use: waiting, delayed, completed, failed"),
+    let state_enum = match JobState::from_str(&req.state) {
+        Some(s) => s,
+        None => return ApiResponse::error("Invalid state. Use: waiting, delayed, completed, failed"),
     };
     let count = qm.clean(&queue, req.grace, state_enum, req.limit).await;
     ApiResponse::success(count)

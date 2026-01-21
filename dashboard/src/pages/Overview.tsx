@@ -1,27 +1,22 @@
-import {
-  Card,
-  Title,
-  Text,
-  Metric,
-  Flex,
-  Grid,
-  AreaChart,
-  DonutChart,
-  BarList,
-  Badge,
-  ProgressBar,
-} from '@tremor/react';
-import {
-  Activity,
-  CheckCircle2,
-  XCircle,
-  Layers,
-  TrendingUp,
-  Zap,
-} from 'lucide-react';
+import { useMemo } from 'react';
+import { Title, Text, AreaChart, DonutChart, BarList, Badge, ProgressBar, Grid } from '@tremor/react';
+import { Activity, CheckCircle2, XCircle, Layers, TrendingUp, Zap, Clock } from 'lucide-react';
 import { useStats, useMetrics, useMetricsHistory } from '../hooks';
 import { formatNumber } from '../utils';
+import { GlowCard, AnimatedCounter, formatCompact, EmptyState, Sparkline } from '../components/common';
 import './Overview.css';
+
+interface MetricsPoint {
+  timestamp: number;
+  throughput: number;
+  queued?: number;
+}
+
+interface QueueData {
+  name: string;
+  pending: number;
+  processing: number;
+}
 
 export function Overview() {
   const { data: stats } = useStats();
@@ -36,67 +31,59 @@ export function Overview() {
   const totalCompleted = metrics?.total_completed || 0;
   const totalPushed = metrics?.total_pushed || 0;
 
-  const kpis = [
-    {
-      title: 'Queued',
-      value: formatNumber(totalQueued),
-      icon: Activity,
-      color: 'cyan',
-      change: `${totalDelayed} delayed`,
-      changeType: 'neutral' as const,
-    },
-    {
-      title: 'Processing',
-      value: formatNumber(totalProcessing),
-      icon: Zap,
-      color: 'blue',
-      change: 'Active',
-      changeType: 'neutral' as const,
-    },
-    {
-      title: 'Completed',
-      value: formatNumber(totalCompleted),
-      icon: CheckCircle2,
-      color: 'emerald',
-      change: totalPushed ? `${((totalCompleted / totalPushed) * 100).toFixed(1)}%` : '0%',
-      changeType: 'increase' as const,
-    },
-    {
-      title: 'Failed (DLQ)',
-      value: formatNumber(totalDlq),
-      icon: XCircle,
-      color: 'rose',
-      change: totalPushed ? `${((totalDlq / totalPushed) * 100).toFixed(1)}%` : '0%',
-      changeType: totalDlq > 0 ? 'decrease' as const : 'neutral' as const,
-    },
-  ];
+  // Sparkline data
+  const throughputSparkline = useMemo(
+    () => metricsHistory?.slice(-20).map((p: MetricsPoint) => p.throughput || 0) || [],
+    [metricsHistory]
+  );
+
+  const queuedSparkline = useMemo(
+    () => metricsHistory?.slice(-20).map((p: MetricsPoint) => p.queued || 0) || [],
+    [metricsHistory]
+  );
 
   // Transform metrics history for throughput chart
-  const throughputData = metricsHistory?.map((point: { timestamp: number; throughput: number }) => ({
-    date: new Date(point.timestamp).toLocaleTimeString('en-US', {
-      hour: '2-digit',
-      minute: '2-digit'
-    }),
-    'Jobs/sec': point.throughput || 0,
-  })) || [];
+  const throughputData = useMemo(
+    () =>
+      metricsHistory?.map((point: MetricsPoint) => ({
+        date: new Date(point.timestamp).toLocaleTimeString('en-US', {
+          hour: '2-digit',
+          minute: '2-digit',
+        }),
+        'Jobs/sec': point.throughput || 0,
+      })) || [],
+    [metricsHistory]
+  );
 
   // Get queue data from metrics endpoint
-  const queues = metrics?.queues || [];
+  const queues = useMemo(() => metrics?.queues || [], [metrics?.queues]);
 
-  const queueDistribution = queues
-    .filter((q: { pending: number }) => q.pending > 0)
-    .map((q: { name: string; pending: number }) => ({
-      name: q.name,
-      value: q.pending,
-    })) || [];
+  const queueDistribution = useMemo(
+    () =>
+      queues
+        .filter((q: QueueData) => q.pending > 0)
+        .map((q: QueueData) => ({
+          name: q.name,
+          value: q.pending,
+        })),
+    [queues]
+  );
 
-  const queueBarList = queues
-    .filter((q: { pending: number; processing: number }) => q.pending > 0 || q.processing > 0)
-    .slice(0, 5)
-    .map((q: { name: string; pending: number; processing: number }) => ({
-      name: q.name,
-      value: q.pending + q.processing,
-    })) || [];
+  const queueBarList = useMemo(
+    () =>
+      queues
+        .filter((q: QueueData) => q.pending > 0 || q.processing > 0)
+        .slice(0, 5)
+        .map((q: QueueData) => ({
+          name: q.name,
+          value: q.pending + q.processing,
+        })),
+    [queues]
+  );
+
+  const completionRate =
+    totalPushed > 0 ? ((totalCompleted / totalPushed) * 100).toFixed(1) : '0';
+  const failureRate = totalPushed > 0 ? ((totalDlq / totalPushed) * 100).toFixed(1) : '0';
 
   return (
     <div className="overview-page">
@@ -108,138 +95,223 @@ export function Overview() {
           </Text>
         </div>
         <div className="header-actions">
-          <Badge size="lg" color="emerald">
-            <span className="flex items-center gap-2">
-              <span className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
-              System Online
-            </span>
+          <Badge size="lg" color="emerald" className="status-badge">
+            <span className="status-indicator" />
+            System Online
           </Badge>
         </div>
       </header>
 
-      {/* KPI Cards */}
-      <Grid numItemsSm={2} numItemsLg={4} className="gap-6 mb-8">
-        {kpis.map((kpi) => {
-          const Icon = kpi.icon;
-          return (
-            <Card key={kpi.title} className="kpi-card" decoration="top" decorationColor={kpi.color}>
-              <Flex alignItems="start" justifyContent="between">
-                <div>
-                  <Text className="kpi-label">{kpi.title}</Text>
-                  <Metric className="kpi-value">{kpi.value}</Metric>
-                </div>
-                <div className={`kpi-icon kpi-icon-${kpi.color}`}>
-                  <Icon className="w-5 h-5" />
-                </div>
-              </Flex>
-              <Flex className="mt-4">
-                <Badge size="sm" color={
-                  kpi.changeType === 'increase' ? 'emerald' :
-                  kpi.changeType === 'decrease' ? 'rose' : 'zinc'
-                }>
-                  {kpi.change}
-                </Badge>
-              </Flex>
-            </Card>
-          );
-        })}
+      {/* KPI Cards with Glow Effect */}
+      <Grid numItemsSm={2} numItemsLg={4} className="mb-8 gap-6">
+        <GlowCard glowColor="cyan" className="metric-glow-card">
+          <div className="metric-glow-header">
+            <span className="metric-glow-title">Queued</span>
+            <div className="metric-glow-icon icon-cyan">
+              <Activity className="h-5 w-5" />
+            </div>
+          </div>
+          <div className="metric-glow-value">
+            <AnimatedCounter value={totalQueued} formatter={formatCompact} />
+          </div>
+          <div className="metric-glow-footer">
+            <Badge color="zinc" size="xs">
+              <Clock className="mr-1 h-3 w-3" />
+              {totalDelayed} delayed
+            </Badge>
+            <Sparkline data={queuedSparkline} width={60} height={24} color="#06b6d4" />
+          </div>
+        </GlowCard>
+
+        <GlowCard glowColor="blue" className="metric-glow-card">
+          <div className="metric-glow-header">
+            <span className="metric-glow-title">Processing</span>
+            <div className="metric-glow-icon icon-blue">
+              <Zap className="h-5 w-5" />
+            </div>
+          </div>
+          <div className="metric-glow-value">
+            <AnimatedCounter value={totalProcessing} formatter={formatCompact} />
+          </div>
+          <div className="metric-glow-footer">
+            <Badge color="blue" size="xs">
+              <span className="live-dot live-dot-blue" />
+              Active
+            </Badge>
+          </div>
+        </GlowCard>
+
+        <GlowCard glowColor="emerald" className="metric-glow-card">
+          <div className="metric-glow-header">
+            <span className="metric-glow-title">Completed</span>
+            <div className="metric-glow-icon icon-emerald">
+              <CheckCircle2 className="h-5 w-5" />
+            </div>
+          </div>
+          <div className="metric-glow-value">
+            <AnimatedCounter value={totalCompleted} formatter={formatCompact} />
+          </div>
+          <div className="metric-glow-footer">
+            <Badge color="emerald" size="xs">
+              <TrendingUp className="mr-1 h-3 w-3" />
+              {completionRate}%
+            </Badge>
+            <Sparkline data={throughputSparkline} width={60} height={24} color="#10b981" />
+          </div>
+        </GlowCard>
+
+        <GlowCard glowColor="rose" className="metric-glow-card">
+          <div className="metric-glow-header">
+            <span className="metric-glow-title">Failed (DLQ)</span>
+            <div className="metric-glow-icon icon-rose">
+              <XCircle className="h-5 w-5" />
+            </div>
+          </div>
+          <div className="metric-glow-value">
+            <AnimatedCounter value={totalDlq} formatter={formatCompact} />
+          </div>
+          <div className="metric-glow-footer">
+            <Badge color={totalDlq > 0 ? 'rose' : 'zinc'} size="xs">
+              {failureRate}% failure
+            </Badge>
+          </div>
+        </GlowCard>
       </Grid>
 
       {/* Charts Row */}
-      <Grid numItemsSm={1} numItemsLg={2} className="gap-6 mb-8">
-        <Card className="chart-card">
-          <Flex alignItems="start" justifyContent="between">
+      <Grid numItemsSm={1} numItemsLg={2} className="mb-8 gap-6">
+        <GlowCard glowColor="cyan" className="chart-glow-card">
+          <div className="chart-header">
             <div>
-              <Title>Throughput</Title>
-              <Text>Jobs processed per second over time</Text>
+              <Title className="chart-title">Throughput</Title>
+              <Text className="chart-subtitle">Jobs processed per second over time</Text>
             </div>
-            <Badge color="cyan">
-              <TrendingUp className="w-3 h-3 mr-1" />
+            <Badge color="cyan" size="xs">
+              <span className="live-dot" />
               Live
             </Badge>
-          </Flex>
-          <AreaChart
-            className="h-72 mt-6"
-            data={throughputData}
-            index="date"
-            categories={['Jobs/sec']}
-            colors={['cyan']}
-            showAnimation
-            showLegend={false}
-            curveType="monotone"
-            valueFormatter={(v) => `${v.toFixed(1)}/s`}
-          />
-        </Card>
+          </div>
+          {throughputData.length > 0 ? (
+            <AreaChart
+              className="chart-area"
+              data={throughputData}
+              index="date"
+              categories={['Jobs/sec']}
+              colors={['cyan']}
+              showAnimation
+              showLegend={false}
+              curveType="monotone"
+              valueFormatter={(v) => `${v.toFixed(1)}/s`}
+              showGridLines={false}
+            />
+          ) : (
+            <EmptyState
+              variant="chart"
+              title="No throughput data yet"
+              description="Start processing jobs to see throughput metrics"
+            />
+          )}
+        </GlowCard>
 
-        <Card className="chart-card">
-          <Flex alignItems="start" justifyContent="between">
+        <GlowCard glowColor="blue" className="chart-glow-card">
+          <div className="chart-header">
             <div>
-              <Title>Queue Distribution</Title>
-              <Text>Jobs waiting by queue</Text>
+              <Title className="chart-title">Queue Distribution</Title>
+              <Text className="chart-subtitle">Jobs waiting by queue</Text>
             </div>
-            <Badge color="blue">
-              <Layers className="w-3 h-3 mr-1" />
+            <Badge color="blue" size="xs">
+              <Layers className="mr-1 h-3 w-3" />
               {queues.length} Queues
             </Badge>
-          </Flex>
+          </div>
           {queueDistribution.length > 0 ? (
             <DonutChart
-              className="h-72 mt-6"
+              className="chart-area donut-chart"
               data={queueDistribution}
               category="value"
               index="name"
               colors={['cyan', 'blue', 'indigo', 'violet', 'purple']}
               showAnimation
               valueFormatter={formatNumber}
+              showLabel
             />
           ) : (
-            <div className="h-72 mt-6 flex items-center justify-center">
-              <Text>No queues with waiting jobs</Text>
-            </div>
+            <EmptyState
+              variant="chart"
+              title="No queues with waiting jobs"
+              description="Jobs will appear here when queued for processing"
+            />
           )}
-        </Card>
+        </GlowCard>
       </Grid>
 
       {/* Bottom Row */}
       <Grid numItemsSm={1} numItemsLg={3} className="gap-6">
-        <Card className="chart-card col-span-2">
-          <Title>Top Queues</Title>
-          <Text>Queues with most active jobs</Text>
-          <BarList
-            data={queueBarList}
-            className="mt-6"
-            color="cyan"
-            valueFormatter={formatNumber}
-          />
-        </Card>
-
-        <Card className="chart-card">
-          <Title>System Health</Title>
-          <Text>Real-time server metrics</Text>
-          <div className="mt-6 space-y-6">
+        <GlowCard glowColor="violet" className="chart-glow-card lg:col-span-2">
+          <div className="chart-header">
             <div>
-              <Flex>
-                <Text>Avg Latency</Text>
-                <Text>{metrics?.avg_latency_ms?.toFixed(1) || 0} ms</Text>
-              </Flex>
-              <ProgressBar value={Math.min((metrics?.avg_latency_ms || 0) / 10, 100)} color="cyan" className="mt-2" />
-            </div>
-            <div>
-              <Flex>
-                <Text>Jobs/sec</Text>
-                <Text>{metrics?.jobs_per_second?.toFixed(1) || 0}</Text>
-              </Flex>
-              <ProgressBar value={Math.min((metrics?.jobs_per_second || 0) * 10, 100)} color="blue" className="mt-2" />
-            </div>
-            <div>
-              <Flex>
-                <Text>Active Queues</Text>
-                <Text>{queues.length} queues</Text>
-              </Flex>
-              <ProgressBar value={Math.min(queues.length * 10, 100)} color="emerald" className="mt-2" />
+              <Title className="chart-title">Top Queues</Title>
+              <Text className="chart-subtitle">Queues with most active jobs</Text>
             </div>
           </div>
-        </Card>
+          {queueBarList.length > 0 ? (
+            <BarList data={queueBarList} className="bar-list" color="cyan" valueFormatter={formatNumber} />
+          ) : (
+            <EmptyState
+              variant="chart"
+              title="No active queues"
+              description="Push jobs to queues to see them listed here"
+            />
+          )}
+        </GlowCard>
+
+        <GlowCard glowColor="emerald" className="chart-glow-card">
+          <div className="chart-header">
+            <div>
+              <Title className="chart-title">System Health</Title>
+              <Text className="chart-subtitle">Real-time server metrics</Text>
+            </div>
+          </div>
+          <div className="health-metrics">
+            <div className="health-metric">
+              <div className="health-metric-header">
+                <Text className="health-metric-label">Avg Latency</Text>
+                <Text className="health-metric-value">
+                  {metrics?.avg_latency_ms?.toFixed(1) || 0} ms
+                </Text>
+              </div>
+              <ProgressBar
+                value={Math.min((metrics?.avg_latency_ms || 0) / 10, 100)}
+                color="cyan"
+                className="health-progress"
+              />
+            </div>
+            <div className="health-metric">
+              <div className="health-metric-header">
+                <Text className="health-metric-label">Jobs/sec</Text>
+                <Text className="health-metric-value">
+                  {metrics?.jobs_per_second?.toFixed(1) || 0}
+                </Text>
+              </div>
+              <ProgressBar
+                value={Math.min((metrics?.jobs_per_second || 0) * 10, 100)}
+                color="blue"
+                className="health-progress"
+              />
+            </div>
+            <div className="health-metric">
+              <div className="health-metric-header">
+                <Text className="health-metric-label">Active Queues</Text>
+                <Text className="health-metric-value">{queues.length} queues</Text>
+              </div>
+              <ProgressBar
+                value={Math.min(queues.length * 10, 100)}
+                color="emerald"
+                className="health-progress"
+              />
+            </div>
+          </div>
+        </GlowCard>
       </Grid>
     </div>
   );

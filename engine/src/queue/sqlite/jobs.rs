@@ -1,29 +1,28 @@
 //! SQLite job operations for flashQ.
 
 use rusqlite::{params, Connection, OptionalExtension};
+use serde::Serialize;
 use serde_json::Value;
 use std::sync::Arc;
 
 use crate::protocol::Job;
 
+/// Serialize a vector to JSON string if not empty, otherwise return None.
+#[inline]
+fn serialize_if_not_empty<T: Serialize>(v: &[T]) -> Option<String> {
+    if v.is_empty() {
+        None
+    } else {
+        Some(serde_json::to_string(v).unwrap_or_default())
+    }
+}
+
 /// Insert or update a job.
 pub fn insert_job(conn: &Connection, job: &Job, state: &str) -> Result<(), rusqlite::Error> {
     let data = serde_json::to_string(&*job.data).unwrap_or_default();
-    let depends_on = if job.depends_on.is_empty() {
-        None
-    } else {
-        Some(serde_json::to_string(&job.depends_on).unwrap_or_default())
-    };
-    let tags = if job.tags.is_empty() {
-        None
-    } else {
-        Some(serde_json::to_string(&job.tags).unwrap_or_default())
-    };
-    let children_ids = if job.children_ids.is_empty() {
-        None
-    } else {
-        Some(serde_json::to_string(&job.children_ids).unwrap_or_default())
-    };
+    let depends_on = serialize_if_not_empty(&job.depends_on);
+    let tags = serialize_if_not_empty(&job.tags);
+    let children_ids = serialize_if_not_empty(&job.children_ids);
 
     conn.execute(
         "INSERT INTO jobs (id, queue, data, priority, created_at, run_at, started_at, attempts,

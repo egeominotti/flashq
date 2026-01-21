@@ -6,6 +6,12 @@ use super::manager::QueueManager;
 use super::types::{intern, now_ms};
 use crate::protocol::{JobBrowserItem, JobState};
 
+/// Returns true if the queue should be skipped based on the filter.
+#[inline]
+fn skip_queue(queue: &str, filter: Option<&str>) -> bool {
+    filter.is_some_and(|f| f != queue)
+}
+
 impl QueueManager {
     /// Get jobs filtered by queue and/or state with pagination.
     /// This matches the original API signature used by main.rs and http.rs.
@@ -26,7 +32,7 @@ impl QueueManager {
 
             // Queues (waiting/delayed)
             for (queue_name, heap) in &shard_r.queues {
-                if queue_filter.is_some_and(|f| f != queue_name.as_str()) {
+                if skip_queue(queue_name.as_str(), queue_filter) {
                     continue;
                 }
                 for job in heap.iter() {
@@ -48,7 +54,7 @@ impl QueueManager {
             // DLQ (failed)
             if state_filter.is_none() || state_filter == Some(JobState::Failed) {
                 for (queue_name, dlq) in &shard_r.dlq {
-                    if queue_filter.is_some_and(|f| f != queue_name.as_str()) {
+                    if skip_queue(queue_name.as_str(), queue_filter) {
                         continue;
                     }
                     for job in dlq.iter() {
@@ -63,7 +69,7 @@ impl QueueManager {
             // Waiting for children (parent jobs)
             if state_filter.is_none() || state_filter == Some(JobState::WaitingParent) {
                 for job in shard_r.waiting_children.values() {
-                    if queue_filter.is_some_and(|f| f != job.queue.as_str()) {
+                    if skip_queue(job.queue.as_str(), queue_filter) {
                         continue;
                     }
                     jobs.push(JobBrowserItem {
@@ -76,7 +82,7 @@ impl QueueManager {
             // Waiting for dependencies
             if state_filter.is_none() || state_filter == Some(JobState::WaitingChildren) {
                 for job in shard_r.waiting_deps.values() {
-                    if queue_filter.is_some_and(|f| f != job.queue.as_str()) {
+                    if skip_queue(job.queue.as_str(), queue_filter) {
                         continue;
                     }
                     jobs.push(JobBrowserItem {
@@ -90,7 +96,7 @@ impl QueueManager {
         // 2. Processing (active) - iterate all shards
         if state_filter.is_none() || state_filter == Some(JobState::Active) {
             self.processing_iter(|job| {
-                if queue_filter.is_some_and(|f| f != job.queue.as_str()) {
+                if skip_queue(job.queue.as_str(), queue_filter) {
                     return;
                 }
                 jobs.push(JobBrowserItem {

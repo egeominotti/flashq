@@ -1,0 +1,219 @@
+/* Glow Card Base */
+.glow-card {
+  position: relative;
+  border-radius: 16px;
+  overflow: hidden;
+  background: linear-gradient(
+    135deg,
+    rgba(30, 30, 35, 0.9) 0%,
+    rgba(20, 20, 25, 0.95) 100%
+  );
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.glow-card-content {
+  position: relative;
+  z-index: 1;
+  padding: 1.5rem;
+}
+
+/* Glow Effect */
+.glow-card-glow {
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  opacity: 0;
+  transition: opacity 0.5s ease;
+  pointer-events: none;
+  background: radial-gradient(
+    circle at center,
+    var(--glow-color, rgba(6, 182, 212, 0.15)) 0%,
+    transparent 50%
+  );
+}
+
+.glow-card-hoverable:hover .glow-card-glow {
+  opacity: 1;
+}
+
+.glow-card-hoverable:hover {
+  border-color: rgba(255, 255, 255, 0.1);
+  transform: translateY(-2px);
+  box-shadow:
+    0 20px 40px -15px rgba(0, 0, 0, 0.5),
+    0 0 30px -10px var(--glow-color, rgba(6, 182, 212, 0.2));
+}
+
+/* Glass Variant */
+.glow-card-glass {
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.05) 0%,
+    rgba(255, 255, 255, 0.02) 100%
+  );
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+/* Gradient Variant */
+.glow-card-gradient {
+  background: linear-gradient(
+    135deg,
+    rgba(6, 182, 212, 0.1) 0%,
+    rgba(20, 20, 25, 0.95) 50%,
+    rgba(139, 92, 246, 0.1) 100%
+  );
+}
+
+/* Glow Colors */
+.glow-cyan {
+  --glow-color: rgba(6, 182, 212, 0.2);
+}
+
+.glow-blue {
+  --glow-color: rgba(59, 130, 246, 0.2);
+}
+
+.glow-emerald {
+  --glow-color: rgba(16, 185, 129, 0.2);
+}
+
+.glow-violet {
+  --glow-color: rgba(139, 92, 246, 0.2);
+}
+
+.glow-rose {
+  --glow-color: rgba(244, 63, 94, 0.2);
+}
+
+.glow-amber {
+  --glow-color: rgba(245, 158, 11, 0.2);
+}
+
+/* Metric Glow Card Styles */
+.metric-glow-card {
+  min-height: 140px;
+}
+
+.metric-glow-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 0.75rem;
+}
+
+.metric-glow-title {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.6);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.metric-glow-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.05) 100%);
+  transition: all 0.3s ease;
+}
+
+.glow-card-hoverable:hover .metric-glow-icon {
+  transform: scale(1.1) rotate(5deg);
+}
+
+.icon-cyan {
+  color: #06b6d4;
+  box-shadow: 0 0 20px rgba(6, 182, 212, 0.3);
+}
+
+.icon-blue {
+  color: #3b82f6;
+  box-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
+}
+
+.icon-emerald {
+  color: #10b981;
+  box-shadow: 0 0 20px rgba(16, 185, 129, 0.3);
+}
+
+.icon-violet {
+  color: #8b5cf6;
+  box-shadow: 0 0 20px rgba(139, 92, 246, 0.3);
+}
+
+.icon-rose {
+  color: #f43f5e;
+  box-shadow: 0 0 20px rgba(244, 63, 94, 0.3);
+}
+
+.icon-amber {
+  color: #f59e0b;
+  box-shadow: 0 0 20px rgba(245, 158, 11, 0.3);
+}
+
+.metric-glow-value {
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: white;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  background: linear-gradient(135deg, #fff 0%, rgba(255, 255, 255, 0.8) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.metric-glow-footer {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.metric-glow-trend {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.trend-up {
+  background: rgba(16, 185, 129, 0.15);
+  color: #10b981;
+}
+
+.trend-down {
+  background: rgba(244, 63, 94, 0.15);
+  color: #f43f5e;
+}
+
+.trend-neutral {
+  background: rgba(113, 113, 122, 0.15);
+  color: #71717a;
+}
+
+.metric-glow-subtitle {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+/* Chart Card Enhancement */
+.chart-glow-card {
+  min-height: 380px;
+}
+
+.chart-glow-card .glow-card-content {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}

@@ -22,6 +22,25 @@ pub enum JobState {
     Unknown,         // Job not found or state cannot be determined
 }
 
+impl JobState {
+    /// Parse a state string to JobState enum.
+    pub fn from_str(s: &str) -> Option<Self> {
+        match s.to_lowercase().as_str() {
+            "waiting" => Some(JobState::Waiting),
+            "delayed" => Some(JobState::Delayed),
+            "active" => Some(JobState::Active),
+            "completed" => Some(JobState::Completed),
+            "failed" => Some(JobState::Failed),
+            "waiting-children" | "waitingchildren" | "waiting_children" => {
+                Some(JobState::WaitingChildren)
+            }
+            "waiting-parent" | "waitingparent" | "waiting_parent" => Some(JobState::WaitingParent),
+            "stalled" => Some(JobState::Stalled),
+            _ => None,
+        }
+    }
+}
+
 /// Job log entry for debugging
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JobLogEntry {

@@ -14,29 +14,28 @@ import {
   Flex,
   TextInput,
 } from '@tremor/react';
-import {
-  Plus,
-  Trash2,
-  RefreshCw,
-  Clock,
-} from 'lucide-react';
-import { useCrons } from '../hooks';
+import { Plus, Trash2, RefreshCw, Clock, HelpCircle } from 'lucide-react';
+import { useCrons, useToast } from '../hooks';
 import { api } from '../api/client';
 import { formatRelativeTime } from '../utils';
+import { SkeletonTable } from '../components/common/Skeleton';
+import { ConfirmModal } from '../components/common/ConfirmModal';
+import { Tooltip } from '../components/common/Tooltip';
 import './Crons.css';
 
 interface CronJob {
   name: string;
   queue: string;
   schedule: string;
-  data?: any;
+  data?: unknown;
   enabled: boolean;
   last_run?: string;
   next_run?: string;
 }
 
 export function Crons() {
-  const { data: cronsData, refetch } = useCrons();
+  const { showToast } = useToast();
+  const { data: cronsData, refetch, isLoading } = useCrons();
   const [showAddModal, setShowAddModal] = useState(false);
   const [newCron, setNewCron] = useState({
     name: '',
@@ -45,28 +44,70 @@ export function Crons() {
     data: '{}',
   });
 
+  // Confirm modal state
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    cronName: string;
+  }>({
+    isOpen: false,
+    cronName: '',
+  });
+  const [isConfirmLoading, setIsConfirmLoading] = useState(false);
+
   const crons: CronJob[] = cronsData?.crons || [];
 
   const handleAddCron = async () => {
+    if (!newCron.name || !newCron.queue || !newCron.schedule) {
+      showToast('Please fill in all required fields', 'warning');
+      return;
+    }
+
+    try {
+      JSON.parse(newCron.data);
+    } catch {
+      showToast('Invalid JSON in data field', 'error');
+      return;
+    }
+
     try {
       await api.addCron(newCron.name, {
         queue: newCron.queue,
         schedule: newCron.schedule,
         data: JSON.parse(newCron.data),
       });
+      showToast(`Cron job "${newCron.name}" created`, 'success');
       setShowAddModal(false);
       setNewCron({ name: '', queue: '', schedule: '', data: '{}' });
       refetch();
-    } catch (error) {
-      console.error('Failed to add cron:', error);
+    } catch {
+      showToast('Failed to add cron job', 'error');
     }
   };
 
-  const handleDeleteCron = async (name: string) => {
-    if (confirm(`Are you sure you want to delete cron job "${name}"?`)) {
-      await api.deleteCron(name);
+  const handleDeleteCron = (name: string) => {
+    setConfirmModal({
+      isOpen: true,
+      cronName: name,
+    });
+  };
+
+  const confirmDeleteCron = async () => {
+    setIsConfirmLoading(true);
+    try {
+      await api.deleteCron(confirmModal.cronName);
+      showToast(`Cron job "${confirmModal.cronName}" deleted`, 'success');
       refetch();
+    } catch {
+      showToast('Failed to delete cron job', 'error');
+    } finally {
+      setIsConfirmLoading(false);
+      setConfirmModal({ isOpen: false, cronName: '' });
     }
+  };
+
+  const handleRefresh = () => {
+    refetch();
+    showToast('Data refreshed', 'info');
   };
 
   return (
@@ -74,105 +115,102 @@ export function Crons() {
       <header className="page-header">
         <div>
           <Title className="page-title">Cron Jobs</Title>
-          <Text className="page-subtitle">
-            Manage scheduled jobs and recurring tasks
-          </Text>
+          <Text className="page-subtitle">Manage scheduled jobs and recurring tasks</Text>
         </div>
         <Flex className="gap-3">
-          <Button
-            icon={RefreshCw}
-            variant="secondary"
-            onClick={() => refetch()}
-          >
+          <Button icon={RefreshCw} variant="secondary" onClick={handleRefresh}>
             Refresh
           </Button>
-          <Button
-            icon={Plus}
-            onClick={() => setShowAddModal(true)}
-          >
+          <Button icon={Plus} onClick={() => setShowAddModal(true)}>
             Add Cron Job
           </Button>
         </Flex>
       </header>
 
       <Card className="crons-card">
-        <Table>
-          <TableHead>
-            <TableRow>
-              <TableHeaderCell>Name</TableHeaderCell>
-              <TableHeaderCell>Queue</TableHeaderCell>
-              <TableHeaderCell>Schedule</TableHeaderCell>
-              <TableHeaderCell>Status</TableHeaderCell>
-              <TableHeaderCell>Last Run</TableHeaderCell>
-              <TableHeaderCell>Next Run</TableHeaderCell>
-              <TableHeaderCell className="text-right">Actions</TableHeaderCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {crons.length === 0 ? (
+        {isLoading ? (
+          <SkeletonTable rows={5} columns={7} />
+        ) : (
+          <Table>
+            <TableHead>
               <TableRow>
-                <TableCell colSpan={7}>
-                  <div className="text-center py-12">
-                    <Clock className="w-12 h-12 text-zinc-600 mx-auto mb-4" />
-                    <Text className="text-lg font-medium text-zinc-400 mb-2">
-                      No cron jobs configured
-                    </Text>
-                    <Text className="text-zinc-500 mb-4">
-                      Create a scheduled job to automate recurring tasks
-                    </Text>
-                    <Button icon={Plus} onClick={() => setShowAddModal(true)}>
-                      Add Your First Cron Job
-                    </Button>
-                  </div>
-                </TableCell>
+                <TableHeaderCell>Name</TableHeaderCell>
+                <TableHeaderCell>Queue</TableHeaderCell>
+                <TableHeaderCell>Schedule</TableHeaderCell>
+                <TableHeaderCell>Status</TableHeaderCell>
+                <TableHeaderCell>Last Run</TableHeaderCell>
+                <TableHeaderCell>Next Run</TableHeaderCell>
+                <TableHeaderCell className="text-right">Actions</TableHeaderCell>
               </TableRow>
-            ) : (
-              crons.map((cron) => (
-                <TableRow key={cron.name}>
-                  <TableCell>
-                    <span className="font-mono font-semibold text-white">
-                      {cron.name}
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    <Badge color="cyan">{cron.queue}</Badge>
-                  </TableCell>
-                  <TableCell>
-                    <code className="text-xs bg-zinc-800 px-2 py-1 rounded font-mono">
-                      {cron.schedule}
-                    </code>
-                  </TableCell>
-                  <TableCell>
-                    <Badge color={cron.enabled ? 'emerald' : 'zinc'}>
-                      {cron.enabled ? 'Active' : 'Paused'}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <span className="text-zinc-400">
-                      {cron.last_run ? formatRelativeTime(cron.last_run) : 'Never'}
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    <span className="text-zinc-400">
-                      {cron.next_run ? formatRelativeTime(cron.next_run) : '-'}
-                    </span>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Button
-                      size="xs"
-                      variant="secondary"
-                      color="rose"
-                      icon={Trash2}
-                      onClick={() => handleDeleteCron(cron.name)}
-                    >
-                      Delete
-                    </Button>
+            </TableHead>
+            <TableBody>
+              {crons.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={7}>
+                    <div className="py-12 text-center">
+                      <Clock className="mx-auto mb-4 h-12 w-12 text-zinc-600" />
+                      <Text className="mb-2 text-lg font-medium text-zinc-400">
+                        No cron jobs configured
+                      </Text>
+                      <Text className="mb-4 text-zinc-500">
+                        Create a scheduled job to automate recurring tasks
+                      </Text>
+                      <Button icon={Plus} onClick={() => setShowAddModal(true)}>
+                        Add Your First Cron Job
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
+              ) : (
+                crons.map((cron) => (
+                  <TableRow key={cron.name}>
+                    <TableCell>
+                      <span className="font-mono font-semibold text-white">{cron.name}</span>
+                    </TableCell>
+                    <TableCell>
+                      <Badge color="cyan">{cron.queue}</Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Tooltip content="Cron format: second minute hour day month weekday">
+                        <code className="rounded bg-zinc-800 px-2 py-1 font-mono text-xs">
+                          {cron.schedule}
+                        </code>
+                      </Tooltip>
+                    </TableCell>
+                    <TableCell>
+                      <Badge color={cron.enabled ? 'emerald' : 'zinc'}>
+                        {cron.enabled ? 'Active' : 'Paused'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <span className="text-zinc-400">
+                        {cron.last_run ? formatRelativeTime(cron.last_run) : 'Never'}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <span className="text-zinc-400">
+                        {cron.next_run ? formatRelativeTime(cron.next_run) : '-'}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Tooltip content="Delete this cron job">
+                        <Button
+                          size="xs"
+                          variant="secondary"
+                          color="rose"
+                          icon={Trash2}
+                          onClick={() => handleDeleteCron(cron.name)}
+                        >
+                          Delete
+                        </Button>
+                      </Tooltip>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        )}
       </Card>
 
       {/* Add Cron Modal */}
@@ -203,14 +241,20 @@ export function Crons() {
                 />
               </div>
               <div className="form-group">
-                <label className="form-label">Schedule (cron expression)</label>
+                <label className="form-label">
+                  Schedule (cron expression)
+                  <Tooltip content="6-field format: second minute hour day month weekday">
+                    <HelpCircle size={14} className="ml-1 inline text-zinc-500" />
+                  </Tooltip>
+                </label>
                 <TextInput
                   placeholder="0 * * * * *"
                   value={newCron.schedule}
                   onChange={(e) => setNewCron({ ...newCron, schedule: e.target.value })}
                 />
                 <Text className="form-hint">
-                  Format: second minute hour day month weekday
+                  Examples: <code>0 * * * * *</code> (every minute), <code>0 0 * * * *</code> (every
+                  hour), <code>0 0 0 * * *</code> (daily at midnight)
                 </Text>
               </div>
               <div className="form-group">
@@ -228,13 +272,23 @@ export function Crons() {
               <Button variant="secondary" onClick={() => setShowAddModal(false)}>
                 Cancel
               </Button>
-              <Button onClick={handleAddCron}>
-                Create Cron Job
-              </Button>
+              <Button onClick={handleAddCron}>Create Cron Job</Button>
             </div>
           </div>
         </div>
       )}
+
+      {/* Confirm Delete Modal */}
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal({ isOpen: false, cronName: '' })}
+        onConfirm={confirmDeleteCron}
+        title="Delete Cron Job"
+        message={`Are you sure you want to delete the cron job "${confirmModal.cronName}"? This action cannot be undone.`}
+        variant="danger"
+        isLoading={isConfirmLoading}
+        confirmText="Delete"
+      />
     </div>
   );
 }

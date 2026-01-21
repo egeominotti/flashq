@@ -18,15 +18,7 @@ pub async fn list_jobs(
     State(qm): State<AppState>,
     Query(params): Query<JobsQuery>,
 ) -> Json<ApiResponse<Vec<JobBrowserItem>>> {
-    let state_filter = params.state.as_deref().and_then(|s| match s {
-        "waiting" => Some(JobState::Waiting),
-        "delayed" => Some(JobState::Delayed),
-        "active" => Some(JobState::Active),
-        "completed" => Some(JobState::Completed),
-        "failed" => Some(JobState::Failed),
-        "waiting-children" | "waitingchildren" => Some(JobState::WaitingChildren),
-        _ => None,
-    });
+    let state_filter = params.state.as_deref().and_then(JobState::from_str);
 
     let jobs = qm.list_jobs(
         params.queue.as_deref(),

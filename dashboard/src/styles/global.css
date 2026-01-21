@@ -55,12 +55,19 @@ body {
 }
 
 /* Typography */
-h1, h2, h3, h4, h5, h6 {
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
   color: var(--text-primary);
   font-weight: 600;
 }
 
-code, pre, .mono {
+code,
+pre,
+.mono {
   font-family: var(--font-mono);
 }
 
@@ -97,7 +104,8 @@ code, pre, .mono {
 
 /* Transitions */
 * {
-  transition-property: background-color, border-color, color, fill, stroke, opacity, box-shadow, transform;
+  transition-property:
+    background-color, border-color, color, fill, stroke, opacity, box-shadow, transform;
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
   transition-duration: 150ms;
 }
@@ -164,37 +172,37 @@ code, pre, .mono {
 }
 
 /* Button Overrides */
-.dark button[class*="tremor-"] {
+.dark button[class*='tremor-'] {
   font-weight: 500;
 }
 
 /* Badge Colors */
-.dark [data-tremor-badge][data-color="cyan"] {
+.dark [data-tremor-badge][data-color='cyan'] {
   background: rgba(0, 212, 255, 0.15);
   color: #00d4ff;
 }
 
-.dark [data-tremor-badge][data-color="emerald"] {
+.dark [data-tremor-badge][data-color='emerald'] {
   background: rgba(16, 185, 129, 0.15);
   color: #10b981;
 }
 
-.dark [data-tremor-badge][data-color="rose"] {
+.dark [data-tremor-badge][data-color='rose'] {
   background: rgba(244, 63, 94, 0.15);
   color: #f43f5e;
 }
 
-.dark [data-tremor-badge][data-color="amber"] {
+.dark [data-tremor-badge][data-color='amber'] {
   background: rgba(245, 158, 11, 0.15);
   color: #f59e0b;
 }
 
-.dark [data-tremor-badge][data-color="blue"] {
+.dark [data-tremor-badge][data-color='blue'] {
   background: rgba(59, 130, 246, 0.15);
   color: #3b82f6;
 }
 
-.dark [data-tremor-badge][data-color="violet"] {
+.dark [data-tremor-badge][data-color='violet'] {
   background: rgba(139, 92, 246, 0.15);
   color: #8b5cf6;
 }
@@ -206,8 +214,14 @@ code, pre, .mono {
 
 /* Animation */
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .animate-fade-in {
@@ -216,7 +230,9 @@ code, pre, .mono {
 
 /* Loading Spinner */
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .animate-spin {

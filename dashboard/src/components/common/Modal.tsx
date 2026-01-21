@@ -17,10 +17,7 @@ export function Modal({ isOpen, onClose, title, children, size = 'md', footer }:
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div
-        className={cn('modal-content', `modal-${size}`)}
-        onClick={(e) => e.stopPropagation()}
-      >
+      <div className={cn('modal-content', `modal-${size}`)} onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h3 className="modal-title">{title}</h3>
           <button className="modal-close" onClick={onClose}>

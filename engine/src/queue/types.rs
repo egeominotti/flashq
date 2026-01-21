@@ -449,6 +449,47 @@ impl Shard {
     pub fn get_state(&mut self, queue: &CompactString) -> &mut QueueState {
         self.queue_state.entry(queue.clone()).or_default()
     }
+
+    /// Remove a unique key from the queue's unique_keys set.
+    #[inline]
+    pub fn remove_unique_key(&mut self, queue: &CompactString, key: Option<&String>) {
+        if let Some(k) = key {
+            if let Some(keys) = self.unique_keys.get_mut(queue) {
+                keys.remove(k);
+            }
+        }
+    }
+
+    /// Release a group from active_groups for the queue.
+    #[inline]
+    pub fn release_group(&mut self, queue: &CompactString, group_id: Option<&String>) {
+        if let Some(gid) = group_id {
+            if let Some(groups) = self.active_groups.get_mut(queue) {
+                groups.remove(gid);
+            }
+        }
+    }
+
+    /// Release concurrency slot for a queue.
+    #[inline]
+    pub fn release_concurrency(&mut self, queue: &CompactString) {
+        if let Some(ref mut conc) = self.get_state(queue).concurrency {
+            conc.release();
+        }
+    }
+
+    /// Release all resources for a completed/failed job (concurrency, group, unique_key).
+    #[inline]
+    pub fn release_job_resources(
+        &mut self,
+        queue: &CompactString,
+        unique_key: Option<&String>,
+        group_id: Option<&String>,
+    ) {
+        self.release_concurrency(queue);
+        self.release_group(queue, group_id);
+        self.remove_unique_key(queue, unique_key);
+    }
 }
 
 impl Default for Shard {

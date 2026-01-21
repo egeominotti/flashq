@@ -53,6 +53,7 @@ impl QueueManager {
                     self.cleanup_stale_index_entries();
                     self.cleanup_debounce_cache();
                     self.cleanup_expired_kv();
+                    self.cleanup_completed_retention();
                     cleanup_interned_strings();
                 }
                 _ = metrics_ticker.tick() => {
@@ -232,6 +233,18 @@ impl QueueManager {
                 results.remove(&id);
             }
         }
+    }
+
+    /// Cleanup expired entries from completed_retention map.
+    /// Removes entries older than their keep_completed_age.
+    pub(crate) fn cleanup_completed_retention(&self) {
+        let now = now_ms();
+        let mut retention = self.completed_retention.write();
+
+        retention.retain(|_job_id, (created_at, keep_age, _result)| {
+            // Keep if age limit is 0 (no expiry) or not expired yet
+            *keep_age == 0 || now - *created_at < *keep_age
+        });
     }
 
     pub(crate) fn cleanup_stale_index_entries(&self) {

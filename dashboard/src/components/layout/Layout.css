@@ -1,7 +1,77 @@
 .app-layout {
   display: flex;
   min-height: 100vh;
-  background: #09090b;
+  background: var(--bg-primary, #09090b);
+}
+
+/* Light theme */
+.app-layout.light {
+  --bg-primary: #fafafa;
+  --bg-secondary: #ffffff;
+  --bg-tertiary: #f4f4f5;
+  --text-primary: #18181b;
+  --text-secondary: #52525b;
+  --text-muted: #a1a1aa;
+  --border-color: rgba(0, 0, 0, 0.1);
+  --sidebar-bg: linear-gradient(180deg, #ffffff 0%, #f4f4f5 100%);
+}
+
+/* Dark theme */
+.app-layout.dark {
+  --bg-primary: #09090b;
+  --bg-secondary: #18181b;
+  --bg-tertiary: #27272a;
+  --text-primary: #fafafa;
+  --text-secondary: #a1a1aa;
+  --text-muted: #52525b;
+  --border-color: rgba(255, 255, 255, 0.06);
+  --sidebar-bg: linear-gradient(180deg, #0f0f11 0%, #0a0a0c 100%);
+}
+
+/* Mobile Header */
+.mobile-header {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 56px;
+  background: var(--bg-secondary, #18181b);
+  border-bottom: 1px solid var(--border-color);
+  padding: 0 16px;
+  align-items: center;
+  justify-content: space-between;
+  z-index: 80;
+}
+
+.mobile-menu-btn,
+.mobile-search-btn {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+
+.mobile-menu-btn:hover,
+.mobile-search-btn:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-primary);
+}
+
+.mobile-title {
+  font-size: 1.125rem;
+  font-weight: 700;
+  background: linear-gradient(135deg, #00d4ff 0%, #0099cc 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 .main-content {
@@ -9,4 +79,28 @@
   margin-left: 260px;
   min-height: 100vh;
   overflow-x: hidden;
+  background: var(--bg-primary);
+}
+
+.page-content {
+  min-height: 100vh;
+}
+
+/* Mobile Responsive */
+@media (max-width: 1023px) {
+  .mobile-header {
+    display: flex;
+  }
+
+  .main-content {
+    margin-left: 0;
+    padding-top: 56px;
+  }
+}
+
+/* Small devices */
+@media (max-width: 640px) {
+  .main-content {
+    padding: 0;
+  }
 }

@@ -13,6 +13,16 @@ use crate::queue::QueueManager;
 
 use super::connection::ConnectionState;
 
+/// Helper macro for commands that return Ok(()) or Err(e).
+macro_rules! ok_or_error {
+    ($result:expr) => {
+        match $result {
+            Ok(()) => Response::ok(),
+            Err(e) => Response::error(e),
+        }
+    };
+}
+
 /// Process command from binary (MessagePack) input
 #[inline(always)]
 pub async fn process_command_binary(
@@ -222,18 +232,12 @@ async fn process_command(
         },
 
         // === Job Management Commands ===
-        Command::Cancel { id } => match queue_manager.cancel(id).await {
-            Ok(()) => Response::ok(),
-            Err(e) => Response::error(e),
-        },
+        Command::Cancel { id } => ok_or_error!(queue_manager.cancel(id).await),
         Command::Progress {
             id,
             progress,
             message,
-        } => match queue_manager.update_progress(id, progress, message).await {
-            Ok(()) => Response::ok(),
-            Err(e) => Response::error(e),
-        },
+        } => ok_or_error!(queue_manager.update_progress(id, progress, message).await),
         Command::GetProgress { id } => match queue_manager.get_progress(id).await {
             Ok((progress, message)) => Response::progress(id, progress, message),
             Err(e) => Response::error(e),
@@ -281,15 +285,11 @@ async fn process_command(
             repeat_every,
             priority,
             limit,
-        } => {
-            match queue_manager
+        } => ok_or_error!(
+            queue_manager
                 .add_cron_with_repeat(name, queue, data, schedule, repeat_every, priority, limit)
                 .await
-            {
-                Ok(()) => Response::ok(),
-                Err(e) => Response::error(e),
-            }
-        }
+        ),
         Command::CronDelete { name } => {
             if queue_manager.delete_cron(&name).await {
                 Response::ok()
@@ -335,22 +335,14 @@ async fn process_command(
         }
 
         // === Job Logs ===
-        Command::Log { id, message, level } => {
-            match queue_manager.add_job_log(id, message, level) {
-                Ok(()) => Response::ok(),
-                Err(e) => Response::error(e),
-            }
-        }
+        Command::Log { id, message, level } => ok_or_error!(queue_manager.add_job_log(id, message, level)),
         Command::GetLogs { id } => {
             let logs = queue_manager.get_job_logs(id);
             Response::logs(id, logs)
         }
 
         // === Stalled Jobs ===
-        Command::Heartbeat { id } => match queue_manager.heartbeat(id) {
-            Ok(()) => Response::ok(),
-            Err(e) => Response::error(e),
-        },
+        Command::Heartbeat { id } => ok_or_error!(queue_manager.heartbeat(id)),
 
         // === Flows (Parent-Child) ===
         Command::Flow {
@@ -381,17 +373,7 @@ async fn process_command(
             limit,
             offset,
         } => {
-            let state_filter = state.and_then(|s| match s.to_lowercase().as_str() {
-                "waiting" => Some(JobState::Waiting),
-                "delayed" => Some(JobState::Delayed),
-                "active" => Some(JobState::Active),
-                "completed" => Some(JobState::Completed),
-                "failed" => Some(JobState::Failed),
-                "waiting-children" => Some(JobState::WaitingChildren),
-                "waiting-parent" => Some(JobState::WaitingParent),
-                "stalled" => Some(JobState::Stalled),
-                _ => None,
-            });
+            let state_filter = state.as_deref().and_then(JobState::from_str);
             let (jobs, total) = queue_manager.get_jobs(
                 queue.as_deref(),
                 state_filter,
@@ -429,29 +411,14 @@ async fn process_command(
             Response::count(count)
         }
         Command::ChangePriority { id, priority } => {
-            match queue_manager.change_priority(id, priority).await {
-                Ok(()) => Response::ok(),
-                Err(e) => Response::error(e),
-            }
+            ok_or_error!(queue_manager.change_priority(id, priority).await)
         }
         Command::MoveToDelayed { id, delay } => {
-            match queue_manager.move_to_delayed(id, delay).await {
-                Ok(()) => Response::ok(),
-                Err(e) => Response::error(e),
-            }
+            ok_or_error!(queue_manager.move_to_delayed(id, delay).await)
         }
-        Command::Promote { id } => match queue_manager.promote(id).await {
-            Ok(()) => Response::ok(),
-            Err(e) => Response::error(e),
-        },
-        Command::UpdateJob { id, data } => match queue_manager.update_job_data(id, data).await {
-            Ok(()) => Response::ok(),
-            Err(e) => Response::error(e),
-        },
-        Command::Discard { id } => match queue_manager.discard(id).await {
-            Ok(()) => Response::ok(),
-            Err(e) => Response::error(e),
-        },
+        Command::Promote { id } => ok_or_error!(queue_manager.promote(id).await),
+        Command::UpdateJob { id, data } => ok_or_error!(queue_manager.update_job_data(id, data).await),
+        Command::Discard { id } => ok_or_error!(queue_manager.discard(id).await),
         Command::IsPaused { queue } => {
             let paused = queue_manager.is_paused(&queue);
             Response::paused(paused)
@@ -470,10 +437,7 @@ async fn process_command(
         Command::Auth { .. } => Response::ok(),
 
         // === Key-Value Storage Commands ===
-        Command::KvSet { key, value, ttl } => match queue_manager.kv_set(key, value, ttl) {
-            Ok(()) => Response::ok(),
-            Err(e) => Response::error(e),
-        },
+        Command::KvSet { key, value, ttl } => ok_or_error!(queue_manager.kv_set(key, value, ttl)),
         Command::KvGet { key } => {
             let value = queue_manager.kv_get(&key);
             Response::kv_value(value)
@@ -515,7 +479,7 @@ async fn process_command(
         Command::KvIncr { key, by } => match queue_manager.kv_incr(&key, by) {
             Ok(value) => Response::kv_incr(value),
             Err(e) => Response::error(e),
-        },
+        }
 
         // === Pub/Sub Commands ===
         Command::Pub { channel, message } => {

@@ -40,36 +40,48 @@ impl QueueManager {
 
         // Check debounce - prevent duplicate jobs within time window
         // OPTIMIZATION: Uses nested CompactString map to avoid String allocation
+        // FIX: Use write lock and insert atomically to prevent race condition
         if let Some(ref id) = input.debounce_id {
             let now = now_ms();
             let queue_key = intern(&queue);
             let id_key = intern(id);
-            let debounce_cache = self.debounce_cache.read();
-            if let Some(queue_map) = debounce_cache.get(&queue_key) {
-                if let Some(&expiry) = queue_map.get(&id_key) {
-                    if now < expiry {
-                        return Err(format!(
-                            "Debounced: job with id '{}' was pushed recently",
-                            id
-                        ));
-                    }
+            let ttl = input.debounce_ttl.unwrap_or(5000);
+            let expiry = now + ttl;
+
+            let mut debounce_cache = self.debounce_cache.write();
+            let queue_map = debounce_cache.entry(queue_key).or_default();
+
+            // Check and insert atomically
+            if let Some(&existing_expiry) = queue_map.get(&id_key) {
+                if now < existing_expiry {
+                    return Err(format!(
+                        "Debounced: job with id '{}' was pushed recently",
+                        id
+                    ));
                 }
             }
+            // Insert/update the debounce entry immediately (atomic with check)
+            queue_map.insert(id_key, expiry);
         }
 
-        // Check custom job ID for idempotency
+        // Get cluster-wide unique ID from PostgreSQL sequence
+        // NOTE: Generated BEFORE custom_id check to enable atomic check+insert
+        let internal_id = self.next_job_id().await;
+
+        // Check custom job ID for idempotency - atomic check+insert to prevent race condition
         if let Some(ref custom_id) = input.job_id {
-            let custom_id_map = self.custom_id_map.read();
+            let mut custom_id_map = self.custom_id_map.write();
             if let Some(&existing_id) = custom_id_map.get(custom_id) {
                 // Return the existing job instead of creating a duplicate
                 if let Some(job) = self.get_job_by_internal_id(existing_id) {
                     return Ok(job);
                 }
+                // Existing ID points to non-existent job (stale entry), remove it
+                custom_id_map.remove(custom_id);
             }
+            // Insert atomically with check to prevent race condition
+            custom_id_map.insert(custom_id.clone(), internal_id);
         }
-
-        // Get cluster-wide unique ID from PostgreSQL sequence
-        let internal_id = self.next_job_id().await;
 
         let job = self.create_job_from_input(internal_id, queue.clone(), input.clone());
 
@@ -86,6 +98,10 @@ impl QueueManager {
             if let Some(ref key) = input.unique_key {
                 let keys = shard.unique_keys.entry(queue_name.clone()).or_default();
                 if keys.contains(key) {
+                    // Rollback custom_id if it was inserted
+                    if let Some(ref custom_id) = input.job_id {
+                        self.custom_id_map.write().remove(custom_id);
+                    }
                     return Err(format!("Duplicate job with key: {}", key));
                 }
                 keys.insert(key.clone());
@@ -121,10 +137,13 @@ impl QueueManager {
             // Use sync persistence if enabled for durability guarantee
             if self.is_sync_persistence() {
                 if let Err(e) = self.persist_push_sync(&job, "waiting_children").await {
-                    // Rollback: remove from waiting_deps and index
+                    // Rollback: remove from waiting_deps, index, and custom_id
                     let mut shard = self.shards[idx].write();
                     shard.waiting_deps.remove(&job.id);
                     self.unindex_job(job.id);
+                    if let Some(ref custom_id) = input.job_id {
+                        self.custom_id_map.write().remove(custom_id);
+                    }
                     return Err(e);
                 }
             } else {
@@ -136,13 +155,16 @@ impl QueueManager {
         // Persist to PostgreSQL - use sync mode if enabled
         if self.is_sync_persistence() {
             if let Err(e) = self.persist_push_sync(&job, "waiting").await {
-                // Rollback: remove from queue and index
+                // Rollback: remove from queue, index, and custom_id
                 let rollback_queue = intern(&queue);
                 let mut shard = self.shards[idx].write();
                 if let Some(heap) = shard.queues.get_mut(&rollback_queue) {
                     heap.retain(|j| j.id != job.id);
                 }
                 self.unindex_job(job.id);
+                if let Some(ref custom_id) = input.job_id {
+                    self.custom_id_map.write().remove(custom_id);
+                }
                 return Err(e);
             }
         } else {
@@ -152,24 +174,7 @@ impl QueueManager {
         self.metrics.record_push(1);
         self.notify_shard(idx);
 
-        // Update debounce cache
-        // OPTIMIZATION: Uses nested CompactString map to avoid String allocation
-        if let Some(ref id) = input.debounce_id {
-            let queue_key = intern(&queue);
-            let id_key = intern(id);
-            let ttl = input.debounce_ttl.unwrap_or(5000); // Default 5 seconds
-            let expiry = now_ms() + ttl;
-            self.debounce_cache
-                .write()
-                .entry(queue_key)
-                .or_default()
-                .insert(id_key, expiry);
-        }
-
-        // Store custom ID mapping for idempotency
-        if let Some(ref custom_id) = input.job_id {
-            self.custom_id_map.write().insert(custom_id.clone(), job.id);
-        }
+        // Note: debounce cache and custom_id are updated atomically at the start of push()
 
         // OPTIMIZATION: Only allocate JobEvent if there are listeners
         if self.has_event_listeners() {
@@ -198,29 +203,32 @@ impl QueueManager {
             return Vec::new();
         }
 
-        // Filter valid jobs and check debounce
-        // OPTIMIZATION: Uses nested CompactString map to avoid String allocation
+        // Filter valid jobs and check debounce atomically
+        // FIX: Use write lock and insert atomically to prevent race condition
         let now = now_ms();
         let queue_key = intern(&queue);
         let valid_jobs: Vec<_> = {
-            let debounce_cache = self.debounce_cache.read();
-            let queue_debounce = debounce_cache.get(&queue_key);
+            let mut debounce_cache = self.debounce_cache.write();
+            let queue_debounce = debounce_cache.entry(queue_key.clone()).or_default();
             jobs.into_iter()
                 .filter(|input| {
                     // Check data validity
                     if validate_job_data(&input.data).is_err() {
                         return false;
                     }
-                    // Check debounce
+                    // Check debounce and insert atomically
                     if let Some(ref id) = input.debounce_id {
-                        if let Some(queue_map) = queue_debounce {
-                            let id_key = intern(id);
-                            if let Some(&expiry) = queue_map.get(&id_key) {
-                                if now < expiry {
-                                    return false; // Debounced
-                                }
+                        let id_key = intern(id);
+                        let ttl = input.debounce_ttl.unwrap_or(5000);
+                        let expiry = now + ttl;
+
+                        if let Some(&existing_expiry) = queue_debounce.get(&id_key) {
+                            if now < existing_expiry {
+                                return false; // Debounced
                             }
                         }
+                        // Insert/update atomically with check
+                        queue_debounce.insert(id_key, expiry);
                     }
                     true
                 })
@@ -237,22 +245,15 @@ impl QueueManager {
         let mut ids = Vec::with_capacity(valid_jobs.len());
         let mut created_jobs = Vec::with_capacity(valid_jobs.len());
         let mut waiting_jobs = Vec::new();
-        // OPTIMIZATION: Use CompactString for debounce updates to avoid String allocation
-        let mut debounce_updates: Vec<(compact_str::CompactString, u64)> = Vec::new();
 
         let idx = Self::shard_index(&queue);
         let queue_name = intern(&queue);
 
         // Check dependencies without cloning the entire completed set
+        // Note: debounce cache is updated atomically during filtering above
         {
             let completed = self.completed_jobs.read();
             for (input, job_id) in valid_jobs.into_iter().zip(job_ids.into_iter()) {
-                // Track debounce updates
-                if let Some(ref id) = input.debounce_id {
-                    let id_key = intern(id);
-                    let ttl = input.debounce_ttl.unwrap_or(5000);
-                    debounce_updates.push((id_key, now + ttl));
-                }
                 let job = self.create_job_from_input(job_id, queue.clone(), input);
                 ids.push(job.id);
 
@@ -285,15 +286,7 @@ impl QueueManager {
             }
         }
 
-        // Update debounce cache
-        // OPTIMIZATION: Uses nested CompactString map
-        if !debounce_updates.is_empty() {
-            let mut cache = self.debounce_cache.write();
-            let queue_map = cache.entry(queue_key).or_default();
-            for (id_key, expiry) in debounce_updates {
-                queue_map.insert(id_key, expiry);
-            }
-        }
+        // Note: debounce cache is updated atomically during filtering above
 
         self.metrics.record_push(ids.len() as u64);
         self.notify_shard(idx);

@@ -19,7 +19,9 @@ const DEFAULT_URL = 'http://localhost:6790';
 
 function getApiUrl(): string {
   if (typeof window !== 'undefined') {
-    return localStorage.getItem(STORAGE_KEY_URL) || import.meta.env.VITE_FLASHQ_API_URL || DEFAULT_URL;
+    return (
+      localStorage.getItem(STORAGE_KEY_URL) || import.meta.env.VITE_FLASHQ_API_URL || DEFAULT_URL
+    );
   }
   return DEFAULT_URL;
 }
@@ -50,10 +52,7 @@ export function getConnectionConfig(): { url: string; token: string } {
 // HTTP Helpers
 // ============================================================================
 
-async function fetchApi<T>(
-  endpoint: string,
-  options: RequestInit = {}
-): Promise<T | null> {
+async function fetchApi<T>(endpoint: string, options: RequestInit = {}): Promise<T | null> {
   const apiUrl = getApiUrl();
   const authToken = getAuthToken();
 
@@ -77,10 +76,7 @@ async function fetchApi<T>(
   }
 }
 
-async function postApi<T>(
-  endpoint: string,
-  body?: unknown
-): Promise<ApiResponse<T>> {
+async function postApi<T>(endpoint: string, body?: unknown): Promise<ApiResponse<T>> {
   const apiUrl = getApiUrl();
   const authToken = getAuthToken();
 
@@ -185,26 +181,23 @@ export const fetchSystemMetrics = () => fetchApi<SystemMetrics>('/system/metrics
 
 export const fetchQueues = () => fetchApi<Queue[]>('/queues');
 
-export const pauseQueue = (name: string) =>
-  postApi(`/queues/${encodeURIComponent(name)}/pause`);
+export const pauseQueue = (name: string) => postApi(`/queues/${encodeURIComponent(name)}/pause`);
 
-export const resumeQueue = (name: string) =>
-  postApi(`/queues/${encodeURIComponent(name)}/resume`);
+export const resumeQueue = (name: string) => postApi(`/queues/${encodeURIComponent(name)}/resume`);
 
-export const drainQueue = (name: string) =>
-  postApi(`/queues/${encodeURIComponent(name)}/drain`);
+export const drainQueue = (name: string) => postApi(`/queues/${encodeURIComponent(name)}/drain`);
 
 export const obliterateQueue = (name: string) =>
   deleteApi(`/queues/${encodeURIComponent(name)}/obliterate`);
 
-export const cleanQueue = (name: string, params: { grace?: number; limit?: number; state?: string }) =>
-  postApi(`/queues/${encodeURIComponent(name)}/clean`, params);
+export const cleanQueue = (
+  name: string,
+  params: { grace?: number; limit?: number; state?: string }
+) => postApi(`/queues/${encodeURIComponent(name)}/clean`, params);
 
-export const getDlq = (name: string) =>
-  fetchApi<Job[]>(`/queues/${encodeURIComponent(name)}/dlq`);
+export const getDlq = (name: string) => fetchApi<Job[]>(`/queues/${encodeURIComponent(name)}/dlq`);
 
-export const retryDlq = (name: string) =>
-  postApi(`/queues/${encodeURIComponent(name)}/dlq/retry`);
+export const retryDlq = (name: string) => postApi(`/queues/${encodeURIComponent(name)}/dlq/retry`);
 
 export const setRateLimit = (name: string, limit: number) =>
   postApi(`/queues/${encodeURIComponent(name)}/rate-limit`, { limit });
@@ -268,11 +261,9 @@ export const fetchJob = (id: number) => fetchApi<Job>(`/jobs/${id}`);
 
 export const cancelJob = (id: number) => postApi(`/jobs/${id}/cancel`);
 
-export const ackJob = (id: number, result?: unknown) =>
-  postApi(`/jobs/${id}/ack`, { result });
+export const ackJob = (id: number, result?: unknown) => postApi(`/jobs/${id}/ack`, { result });
 
-export const failJob = (id: number, error?: string) =>
-  postApi(`/jobs/${id}/fail`, { error });
+export const failJob = (id: number, error?: string) => postApi(`/jobs/${id}/fail`, { error });
 
 export const updateProgress = (id: number, progress: number, message?: string) =>
   postApi(`/jobs/${id}/progress`, { progress, message });
@@ -280,8 +271,7 @@ export const updateProgress = (id: number, progress: number, message?: string) =
 export const getProgress = (id: number) =>
   fetchApi<{ progress: number; message?: string }>(`/jobs/${id}/progress`);
 
-export const getResult = (id: number) =>
-  fetchApi<unknown>(`/jobs/${id}/result`);
+export const getResult = (id: number) => fetchApi<unknown>(`/jobs/${id}/result`);
 
 export const changePriority = (id: number, priority: number) =>
   postApi(`/jobs/${id}/priority`, { priority });
@@ -289,14 +279,12 @@ export const changePriority = (id: number, priority: number) =>
 export const moveToDelayed = (id: number, delay: number) =>
   postApi(`/jobs/${id}/move-to-delayed`, { delay });
 
-export const promoteJob = (id: number) =>
-  postApi(`/jobs/${id}/promote`);
+export const promoteJob = (id: number) => postApi(`/jobs/${id}/promote`);
 
-export const discardJob = (id: number) =>
-  postApi(`/jobs/${id}/discard`);
+export const discardJob = (id: number) => postApi(`/jobs/${id}/discard`);
 
-export const retryJob = (queueName: string, jobId: string) =>
-  postApi(`/queues/${encodeURIComponent(queueName)}/jobs/${jobId}/retry`);
+export const retryJob = (queueName: string, jobId: number) =>
+  postApi(`/queues/${encodeURIComponent(queueName)}/dlq/retry`, { job_id: jobId });
 
 // ============================================================================
 // Cron Jobs
@@ -304,16 +292,18 @@ export const retryJob = (queueName: string, jobId: string) =>
 
 export const fetchCrons = () => fetchApi<CronJob[]>('/crons');
 
-export const createCron = (name: string, params: {
-  queue: string;
-  schedule: string;
-  data?: unknown;
-  priority?: number;
-  enabled?: boolean;
-}) => postApi(`/crons/${encodeURIComponent(name)}`, params);
+export const createCron = (
+  name: string,
+  params: {
+    queue: string;
+    schedule: string;
+    data?: unknown;
+    priority?: number;
+    enabled?: boolean;
+  }
+) => postApi(`/crons/${encodeURIComponent(name)}`, params);
 
-export const deleteCron = (name: string) =>
-  deleteApi(`/crons/${encodeURIComponent(name)}`);
+export const deleteCron = (name: string) => deleteApi(`/crons/${encodeURIComponent(name)}`);
 
 // ============================================================================
 // Workers
@@ -321,8 +311,10 @@ export const deleteCron = (name: string) =>
 
 export const fetchWorkers = () => fetchApi<Worker[]>('/workers');
 
-export const workerHeartbeat = (id: string, data?: { jobs_processed?: number; current_job?: number }) =>
-  postApi(`/workers/${encodeURIComponent(id)}/heartbeat`, data);
+export const workerHeartbeat = (
+  id: string,
+  data?: { jobs_processed?: number; current_job?: number }
+) => postApi(`/workers/${encodeURIComponent(id)}/heartbeat`, data);
 
 // ============================================================================
 // Webhooks
@@ -347,8 +339,7 @@ export const createWebhook = (params: {
   secret?: string;
 }) => postApi<Webhook>('/webhooks', params);
 
-export const deleteWebhook = (id: string) =>
-  deleteApi(`/webhooks/${encodeURIComponent(id)}`);
+export const deleteWebhook = (id: string) => deleteApi(`/webhooks/${encodeURIComponent(id)}`);
 
 // ============================================================================
 // S3 Backup
@@ -383,8 +374,10 @@ export interface S3SettingsResponse {
 }
 
 export const getS3Settings = () => fetchApi<S3SettingsResponse>('/s3/settings');
-export const saveS3Settings = (settings: S3SettingsPayload) => postApi<string>('/s3/settings', settings);
-export const testS3Connection = (settings: S3SettingsPayload) => postApi<string>('/s3/test', settings);
+export const saveS3Settings = (settings: S3SettingsPayload) =>
+  postApi<string>('/s3/settings', settings);
+export const testS3Connection = (settings: S3SettingsPayload) =>
+  postApi<string>('/s3/test', settings);
 
 // ============================================================================
 // SQLite Settings
@@ -406,7 +399,8 @@ export interface SqliteSettingsResponse {
 }
 
 export const getSqliteSettings = () => fetchApi<SqliteSettingsResponse>('/sqlite/settings');
-export const saveSqliteSettings = (settings: SqliteSettingsPayload) => postApi<string>('/sqlite/settings', settings);
+export const saveSqliteSettings = (settings: SqliteSettingsPayload) =>
+  postApi<string>('/sqlite/settings', settings);
 
 // SQLite Stats
 export interface SqliteStats {
@@ -484,8 +478,7 @@ export const restartServer = () => postApi('/server/restart');
 // Settings
 // ============================================================================
 
-export const saveAuthSettings = (tokens: string) =>
-  postApi('/settings/auth', { tokens });
+export const saveAuthSettings = (tokens: string) => postApi('/settings/auth', { tokens });
 
 export const saveQueueDefaults = (settings: {
   default_timeout?: number;

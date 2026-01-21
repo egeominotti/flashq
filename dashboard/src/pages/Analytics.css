@@ -22,61 +22,181 @@
   font-size: 1rem !important;
 }
 
-.refresh-btn {
+/* Refresh Button with Glow */
+.refresh-btn-glow {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.625rem 1rem;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
-  color: #a1a1aa;
+  padding: 0.625rem 1.25rem;
+  background: linear-gradient(135deg, rgba(6, 182, 212, 0.15) 0%, rgba(6, 182, 212, 0.05) 100%);
+  border: 1px solid rgba(6, 182, 212, 0.3);
+  border-radius: 10px;
+  color: #06b6d4;
   font-size: 0.875rem;
   font-weight: 500;
   cursor: pointer;
-  transition: all 150ms ease;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
 }
 
-.refresh-btn:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: #fafafa;
+.refresh-btn-glow::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(6, 182, 212, 0.2),
+    transparent
+  );
+  transition: left 0.5s ease;
 }
 
-/* Metric Cards */
-.metric-card {
-  background: rgba(255, 255, 255, 0.02) !important;
-  border: 1px solid rgba(255, 255, 255, 0.06) !important;
-  border-radius: 12px !important;
+.refresh-btn-glow:hover {
+  background: linear-gradient(135deg, rgba(6, 182, 212, 0.25) 0%, rgba(6, 182, 212, 0.1) 100%);
+  border-color: rgba(6, 182, 212, 0.5);
+  box-shadow: 0 0 20px rgba(6, 182, 212, 0.3);
+  transform: translateY(-1px);
 }
 
-.metric-icon {
-  padding: 0.625rem;
-  border-radius: 10px;
+.refresh-btn-glow:hover::before {
+  left: 100%;
 }
 
-.metric-icon.cyan {
-  background: rgba(0, 212, 255, 0.15);
-  color: #00d4ff;
+.refresh-btn-glow:active {
+  transform: translateY(0);
 }
 
-.metric-icon.blue {
-  background: rgba(59, 130, 246, 0.15);
-  color: #3b82f6;
+/* Chart Card Styles */
+.chart-glow-card {
+  min-height: 400px;
 }
 
-.metric-icon.emerald {
-  background: rgba(16, 185, 129, 0.15);
-  color: #10b981;
+.chart-glow-card .glow-card-content {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
-.metric-icon.violet {
-  background: rgba(139, 92, 246, 0.15);
-  color: #8b5cf6;
+.chart-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 1.5rem;
 }
 
-/* Chart Cards */
-.chart-card {
-  background: rgba(255, 255, 255, 0.02) !important;
-  border: 1px solid rgba(255, 255, 255, 0.06) !important;
-  border-radius: 12px !important;
+.chart-title {
+  font-size: 1.125rem !important;
+  font-weight: 600 !important;
+  color: #fafafa !important;
+  margin-bottom: 0.25rem !important;
+}
+
+.chart-subtitle {
+  color: #71717a !important;
+  font-size: 0.875rem !important;
+}
+
+.chart-area {
+  flex: 1;
+  min-height: 280px;
+}
+
+/* Live Indicator Dots */
+.live-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  background: #06b6d4;
+  border-radius: 50%;
+  margin-right: 6px;
+  animation: live-pulse 2s ease-in-out infinite;
+  box-shadow: 0 0 8px rgba(6, 182, 212, 0.6);
+}
+
+.live-dot-blue {
+  background: #3b82f6;
+  box-shadow: 0 0 8px rgba(59, 130, 246, 0.6);
+}
+
+.live-dot-emerald {
+  background: #10b981;
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.6);
+}
+
+@keyframes live-pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(0.8);
+  }
+}
+
+/* Tremor Chart Overrides for Dark Theme */
+.analytics-page [data-tremor-element="AreaChart"],
+.analytics-page [data-tremor-element="LineChart"],
+.analytics-page [data-tremor-element="BarChart"] {
+  --tremor-content-subtle: rgba(255, 255, 255, 0.3);
+  --tremor-border-default: rgba(255, 255, 255, 0.1);
+}
+
+/* Make chart backgrounds transparent */
+.analytics-page .recharts-wrapper {
+  background: transparent !important;
+}
+
+.analytics-page .recharts-surface {
+  background: transparent !important;
+}
+
+/* Glow effect on chart areas */
+.analytics-page .recharts-area-area {
+  filter: drop-shadow(0 0 8px currentColor);
+}
+
+.analytics-page .recharts-line-line {
+  filter: drop-shadow(0 0 6px currentColor);
+}
+
+/* Tooltip styling */
+.analytics-page .recharts-tooltip-wrapper {
+  filter: drop-shadow(0 4px 20px rgba(0, 0, 0, 0.5));
+}
+
+/* Remove default grid lines */
+.analytics-page .recharts-cartesian-grid-horizontal line,
+.analytics-page .recharts-cartesian-grid-vertical line {
+  stroke: rgba(255, 255, 255, 0.05);
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+  .analytics-page {
+    padding: 1rem;
+  }
+
+  .page-header {
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .refresh-btn-glow {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .chart-glow-card {
+    min-height: 320px;
+  }
+
+  .chart-area {
+    min-height: 200px;
+  }
 }

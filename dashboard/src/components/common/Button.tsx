@@ -23,13 +23,7 @@ export function Button({
 }: ButtonProps) {
   return (
     <button
-      className={cn(
-        'btn',
-        `btn-${variant}`,
-        `btn-${size}`,
-        disabled && 'btn-disabled',
-        className
-      )}
+      className={cn('btn', `btn-${variant}`, `btn-${size}`, disabled && 'btn-disabled', className)}
       disabled={disabled}
       {...props}
     >

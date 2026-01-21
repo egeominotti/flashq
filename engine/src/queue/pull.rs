@@ -164,6 +164,7 @@ impl QueueManager {
                     let mut jobs = Vec::new();
                     let mut slots_acquired = 0usize;
 
+                    // Acquire concurrency slots
                     if has_concurrency {
                         let state = shard.get_state(&queue_arc);
                         if let Some(ref mut conc) = state.concurrency {
@@ -239,6 +240,7 @@ impl QueueManager {
                             }
                         }
 
+                        // Release unused concurrency slots
                         if has_concurrency && jobs.len() < slots_acquired {
                             let state = shard.get_state(&queue_arc);
                             if let Some(ref mut conc) = state.concurrency {

@@ -10,7 +10,7 @@ export function useJobs(queue?: string, state?: string, limit?: number, offset?:
         queue: queue || undefined,
         state: state || undefined,
         limit,
-        offset
+        offset,
       });
       // Wrap in response object if array
       if (Array.isArray(jobs)) {
