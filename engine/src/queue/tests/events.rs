@@ -10,32 +10,7 @@ async fn test_subscribe_events() {
     let mut rx = qm.subscribe_events(None);
 
     // Push a job (should trigger event)
-    let job = qm
-        .push(
-            "test".to_string(),
-            json!({}),
-            0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None, // group_id
-        )
-        .await
-        .unwrap();
+    let j = qm.push("test".to_string(), job(json!({}))).await.unwrap();
 
     // Try to receive the event
     tokio::select! {
@@ -43,7 +18,7 @@ async fn test_subscribe_events() {
             let event = result.unwrap();
             assert_eq!(event.event_type, "pushed");
             assert_eq!(event.queue, "test");
-            assert_eq!(event.job_id, job.id);
+            assert_eq!(event.job_id, j.id);
         }
         _ = tokio::time::sleep(tokio::time::Duration::from_millis(100)) => {
             // Event was broadcast (may have been missed if receiver wasn't ready)
@@ -56,32 +31,7 @@ async fn test_subscribe_events() {
 async fn test_broadcast_event_on_ack() {
     let qm = setup();
 
-    let job = qm
-        .push(
-            "test".to_string(),
-            json!({}),
-            0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None, // group_id
-        )
-        .await
-        .unwrap();
+    let j = qm.push("test".to_string(), job(json!({}))).await.unwrap();
 
     // Subscribe after pushing (will miss push event)
     let mut rx = qm.subscribe_events(None);
@@ -95,7 +45,7 @@ async fn test_broadcast_event_on_ack() {
         result = rx.recv() => {
             let event = result.unwrap();
             assert_eq!(event.event_type, "completed");
-            assert_eq!(event.job_id, job.id);
+            assert_eq!(event.job_id, j.id);
         }
         _ = tokio::time::sleep(tokio::time::Duration::from_millis(100)) => {
             // Event broadcast happened
@@ -107,29 +57,14 @@ async fn test_broadcast_event_on_ack() {
 async fn test_broadcast_event_on_fail() {
     let qm = setup();
 
-    let job = qm
+    let j = qm
         .push(
             "test".to_string(),
-            json!({}),
-            0,
-            None,
-            None,
-            None,
-            Some(1),
-            None,
-            None,
-            None,
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None, // group_id
+            JobInput {
+                data: json!({}),
+                max_attempts: Some(1),
+                ..Default::default()
+            },
         )
         .await
         .unwrap();
@@ -147,7 +82,7 @@ async fn test_broadcast_event_on_fail() {
         result = rx.recv() => {
             let event = result.unwrap();
             assert_eq!(event.event_type, "failed");
-            assert_eq!(event.job_id, job.id);
+            assert_eq!(event.job_id, j.id);
             assert_eq!(event.error, Some("test error".to_string()));
         }
         _ = tokio::time::sleep(tokio::time::Duration::from_millis(100)) => {

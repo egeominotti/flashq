@@ -10,31 +10,7 @@ async fn test_paused_queue_pull_returns_empty() {
     let qm = setup();
 
     // Push a job
-    qm.push(
-        "test".to_string(),
-        json!({}),
-        0,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        false,
-        false,
-        false,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None, // group_id
-    )
-    .await
-    .unwrap();
+    qm.push("test".to_string(), job(json!({}))).await.unwrap();
 
     // Pause the queue
     qm.pause("test").await;
@@ -47,8 +23,8 @@ async fn test_paused_queue_pull_returns_empty() {
 
     // Resume and verify we can pull
     qm.resume("test").await;
-    let job = qm.pull("test").await;
-    assert!(job.id > 0);
+    let j = qm.pull("test").await;
+    assert!(j.id > 0);
 }
 
 #[tokio::test]
@@ -57,31 +33,9 @@ async fn test_paused_queue_pull_batch_blocks() {
 
     // Push jobs
     for i in 0..5 {
-        qm.push(
-            "test".to_string(),
-            json!({"i": i}),
-            0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None, // group_id
-        )
-        .await
-        .unwrap();
+        qm.push("test".to_string(), job(json!({"i": i})))
+            .await
+            .unwrap();
     }
 
     // Pause the queue
@@ -107,39 +61,14 @@ async fn test_paused_queue_pull_batch_blocks() {
 async fn test_get_result_after_ack() {
     let qm = setup();
 
-    let job = qm
-        .push(
-            "test".to_string(),
-            json!({}),
-            0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None, // group_id
-        )
-        .await
-        .unwrap();
+    let j = qm.push("test".to_string(), job(json!({}))).await.unwrap();
 
     let pulled = qm.pull("test").await;
     qm.ack(pulled.id, Some(json!({"output": "success"})))
         .await
         .unwrap();
 
-    let result = qm.get_result(job.id).await;
+    let result = qm.get_result(j.id).await;
     assert!(result.is_some());
     assert_eq!(result.unwrap()["output"], "success");
 }
@@ -266,36 +195,12 @@ async fn test_processing_count() {
     assert_eq!(qm.processing_count(), 0);
 
     // Push and pull
-    qm.push(
-        "test".to_string(),
-        json!({}),
-        0,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        false,
-        false,
-        false,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None, // group_id
-    )
-    .await
-    .unwrap();
+    qm.push("test".to_string(), job(json!({}))).await.unwrap();
 
-    let job = qm.pull("test").await;
+    let j = qm.pull("test").await;
     assert_eq!(qm.processing_count(), 1);
 
-    qm.ack(job.id, None).await.unwrap();
+    qm.ack(j.id, None).await.unwrap();
     assert_eq!(qm.processing_count(), 0);
 }
 
@@ -360,29 +265,14 @@ async fn test_next_job_ids_batch() {
 async fn test_get_job_by_custom_id() {
     let qm = setup();
 
-    let job = qm
+    let j = qm
         .push(
             "test".to_string(),
-            json!({"custom": true}),
-            0,
-            None,                                 // delay
-            None,                                 // ttl
-            None,                                 // timeout
-            None,                                 // max_attempts
-            None,                                 // backoff
-            None,                                 // unique_key
-            None,                                 // depends_on
-            None,                                 // tags
-            false,                                // lifo
-            false,                                // remove_on_complete
-            false,                                // remove_on_fail
-            None,                                 // stall_timeout
-            None,                                 // debounce_id
-            None,                                 // debounce_ttl
-            Some("my-custom-id-123".to_string()), // job_id (custom ID)
-            None,                                 // keep_completed_age
-            None,                                 // keep_completed_count
-            None,                                 // group_id
+            JobInput {
+                data: json!({"custom": true}),
+                job_id: Some("my-custom-id-123".to_string()),
+                ..Default::default()
+            },
         )
         .await
         .unwrap();
@@ -390,7 +280,7 @@ async fn test_get_job_by_custom_id() {
     let found = qm.get_job_by_custom_id("my-custom-id-123");
     assert!(found.is_some());
     let (found_job, _state) = found.unwrap();
-    assert_eq!(found_job.id, job.id);
+    assert_eq!(found_job.id, j.id);
 }
 
 #[tokio::test]
@@ -406,36 +296,11 @@ async fn test_get_job_by_custom_id_not_found() {
 async fn test_get_job_by_internal_id() {
     let qm = setup();
 
-    let job = qm
-        .push(
-            "test".to_string(),
-            json!({}),
-            0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None, // group_id
-        )
-        .await
-        .unwrap();
+    let j = qm.push("test".to_string(), job(json!({}))).await.unwrap();
 
-    let found = qm.get_job_by_internal_id(job.id);
+    let found = qm.get_job_by_internal_id(j.id);
     assert!(found.is_some());
-    assert_eq!(found.unwrap().id, job.id);
+    assert_eq!(found.unwrap().id, j.id);
 }
 
 #[tokio::test]
@@ -453,31 +318,9 @@ async fn test_collect_metrics_history_accumulates() {
 
     // Push some jobs to generate metrics
     for i in 0..3 {
-        qm.push(
-            "test".to_string(),
-            json!({"i": i}),
-            0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None, // group_id
-        )
-        .await
-        .unwrap();
+        qm.push("test".to_string(), job(json!({"i": i})))
+            .await
+            .unwrap();
     }
 
     // Collect multiple times

@@ -9,7 +9,7 @@ use crate::protocol::{Job, JobState, QueueInfo};
 
 use super::types::{
     ApiResponse, AppState, CleanRequest, ConcurrencyRequest, PullQuery, PushRequest,
-    RateLimitRequest,
+    RateLimitRequest, RetryDlqRequest,
 };
 
 /// List all queues.
@@ -24,32 +24,7 @@ pub async fn push_job(
     Path(queue): Path<String>,
     Json(req): Json<PushRequest>,
 ) -> Json<ApiResponse<Job>> {
-    match qm
-        .push(
-            queue,
-            req.data,
-            req.priority,
-            req.delay,
-            req.ttl,
-            req.timeout,
-            req.max_attempts,
-            req.backoff,
-            req.unique_key,
-            req.depends_on,
-            req.tags,
-            req.lifo,
-            req.remove_on_complete,
-            req.remove_on_fail,
-            req.stall_timeout,
-            req.debounce_id,
-            req.debounce_ttl,
-            req.job_id,
-            req.keep_completed_age,
-            req.keep_completed_count,
-            req.group_id,
-        )
-        .await
-    {
+    match qm.push(queue, req).await {
         Ok(job) => ApiResponse::success(job),
         Err(e) => ApiResponse::error(e),
     }

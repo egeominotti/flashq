@@ -335,12 +335,8 @@ impl QueueManager {
         }
 
         for (queue, data, priority) in to_run {
-            let _ = self
-                .push(
-                    queue, data, priority, None, None, None, None, None, None, None, None, false,
-                    false, false, None, None, None, None, None, None, None,
-                )
-                .await;
+            let input = crate::protocol::JobInput::new(data).with_priority(priority);
+            let _ = self.push(queue, input).await;
         }
     }
 

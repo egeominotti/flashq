@@ -8,31 +8,9 @@ async fn test_stats() {
 
     // Push some jobs
     for i in 0..5 {
-        qm.push(
-            "test".to_string(),
-            json!({"i": i}),
-            0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None, // group_id
-        )
-        .await
-        .unwrap();
+        qm.push("test".to_string(), job(json!({"i": i})))
+            .await
+            .unwrap();
     }
 
     let (queued, processing, delayed, dlq) = qm.stats().await;
@@ -55,31 +33,7 @@ async fn test_metrics() {
 
     // Push and complete some jobs
     for _ in 0..5 {
-        qm.push(
-            "test".to_string(),
-            json!({}),
-            0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None, // group_id
-        )
-        .await
-        .unwrap();
+        qm.push("test".to_string(), job(json!({}))).await.unwrap();
         let pulled = qm.pull("test").await;
         qm.ack(pulled.id, None).await.unwrap();
     }
@@ -94,81 +48,9 @@ async fn test_list_queues() {
     let qm = setup();
 
     // Push to create queues
-    qm.push(
-        "queue1".to_string(),
-        json!({}),
-        0,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        false,
-        false,
-        false,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None, // group_id
-    )
-    .await
-    .unwrap();
-    qm.push(
-        "queue2".to_string(),
-        json!({}),
-        0,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        false,
-        false,
-        false,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None, // group_id
-    )
-    .await
-    .unwrap();
-    qm.push(
-        "queue2".to_string(),
-        json!({}),
-        0,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        false,
-        false,
-        false,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None, // group_id
-    )
-    .await
-    .unwrap();
+    qm.push("queue1".to_string(), job(json!({}))).await.unwrap();
+    qm.push("queue2".to_string(), job(json!({}))).await.unwrap();
+    qm.push("queue2".to_string(), job(json!({}))).await.unwrap();
 
     let queues = qm.list_queues().await;
     assert!(queues.len() >= 2);
@@ -184,31 +66,9 @@ async fn test_metrics_throughput_calculation() {
 
     // Push jobs to trigger throughput calculation
     for _ in 0..10 {
-        qm.push(
-            "metrics-test".to_string(),
-            json!({}),
-            0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None, // group_id
-        )
-        .await
-        .unwrap();
+        qm.push("metrics-test".to_string(), job(json!({})))
+            .await
+            .unwrap();
     }
 
     let metrics = qm.get_metrics().await;

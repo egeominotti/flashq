@@ -45,13 +45,8 @@ pub async fn incoming_webhook(
     Path(queue): Path<String>,
     Json(data): Json<Value>,
 ) -> Json<ApiResponse<Job>> {
-    match qm
-        .push(
-            queue, data, 0, None, None, None, None, None, None, None, None, false, false, false,
-            None, None, None, None, None, None, None,
-        )
-        .await
-    {
+    let input = crate::protocol::JobInput::new(data);
+    match qm.push(queue, input).await {
         Ok(job) => ApiResponse::success(job),
         Err(e) => ApiResponse::error(e),
     }

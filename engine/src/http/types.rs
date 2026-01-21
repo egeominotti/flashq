@@ -10,49 +10,8 @@ use crate::queue::QueueManager;
 /// Shared application state.
 pub type AppState = Arc<QueueManager>;
 
-/// Push job request.
-#[derive(Deserialize)]
-pub struct PushRequest {
-    pub data: Value,
-    #[serde(default)]
-    pub priority: i32,
-    #[serde(default)]
-    pub delay: Option<u64>,
-    #[serde(default)]
-    pub ttl: Option<u64>,
-    #[serde(default)]
-    pub timeout: Option<u64>,
-    #[serde(default)]
-    pub max_attempts: Option<u32>,
-    #[serde(default)]
-    pub backoff: Option<u64>,
-    #[serde(default)]
-    pub unique_key: Option<String>,
-    #[serde(default)]
-    pub depends_on: Option<Vec<u64>>,
-    #[serde(default)]
-    pub tags: Option<Vec<String>>,
-    #[serde(default)]
-    pub lifo: bool,
-    #[serde(default)]
-    pub remove_on_complete: bool,
-    #[serde(default)]
-    pub remove_on_fail: bool,
-    #[serde(default)]
-    pub stall_timeout: Option<u64>,
-    #[serde(default)]
-    pub debounce_id: Option<String>,
-    #[serde(default)]
-    pub debounce_ttl: Option<u64>,
-    #[serde(default)]
-    pub job_id: Option<String>,
-    #[serde(default)]
-    pub keep_completed_age: Option<u64>,
-    #[serde(default)]
-    pub keep_completed_count: Option<usize>,
-    #[serde(default)]
-    pub group_id: Option<String>,
-}
+/// Push job request - alias for JobInput for HTTP API compatibility.
+pub type PushRequest = crate::protocol::JobInput;
 
 /// Acknowledge job request.
 #[derive(Deserialize)]
@@ -173,6 +132,14 @@ pub struct CreateWebhookRequest {
     pub queue: Option<String>,
     #[serde(default)]
     pub secret: Option<String>,
+}
+
+/// Retry DLQ request.
+#[derive(Deserialize, Default)]
+pub struct RetryDlqRequest {
+    /// Optional job ID to retry. If not provided, retries all jobs in DLQ.
+    #[serde(default)]
+    pub job_id: Option<u64>,
 }
 
 /// Generic API response wrapper.

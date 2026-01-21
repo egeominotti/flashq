@@ -9,31 +9,9 @@ async fn test_pause_resume() {
     let qm = setup();
 
     // Need to push a job first so the queue appears in list_queues
-    qm.push(
-        "test".to_string(),
-        json!({"x": 1}),
-        0,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        false,
-        false,
-        false,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None, // group_id
-    )
-    .await
-    .unwrap();
+    qm.push("test".to_string(), job(json!({"x": 1})))
+        .await
+        .unwrap();
 
     qm.pause("test").await;
 
@@ -60,31 +38,7 @@ async fn test_rate_limit() {
     qm.set_rate_limit("test".to_string(), 100).await;
 
     // Check via list_queues that rate limit is set
-    qm.push(
-        "test".to_string(),
-        json!({}),
-        0,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        false,
-        false,
-        false,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None, // group_id
-    )
-    .await
-    .unwrap();
+    qm.push("test".to_string(), job(json!({}))).await.unwrap();
 
     let queues = qm.list_queues().await;
     let test_queue = queues.iter().find(|q| q.name == "test");
@@ -108,31 +62,9 @@ async fn test_concurrency_limit() {
 
     // Push 3 jobs
     for i in 0..3 {
-        qm.push(
-            "test".to_string(),
-            json!({"i": i}),
-            0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None, // group_id
-        )
-        .await
-        .unwrap();
+        qm.push("test".to_string(), job(json!({"i": i})))
+            .await
+            .unwrap();
     }
 
     // Check via list_queues

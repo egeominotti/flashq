@@ -11,29 +11,7 @@ async fn test_concurrent_push() {
         let qm_clone = qm.clone();
         handles.push(tokio::spawn(async move {
             qm_clone
-                .push(
-                    "test".to_string(),
-                    json!({"i": i}),
-                    0,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    false,
-                    false,
-                    false,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None, // group_id
-                )
+                .push("test".to_string(), job(json!({"i": i})))
                 .await
                 .unwrap()
         }));
@@ -53,31 +31,9 @@ async fn test_concurrent_push_pull() {
 
     // Pre-populate
     for i in 0..50 {
-        qm.push(
-            "test".to_string(),
-            json!({"i": i}),
-            0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None, // group_id
-        )
-        .await
-        .unwrap();
+        qm.push("test".to_string(), job(json!({"i": i})))
+            .await
+            .unwrap();
     }
 
     let mut push_handles = vec![];
@@ -88,29 +44,7 @@ async fn test_concurrent_push_pull() {
         let qm_clone = qm.clone();
         push_handles.push(tokio::spawn(async move {
             qm_clone
-                .push(
-                    "test".to_string(),
-                    json!({"i": i}),
-                    0,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    false,
-                    false,
-                    false,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None, // group_id
-                )
+                .push("test".to_string(), job(json!({"i": i})))
                 .await
                 .unwrap()
         }));

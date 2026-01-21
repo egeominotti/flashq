@@ -11,31 +11,9 @@ async fn test_drain_removes_all_waiting_jobs() {
 
     // Push 10 jobs
     for i in 0..10 {
-        qm.push(
-            "drain-test".to_string(),
-            json!({"i": i}),
-            0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None, // group_id
-        )
-        .await
-        .unwrap();
+        qm.push("drain-test".to_string(), job(json!({"i": i})))
+            .await
+            .unwrap();
     }
 
     let (queued, _, _, _) = qm.stats().await;
@@ -56,58 +34,14 @@ async fn test_drain_does_not_affect_other_queues() {
 
     // Push jobs to two different queues
     for i in 0..5 {
-        qm.push(
-            "queue-a".to_string(),
-            json!({"i": i}),
-            0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None, // group_id
-        )
-        .await
-        .unwrap();
+        qm.push("queue-a".to_string(), job(json!({"i": i})))
+            .await
+            .unwrap();
     }
     for i in 0..3 {
-        qm.push(
-            "queue-b".to_string(),
-            json!({"i": i}),
-            0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None, // group_id
-        )
-        .await
-        .unwrap();
+        qm.push("queue-b".to_string(), job(json!({"i": i})))
+            .await
+            .unwrap();
     }
 
     // Drain only queue-a
@@ -137,26 +71,11 @@ async fn test_obliterate_removes_all_queue_data() {
     for i in 0..5 {
         qm.push(
             "obliterate-test".to_string(),
-            json!({"i": i}),
-            0,
-            None,
-            None,
-            None,
-            Some(1), // max_attempts=1 so it goes to DLQ on fail
-            None,
-            None,
-            None,
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None, // group_id
+            JobInput {
+                data: json!({"i": i}),
+                max_attempts: Some(1), // max_attempts=1 so it goes to DLQ on fail
+                ..Default::default()
+            },
         )
         .await
         .unwrap();
@@ -193,35 +112,20 @@ async fn test_clean_removes_old_failed_jobs() {
 
     // Push and fail jobs
     for i in 0..5 {
-        let job = qm
+        let j = qm
             .push(
                 "clean-test".to_string(),
-                json!({"i": i}),
-                0,
-                None,
-                None,
-                None,
-                Some(1),
-                None,
-                None,
-                None,
-                None,
-                false,
-                false,
-                false,
-                None,
-                None,
-                None,
-                None,
-                None,
-                None,
-                None, // group_id
+                JobInput {
+                    data: json!({"i": i}),
+                    max_attempts: Some(1),
+                    ..Default::default()
+                },
             )
             .await
             .unwrap();
 
         let _ = qm.pull("clean-test").await;
-        qm.fail(job.id, None).await.unwrap();
+        qm.fail(j.id, None).await.unwrap();
     }
 
     // Verify DLQ has jobs
@@ -246,55 +150,18 @@ async fn test_change_priority_waiting_job() {
     let qm = setup();
 
     let job1 = qm
-        .push(
-            "priority-test".to_string(),
-            json!({"name": "low"}),
-            0, // low priority
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None, // group_id
-        )
+        .push("priority-test".to_string(), job(json!({"name": "low"})))
         .await
         .unwrap();
 
     let job2 = qm
         .push(
             "priority-test".to_string(),
-            json!({"name": "high"}),
-            10, // high priority
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None, // group_id
+            JobInput {
+                data: json!({"name": "high"}),
+                priority: 10, // high priority
+                ..Default::default()
+            },
         )
         .await
         .unwrap();
@@ -311,26 +178,11 @@ async fn test_change_priority_waiting_job() {
     let job3 = qm
         .push(
             "priority-test".to_string(),
-            json!({"name": "medium"}),
-            50,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None, // group_id
+            JobInput {
+                data: json!({"name": "medium"}),
+                priority: 50,
+                ..Default::default()
+            },
         )
         .await
         .unwrap();
@@ -348,29 +200,14 @@ async fn test_change_priority_waiting_job() {
 async fn test_change_priority_processing_job() {
     let qm = setup();
 
-    let job = qm
+    let j = qm
         .push(
             "test".to_string(),
-            json!({}),
-            5,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None, // group_id
+            JobInput {
+                data: json!({}),
+                priority: 5,
+                ..Default::default()
+            },
         )
         .await
         .unwrap();
@@ -379,7 +216,7 @@ async fn test_change_priority_processing_job() {
     let _ = qm.pull("test").await;
 
     // Change priority while processing
-    let result = qm.change_priority(job.id, 100).await;
+    let result = qm.change_priority(j.id, 100).await;
     assert!(result.is_ok());
 }
 
@@ -397,43 +234,18 @@ async fn test_change_priority_nonexistent() {
 async fn test_move_to_delayed() {
     let qm = setup();
 
-    let job = qm
-        .push(
-            "test".to_string(),
-            json!({}),
-            0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None, // group_id
-        )
-        .await
-        .unwrap();
+    let j = qm.push("test".to_string(), job(json!({}))).await.unwrap();
 
     // Pull to start processing
     let pulled = qm.pull("test").await;
-    assert_eq!(pulled.id, job.id);
+    assert_eq!(pulled.id, j.id);
 
     // Move back to delayed
-    let result = qm.move_to_delayed(job.id, 60000).await;
+    let result = qm.move_to_delayed(j.id, 60000).await;
     assert!(result.is_ok());
 
     // Job should now be delayed
-    let state = qm.get_state(job.id);
+    let state = qm.get_state(j.id);
     assert_eq!(state, crate::protocol::JobState::Delayed);
 
     // Processing count should be 0
@@ -445,35 +257,10 @@ async fn test_move_to_delayed() {
 async fn test_move_to_delayed_not_processing() {
     let qm = setup();
 
-    let job = qm
-        .push(
-            "test".to_string(),
-            json!({}),
-            0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None, // group_id
-        )
-        .await
-        .unwrap();
+    let j = qm.push("test".to_string(), job(json!({}))).await.unwrap();
 
     // Try to move without pulling first
-    let result = qm.move_to_delayed(job.id, 60000).await;
+    let result = qm.move_to_delayed(j.id, 60000).await;
     assert!(result.is_err());
 }
 
@@ -484,43 +271,28 @@ async fn test_promote_delayed_job() {
     let qm = setup();
 
     // Push a delayed job
-    let job = qm
+    let j = qm
         .push(
             "test".to_string(),
-            json!({}),
-            0,
-            Some(60000), // delayed by 60 seconds
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None, // group_id
+            JobInput {
+                data: json!({}),
+                delay: Some(60000), // delayed by 60 seconds
+                ..Default::default()
+            },
         )
         .await
         .unwrap();
 
     // Job should be delayed
-    let state = qm.get_state(job.id);
+    let state = qm.get_state(j.id);
     assert_eq!(state, crate::protocol::JobState::Delayed);
 
     // Promote the job
-    let result = qm.promote(job.id).await;
+    let result = qm.promote(j.id).await;
     assert!(result.is_ok());
 
     // Job should now be waiting
-    let state_after = qm.get_state(job.id);
+    let state_after = qm.get_state(j.id);
     assert_eq!(state_after, crate::protocol::JobState::Waiting);
 }
 
@@ -529,35 +301,10 @@ async fn test_promote_not_delayed() {
     let qm = setup();
 
     // Push a normal job (not delayed)
-    let job = qm
-        .push(
-            "test".to_string(),
-            json!({}),
-            0,
-            None, // no delay
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None, // group_id
-        )
-        .await
-        .unwrap();
+    let j = qm.push("test".to_string(), job(json!({}))).await.unwrap();
 
     // Try to promote - should fail
-    let result = qm.promote(job.id).await;
+    let result = qm.promote(j.id).await;
     assert!(result.is_err());
 }
 
@@ -567,36 +314,14 @@ async fn test_promote_not_delayed() {
 async fn test_update_job_data_waiting() {
     let qm = setup();
 
-    let job = qm
-        .push(
-            "test".to_string(),
-            json!({"original": true}),
-            0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None, // group_id
-        )
+    let j = qm
+        .push("test".to_string(), job(json!({"original": true})))
         .await
         .unwrap();
 
     // Update data
     let new_data = json!({"updated": true, "version": 2});
-    let result = qm.update_job_data(job.id, new_data.clone()).await;
+    let result = qm.update_job_data(j.id, new_data.clone()).await;
     assert!(result.is_ok());
 
     // Pull and verify data was updated
@@ -608,30 +333,8 @@ async fn test_update_job_data_waiting() {
 async fn test_update_job_data_processing() {
     let qm = setup();
 
-    let job = qm
-        .push(
-            "test".to_string(),
-            json!({"original": true}),
-            0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None, // group_id
-        )
+    let j = qm
+        .push("test".to_string(), job(json!({"original": true})))
         .await
         .unwrap();
 
@@ -640,7 +343,7 @@ async fn test_update_job_data_processing() {
 
     // Update data while processing
     let new_data = json!({"updated": true});
-    let result = qm.update_job_data(job.id, new_data).await;
+    let result = qm.update_job_data(j.id, new_data).await;
     assert!(result.is_ok());
 }
 
@@ -650,88 +353,38 @@ async fn test_update_job_data_processing() {
 async fn test_discard_processing_job() {
     let qm = setup();
 
-    let job = qm
-        .push(
-            "test".to_string(),
-            json!({}),
-            0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None, // group_id
-        )
-        .await
-        .unwrap();
+    let j = qm.push("test".to_string(), job(json!({}))).await.unwrap();
 
     // Pull to start processing
     let _ = qm.pull("test").await;
 
     // Discard the job
-    let result = qm.discard(job.id).await;
+    let result = qm.discard(j.id).await;
     assert!(result.is_ok());
 
     // Job should be in DLQ
-    let state = qm.get_state(job.id);
+    let state = qm.get_state(j.id);
     assert_eq!(state, crate::protocol::JobState::Failed);
 
     let dlq = qm.get_dlq("test", None).await;
     assert_eq!(dlq.len(), 1);
-    assert_eq!(dlq[0].id, job.id);
+    assert_eq!(dlq[0].id, j.id);
 }
 
 #[tokio::test]
 async fn test_discard_waiting_job() {
     let qm = setup();
 
-    let job = qm
-        .push(
-            "test".to_string(),
-            json!({}),
-            0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None, // group_id
-        )
-        .await
-        .unwrap();
+    let j = qm.push("test".to_string(), job(json!({}))).await.unwrap();
 
     // Discard without pulling
-    let result = qm.discard(job.id).await;
+    let result = qm.discard(j.id).await;
     assert!(result.is_ok());
 
     // Job should be in DLQ
     let dlq = qm.get_dlq("test", None).await;
     assert_eq!(dlq.len(), 1);
-    assert_eq!(dlq[0].id, job.id);
+    assert_eq!(dlq[0].id, j.id);
 }
 
 // ==================== PUSH FLOW ====================
@@ -829,34 +482,19 @@ async fn test_purge_dlq() {
 
     // Create jobs and fail them
     for i in 0..5 {
-        let job = qm
+        let j = qm
             .push(
                 "purge-test".to_string(),
-                json!({"i": i}),
-                0,
-                None,
-                None,
-                None,
-                Some(1),
-                None,
-                None,
-                None,
-                None,
-                false,
-                false,
-                false,
-                None,
-                None,
-                None,
-                None,
-                None,
-                None,
-                None, // group_id
+                JobInput {
+                    data: json!({"i": i}),
+                    max_attempts: Some(1),
+                    ..Default::default()
+                },
             )
             .await
             .unwrap();
         let _ = qm.pull("purge-test").await;
-        qm.fail(job.id, None).await.unwrap();
+        qm.fail(j.id, None).await.unwrap();
     }
 
     let dlq = qm.get_dlq("purge-test", None).await;
@@ -900,31 +538,9 @@ async fn test_count() {
 
     // Push jobs
     for i in 0..7 {
-        qm.push(
-            "test".to_string(),
-            json!({"i": i}),
-            0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None, // group_id
-        )
-        .await
-        .unwrap();
+        qm.push("test".to_string(), job(json!({"i": i})))
+            .await
+            .unwrap();
     }
 
     assert_eq!(qm.count("test"), 7);
@@ -947,26 +563,11 @@ async fn test_get_job_counts() {
     for i in 0..5 {
         qm.push(
             "counts-test".to_string(),
-            json!({"i": i}),
-            0,
-            None,
-            None,
-            None,
-            Some(1),
-            None,
-            None,
-            None,
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None, // group_id
+            JobInput {
+                data: json!({"i": i}),
+                max_attempts: Some(1),
+                ..Default::default()
+            },
         )
         .await
         .unwrap();
@@ -976,26 +577,11 @@ async fn test_get_job_counts() {
     for i in 0..2 {
         qm.push(
             "counts-test".to_string(),
-            json!({"delayed": i}),
-            0,
-            Some(60000),
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None, // group_id
+            JobInput {
+                data: json!({"delayed": i}),
+                delay: Some(60000),
+                ..Default::default()
+            },
         )
         .await
         .unwrap();

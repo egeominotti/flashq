@@ -11,26 +11,11 @@ async fn test_unique_key() {
     let job1 = qm
         .push(
             "test".to_string(),
-            json!({}),
-            0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            Some("unique-123".to_string()),
-            None,
-            None,
-            false,
-            false, // remove_on_complete
-            false, // remove_on_fail
-            None,  // stall_timeout
-            None,  // debounce_id
-            None,  // debounce_ttl
-            None,  // job_id
-            None,  // keep_completed_age
-            None,  // keep_completed_count
-            None,  // group_id
+            JobInput {
+                data: json!({}),
+                unique_key: Some("unique-123".to_string()),
+                ..Default::default()
+            },
         )
         .await;
     assert!(job1.is_ok());
@@ -39,26 +24,11 @@ async fn test_unique_key() {
     let job2 = qm
         .push(
             "test".to_string(),
-            json!({}),
-            0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            Some("unique-123".to_string()),
-            None,
-            None,
-            false,
-            false, // remove_on_complete
-            false, // remove_on_fail
-            None,  // stall_timeout
-            None,  // debounce_id
-            None,  // debounce_ttl
-            None,  // job_id
-            None,  // keep_completed_age
-            None,  // keep_completed_count
-            None,  // group_id
+            JobInput {
+                data: json!({}),
+                unique_key: Some("unique-123".to_string()),
+                ..Default::default()
+            },
         )
         .await;
     assert!(job2.is_err());
@@ -70,26 +40,11 @@ async fn test_unique_key() {
     let job3 = qm
         .push(
             "test".to_string(),
-            json!({}),
-            0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            Some("unique-123".to_string()),
-            None,
-            None,
-            false,
-            false, // remove_on_complete
-            false, // remove_on_fail
-            None,  // stall_timeout
-            None,  // debounce_id
-            None,  // debounce_ttl
-            None,  // job_id
-            None,  // keep_completed_age
-            None,  // keep_completed_count
-            None,  // group_id
+            JobInput {
+                data: json!({}),
+                unique_key: Some("unique-123".to_string()),
+                ..Default::default()
+            },
         )
         .await;
     assert!(job3.is_ok());
@@ -103,26 +58,11 @@ async fn test_unique_key_different_queues() {
     let job1 = qm
         .push(
             "queue1".to_string(),
-            json!({}),
-            0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            Some("same-key".to_string()),
-            None,
-            None,
-            false,
-            false, // remove_on_complete
-            false, // remove_on_fail
-            None,  // stall_timeout
-            None,  // debounce_id
-            None,  // debounce_ttl
-            None,  // job_id
-            None,  // keep_completed_age
-            None,  // keep_completed_count
-            None,  // group_id
+            JobInput {
+                data: json!({}),
+                unique_key: Some("same-key".to_string()),
+                ..Default::default()
+            },
         )
         .await;
     assert!(job1.is_ok());
@@ -130,26 +70,11 @@ async fn test_unique_key_different_queues() {
     let job2 = qm
         .push(
             "queue2".to_string(),
-            json!({}),
-            0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            Some("same-key".to_string()),
-            None,
-            None,
-            false,
-            false, // remove_on_complete
-            false, // remove_on_fail
-            None,  // stall_timeout
-            None,  // debounce_id
-            None,  // debounce_ttl
-            None,  // job_id
-            None,  // keep_completed_age
-            None,  // keep_completed_count
-            None,  // group_id
+            JobInput {
+                data: json!({}),
+                unique_key: Some("same-key".to_string()),
+                ..Default::default()
+            },
         )
         .await;
     assert!(job2.is_ok());
@@ -162,26 +87,12 @@ async fn test_unique_key_released_on_fail() {
     let _job = qm
         .push(
             "test".to_string(),
-            json!({}),
-            0,
-            None,
-            None,
-            None,
-            Some(1),
-            None,
-            Some("unique-fail".to_string()),
-            None,
-            None,
-            false,
-            false, // remove_on_complete
-            false, // remove_on_fail
-            None,  // stall_timeout
-            None,  // debounce_id
-            None,  // debounce_ttl
-            None,  // job_id
-            None,  // keep_completed_age
-            None,  // keep_completed_count
-            None,  // group_id
+            JobInput {
+                data: json!({}),
+                max_attempts: Some(1),
+                unique_key: Some("unique-fail".to_string()),
+                ..Default::default()
+            },
         )
         .await
         .unwrap();
@@ -200,26 +111,12 @@ async fn test_cancel_releases_unique_key() {
     let job = qm
         .push(
             "test".to_string(),
-            json!({}),
-            0,
-            Some(60000), // delayed
-            None,
-            None,
-            None,
-            None,
-            Some("cancel-key".to_string()),
-            None,
-            None,
-            false,
-            false, // remove_on_complete
-            false, // remove_on_fail
-            None,  // stall_timeout
-            None,  // debounce_id
-            None,  // debounce_ttl
-            None,  // job_id
-            None,  // keep_completed_age
-            None,  // keep_completed_count
-            None,  // group_id
+            JobInput {
+                data: json!({}),
+                delay: Some(60000), // delayed
+                unique_key: Some("cancel-key".to_string()),
+                ..Default::default()
+            },
         )
         .await
         .unwrap();
@@ -231,26 +128,11 @@ async fn test_cancel_releases_unique_key() {
     let job2 = qm
         .push(
             "test".to_string(),
-            json!({}),
-            0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            Some("cancel-key".to_string()),
-            None,
-            None,
-            false,
-            false, // remove_on_complete
-            false, // remove_on_fail
-            None,  // stall_timeout
-            None,  // debounce_id
-            None,  // debounce_ttl
-            None,  // job_id
-            None,  // keep_completed_age
-            None,  // keep_completed_count
-            None,  // group_id
+            JobInput {
+                data: json!({}),
+                unique_key: Some("cancel-key".to_string()),
+                ..Default::default()
+            },
         )
         .await;
     assert!(job2.is_ok());
@@ -265,26 +147,11 @@ async fn test_cancel() {
     let job = qm
         .push(
             "test".to_string(),
-            json!({}),
-            0,
-            Some(60000),
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            false,
-            false, // remove_on_complete
-            false, // remove_on_fail
-            None,  // stall_timeout
-            None,  // debounce_id
-            None,  // debounce_ttl
-            None,  // job_id
-            None,  // keep_completed_age
-            None,  // keep_completed_count
-            None,  // group_id
+            JobInput {
+                data: json!({}),
+                delay: Some(60000),
+                ..Default::default()
+            },
         )
         .await
         .unwrap();
@@ -301,32 +168,7 @@ async fn test_cancel() {
 async fn test_cancel_processing_job() {
     let qm = setup();
 
-    let job = qm
-        .push(
-            "test".to_string(),
-            json!({}),
-            0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            false,
-            false, // remove_on_complete
-            false, // remove_on_fail
-            None,  // stall_timeout
-            None,  // debounce_id
-            None,  // debounce_ttl
-            None,  // job_id
-            None,  // keep_completed_age
-            None,  // keep_completed_count
-            None,  // group_id
-        )
-        .await
-        .unwrap();
+    let job = qm.push("test".to_string(), job(json!({}))).await.unwrap();
     let _pulled = qm.pull("test").await;
 
     // Cancel while processing
@@ -343,81 +185,15 @@ async fn test_cancel_job_in_queue_preserves_others() {
 
     // Push multiple jobs
     let job1 = qm
-        .push(
-            "test".to_string(),
-            json!({"i": 1}),
-            0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None, // group_id
-        )
+        .push("test".to_string(), job(json!({"i": 1})))
         .await
         .unwrap();
     let job2 = qm
-        .push(
-            "test".to_string(),
-            json!({"i": 2}),
-            0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None, // group_id
-        )
+        .push("test".to_string(), job(json!({"i": 2})))
         .await
         .unwrap();
     let job3 = qm
-        .push(
-            "test".to_string(),
-            json!({"i": 3}),
-            0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None, // group_id
-        )
+        .push("test".to_string(), job(json!({"i": 3})))
         .await
         .unwrap();
 
@@ -445,29 +221,7 @@ async fn test_concurrent_cancel_operations() {
     let mut job_ids = vec![];
     for i in 0..100 {
         let job = qm
-            .push(
-                "test".to_string(),
-                json!({"i": i}),
-                0,
-                None,
-                None,
-                None,
-                None,
-                None,
-                None,
-                None,
-                None,
-                false,
-                false,
-                false,
-                None,
-                None,
-                None,
-                None,
-                None,
-                None,
-                None, // group_id
-            )
+            .push("test".to_string(), job(json!({"i": i})))
             .await
             .unwrap();
         job_ids.push(job.id);
@@ -495,32 +249,7 @@ async fn test_concurrent_cancel_operations() {
 async fn test_progress() {
     let qm = setup();
 
-    let _job = qm
-        .push(
-            "test".to_string(),
-            json!({}),
-            0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            false,
-            false, // remove_on_complete
-            false, // remove_on_fail
-            None,  // stall_timeout
-            None,  // debounce_id
-            None,  // debounce_ttl
-            None,  // job_id
-            None,  // keep_completed_age
-            None,  // keep_completed_count
-            None,  // group_id
-        )
-        .await
-        .unwrap();
+    let _job = qm.push("test".to_string(), job(json!({}))).await.unwrap();
     let pulled = qm.pull("test").await;
 
     // Update progress
@@ -537,32 +266,7 @@ async fn test_progress() {
 async fn test_progress_max_100() {
     let qm = setup();
 
-    let _job = qm
-        .push(
-            "test".to_string(),
-            json!({}),
-            0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            false,
-            false, // remove_on_complete
-            false, // remove_on_fail
-            None,  // stall_timeout
-            None,  // debounce_id
-            None,  // debounce_ttl
-            None,  // job_id
-            None,  // keep_completed_age
-            None,  // keep_completed_count
-            None,  // group_id
-        )
-        .await
-        .unwrap();
+    let _job = qm.push("test".to_string(), job(json!({}))).await.unwrap();
     let pulled = qm.pull("test").await;
 
     // Progress should cap at 100

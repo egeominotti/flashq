@@ -8,31 +8,9 @@ async fn test_different_queues_different_shards() {
 
     // Push to many different queues
     for i in 0..100 {
-        qm.push(
-            format!("queue-{}", i),
-            json!({"i": i}),
-            0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None, // group_id
-        )
-        .await
-        .unwrap();
+        qm.push(format!("queue-{}", i), job(json!({"i": i})))
+            .await
+            .unwrap();
     }
 
     let queues = qm.list_queues().await;

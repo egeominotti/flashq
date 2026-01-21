@@ -10,26 +10,11 @@ async fn test_dlq() {
     let job = qm
         .push(
             "test".to_string(),
-            json!({}),
-            0,
-            None,
-            None,
-            None,
-            Some(1),
-            None,
-            None,
-            None,
-            None,
-            false,
-            false, // remove_on_complete
-            false, // remove_on_fail
-            None,  // stall_timeout
-            None,  // debounce_id
-            None,  // debounce_ttl
-            None,  // job_id
-            None,  // keep_completed_age
-            None,  // keep_completed_count
-            None,  // group_id
+            JobInput {
+                data: json!({}),
+                max_attempts: Some(1),
+                ..Default::default()
+            },
         )
         .await
         .unwrap();
@@ -57,52 +42,22 @@ async fn test_dlq_retry_single() {
     let job1 = qm
         .push(
             "test".to_string(),
-            json!({"i": 1}),
-            0,
-            None,
-            None,
-            None,
-            Some(1),
-            None,
-            None,
-            None,
-            None,
-            false,
-            false, // remove_on_complete
-            false, // remove_on_fail
-            None,  // stall_timeout
-            None,  // debounce_id
-            None,  // debounce_ttl
-            None,  // job_id
-            None,  // keep_completed_age
-            None,  // keep_completed_count
-            None,  // group_id
+            JobInput {
+                data: json!({"i": 1}),
+                max_attempts: Some(1),
+                ..Default::default()
+            },
         )
         .await
         .unwrap();
     let job2 = qm
         .push(
             "test".to_string(),
-            json!({"i": 2}),
-            0,
-            None,
-            None,
-            None,
-            Some(1),
-            None,
-            None,
-            None,
-            None,
-            false,
-            false, // remove_on_complete
-            false, // remove_on_fail
-            None,  // stall_timeout
-            None,  // debounce_id
-            None,  // debounce_ttl
-            None,  // job_id
-            None,  // keep_completed_age
-            None,  // keep_completed_count
-            None,  // group_id
+            JobInput {
+                data: json!({"i": 2}),
+                max_attempts: Some(1),
+                ..Default::default()
+            },
         )
         .await
         .unwrap();
@@ -133,26 +88,11 @@ async fn test_dlq_with_limit() {
     for i in 0..10 {
         qm.push(
             "test".to_string(),
-            json!({"i": i}),
-            0,
-            None,
-            None,
-            None,
-            Some(1),
-            None,
-            None,
-            None,
-            None,
-            false,
-            false, // remove_on_complete
-            false, // remove_on_fail
-            None,  // stall_timeout
-            None,  // debounce_id
-            None,  // debounce_ttl
-            None,  // job_id
-            None,  // keep_completed_age
-            None,  // keep_completed_count
-            None,  // group_id
+            JobInput {
+                data: json!({"i": i}),
+                max_attempts: Some(1),
+                ..Default::default()
+            },
         )
         .await
         .unwrap();

@@ -380,8 +380,9 @@ pub struct KvEntry {
     pub ttl: Option<u64>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct JobInput {
+    #[serde(default)]
     pub data: Value,
     #[serde(default)]
     pub priority: i32,
@@ -421,4 +422,20 @@ pub struct JobInput {
     pub keep_completed_count: Option<usize>, // Retention: keep in last N completed
     #[serde(default)]
     pub group_id: Option<String>, // Group ID for FIFO processing within group
+}
+
+impl JobInput {
+    /// Create a new JobInput with just data, using defaults for all other fields.
+    pub fn new(data: Value) -> Self {
+        Self {
+            data,
+            ..Default::default()
+        }
+    }
+
+    /// Builder-style method to set priority.
+    pub fn with_priority(mut self, priority: i32) -> Self {
+        self.priority = priority;
+        self
+    }
 }

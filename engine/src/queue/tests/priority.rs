@@ -11,76 +11,31 @@ async fn test_priority_ordering() {
     // Push jobs with different priorities
     qm.push(
         "test".to_string(),
-        json!({"p": 1}),
-        1,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        false,
-        false,
-        false,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None, // group_id
+        JobInput {
+            data: json!({"p": 1}),
+            priority: 1,
+            ..Default::default()
+        },
     )
     .await
     .unwrap();
     qm.push(
         "test".to_string(),
-        json!({"p": 3}),
-        3,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        false,
-        false,
-        false,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None, // group_id
+        JobInput {
+            data: json!({"p": 3}),
+            priority: 3,
+            ..Default::default()
+        },
     )
     .await
     .unwrap();
     qm.push(
         "test".to_string(),
-        json!({"p": 2}),
-        2,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        false,
-        false,
-        false,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None, // group_id
+        JobInput {
+            data: json!({"p": 2}),
+            priority: 2,
+            ..Default::default()
+        },
     )
     .await
     .unwrap();
@@ -102,76 +57,22 @@ async fn test_priority_negative() {
 
     qm.push(
         "test".to_string(),
-        json!({}),
-        -10,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        false,
-        false,
-        false,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None, // group_id
+        JobInput {
+            data: json!({}),
+            priority: -10,
+            ..Default::default()
+        },
     )
     .await
     .unwrap();
+    qm.push("test".to_string(), job(json!({}))).await.unwrap();
     qm.push(
         "test".to_string(),
-        json!({}),
-        0,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        false,
-        false,
-        false,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None, // group_id
-    )
-    .await
-    .unwrap();
-    qm.push(
-        "test".to_string(),
-        json!({}),
-        10,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        false,
-        false,
-        false,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None, // group_id
+        JobInput {
+            data: json!({}),
+            priority: 10,
+            ..Default::default()
+        },
     )
     .await
     .unwrap();
@@ -192,81 +93,15 @@ async fn test_fifo_same_priority() {
 
     // Jobs with same priority should be FIFO (by created_at)
     let job1 = qm
-        .push(
-            "test".to_string(),
-            json!({"order": 1}),
-            0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None, // group_id
-        )
+        .push("test".to_string(), job(json!({"order": 1})))
         .await
         .unwrap();
     let job2 = qm
-        .push(
-            "test".to_string(),
-            json!({"order": 2}),
-            0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None, // group_id
-        )
+        .push("test".to_string(), job(json!({"order": 2})))
         .await
         .unwrap();
     let job3 = qm
-        .push(
-            "test".to_string(),
-            json!({"order": 3}),
-            0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None, // group_id
-        )
+        .push("test".to_string(), job(json!({"order": 3})))
         .await
         .unwrap();
 
@@ -287,78 +122,33 @@ async fn test_lifo_ordering() {
     let job1 = qm
         .push(
             "test".to_string(),
-            json!({"order": 1}),
-            0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            true, // lifo = true
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None, // group_id
+            JobInput {
+                data: json!({"order": 1}),
+                lifo: true,
+                ..Default::default()
+            },
         )
         .await
         .unwrap();
     let job2 = qm
         .push(
             "test".to_string(),
-            json!({"order": 2}),
-            0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            true, // lifo = true
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None, // group_id
+            JobInput {
+                data: json!({"order": 2}),
+                lifo: true,
+                ..Default::default()
+            },
         )
         .await
         .unwrap();
     let job3 = qm
         .push(
             "test".to_string(),
-            json!({"order": 3}),
-            0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            true, // lifo = true
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None, // group_id
+            JobInput {
+                data: json!({"order": 3}),
+                lifo: true,
+                ..Default::default()
+            },
         )
         .await
         .unwrap();
@@ -379,54 +169,17 @@ async fn test_lifo_mixed_with_fifo() {
 
     // Mix of LIFO and FIFO jobs - LIFO jobs get higher effective priority
     let fifo_job = qm
-        .push(
-            "test".to_string(),
-            json!({"type": "fifo"}),
-            0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            false, // fifo
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None, // group_id
-        )
+        .push("test".to_string(), job(json!({"type": "fifo"})))
         .await
         .unwrap();
     let lifo_job = qm
         .push(
             "test".to_string(),
-            json!({"type": "lifo"}),
-            0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            true, // lifo - should be pulled before fifo
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None, // group_id
+            JobInput {
+                data: json!({"type": "lifo"}),
+                lifo: true, // lifo - should be pulled before fifo
+                ..Default::default()
+            },
         )
         .await
         .unwrap();
@@ -449,26 +202,11 @@ async fn test_delayed_job() {
     let job = qm
         .push(
             "test".to_string(),
-            json!({}),
-            0,
-            Some(100),
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None, // group_id
+            JobInput {
+                data: json!({}),
+                delay: Some(100),
+                ..Default::default()
+            },
         )
         .await
         .unwrap();
@@ -484,55 +222,18 @@ async fn test_delayed_job_ordering() {
     let _job1 = qm
         .push(
             "test".to_string(),
-            json!({"order": 1}),
-            0,
-            Some(200),
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None, // group_id
+            JobInput {
+                data: json!({"order": 1}),
+                delay: Some(200),
+                ..Default::default()
+            },
         )
         .await
         .unwrap();
 
     // Job 2: immediate
     let job2 = qm
-        .push(
-            "test".to_string(),
-            json!({"order": 2}),
-            0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None, // group_id
-        )
+        .push("test".to_string(), job(json!({"order": 2})))
         .await
         .unwrap();
 
@@ -549,29 +250,7 @@ async fn test_job_dependencies_single() {
 
     // Create parent job
     let parent = qm
-        .push(
-            "test".to_string(),
-            json!({"parent": true}),
-            0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None, // group_id
-        )
+        .push("test".to_string(), job(json!({"parent": true})))
         .await
         .unwrap();
 
@@ -579,26 +258,11 @@ async fn test_job_dependencies_single() {
     let child = qm
         .push(
             "test".to_string(),
-            json!({"child": true}),
-            0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            Some(vec![parent.id]),
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None, // group_id
+            JobInput {
+                data: json!({"child": true}),
+                depends_on: Some(vec![parent.id]),
+                ..Default::default()
+            },
         )
         .await
         .unwrap();
@@ -624,55 +288,11 @@ async fn test_job_dependencies_multiple() {
 
     // Create two parent jobs
     let parent1 = qm
-        .push(
-            "test".to_string(),
-            json!({"p": 1}),
-            0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None, // group_id
-        )
+        .push("test".to_string(), job(json!({"p": 1})))
         .await
         .unwrap();
     let parent2 = qm
-        .push(
-            "test".to_string(),
-            json!({"p": 2}),
-            0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None, // group_id
-        )
+        .push("test".to_string(), job(json!({"p": 2})))
         .await
         .unwrap();
 
@@ -680,26 +300,11 @@ async fn test_job_dependencies_multiple() {
     let _child = qm
         .push(
             "test".to_string(),
-            json!({"child": true}),
-            0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            Some(vec![parent1.id, parent2.id]),
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None, // group_id
+            JobInput {
+                data: json!({"child": true}),
+                depends_on: Some(vec![parent1.id, parent2.id]),
+                ..Default::default()
+            },
         )
         .await
         .unwrap();

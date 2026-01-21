@@ -7,29 +7,15 @@ async fn test_job_timeout_detection() {
     let qm = setup();
 
     // Push job with 1ms timeout
-    let job = qm
+    let j = qm
         .push(
             "test".to_string(),
-            json!({"timeout_test": true}),
-            0,
-            None,
-            None,
-            Some(1), // 1ms timeout
-            Some(1), // max_attempts = 1 (go to DLQ after timeout)
-            None,
-            None,
-            None,
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None, // group_id
+            JobInput {
+                data: json!({"timeout_test": true}),
+                timeout: Some(1),      // 1ms timeout
+                max_attempts: Some(1), // max_attempts = 1 (go to DLQ after timeout)
+                ..Default::default()
+            },
         )
         .await
         .unwrap();
@@ -46,7 +32,7 @@ async fn test_job_timeout_detection() {
     // Job should be in DLQ (max_attempts=1, so after 1 fail goes to DLQ)
     let dlq_jobs = qm.get_dlq("test", Some(10)).await;
     assert_eq!(dlq_jobs.len(), 1);
-    assert_eq!(dlq_jobs[0].id, job.id);
+    assert_eq!(dlq_jobs[0].id, j.id);
 }
 
 #[tokio::test]
@@ -54,29 +40,16 @@ async fn test_job_timeout_retry() {
     let qm = setup();
 
     // Push job with 1ms timeout and multiple attempts
-    let job = qm
+    let j = qm
         .push(
             "test".to_string(),
-            json!({"timeout_retry": true}),
-            0,
-            None,
-            None,
-            Some(1), // 1ms timeout
-            Some(3), // 3 max attempts
-            Some(0), // no backoff
-            None,
-            None,
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None, // group_id
+            JobInput {
+                data: json!({"timeout_retry": true}),
+                timeout: Some(1),      // 1ms timeout
+                max_attempts: Some(3), // 3 max attempts
+                backoff: Some(0),      // no backoff
+                ..Default::default()
+            },
         )
         .await
         .unwrap();
@@ -97,6 +70,6 @@ async fn test_job_timeout_retry() {
 
     // Pull again and verify it's the same job with incremented attempts
     let pulled_again = qm.pull("test").await;
-    assert_eq!(pulled_again.id, job.id);
+    assert_eq!(pulled_again.id, j.id);
     assert_eq!(pulled_again.attempts, 1);
 }

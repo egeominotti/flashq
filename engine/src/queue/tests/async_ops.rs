@@ -6,36 +6,11 @@ use super::*;
 async fn test_wait_for_job_completed() {
     let qm = setup();
 
-    let job = qm
-        .push(
-            "test".to_string(),
-            json!({}),
-            0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None, // group_id
-        )
-        .await
-        .unwrap();
+    let j = qm.push("test".to_string(), job(json!({}))).await.unwrap();
 
     // Spawn task to wait for job
     let qm_clone = qm.clone();
-    let job_id = job.id;
+    let job_id = j.id;
     let waiter = tokio::spawn(async move { qm_clone.wait_for_job(job_id, Some(5000)).await });
 
     // Small delay to ensure waiter is registered
@@ -56,32 +31,7 @@ async fn test_wait_for_job_completed() {
 async fn test_wait_for_job_already_completed() {
     let qm = setup();
 
-    let job = qm
-        .push(
-            "test".to_string(),
-            json!({}),
-            0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None, // group_id
-        )
-        .await
-        .unwrap();
+    let j = qm.push("test".to_string(), job(json!({}))).await.unwrap();
 
     // Complete the job first
     let pulled = qm.pull("test").await;
@@ -89,7 +39,7 @@ async fn test_wait_for_job_already_completed() {
     qm.ack(pulled.id, Some(result.clone())).await.unwrap();
 
     // Wait should return immediately with result
-    let wait_result = qm.wait_for_job(job.id, Some(1000)).await;
+    let wait_result = qm.wait_for_job(j.id, Some(1000)).await;
     assert!(wait_result.is_ok());
     assert_eq!(wait_result.unwrap(), Some(result));
 }
@@ -98,35 +48,10 @@ async fn test_wait_for_job_already_completed() {
 async fn test_wait_for_job_timeout() {
     let qm = setup();
 
-    let job = qm
-        .push(
-            "test".to_string(),
-            json!({}),
-            0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None, // group_id
-        )
-        .await
-        .unwrap();
+    let j = qm.push("test".to_string(), job(json!({}))).await.unwrap();
 
     // Don't complete the job, just wait with short timeout
-    let result = qm.wait_for_job(job.id, Some(50)).await;
+    let result = qm.wait_for_job(j.id, Some(50)).await;
 
     assert!(result.is_err());
     assert!(result.unwrap_err().contains("Timeout"));
@@ -146,29 +71,14 @@ async fn test_wait_for_job_not_found() {
 async fn test_wait_for_job_failed() {
     let qm = setup();
 
-    let job = qm
+    let j = qm
         .push(
             "test".to_string(),
-            json!({}),
-            0,
-            None,
-            None,
-            None,
-            Some(1), // max_attempts=1, goes to DLQ on fail
-            None,
-            None,
-            None,
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None, // group_id
+            JobInput {
+                data: json!({}),
+                max_attempts: Some(1), // max_attempts=1, goes to DLQ on fail
+                ..Default::default()
+            },
         )
         .await
         .unwrap();
@@ -178,7 +88,7 @@ async fn test_wait_for_job_failed() {
     qm.fail(pulled.id, Some("error".to_string())).await.unwrap();
 
     // Wait should return error for failed job
-    let result = qm.wait_for_job(job.id, Some(100)).await;
+    let result = qm.wait_for_job(j.id, Some(100)).await;
     assert!(result.is_err());
     assert!(result.unwrap_err().contains("failed"));
 }
@@ -187,38 +97,13 @@ async fn test_wait_for_job_failed() {
 async fn test_wait_for_job_multiple_waiters() {
     let qm = setup();
 
-    let job = qm
-        .push(
-            "test".to_string(),
-            json!({}),
-            0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None, // group_id
-        )
-        .await
-        .unwrap();
+    let j = qm.push("test".to_string(), job(json!({}))).await.unwrap();
 
     // Spawn multiple waiters
     let mut handles = vec![];
     for _ in 0..5 {
         let qm_clone = qm.clone();
-        let job_id = job.id;
+        let job_id = j.id;
         handles.push(tokio::spawn(async move {
             qm_clone.wait_for_job(job_id, Some(5000)).await
         }));

@@ -2,94 +2,45 @@
 //!
 //! Contains `push` and `push_batch` implementations for the QueueManager.
 
-use serde_json::Value;
-
 use super::manager::QueueManager;
 use super::types::{intern, now_ms, JobLocation};
 use super::validation::{validate_job_data, validate_queue_name, MAX_BATCH_SIZE};
 use crate::protocol::{Job, JobBuilder, JobEvent, JobInput};
 
 impl QueueManager {
-    /// Create a job using the builder pattern.
-    /// This is a convenience method that wraps JobBuilder for backwards compatibility.
-    #[allow(clippy::too_many_arguments)]
+    /// Create a job from JobInput using the builder pattern.
     #[inline(always)]
-    pub fn create_job_with_id(
-        &self,
-        id: u64,
-        queue: String,
-        data: Value,
-        priority: i32,
-        delay: Option<u64>,
-        ttl: Option<u64>,
-        timeout: Option<u64>,
-        max_attempts: Option<u32>,
-        backoff: Option<u64>,
-        unique_key: Option<String>,
-        depends_on: Option<Vec<u64>>,
-        tags: Option<Vec<String>>,
-        lifo: bool,
-        remove_on_complete: bool,
-        remove_on_fail: bool,
-        stall_timeout: Option<u64>,
-        custom_id: Option<String>,
-        keep_completed_age: Option<u64>,
-        keep_completed_count: Option<usize>,
-        group_id: Option<String>,
-    ) -> Job {
-        JobBuilder::new(queue, data)
-            .priority(priority)
-            .delay_opt(delay)
-            .ttl_opt(ttl)
-            .timeout_opt(timeout)
-            .max_attempts_opt(max_attempts)
-            .backoff_opt(backoff)
-            .unique_key_opt(unique_key)
-            .depends_on_opt(depends_on)
-            .tags_opt(tags)
-            .lifo(lifo)
-            .remove_on_complete(remove_on_complete)
-            .remove_on_fail(remove_on_fail)
-            .stall_timeout_opt(stall_timeout)
-            .custom_id_opt(custom_id)
-            .keep_completed_age_opt(keep_completed_age)
-            .keep_completed_count_opt(keep_completed_count)
-            .group_id_opt(group_id)
+    pub fn create_job_from_input(&self, id: u64, queue: String, input: JobInput) -> Job {
+        JobBuilder::new(queue, input.data)
+            .priority(input.priority)
+            .delay_opt(input.delay)
+            .ttl_opt(input.ttl)
+            .timeout_opt(input.timeout)
+            .max_attempts_opt(input.max_attempts)
+            .backoff_opt(input.backoff)
+            .unique_key_opt(input.unique_key)
+            .depends_on_opt(input.depends_on)
+            .tags_opt(input.tags)
+            .lifo(input.lifo)
+            .remove_on_complete(input.remove_on_complete)
+            .remove_on_fail(input.remove_on_fail)
+            .stall_timeout_opt(input.stall_timeout)
+            .custom_id_opt(input.job_id)
+            .keep_completed_age_opt(input.keep_completed_age)
+            .keep_completed_count_opt(input.keep_completed_count)
+            .group_id_opt(input.group_id)
             .build(id, now_ms())
     }
 
-    #[allow(clippy::too_many_arguments)]
-    pub async fn push(
-        &self,
-        queue: String,
-        data: Value,
-        priority: i32,
-        delay: Option<u64>,
-        ttl: Option<u64>,
-        timeout: Option<u64>,
-        max_attempts: Option<u32>,
-        backoff: Option<u64>,
-        unique_key: Option<String>,
-        depends_on: Option<Vec<u64>>,
-        tags: Option<Vec<String>>,
-        lifo: bool,
-        remove_on_complete: bool,
-        remove_on_fail: bool,
-        stall_timeout: Option<u64>,
-        debounce_id: Option<String>,
-        debounce_ttl: Option<u64>,
-        job_id: Option<String>,
-        keep_completed_age: Option<u64>,
-        keep_completed_count: Option<usize>,
-        group_id: Option<String>,
-    ) -> Result<Job, String> {
+    /// Push a job to a queue with all options specified via JobInput.
+    pub async fn push(&self, queue: String, input: JobInput) -> Result<Job, String> {
         // Validate inputs to prevent DoS attacks
         validate_queue_name(&queue)?;
-        validate_job_data(&data)?;
+        validate_job_data(&input.data)?;
 
         // Check debounce - prevent duplicate jobs within time window
         // OPTIMIZATION: Uses nested CompactString map to avoid String allocation
-        if let Some(ref id) = debounce_id {
+        if let Some(ref id) = input.debounce_id {
             let now = now_ms();
             let queue_key = intern(&queue);
             let id_key = intern(id);
@@ -107,7 +58,7 @@ impl QueueManager {
         }
 
         // Check custom job ID for idempotency
-        if let Some(ref custom_id) = job_id {
+        if let Some(ref custom_id) = input.job_id {
             let custom_id_map = self.custom_id_map.read();
             if let Some(&existing_id) = custom_id_map.get(custom_id) {
                 // Return the existing job instead of creating a duplicate
@@ -120,28 +71,7 @@ impl QueueManager {
         // Get cluster-wide unique ID from PostgreSQL sequence
         let internal_id = self.next_job_id().await;
 
-        let job = self.create_job_with_id(
-            internal_id,
-            queue.clone(),
-            data,
-            priority,
-            delay,
-            ttl,
-            timeout,
-            max_attempts,
-            backoff,
-            unique_key.clone(),
-            depends_on.clone(),
-            tags,
-            lifo,
-            remove_on_complete,
-            remove_on_fail,
-            stall_timeout,
-            job_id.clone(),
-            keep_completed_age,
-            keep_completed_count,
-            group_id,
-        );
+        let job = self.create_job_from_input(internal_id, queue.clone(), input.clone());
 
         let idx = Self::shard_index(&queue);
         let queue_name = intern(&queue);
@@ -153,7 +83,7 @@ impl QueueManager {
             let mut shard = self.shards[idx].write();
 
             // Check unique key
-            if let Some(ref key) = unique_key {
+            if let Some(ref key) = input.unique_key {
                 let keys = shard.unique_keys.entry(queue_name.clone()).or_default();
                 if keys.contains(key) {
                     return Err(format!("Duplicate job with key: {}", key));
@@ -224,10 +154,10 @@ impl QueueManager {
 
         // Update debounce cache
         // OPTIMIZATION: Uses nested CompactString map to avoid String allocation
-        if let Some(ref id) = debounce_id {
+        if let Some(ref id) = input.debounce_id {
             let queue_key = intern(&queue);
             let id_key = intern(id);
-            let ttl = debounce_ttl.unwrap_or(5000); // Default 5 seconds
+            let ttl = input.debounce_ttl.unwrap_or(5000); // Default 5 seconds
             let expiry = now_ms() + ttl;
             self.debounce_cache
                 .write()
@@ -237,7 +167,7 @@ impl QueueManager {
         }
 
         // Store custom ID mapping for idempotency
-        if let Some(ref custom_id) = job_id {
+        if let Some(ref custom_id) = input.job_id {
             self.custom_id_map.write().insert(custom_id.clone(), job.id);
         }
 
@@ -323,28 +253,7 @@ impl QueueManager {
                     let ttl = input.debounce_ttl.unwrap_or(5000);
                     debounce_updates.push((id_key, now + ttl));
                 }
-                let job = self.create_job_with_id(
-                    job_id,
-                    queue.clone(),
-                    input.data,
-                    input.priority,
-                    input.delay,
-                    input.ttl,
-                    input.timeout,
-                    input.max_attempts,
-                    input.backoff,
-                    input.unique_key,
-                    input.depends_on,
-                    input.tags,
-                    input.lifo,
-                    input.remove_on_complete,
-                    input.remove_on_fail,
-                    input.stall_timeout,
-                    input.job_id,
-                    input.keep_completed_age,
-                    input.keep_completed_count,
-                    input.group_id,
-                );
+                let job = self.create_job_from_input(job_id, queue.clone(), input);
                 ids.push(job.id);
 
                 if !job.depends_on.is_empty()

@@ -15,59 +15,15 @@ async fn test_list_jobs_all() {
 
     // Push jobs to different queues
     for i in 0..5 {
-        qm.push(
-            "queue-a".to_string(),
-            json!({"i": i}),
-            0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None, // group_id
-        )
-        .await
-        .unwrap();
+        qm.push("queue-a".to_string(), job(json!({"i": i})))
+            .await
+            .unwrap();
     }
 
     for i in 0..3 {
-        qm.push(
-            "queue-b".to_string(),
-            json!({"i": i}),
-            0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None, // group_id
-        )
-        .await
-        .unwrap();
+        qm.push("queue-b".to_string(), job(json!({"i": i})))
+            .await
+            .unwrap();
     }
 
     let jobs = qm.list_jobs(None, None, 100, 0);
@@ -79,59 +35,15 @@ async fn test_list_jobs_filter_by_queue() {
     let qm = setup();
 
     for i in 0..5 {
-        qm.push(
-            "queue-a".to_string(),
-            json!({"i": i}),
-            0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None, // group_id
-        )
-        .await
-        .unwrap();
+        qm.push("queue-a".to_string(), job(json!({"i": i})))
+            .await
+            .unwrap();
     }
 
     for i in 0..3 {
-        qm.push(
-            "queue-b".to_string(),
-            json!({"i": i}),
-            0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None, // group_id
-        )
-        .await
-        .unwrap();
+        qm.push("queue-b".to_string(), job(json!({"i": i})))
+            .await
+            .unwrap();
     }
 
     let jobs = qm.list_jobs(Some("queue-a"), None, 100, 0);
@@ -147,57 +59,20 @@ async fn test_list_jobs_filter_by_state() {
 
     // Push waiting jobs
     for i in 0..3 {
-        qm.push(
-            "test".to_string(),
-            json!({"i": i}),
-            0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None, // group_id
-        )
-        .await
-        .unwrap();
+        qm.push("test".to_string(), job(json!({"i": i})))
+            .await
+            .unwrap();
     }
 
     // Push delayed jobs
     for i in 0..2 {
         qm.push(
             "test".to_string(),
-            json!({"delayed": i}),
-            0,
-            Some(60000),
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None, // group_id
+            JobInput {
+                data: json!({"delayed": i}),
+                delay: Some(60000),
+                ..Default::default()
+            },
         )
         .await
         .unwrap();
@@ -217,31 +92,9 @@ async fn test_list_jobs_pagination() {
     let qm = setup();
 
     for i in 0..10 {
-        qm.push(
-            "test".to_string(),
-            json!({"i": i}),
-            0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None, // group_id
-        )
-        .await
-        .unwrap();
+        qm.push("test".to_string(), job(json!({"i": i})))
+            .await
+            .unwrap();
     }
 
     // Get first page
@@ -266,31 +119,9 @@ async fn test_get_jobs_with_filtering() {
     let qm = setup();
 
     for i in 0..5 {
-        qm.push(
-            "test".to_string(),
-            json!({"i": i}),
-            0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None, // group_id
-        )
-        .await
-        .unwrap();
+        qm.push("test".to_string(), job(json!({"i": i})))
+            .await
+            .unwrap();
     }
 
     let (jobs, total) = qm.get_jobs(Some("test"), None, 10, 0);
@@ -304,33 +135,11 @@ async fn test_get_jobs_batch() {
 
     let mut ids = vec![];
     for i in 0..5 {
-        let job = qm
-            .push(
-                "test".to_string(),
-                json!({"i": i}),
-                0,
-                None,
-                None,
-                None,
-                None,
-                None,
-                None,
-                None,
-                None,
-                false,
-                false,
-                false,
-                None,
-                None,
-                None,
-                None,
-                None,
-                None,
-                None, // group_id
-            )
+        let j = qm
+            .push("test".to_string(), job(json!({"i": i})))
             .await
             .unwrap();
-        ids.push(job.id);
+        ids.push(j.id);
     }
 
     let batch = qm.get_jobs_batch(&ids).await;
@@ -341,35 +150,10 @@ async fn test_get_jobs_batch() {
 async fn test_get_jobs_batch_with_missing() {
     let qm = setup();
 
-    let job = qm
-        .push(
-            "test".to_string(),
-            json!({}),
-            0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None, // group_id
-        )
-        .await
-        .unwrap();
+    let j = qm.push("test".to_string(), job(json!({}))).await.unwrap();
 
     // Include some non-existent IDs
-    let ids = vec![job.id, 999999, 888888];
+    let ids = vec![j.id, 999999, 888888];
     let batch = qm.get_jobs_batch(&ids).await;
     assert_eq!(batch.len(), 1); // Only the real job
 }

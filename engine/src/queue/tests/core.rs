@@ -7,29 +7,7 @@ async fn test_push_and_pull() {
     let qm = setup();
 
     let job = qm
-        .push(
-            "test".to_string(),
-            json!({"key": "value"}),
-            0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            false,
-            false, // remove_on_complete
-            false, // remove_on_fail
-            None,  // stall_timeout
-            None,  // debounce_id
-            None,  // debounce_ttl
-            None,  // job_id
-            None,  // keep_completed_age
-            None,  // keep_completed_count
-            None,  // group_id
-        )
+        .push("test".to_string(), job(json!({"key": "value"})))
         .await
         .unwrap();
 
@@ -47,26 +25,17 @@ async fn test_push_with_all_options() {
     let job = qm
         .push(
             "test".to_string(),
-            json!({"payload": "data"}),
-            10,                        // priority
-            Some(0),                   // delay (0 = immediate)
-            Some(60000),               // ttl
-            Some(30000),               // timeout
-            Some(3),                   // max_attempts
-            Some(1000),                // backoff
-            Some("key-1".to_string()), // unique_key
-            None,                      // depends_on
-            None,                      // tags
-            false,                     // lifo
-            false,                     // remove_on_complete
-            false,                     // remove_on_fail
-            None,                      // stall_timeout
-            None,                      // debounce_id
-            None,                      // debounce_ttl
-            None,                      // job_id
-            None,                      // keep_completed_age
-            None,                      // keep_completed_count
-            None,                      // group_id
+            JobInput {
+                data: json!({"payload": "data"}),
+                priority: 10,
+                delay: Some(0),
+                ttl: Some(60000),
+                timeout: Some(30000),
+                max_attempts: Some(3),
+                backoff: Some(1000),
+                unique_key: Some("key-1".to_string()),
+                ..Default::default()
+            },
         )
         .await
         .unwrap();
@@ -84,49 +53,11 @@ async fn test_push_batch() {
     let qm = setup();
 
     let inputs = vec![
-        crate::protocol::JobInput {
-            data: json!({"i": 1}),
-            priority: 0,
-            delay: None,
-            ttl: None,
-            timeout: None,
-            max_attempts: None,
-            backoff: None,
-            unique_key: None,
-            depends_on: None,
-            tags: None,
-            lifo: false,
-            remove_on_complete: false,
-            remove_on_fail: false,
-            stall_timeout: None,
-            debounce_id: None,
-            debounce_ttl: None,
-            job_id: None,
-            keep_completed_age: None,
-            keep_completed_count: None,
-            group_id: None,
-        },
-        crate::protocol::JobInput {
+        JobInput::new(json!({"i": 1})),
+        JobInput {
             data: json!({"i": 2}),
             priority: 5,
-            delay: None,
-            ttl: None,
-            timeout: None,
-            max_attempts: None,
-            backoff: None,
-            unique_key: None,
-            depends_on: None,
-            tags: None,
-            lifo: false,
-            remove_on_complete: false,
-            remove_on_fail: false,
-            stall_timeout: None,
-            debounce_id: None,
-            debounce_ttl: None,
-            job_id: None,
-            keep_completed_age: None,
-            keep_completed_count: None,
-            group_id: None,
+            ..Default::default()
         },
     ];
 
@@ -146,27 +77,10 @@ async fn test_push_batch_large() {
     let qm = setup();
 
     let inputs: Vec<_> = (0..100)
-        .map(|i| crate::protocol::JobInput {
+        .map(|i| JobInput {
             data: json!({"i": i}),
             priority: i,
-            delay: None,
-            ttl: None,
-            timeout: None,
-            max_attempts: None,
-            backoff: None,
-            unique_key: None,
-            depends_on: None,
-            tags: None,
-            lifo: false,
-            remove_on_complete: false,
-            remove_on_fail: false,
-            stall_timeout: None,
-            debounce_id: None,
-            debounce_ttl: None,
-            job_id: None,
-            keep_completed_age: None,
-            keep_completed_count: None,
-            group_id: None,
+            ..Default::default()
         })
         .collect();
 
@@ -183,30 +97,7 @@ async fn test_push_batch_exceeds_limit() {
     let qm = setup();
 
     // Try to push more than MAX_BATCH_SIZE (1000) jobs
-    let inputs: Vec<_> = (0..1001)
-        .map(|i| crate::protocol::JobInput {
-            data: json!({"i": i}),
-            priority: 0,
-            delay: None,
-            ttl: None,
-            timeout: None,
-            max_attempts: None,
-            backoff: None,
-            unique_key: None,
-            depends_on: None,
-            tags: None,
-            lifo: false,
-            remove_on_complete: false,
-            remove_on_fail: false,
-            stall_timeout: None,
-            debounce_id: None,
-            debounce_ttl: None,
-            job_id: None,
-            keep_completed_age: None,
-            keep_completed_count: None,
-            group_id: None,
-        })
-        .collect();
+    let inputs: Vec<_> = (0..1001).map(|i| JobInput::new(json!({"i": i}))).collect();
 
     // Should return empty vec due to batch size limit
     let ids = qm.push_batch("test".to_string(), inputs).await;
@@ -218,30 +109,7 @@ async fn test_push_batch_at_limit() {
     let qm = setup();
 
     // Push exactly MAX_BATCH_SIZE (1000) jobs - should succeed
-    let inputs: Vec<_> = (0..1000)
-        .map(|i| crate::protocol::JobInput {
-            data: json!({"i": i}),
-            priority: 0,
-            delay: None,
-            ttl: None,
-            timeout: None,
-            max_attempts: None,
-            backoff: None,
-            unique_key: None,
-            depends_on: None,
-            tags: None,
-            lifo: false,
-            remove_on_complete: false,
-            remove_on_fail: false,
-            stall_timeout: None,
-            debounce_id: None,
-            debounce_ttl: None,
-            job_id: None,
-            keep_completed_age: None,
-            keep_completed_count: None,
-            group_id: None,
-        })
-        .collect();
+    let inputs: Vec<_> = (0..1000).map(|i| JobInput::new(json!({"i": i}))).collect();
 
     let ids = qm.push_batch("test".to_string(), inputs).await;
     assert_eq!(ids.len(), 1000, "Batch at limit should succeed");
@@ -251,32 +119,7 @@ async fn test_push_batch_at_limit() {
 async fn test_ack() {
     let qm = setup();
 
-    let job = qm
-        .push(
-            "test".to_string(),
-            json!({}),
-            0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            false,
-            false, // remove_on_complete
-            false, // remove_on_fail
-            None,  // stall_timeout
-            None,  // debounce_id
-            None,  // debounce_ttl
-            None,  // job_id
-            None,  // keep_completed_age
-            None,  // keep_completed_count
-            None,  // group_id
-        )
-        .await
-        .unwrap();
+    let job = qm.push("test".to_string(), job(json!({}))).await.unwrap();
     let pulled = qm.pull("test").await;
 
     let result = qm.ack(pulled.id, None).await;
@@ -291,32 +134,7 @@ async fn test_ack() {
 async fn test_ack_with_result() {
     let qm = setup();
 
-    let job = qm
-        .push(
-            "test".to_string(),
-            json!({}),
-            0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            false,
-            false, // remove_on_complete
-            false, // remove_on_fail
-            None,  // stall_timeout
-            None,  // debounce_id
-            None,  // debounce_ttl
-            None,  // job_id
-            None,  // keep_completed_age
-            None,  // keep_completed_count
-            None,  // group_id
-        )
-        .await
-        .unwrap();
+    let job = qm.push("test".to_string(), job(json!({}))).await.unwrap();
     let pulled = qm.pull("test").await;
 
     let result_data = json!({"computed": 42, "success": true});
@@ -340,31 +158,9 @@ async fn test_pull_batch() {
     let qm = setup();
 
     for i in 0..10 {
-        qm.push(
-            "test".to_string(),
-            json!({"i": i}),
-            0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            false,
-            false, // remove_on_complete
-            false, // remove_on_fail
-            None,  // stall_timeout
-            None,  // debounce_id
-            None,  // debounce_ttl
-            None,  // job_id
-            None,  // keep_completed_age
-            None,  // keep_completed_count
-            None,  // group_id
-        )
-        .await
-        .unwrap();
+        qm.push("test".to_string(), job(json!({"i": i})))
+            .await
+            .unwrap();
     }
 
     let jobs = qm.pull_batch("test", 5).await;
@@ -380,31 +176,9 @@ async fn test_ack_batch() {
     let qm = setup();
 
     for i in 0..5 {
-        qm.push(
-            "test".to_string(),
-            json!({"i": i}),
-            0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            false,
-            false, // remove_on_complete
-            false, // remove_on_fail
-            None,  // stall_timeout
-            None,  // debounce_id
-            None,  // debounce_ttl
-            None,  // job_id
-            None,  // keep_completed_age
-            None,  // keep_completed_count
-            None,  // group_id
-        )
-        .await
-        .unwrap();
+        qm.push("test".to_string(), job(json!({"i": i})))
+            .await
+            .unwrap();
     }
 
     let jobs = qm.pull_batch("test", 5).await;
@@ -426,26 +200,11 @@ async fn test_fail_and_retry() {
     let job = qm
         .push(
             "test".to_string(),
-            json!({}),
-            0,
-            None,
-            None,
-            None,
-            Some(3),
-            None,
-            None,
-            None,
-            None,
-            false,
-            false, // remove_on_complete
-            false, // remove_on_fail
-            None,  // stall_timeout
-            None,  // debounce_id
-            None,  // debounce_ttl
-            None,  // job_id
-            None,  // keep_completed_age
-            None,  // keep_completed_count
-            None,  // group_id
+            JobInput {
+                data: json!({}),
+                max_attempts: Some(3),
+                ..Default::default()
+            },
         )
         .await
         .unwrap();
@@ -469,26 +228,12 @@ async fn test_fail_with_backoff() {
     let job = qm
         .push(
             "test".to_string(),
-            json!({}),
-            0,
-            None,
-            None,
-            None,
-            Some(3),
-            Some(100), // 100ms backoff
-            None,
-            None,
-            None,
-            false, // lifo
-            false, // remove_on_complete
-            false, // remove_on_fail
-            None,  // stall_timeout
-            None,  // debounce_id
-            None,  // debounce_ttl
-            None,  // job_id
-            None,  // keep_completed_age
-            None,  // keep_completed_count
-            None,  // group_id
+            JobInput {
+                data: json!({}),
+                max_attempts: Some(3),
+                backoff: Some(100), // 100ms backoff
+                ..Default::default()
+            },
         )
         .await
         .unwrap();

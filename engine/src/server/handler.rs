@@ -6,7 +6,9 @@ use std::sync::Arc;
 
 use parking_lot::RwLock;
 
-use crate::protocol::{deserialize_msgpack, Command, JobState, Request, Response, ResponseWithId};
+use crate::protocol::{
+    deserialize_msgpack, Command, JobInput, JobState, Request, Response, ResponseWithId,
+};
 use crate::queue::QueueManager;
 
 use super::connection::ConnectionState;
@@ -111,32 +113,29 @@ async fn process_command(
             keep_completed_count,
             group_id,
         } => {
-            match queue_manager
-                .push(
-                    queue,
-                    data,
-                    priority,
-                    delay,
-                    ttl,
-                    timeout,
-                    max_attempts,
-                    backoff,
-                    unique_key,
-                    depends_on,
-                    tags,
-                    lifo,
-                    remove_on_complete,
-                    remove_on_fail,
-                    stall_timeout,
-                    debounce_id,
-                    debounce_ttl,
-                    job_id,
-                    keep_completed_age,
-                    keep_completed_count,
-                    group_id,
-                )
-                .await
-            {
+            let input = JobInput {
+                data,
+                priority,
+                delay,
+                ttl,
+                timeout,
+                max_attempts,
+                backoff,
+                unique_key,
+                depends_on,
+                tags,
+                lifo,
+                remove_on_complete,
+                remove_on_fail,
+                stall_timeout,
+                debounce_id,
+                debounce_ttl,
+                job_id,
+                keep_completed_age,
+                keep_completed_count,
+                group_id,
+            };
+            match queue_manager.push(queue, input).await {
                 Ok(job) => Response::ok_with_id(job.id),
                 Err(e) => Response::error(e),
             }

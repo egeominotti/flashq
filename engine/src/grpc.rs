@@ -88,57 +88,54 @@ impl QueueService for QueueServiceImpl {
         let data: serde_json::Value = serde_json::from_slice(&req.data)
             .map_err(|e| Status::invalid_argument(format!("Invalid JSON data: {}", e)))?;
 
-        match self
-            .queue_manager
-            .push(
-                req.queue,
-                data,
-                req.priority,
-                if req.delay_ms > 0 {
-                    Some(req.delay_ms)
-                } else {
-                    None
-                },
-                if req.ttl_ms > 0 {
-                    Some(req.ttl_ms)
-                } else {
-                    None
-                },
-                if req.timeout_ms > 0 {
-                    Some(req.timeout_ms)
-                } else {
-                    None
-                },
-                if req.max_attempts > 0 {
-                    Some(req.max_attempts)
-                } else {
-                    None
-                },
-                if req.backoff_ms > 0 {
-                    Some(req.backoff_ms)
-                } else {
-                    None
-                },
-                req.unique_key,
-                if req.depends_on.is_empty() {
-                    None
-                } else {
-                    Some(req.depends_on)
-                },
-                None, // tags not supported in gRPC yet
-                req.lifo,
-                false, // remove_on_complete
-                false, // remove_on_fail
-                None,  // stall_timeout
-                None,  // debounce_id
-                None,  // debounce_ttl
-                None,  // job_id (custom ID)
-                None,  // keep_completed_age
-                None,  // keep_completed_count
-                None,  // group_id
-            )
-            .await
-        {
+        let input = InternalJobInput {
+            data,
+            priority: req.priority,
+            delay: if req.delay_ms > 0 {
+                Some(req.delay_ms)
+            } else {
+                None
+            },
+            ttl: if req.ttl_ms > 0 {
+                Some(req.ttl_ms)
+            } else {
+                None
+            },
+            timeout: if req.timeout_ms > 0 {
+                Some(req.timeout_ms)
+            } else {
+                None
+            },
+            max_attempts: if req.max_attempts > 0 {
+                Some(req.max_attempts)
+            } else {
+                None
+            },
+            backoff: if req.backoff_ms > 0 {
+                Some(req.backoff_ms)
+            } else {
+                None
+            },
+            unique_key: req.unique_key,
+            depends_on: if req.depends_on.is_empty() {
+                None
+            } else {
+                Some(req.depends_on)
+            },
+            tags: None,
+            lifo: req.lifo,
+            remove_on_complete: false,
+            remove_on_fail: false,
+            stall_timeout: None,
+            debounce_id: None,
+            debounce_ttl: None,
+            job_id: None,
+            keep_completed_age: None,
+            keep_completed_count: None,
+            group_id: None,
+        };
+
+        match self.queue_manager.push(req.queue, input).await {
             Ok(job) => Ok(Response::new(PushResponse {
                 ok: true,
                 id: job.id,

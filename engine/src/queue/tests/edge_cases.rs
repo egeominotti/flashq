@@ -7,31 +7,7 @@ async fn test_empty_queue_name() {
     let qm = setup();
 
     // Empty queue names should be rejected
-    let result = qm
-        .push(
-            "".to_string(),
-            json!({}),
-            0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None, // group_id
-        )
-        .await;
+    let result = qm.push("".to_string(), job(json!({}))).await;
     assert!(result.is_err());
     assert!(result.unwrap_err().contains("cannot be empty"));
 }
@@ -43,29 +19,7 @@ async fn test_large_payload() {
     // Create a large payload (but within limits)
     let large_data: Vec<i32> = (0..10000).collect();
     let job = qm
-        .push(
-            "test".to_string(),
-            json!({"data": large_data}),
-            0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None, // group_id
-        )
+        .push("test".to_string(), job(json!({"data": large_data})))
         .await
         .unwrap();
 
@@ -86,33 +40,8 @@ async fn test_special_characters_in_queue_name() {
     ];
 
     for name in valid_queues {
-        let job = qm
-            .push(
-                name.to_string(),
-                json!({}),
-                0,
-                None,
-                None,
-                None,
-                None,
-                None,
-                None,
-                None,
-                None,
-                false,
-                false,
-                false,
-                None,
-                None,
-                None,
-                None,
-                None,
-                None,
-                None, // group_id
-            )
-            .await
-            .unwrap();
-        assert_eq!(job.queue, name);
+        let j = qm.push(name.to_string(), job(json!({}))).await.unwrap();
+        assert_eq!(j.queue, name);
         let pulled = qm.pull(name).await;
         qm.ack(pulled.id, None).await.unwrap();
     }
@@ -126,31 +55,7 @@ async fn test_special_characters_in_queue_name() {
     ];
 
     for name in invalid_queues {
-        let result = qm
-            .push(
-                name.to_string(),
-                json!({}),
-                0,
-                None,
-                None,
-                None,
-                None,
-                None,
-                None,
-                None,
-                None,
-                false,
-                false,
-                false,
-                None,
-                None,
-                None,
-                None,
-                None,
-                None,
-                None, // group_id
-            )
-            .await;
+        let result = qm.push(name.to_string(), job(json!({}))).await;
         assert!(result.is_err(), "Queue name '{}' should be rejected", name);
     }
 }
@@ -159,68 +64,22 @@ async fn test_special_characters_in_queue_name() {
 async fn test_unicode_queue_name() {
     let qm = setup();
 
-    let job = qm
-        .push(
-            "队列名称".to_string(),
-            json!({"emoji": "🚀"}),
-            0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None, // group_id
-        )
+    let j = qm
+        .push("队列名称".to_string(), job(json!({"emoji": "🚀"})))
         .await
         .unwrap();
 
-    assert_eq!(job.queue, "队列名称");
+    assert_eq!(j.queue, "队列名称");
 
     let pulled = qm.pull("队列名称").await;
-    assert_eq!(pulled.id, job.id);
+    assert_eq!(pulled.id, j.id);
 }
 
 #[tokio::test]
 async fn test_null_json_data() {
     let qm = setup();
 
-    qm.push(
-        "test".to_string(),
-        json!(null),
-        0,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        false,
-        false,
-        false,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None, // group_id
-    )
-    .await
-    .unwrap();
+    qm.push("test".to_string(), job(json!(null))).await.unwrap();
 
     let pulled = qm.pull("test").await;
     assert_eq!(*pulled.data, json!(null));
@@ -241,31 +100,9 @@ async fn test_nested_json_data() {
         "array": [1, 2, {"nested": true}]
     });
 
-    qm.push(
-        "test".to_string(),
-        nested.clone(),
-        0,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        false,
-        false,
-        false,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None, // group_id
-    )
-    .await
-    .unwrap();
+    qm.push("test".to_string(), job(nested.clone()))
+        .await
+        .unwrap();
 
     let pulled = qm.pull("test").await;
     assert_eq!(*pulled.data, nested);
@@ -278,29 +115,14 @@ async fn test_job_ttl_expired_not_processed() {
     let qm = setup();
 
     // Push job with very short TTL
-    let job = qm
+    let j = qm
         .push(
             "test".to_string(),
-            json!({"ttl_test": true}),
-            0,
-            None,
-            Some(1), // 1ms TTL
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None, // group_id
+            JobInput {
+                data: json!({"ttl_test": true}),
+                ttl: Some(1), // 1ms TTL
+                ..Default::default()
+            },
         )
         .await
         .unwrap();
@@ -310,7 +132,7 @@ async fn test_job_ttl_expired_not_processed() {
 
     // The job's is_expired method should return true
     let now = crate::queue::types::now_ms();
-    let (fetched, _) = qm.get_job(job.id);
+    let (fetched, _) = qm.get_job(j.id);
     if let Some(j) = fetched {
         assert!(j.is_expired(now));
     }
@@ -321,36 +143,21 @@ async fn test_job_ttl_not_expired() {
     let qm = setup();
 
     // Push job with long TTL
-    let job = qm
+    let j = qm
         .push(
             "test".to_string(),
-            json!({}),
-            0,
-            None,
-            Some(60000), // 60 seconds TTL
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None, // group_id
+            JobInput {
+                data: json!({}),
+                ttl: Some(60000), // 60 seconds TTL
+                ..Default::default()
+            },
         )
         .await
         .unwrap();
 
     // Should not be expired
     let now = crate::queue::types::now_ms();
-    let (fetched, _) = qm.get_job(job.id);
+    let (fetched, _) = qm.get_job(j.id);
     assert!(!fetched.unwrap().is_expired(now));
 }
 
@@ -363,29 +170,7 @@ async fn test_payload_too_large_rejected() {
     // Create a very large payload (over 10MB limit)
     let large_string = "x".repeat(11_000_000); // ~11MB
     let result = qm
-        .push(
-            "test".to_string(),
-            json!({"data": large_string}),
-            0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None, // group_id
-        )
+        .push("test".to_string(), job(json!({"data": large_string})))
         .await;
 
     assert!(result.is_err());
@@ -398,8 +183,8 @@ async fn test_payload_too_large_rejected() {
 async fn test_get_job_unknown_id() {
     let qm = setup();
 
-    let (job, state) = qm.get_job(999999);
-    assert!(job.is_none());
+    let (j, state) = qm.get_job(999999);
+    assert!(j.is_none());
     assert_eq!(state, crate::protocol::JobState::Unknown);
 }
 
@@ -417,32 +202,7 @@ async fn test_get_state_unknown_id() {
 async fn test_double_ack_fails() {
     let qm = setup();
 
-    let job = qm
-        .push(
-            "test".to_string(),
-            json!({}),
-            0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None, // group_id
-        )
-        .await
-        .unwrap();
+    let j = qm.push("test".to_string(), job(json!({}))).await.unwrap();
 
     let pulled = qm.pull("test").await;
 
@@ -451,7 +211,7 @@ async fn test_double_ack_fails() {
     assert!(result1.is_ok());
 
     // Second ack fails
-    let result2 = qm.ack(job.id, None).await;
+    let result2 = qm.ack(j.id, None).await;
     assert!(result2.is_err());
 }
 
@@ -459,29 +219,14 @@ async fn test_double_ack_fails() {
 async fn test_double_fail_fails() {
     let qm = setup();
 
-    let job = qm
+    let j = qm
         .push(
             "test".to_string(),
-            json!({}),
-            0,
-            None,
-            None,
-            None,
-            Some(3), // Allow retries
-            None,
-            None,
-            None,
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None, // group_id
+            JobInput {
+                data: json!({}),
+                max_attempts: Some(3), // Allow retries
+                ..Default::default()
+            },
         )
         .await
         .unwrap();
@@ -493,7 +238,7 @@ async fn test_double_fail_fails() {
     assert!(result1.is_ok());
 
     // Second fail without pulling again fails
-    let result2 = qm.fail(job.id, None).await;
+    let result2 = qm.fail(j.id, None).await;
     assert!(result2.is_err());
 }
 
@@ -503,39 +248,24 @@ async fn test_double_fail_fails() {
 async fn test_custom_job_id() {
     let qm = setup();
 
-    let job = qm
+    let j = qm
         .push(
             "test".to_string(),
-            json!({"custom": true}),
-            0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            Some("my-custom-id-123".to_string()),
-            None,
-            None,
-            None, // group_id
+            JobInput {
+                data: json!({"custom": true}),
+                job_id: Some("my-custom-id-123".to_string()),
+                ..Default::default()
+            },
         )
         .await
         .unwrap();
 
-    assert_eq!(job.custom_id, Some("my-custom-id-123".to_string()));
+    assert_eq!(j.custom_id, Some("my-custom-id-123".to_string()));
 
     // Lookup by custom ID
     let found = qm.get_job_by_custom_id("my-custom-id-123");
     assert!(found.is_some());
-    assert_eq!(found.unwrap().0.id, job.id);
+    assert_eq!(found.unwrap().0.id, j.id);
 }
 
 #[tokio::test]

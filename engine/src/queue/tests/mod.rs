@@ -4,12 +4,18 @@
 //! Run specific module: `cargo test queue::tests::core`
 
 use super::*;
+use crate::protocol::JobInput;
 use serde_json::json;
 use std::sync::Arc;
 
 /// Create a new QueueManager for testing (in-memory, no persistence).
 pub fn setup() -> Arc<QueueManager> {
     QueueManager::new(false)
+}
+
+/// Helper to create JobInput with just data (all defaults).
+pub fn job(data: serde_json::Value) -> JobInput {
+    JobInput::new(data)
 }
 
 // Core operations: push, pull, ack, fail, batch

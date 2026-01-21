@@ -9,35 +9,20 @@ use super::*;
 async fn test_push_with_group_id() {
     let qm = setup();
 
-    let job = qm
+    let j = qm
         .push(
             "test".to_string(),
-            json!({"task": "group-task"}),
-            0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            Some("group-A".to_string()), // group_id
+            JobInput {
+                data: json!({"task": "group-task"}),
+                group_id: Some("group-A".to_string()),
+                ..Default::default()
+            },
         )
         .await
         .unwrap();
 
-    assert!(job.id > 0);
-    assert_eq!(job.group_id, Some("group-A".to_string()));
+    assert!(j.id > 0);
+    assert_eq!(j.group_id, Some("group-A".to_string()));
 }
 
 #[tokio::test]
@@ -48,26 +33,11 @@ async fn test_single_job_per_group_in_batch() {
     let job1 = qm
         .push(
             "orders".to_string(),
-            json!({"order": 1}),
-            0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            Some("customer-123".to_string()),
+            JobInput {
+                data: json!({"order": 1}),
+                group_id: Some("customer-123".to_string()),
+                ..Default::default()
+            },
         )
         .await
         .unwrap();
@@ -75,26 +45,11 @@ async fn test_single_job_per_group_in_batch() {
     let _job2 = qm
         .push(
             "orders".to_string(),
-            json!({"order": 2}),
-            0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            Some("customer-123".to_string()),
+            JobInput {
+                data: json!({"order": 2}),
+                group_id: Some("customer-123".to_string()),
+                ..Default::default()
+            },
         )
         .await
         .unwrap();
@@ -102,26 +57,11 @@ async fn test_single_job_per_group_in_batch() {
     let _job3 = qm
         .push(
             "orders".to_string(),
-            json!({"order": 3}),
-            0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            Some("customer-123".to_string()),
+            JobInput {
+                data: json!({"order": 3}),
+                group_id: Some("customer-123".to_string()),
+                ..Default::default()
+            },
         )
         .await
         .unwrap();
@@ -144,26 +84,11 @@ async fn test_different_groups_in_single_batch() {
     let job_a = qm
         .push(
             "orders".to_string(),
-            json!({"order": "A1"}),
-            0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            Some("group-A".to_string()),
+            JobInput {
+                data: json!({"order": "A1"}),
+                group_id: Some("group-A".to_string()),
+                ..Default::default()
+            },
         )
         .await
         .unwrap();
@@ -171,26 +96,11 @@ async fn test_different_groups_in_single_batch() {
     let job_b = qm
         .push(
             "orders".to_string(),
-            json!({"order": "B1"}),
-            0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            Some("group-B".to_string()),
+            JobInput {
+                data: json!({"order": "B1"}),
+                group_id: Some("group-B".to_string()),
+                ..Default::default()
+            },
         )
         .await
         .unwrap();
@@ -214,26 +124,11 @@ async fn test_group_released_after_ack() {
     let job1 = qm
         .push(
             "tasks".to_string(),
-            json!({"task": 1}),
-            0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            Some("group-X".to_string()),
+            JobInput {
+                data: json!({"task": 1}),
+                group_id: Some("group-X".to_string()),
+                ..Default::default()
+            },
         )
         .await
         .unwrap();
@@ -241,26 +136,11 @@ async fn test_group_released_after_ack() {
     let job2 = qm
         .push(
             "tasks".to_string(),
-            json!({"task": 2}),
-            0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            Some("group-X".to_string()),
+            JobInput {
+                data: json!({"task": 2}),
+                group_id: Some("group-X".to_string()),
+                ..Default::default()
+            },
         )
         .await
         .unwrap();
@@ -287,26 +167,12 @@ async fn test_group_released_after_fail() {
     let job1 = qm
         .push(
             "tasks-fail".to_string(), // Use unique queue name for isolation
-            json!({"task": 1}),
-            0,
-            None,
-            None,
-            None,
-            Some(1), // max_attempts=1 - goes to DLQ on first fail
-            None,
-            None,
-            None,
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            Some("group-Y".to_string()),
+            JobInput {
+                data: json!({"task": 1}),
+                max_attempts: Some(1), // max_attempts=1 - goes to DLQ on first fail
+                group_id: Some("group-Y".to_string()),
+                ..Default::default()
+            },
         )
         .await
         .unwrap();
@@ -314,26 +180,12 @@ async fn test_group_released_after_fail() {
     let _job2 = qm
         .push(
             "tasks-fail".to_string(),
-            json!({"task": 2}),
-            0,
-            None,
-            None,
-            None,
-            Some(1), // max_attempts=1
-            None,
-            None,
-            None,
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            Some("group-Y".to_string()),
+            JobInput {
+                data: json!({"task": 2}),
+                max_attempts: Some(1),
+                group_id: Some("group-Y".to_string()),
+                ..Default::default()
+            },
         )
         .await
         .unwrap();
@@ -366,56 +218,12 @@ async fn test_ungrouped_jobs_freely_available() {
 
     // Push jobs without group_id
     let job1 = qm
-        .push(
-            "work".to_string(),
-            json!({"n": 1}),
-            0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None, // No group_id
-        )
+        .push("work".to_string(), job(json!({"n": 1})))
         .await
         .unwrap();
 
     let job2 = qm
-        .push(
-            "work".to_string(),
-            json!({"n": 2}),
-            0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None, // No group_id
-        )
+        .push("work".to_string(), job(json!({"n": 2})))
         .await
         .unwrap();
 
@@ -434,55 +242,18 @@ async fn test_mixed_grouped_and_ungrouped() {
     let grouped = qm
         .push(
             "mixed".to_string(),
-            json!({"type": "grouped"}),
-            0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            Some("my-group".to_string()),
+            JobInput {
+                data: json!({"type": "grouped"}),
+                group_id: Some("my-group".to_string()),
+                ..Default::default()
+            },
         )
         .await
         .unwrap();
 
     // Push ungrouped job
     let ungrouped = qm
-        .push(
-            "mixed".to_string(),
-            json!({"type": "ungrouped"}),
-            0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-        )
+        .push("mixed".to_string(), job(json!({"type": "ungrouped"})))
         .await
         .unwrap();
 
@@ -505,26 +276,12 @@ async fn test_group_with_priority() {
     let _low = qm
         .push(
             "priority-test".to_string(),
-            json!({"priority": "low"}),
-            1, // low priority
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            Some("prio-group".to_string()),
+            JobInput {
+                data: json!({"priority": "low"}),
+                priority: 1, // low priority
+                group_id: Some("prio-group".to_string()),
+                ..Default::default()
+            },
         )
         .await
         .unwrap();
@@ -533,26 +290,12 @@ async fn test_group_with_priority() {
     let high = qm
         .push(
             "priority-test".to_string(),
-            json!({"priority": "high"}),
-            10, // high priority
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            Some("prio-group".to_string()),
+            JobInput {
+                data: json!({"priority": "high"}),
+                priority: 10, // high priority
+                group_id: Some("prio-group".to_string()),
+                ..Default::default()
+            },
         )
         .await
         .unwrap();

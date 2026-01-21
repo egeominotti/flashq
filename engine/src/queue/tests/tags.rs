@@ -6,68 +6,38 @@ use super::*;
 async fn test_push_with_tags() {
     let qm = setup();
 
-    let job = qm
+    let j = qm
         .push(
             "test".to_string(),
-            json!({"data": "with tags"}),
-            0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            Some(vec!["urgent".to_string(), "backend".to_string()]),
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None, // group_id
+            JobInput {
+                data: json!({"data": "with tags"}),
+                tags: Some(vec!["urgent".to_string(), "backend".to_string()]),
+                ..Default::default()
+            },
         )
         .await
         .unwrap();
 
-    assert_eq!(job.tags, vec!["urgent", "backend"]);
+    assert_eq!(j.tags, vec!["urgent", "backend"]);
 }
 
 #[tokio::test]
 async fn test_push_with_empty_tags() {
     let qm = setup();
 
-    let job = qm
+    let j = qm
         .push(
             "test".to_string(),
-            json!({}),
-            0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            Some(vec![]),
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None, // group_id
+            JobInput {
+                data: json!({}),
+                tags: Some(vec![]),
+                ..Default::default()
+            },
         )
         .await
         .unwrap();
 
-    assert!(job.tags.is_empty());
+    assert!(j.tags.is_empty());
 }
 
 #[tokio::test]
@@ -77,26 +47,11 @@ async fn test_tags_preserved_after_pull() {
     let original = qm
         .push(
             "test".to_string(),
-            json!({}),
-            0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            Some(vec!["tag1".to_string(), "tag2".to_string()]),
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None, // group_id
+            JobInput {
+                data: json!({}),
+                tags: Some(vec!["tag1".to_string(), "tag2".to_string()]),
+                ..Default::default()
+            },
         )
         .await
         .unwrap();
@@ -110,34 +65,19 @@ async fn test_tags_preserved_after_pull() {
 async fn test_get_job_includes_tags() {
     let qm = setup();
 
-    let job = qm
+    let j = qm
         .push(
             "test".to_string(),
-            json!({}),
-            0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            Some(vec!["important".to_string()]),
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None, // group_id
+            JobInput {
+                data: json!({}),
+                tags: Some(vec!["important".to_string()]),
+                ..Default::default()
+            },
         )
         .await
         .unwrap();
 
-    let (fetched, _) = qm.get_job(job.id);
+    let (fetched, _) = qm.get_job(j.id);
     assert_eq!(fetched.unwrap().tags, vec!["important"]);
 }
 
@@ -145,39 +85,24 @@ async fn test_get_job_includes_tags() {
 async fn test_job_state_with_tags() {
     let qm = setup();
 
-    let job = qm
+    let j = qm
         .push(
             "test".to_string(),
-            json!({}),
-            0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            Some(vec!["tag1".to_string(), "tag2".to_string()]),
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None, // group_id
+            JobInput {
+                data: json!({}),
+                tags: Some(vec!["tag1".to_string(), "tag2".to_string()]),
+                ..Default::default()
+            },
         )
         .await
         .unwrap();
 
     // Check state while waiting
-    let state = qm.get_state(job.id);
+    let state = qm.get_state(j.id);
     assert_eq!(state, crate::protocol::JobState::Waiting);
 
     // Pull and check state while active
     let _pulled = qm.pull("test").await;
-    let state = qm.get_state(job.id);
+    let state = qm.get_state(j.id);
     assert_eq!(state, crate::protocol::JobState::Active);
 }

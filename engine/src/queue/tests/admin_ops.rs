@@ -12,34 +12,19 @@ async fn test_reset_clears_everything() {
     for i in 0..10 {
         qm.push(
             "test".to_string(),
-            json!({"i": i}),
-            0,
-            None,
-            None,
-            None,
-            Some(1),
-            None,
-            None,
-            None,
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None, // group_id
+            JobInput {
+                data: json!({"i": i}),
+                max_attempts: Some(1),
+                ..Default::default()
+            },
         )
         .await
         .unwrap();
     }
 
     // Pull and ack some
-    let job = qm.pull("test").await;
-    qm.ack(job.id, Some(json!({"result": true}))).await.unwrap();
+    let j = qm.pull("test").await;
+    qm.ack(j.id, Some(json!({"result": true}))).await.unwrap();
 
     // Pull and fail one to DLQ
     let job2 = qm.pull("test").await;
@@ -69,31 +54,9 @@ async fn test_clear_all_queues() {
 
     // Push to multiple queues
     for i in 0..5 {
-        qm.push(
-            format!("queue-{}", i),
-            json!({}),
-            0,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            false,
-            false,
-            false,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None, // group_id
-        )
-        .await
-        .unwrap();
+        qm.push(format!("queue-{}", i), job(json!({})))
+            .await
+            .unwrap();
     }
 
     let cleared = qm.clear_all_queues().await;
@@ -111,34 +74,19 @@ async fn test_clear_all_dlq() {
 
     // Create and fail jobs in multiple queues
     for i in 0..3 {
-        let job = qm
+        let j = qm
             .push(
                 format!("queue-{}", i),
-                json!({}),
-                0,
-                None,
-                None,
-                None,
-                Some(1),
-                None,
-                None,
-                None,
-                None,
-                false,
-                false,
-                false,
-                None,
-                None,
-                None,
-                None,
-                None,
-                None,
-                None, // group_id
+                JobInput {
+                    data: json!({}),
+                    max_attempts: Some(1),
+                    ..Default::default()
+                },
             )
             .await
             .unwrap();
         let _ = qm.pull(&format!("queue-{}", i)).await;
-        qm.fail(job.id, None).await.unwrap();
+        qm.fail(j.id, None).await.unwrap();
     }
 
     let cleared = qm.clear_all_dlq().await;
@@ -153,30 +101,8 @@ async fn test_clear_completed_jobs() {
 
     // Push and complete jobs
     for i in 0..5 {
-        let _job = qm
-            .push(
-                "test".to_string(),
-                json!({"i": i}),
-                0,
-                None,
-                None,
-                None,
-                None,
-                None,
-                None,
-                None,
-                None,
-                false,
-                false,
-                false,
-                None,
-                None,
-                None,
-                None,
-                None,
-                None,
-                None, // group_id
-            )
+        let _j = qm
+            .push("test".to_string(), job(json!({"i": i})))
             .await
             .unwrap();
         let pulled = qm.pull("test").await;
@@ -195,30 +121,8 @@ async fn test_reset_metrics() {
 
     // Generate some metrics
     for i in 0..10 {
-        let _job = qm
-            .push(
-                "test".to_string(),
-                json!({"i": i}),
-                0,
-                None,
-                None,
-                None,
-                None,
-                None,
-                None,
-                None,
-                None,
-                false,
-                false,
-                false,
-                None,
-                None,
-                None,
-                None,
-                None,
-                None,
-                None, // group_id
-            )
+        let _j = qm
+            .push("test".to_string(), job(json!({"i": i})))
             .await
             .unwrap();
         let pulled = qm.pull("test").await;
@@ -317,30 +221,8 @@ async fn test_run_cleanup() {
 
     // Create more than threshold
     for i in 0..10 {
-        let _job = qm
-            .push(
-                "test".to_string(),
-                json!({"i": i}),
-                0,
-                None,
-                None,
-                None,
-                None,
-                None,
-                None,
-                None,
-                None,
-                false,
-                false,
-                false,
-                None,
-                None,
-                None,
-                None,
-                None,
-                None,
-                None, // group_id
-            )
+        let _j = qm
+            .push("test".to_string(), job(json!({"i": i})))
             .await
             .unwrap();
         let pulled = qm.pull("test").await;
