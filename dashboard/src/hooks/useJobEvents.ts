@@ -43,13 +43,13 @@ export function useJobEvents(options: UseJobEventsOptions = {}): UseJobEventsRet
   const [eventCounts, setEventCounts] = useState({ pushed: 0, completed: 0, failed: 0 });
 
   const wsRef = useRef<WebSocket | null>(null);
-  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reconnectAttemptsRef = useRef(0);
 
   // Batching refs to prevent too many state updates
   const pendingEventsRef = useRef<JobEvent[]>([]);
   const pendingCountsRef = useRef({ pushed: 0, completed: 0, failed: 0 });
-  const batchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const batchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onEventRef = useRef(onEvent);
   onEventRef.current = onEvent;
 

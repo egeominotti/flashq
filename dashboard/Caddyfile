@@ -1,0 +1,18 @@
+:80 {
+	root * /srv
+
+	# Gzip compression
+	encode gzip
+
+	# Cache static assets
+	@assets path /assets/*
+	header @assets Cache-Control "public, max-age=31536000, immutable"
+
+	# SPA fallback
+	try_files {path} /index.html
+
+	file_server
+
+	# Health check
+	respond /health 200
+}

@@ -3,6 +3,32 @@
   min-height: 100vh;
 }
 
+/* Jobs Tabs */
+.jobs-tabs {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  padding: 0.5rem;
+}
+
+.jobs-tabs [role="tab"] {
+  color: #71717a;
+  font-weight: 500;
+  padding: 0.625rem 1.25rem;
+  border-radius: 8px;
+  transition: all 150ms ease;
+}
+
+.jobs-tabs [role="tab"]:hover {
+  color: #a1a1aa;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.jobs-tabs [role="tab"][aria-selected="true"] {
+  color: #00d4ff;
+  background: rgba(0, 212, 255, 0.1);
+}
+
 .page-header {
   display: flex;
   align-items: flex-start;
@@ -43,35 +69,7 @@
   }
 }
 
-/* Layout with Sidebar */
-.jobs-layout {
-  display: flex;
-  gap: 1.5rem;
-}
-
-.jobs-main {
-  flex: 1;
-  min-width: 0;
-}
-
-.jobs-sidebar {
-  width: 300px;
-  flex-shrink: 0;
-  position: sticky;
-  top: 2rem;
-  align-self: flex-start;
-}
-
-@media (max-width: 1200px) {
-  .jobs-layout {
-    flex-direction: column;
-  }
-
-  .jobs-sidebar {
-    width: 100%;
-    position: static;
-  }
-}
+/* Jobs layout is now single column with Live Feed on top */
 
 .page-title {
   font-size: 1.75rem !important;

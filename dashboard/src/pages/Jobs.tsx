@@ -15,6 +15,11 @@ import {
   TextInput,
   Select,
   SelectItem,
+  TabGroup,
+  TabList,
+  Tab,
+  TabPanels,
+  TabPanel,
 } from '@tremor/react';
 import {
   Search,
@@ -30,6 +35,9 @@ import {
   X,
   Filter,
   History,
+  Radio,
+  GitBranch,
+  List,
 } from 'lucide-react';
 import { useJobs, useQueues, useStats, useToast, useJobEvents } from '../hooks';
 import { api } from '../api/client';
@@ -215,17 +223,35 @@ export function Jobs() {
         </div>
       </header>
 
-      {/* Main Content with Live Feed Sidebar */}
-      <div className="jobs-layout">
-        <div className="jobs-main">
-          {/* Job Flow Visualization */}
-          <JobFlowVisualization
-            data={flowData}
-            selectedState={selectedState}
-            onStateSelect={handleStateSelect}
-          />
+      <TabGroup>
+        <TabList className="jobs-tabs mb-6">
+          <Tab icon={Radio}>Live</Tab>
+          <Tab icon={GitBranch}>Pipeline</Tab>
+          <Tab icon={List}>Details</Tab>
+        </TabList>
 
-          <Card className="jobs-card">
+        <TabPanels>
+          {/* LIVE TAB */}
+          <TabPanel>
+            <LiveEventFeed
+              isConnected={isConnected}
+              recentEvents={recentEvents}
+              eventCounts={eventCounts}
+            />
+          </TabPanel>
+
+          {/* PIPELINE TAB */}
+          <TabPanel>
+            <JobFlowVisualization
+              data={flowData}
+              selectedState={selectedState}
+              onStateSelect={handleStateSelect}
+            />
+          </TabPanel>
+
+          {/* DETAILS TAB */}
+          <TabPanel>
+            <Card className="jobs-card">
             {/* Filters */}
             <div className="filters-header">
               <div className="filters-title">
@@ -403,18 +429,10 @@ export function Jobs() {
                 }}
               />
             )}
-          </Card>
-        </div>
-
-        {/* Live Event Feed Sidebar */}
-        <div className="jobs-sidebar">
-          <LiveEventFeed
-            isConnected={isConnected}
-            recentEvents={recentEvents}
-            eventCounts={eventCounts}
-          />
-        </div>
-      </div>
+            </Card>
+          </TabPanel>
+        </TabPanels>
+      </TabGroup>
 
       {/* Job Timeline Modal */}
       {selectedJob && showTimeline && (
