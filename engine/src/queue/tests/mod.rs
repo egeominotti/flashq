@@ -101,3 +101,6 @@ mod groups;
 
 // Async writer: non-blocking SQLite persistence
 mod async_writer;
+
+// Deadlock detection tests
+mod deadlock;

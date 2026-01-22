@@ -169,22 +169,26 @@ impl QueueManager {
     }
 
     pub(crate) async fn check_dependencies(&self) {
-        if self.completed_jobs.read().is_empty() {
+        // CRITICAL: Read completed_jobs FIRST to avoid lock ordering deadlock.
+        // stats() acquires completed_jobs.read() then shard.read()
+        // We must NOT hold shard.write() while acquiring completed_jobs.read()
+        let completed: std::collections::HashSet<u64> =
+            self.completed_jobs.read().iter().copied().collect();
+
+        if completed.is_empty() {
             return;
         }
 
         for (idx, shard) in self.shards.iter().enumerate() {
             let mut shard_w = shard.write();
 
-            let ready_ids: Vec<u64> = {
-                let completed = self.completed_jobs.read();
-                shard_w
-                    .waiting_deps
-                    .iter()
-                    .filter(|(_, job)| job.depends_on.iter().all(|dep| completed.contains(dep)))
-                    .map(|(&id, _)| id)
-                    .collect()
-            };
+            // Use local completed set instead of acquiring lock again
+            let ready_ids: Vec<u64> = shard_w
+                .waiting_deps
+                .iter()
+                .filter(|(_, job)| job.depends_on.iter().all(|dep| completed.contains(dep)))
+                .map(|(&id, _)| id)
+                .collect();
 
             if ready_ids.is_empty() {
                 continue;
