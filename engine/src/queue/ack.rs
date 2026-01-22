@@ -243,7 +243,13 @@ impl QueueManager {
                         .current_processing
                         .fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
                 } else {
-                    self.index_job(job_id, JobLocation::Dlq { shard_idx: idx });
+                    self.index_job(
+                        job_id,
+                        JobLocation::Dlq {
+                            shard_idx: idx,
+                            queue_name: queue_arc.clone(),
+                        },
+                    );
                     // Persist first (needs reference)
                     self.persist_dlq(&job, error.as_deref());
                     // Extract data for broadcast before moving
@@ -307,7 +313,13 @@ impl QueueManager {
                 job.progress_msg = Some(err);
             }
 
-            self.index_job(job_id, JobLocation::Queue { shard_idx: idx });
+            self.index_job(
+                job_id,
+                JobLocation::Queue {
+                    shard_idx: idx,
+                    queue_name: queue_arc.clone(),
+                },
+            );
 
             // Persist first - use sync mode if enabled for durability
             if self.is_sync_persistence() {

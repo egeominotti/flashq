@@ -30,7 +30,13 @@ impl QueueManager {
 
                 if job.should_go_to_dlq() {
                     self.notify_subscribers("timeout", &job.queue, &job);
-                    self.index_job(job_id, JobLocation::Dlq { shard_idx: idx });
+                    self.index_job(
+                        job_id,
+                        JobLocation::Dlq {
+                            shard_idx: idx,
+                            queue_name: queue_arc.clone(),
+                        },
+                    );
                     self.persist_dlq(&job, Some("Job timed out"));
                     self.metrics.record_timeout();
                     self.metrics.record_dlq();
@@ -51,7 +57,13 @@ impl QueueManager {
                     job.started_at = 0;
                     job.progress_msg = Some("Job timed out".to_string());
 
-                    self.index_job(job_id, JobLocation::Queue { shard_idx: idx });
+                    self.index_job(
+                        job_id,
+                        JobLocation::Queue {
+                            shard_idx: idx,
+                            queue_name: queue_arc.clone(),
+                        },
+                    );
                     self.persist_fail(job_id, new_run_at, job.attempts);
                     self.metrics.record_retry();
                     self.shards[idx]

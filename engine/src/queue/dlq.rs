@@ -52,7 +52,13 @@ impl QueueManager {
         if retried > 0 {
             let heap = shard.queues.entry(queue_arc.clone()).or_default();
             for job in jobs_to_retry {
-                self.index_job(job.id, JobLocation::Queue { shard_idx: idx });
+                self.index_job(
+                    job.id,
+                    JobLocation::Queue {
+                        shard_idx: idx,
+                        queue_name: queue_arc.clone(),
+                    },
+                );
                 heap.push(job);
             }
             drop(shard);

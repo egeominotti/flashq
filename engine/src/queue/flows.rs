@@ -128,6 +128,7 @@ impl QueueManager {
                 child_job.id,
                 JobLocation::Queue {
                     shard_idx: child_idx,
+                    queue_name: queue_arc.clone(),
                 },
             );
             {
@@ -161,12 +162,18 @@ impl QueueManager {
                     let queue_arc = intern(&parent_job.queue);
                     shard_w
                         .queues
-                        .entry(queue_arc)
+                        .entry(queue_arc.clone())
                         .or_default()
                         .push(parent_job);
                     drop(shard_w);
 
-                    self.index_job(parent_id, JobLocation::Queue { shard_idx: idx });
+                    self.index_job(
+                        parent_id,
+                        JobLocation::Queue {
+                            shard_idx: idx,
+                            queue_name: queue_arc,
+                        },
+                    );
                     self.notify_shard(idx);
 
                     // Log the event

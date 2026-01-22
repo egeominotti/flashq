@@ -254,7 +254,13 @@ impl QueueManager {
                     let queue_arc = intern(&job.queue);
                     // Persist first (needs reference), then move (consumes ownership)
                     self.persist_dlq(&job, Some("Job stalled"));
-                    self.index_job(job_id, JobLocation::Dlq { shard_idx: idx });
+                    self.index_job(
+                        job_id,
+                        JobLocation::Dlq {
+                            shard_idx: idx,
+                            queue_name: queue_arc.clone(),
+                        },
+                    );
                     self.shards[idx]
                         .write()
                         .dlq

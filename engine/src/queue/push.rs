@@ -124,10 +124,16 @@ impl QueueManager {
                 } else {
                     shard
                         .queues
-                        .entry(queue_name)
+                        .entry(queue_name.clone())
                         .or_default()
                         .push(job.clone());
-                    self.index_job(job.id, JobLocation::Queue { shard_idx: idx });
+                    self.index_job(
+                        job.id,
+                        JobLocation::Queue {
+                            shard_idx: idx,
+                            queue_name,
+                        },
+                    );
                 }
             }
         } // Lock released here before any await
@@ -293,10 +299,16 @@ impl QueueManager {
 
         {
             let mut shard = self.shards[idx].write();
-            let heap = shard.queues.entry(queue_name).or_default();
+            let heap = shard.queues.entry(queue_name.clone()).or_default();
             // Use into_iter to move jobs instead of cloning
             for job in created_jobs {
-                self.index_job(job.id, JobLocation::Queue { shard_idx: idx });
+                self.index_job(
+                    job.id,
+                    JobLocation::Queue {
+                        shard_idx: idx,
+                        queue_name: queue_name.clone(),
+                    },
+                );
                 heap.push(job);
             }
             for job in waiting_jobs {

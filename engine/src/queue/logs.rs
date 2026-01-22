@@ -10,8 +10,7 @@ impl QueueManager {
     /// Add a log entry to a job.
     pub fn add_job_log(&self, job_id: u64, message: String, level: String) -> Result<(), String> {
         // Verify job exists (in processing or waiting)
-        let location = self.job_index.get(&job_id).map(|r| *r);
-        if location.is_none() {
+        if !self.job_index.contains_key(&job_id) {
             return Err(format!("Job {} not found", job_id));
         }
 

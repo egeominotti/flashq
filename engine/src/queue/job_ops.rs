@@ -4,7 +4,6 @@
 
 use std::sync::Arc;
 
-use compact_str::CompactString;
 use serde_json::Value;
 use tracing::warn;
 
@@ -15,7 +14,7 @@ impl QueueManager {
     /// Cancel a job that is waiting, delayed, or in processing.
     pub async fn cancel(&self, job_id: u64) -> Result<(), String> {
         // Use job_index for O(1) lock-free lookup of location
-        let location = self.job_index.get(&job_id).map(|r| *r);
+        let location = self.job_index.get(&job_id).map(|r| r.clone());
 
         match location {
             Some(JobLocation::Processing) => {
@@ -48,37 +47,24 @@ impl QueueManager {
                     return Ok(());
                 }
             }
-            Some(JobLocation::Queue { shard_idx }) => {
+            Some(JobLocation::Queue {
+                shard_idx,
+                queue_name,
+            }) => {
                 let mut shard = self.shards[shard_idx].write();
-                let mut found_key: Option<(CompactString, Option<String>)> = None;
 
-                // O(1) lookup: find which queue contains this job using IPQ's index
-                let mut target_queue: Option<CompactString> = None;
-                for (queue_name, heap) in shard.queues.iter() {
-                    if heap.contains(job_id) {
-                        target_queue = Some(queue_name.clone());
-                        break;
+                // O(1) direct lookup using queue_name from JobLocation
+                if let Some(heap) = shard.queues.get_mut(&queue_name) {
+                    // Direct O(1) removal from IndexedPriorityQueue
+                    if let Some(removed_job) = heap.remove(job_id) {
+                        shard.remove_unique_key(&queue_name, removed_job.unique_key.as_ref());
+                        drop(shard);
+                        self.unindex_job(job_id);
+                        self.persist_cancel(job_id);
+                        // Notify waiters that job was cancelled (prevents memory leak)
+                        self.notify_job_waiters(job_id, None);
+                        return Ok(());
                     }
-                }
-
-                // O(1) removal using IPQ's remove method (lazy removal)
-                if let Some(queue_name) = target_queue {
-                    if let Some(heap) = shard.queues.get_mut(&queue_name) {
-                        // Direct O(1) removal from IndexedPriorityQueue
-                        if let Some(removed_job) = heap.remove(job_id) {
-                            found_key = Some((queue_name.clone(), removed_job.unique_key));
-                        }
-                    }
-                }
-
-                if let Some((queue_name, unique_key)) = found_key {
-                    shard.remove_unique_key(&queue_name, unique_key.as_ref());
-                    drop(shard);
-                    self.unindex_job(job_id);
-                    self.persist_cancel(job_id);
-                    // Notify waiters that job was cancelled (prevents memory leak)
-                    self.notify_job_waiters(job_id, None);
-                    return Ok(());
                 }
             }
             Some(JobLocation::WaitingChildren { shard_idx }) => {
@@ -138,7 +124,7 @@ impl QueueManager {
 
     /// Change priority of a job (waiting, delayed, or processing).
     pub async fn change_priority(&self, job_id: u64, new_priority: i32) -> Result<(), String> {
-        let location = self.job_index.get(&job_id).map(|r| *r);
+        let location = self.job_index.get(&job_id).map(|r| r.clone());
 
         match location {
             Some(JobLocation::Processing) => {
@@ -159,30 +145,20 @@ impl QueueManager {
                 Ok(())
             }
 
-            Some(JobLocation::Queue { shard_idx }) => {
-                // O(log n) update using IndexedPriorityQueue
+            Some(JobLocation::Queue {
+                shard_idx,
+                queue_name,
+            }) => {
+                // O(log n) update using IndexedPriorityQueue - direct O(1) lookup with queue_name
                 let found = {
                     let mut shard = self.shards[shard_idx].write();
 
-                    // O(1) lookup: find which queue contains this job
-                    let mut target_queue: Option<CompactString> = None;
-                    for (queue_name, heap) in shard.queues.iter() {
-                        if heap.contains(job_id) {
-                            target_queue = Some(queue_name.clone());
-                            break;
-                        }
-                    }
-
-                    if let Some(queue_name) = target_queue {
-                        if let Some(heap) = shard.queues.get_mut(&queue_name) {
-                            // O(log n) update: remove + re-insert with new priority
-                            if let Some(mut job) = heap.remove(job_id) {
-                                job.priority = new_priority;
-                                heap.push(job);
-                                true
-                            } else {
-                                false
-                            }
+                    if let Some(heap) = shard.queues.get_mut(&queue_name) {
+                        // O(log n) update: remove + re-insert with new priority
+                        if let Some(mut job) = heap.remove(job_id) {
+                            job.priority = new_priority;
+                            heap.push(job);
+                            true
                         } else {
                             false
                         }
@@ -203,19 +179,23 @@ impl QueueManager {
                 Err(format!("Job {} not found in queue", job_id))
             }
 
-            Some(JobLocation::Dlq { shard_idx }) => {
-                // Update in DLQ (VecDeque - easy)
+            Some(JobLocation::Dlq {
+                shard_idx,
+                queue_name,
+            }) => {
+                // O(1) lookup using queue_name from JobLocation
                 let found = {
                     let mut shard = self.shards[shard_idx].write();
-                    let mut found = false;
-                    for dlq in shard.dlq.values_mut() {
+                    if let Some(dlq) = shard.dlq.get_mut(&queue_name) {
                         if let Some(job) = dlq.iter_mut().find(|j| j.id == job_id) {
                             job.priority = new_priority;
-                            found = true;
-                            break;
+                            true
+                        } else {
+                            false
                         }
+                    } else {
+                        false
                     }
-                    found
                 };
 
                 if found {
@@ -304,7 +284,13 @@ impl QueueManager {
         let queue_arc = intern(&job.queue);
 
         // 4. Update index first
-        self.index_job(job_id, JobLocation::Queue { shard_idx: idx });
+        self.index_job(
+            job_id,
+            JobLocation::Queue {
+                shard_idx: idx,
+                queue_name: queue_arc.clone(),
+            },
+        );
 
         // 5. Persist (needs run_at value)
         let run_at = job.run_at;
@@ -333,39 +319,29 @@ impl QueueManager {
 
     /// Promote a delayed job to waiting (make it ready immediately).
     pub async fn promote(&self, job_id: u64) -> Result<(), String> {
-        let location = self.job_index.get(&job_id).map(|r| *r);
+        let location = self.job_index.get(&job_id).map(|r| r.clone());
         let now = now_ms();
 
         match location {
-            Some(JobLocation::Queue { shard_idx }) => {
-                // O(log n) update using IndexedPriorityQueue
+            Some(JobLocation::Queue {
+                shard_idx,
+                queue_name,
+            }) => {
+                // O(log n) update using IndexedPriorityQueue - direct O(1) lookup with queue_name
                 let (found, was_delayed) = {
                     let mut shard = self.shards[shard_idx].write();
 
-                    // O(1) lookup: find which queue contains this job
-                    let mut target_queue: Option<CompactString> = None;
-                    for (queue_name, heap) in shard.queues.iter() {
-                        if heap.contains(job_id) {
-                            target_queue = Some(queue_name.clone());
-                            break;
-                        }
-                    }
-
-                    if let Some(queue_name) = target_queue {
-                        if let Some(heap) = shard.queues.get_mut(&queue_name) {
-                            // O(log n) update: remove, modify, re-insert
-                            if let Some(mut job) = heap.remove(job_id) {
-                                if job.run_at > now {
-                                    job.run_at = now;
-                                    heap.push(job);
-                                    (true, true)
-                                } else {
-                                    // Not delayed, put it back
-                                    heap.push(job);
-                                    (true, false)
-                                }
+                    if let Some(heap) = shard.queues.get_mut(&queue_name) {
+                        // O(log n) update: remove, modify, re-insert
+                        if let Some(mut job) = heap.remove(job_id) {
+                            if job.run_at > now {
+                                job.run_at = now;
+                                heap.push(job);
+                                (true, true)
                             } else {
-                                (false, false)
+                                // Not delayed, put it back
+                                heap.push(job);
+                                (true, false)
                             }
                         } else {
                             (false, false)
@@ -397,7 +373,7 @@ impl QueueManager {
 
     /// Update job data.
     pub async fn update_job_data(&self, job_id: u64, new_data: Value) -> Result<(), String> {
-        let location = self.job_index.get(&job_id).map(|r| *r);
+        let location = self.job_index.get(&job_id).map(|r| r.clone());
 
         match location {
             Some(JobLocation::Processing) => {
@@ -420,30 +396,20 @@ impl QueueManager {
                 }
             }
 
-            Some(JobLocation::Queue { shard_idx }) => {
-                // O(log n) update using IndexedPriorityQueue
+            Some(JobLocation::Queue {
+                shard_idx,
+                queue_name,
+            }) => {
+                // O(log n) update using IndexedPriorityQueue - direct O(1) lookup with queue_name
                 let found = {
                     let mut shard = self.shards[shard_idx].write();
 
-                    // O(1) lookup: find which queue contains this job
-                    let mut target_queue: Option<CompactString> = None;
-                    for (queue_name, heap) in shard.queues.iter() {
-                        if heap.contains(job_id) {
-                            target_queue = Some(queue_name.clone());
-                            break;
-                        }
-                    }
-
-                    if let Some(queue_name) = target_queue {
-                        if let Some(heap) = shard.queues.get_mut(&queue_name) {
-                            // O(log n) update: remove, modify, re-insert
-                            if let Some(mut job) = heap.remove(job_id) {
-                                job.data = Arc::new(new_data.clone());
-                                heap.push(job);
-                                true
-                            } else {
-                                false
-                            }
+                    if let Some(heap) = shard.queues.get_mut(&queue_name) {
+                        // O(log n) update: remove, modify, re-insert
+                        if let Some(mut job) = heap.remove(job_id) {
+                            job.data = Arc::new(new_data.clone());
+                            heap.push(job);
+                            true
                         } else {
                             false
                         }
@@ -465,18 +431,23 @@ impl QueueManager {
                 }
             }
 
-            Some(JobLocation::Dlq { shard_idx }) => {
+            Some(JobLocation::Dlq {
+                shard_idx,
+                queue_name,
+            }) => {
+                // O(1) lookup using queue_name from JobLocation
                 let found = {
                     let mut shard = self.shards[shard_idx].write();
-                    let mut updated = false;
-                    for dlq in shard.dlq.values_mut() {
+                    if let Some(dlq) = shard.dlq.get_mut(&queue_name) {
                         if let Some(job) = dlq.iter_mut().find(|j| j.id == job_id) {
                             job.data = Arc::new(new_data.clone());
-                            updated = true;
-                            break;
+                            true
+                        } else {
+                            false
                         }
+                    } else {
+                        false
                     }
-                    updated
                 };
 
                 if found {
@@ -498,7 +469,7 @@ impl QueueManager {
 
     /// Discard a job (prevent further retries, move to DLQ immediately).
     pub async fn discard(&self, job_id: u64) -> Result<(), String> {
-        let location = self.job_index.get(&job_id).map(|r| *r);
+        let location = self.job_index.get(&job_id).map(|r| r.clone());
 
         match location {
             Some(JobLocation::Processing) => {
@@ -520,12 +491,18 @@ impl QueueManager {
                         conc.release();
                     }
 
-                    let dlq = shard.dlq.entry(queue_arc).or_default();
+                    let dlq = shard.dlq.entry(queue_arc.clone()).or_default();
                     dlq.push_back(job);
                 }
 
                 // Update index
-                self.index_job(job_id, JobLocation::Dlq { shard_idx: idx });
+                self.index_job(
+                    job_id,
+                    JobLocation::Dlq {
+                        shard_idx: idx,
+                        queue_name: queue_arc,
+                    },
+                );
 
                 // Persist
                 if let Some(ref storage) = self.storage {
@@ -537,38 +514,32 @@ impl QueueManager {
                 Ok(())
             }
 
-            Some(JobLocation::Queue { shard_idx }) => {
-                // O(1) removal using IndexedPriorityQueue and move to DLQ
+            Some(JobLocation::Queue {
+                shard_idx,
+                queue_name,
+            }) => {
+                // O(1) removal using IndexedPriorityQueue and move to DLQ - direct lookup with queue_name
                 let found = {
                     let mut shard = self.shards[shard_idx].write();
 
-                    // O(1) lookup: find which queue contains this job
-                    let mut target_queue: Option<CompactString> = None;
-                    for (queue_name, heap) in shard.queues.iter() {
-                        if heap.contains(job_id) {
-                            target_queue = Some(queue_name.clone());
-                            break;
+                    if let Some(heap) = shard.queues.get_mut(&queue_name) {
+                        // O(1) removal from IndexedPriorityQueue
+                        if let Some(job) = heap.remove(job_id) {
+                            let dlq = shard.dlq.entry(queue_name.clone()).or_default();
+                            dlq.push_back(job);
+
+                            // Update index
+                            self.index_job(
+                                job_id,
+                                JobLocation::Dlq {
+                                    shard_idx,
+                                    queue_name,
+                                },
+                            );
+                            true
+                        } else {
+                            false
                         }
-                    }
-
-                    let mut found_job: Option<crate::protocol::Job> = None;
-                    if let Some(queue_name) = target_queue.clone() {
-                        if let Some(heap) = shard.queues.get_mut(&queue_name) {
-                            // O(1) removal from IndexedPriorityQueue
-                            found_job = heap.remove(job_id);
-                        }
-                    }
-
-                    if let Some(job) = found_job {
-                        let dlq = shard
-                            .dlq
-                            .entry(target_queue.unwrap_or_else(|| intern(&job.queue)))
-                            .or_default();
-                        dlq.push_back(job);
-
-                        // Update index
-                        self.index_job(job_id, JobLocation::Dlq { shard_idx });
-                        true
                     } else {
                         false
                     }

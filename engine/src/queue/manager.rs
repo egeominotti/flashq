@@ -543,8 +543,18 @@ impl QueueManager {
                 match state.as_str() {
                     "waiting" | "delayed" | "active" => {
                         let mut shard = self.shards[idx].write();
-                        shard.queues.entry(queue_name).or_default().push(job);
-                        self.index_job(job_id, JobLocation::Queue { shard_idx: idx });
+                        shard
+                            .queues
+                            .entry(queue_name.clone())
+                            .or_default()
+                            .push(job);
+                        self.index_job(
+                            job_id,
+                            JobLocation::Queue {
+                                shard_idx: idx,
+                                queue_name,
+                            },
+                        );
                         job_count += 1;
                     }
                     "waiting_children" => {
@@ -566,10 +576,16 @@ impl QueueManager {
                 self.shards[idx]
                     .write()
                     .dlq
-                    .entry(queue_name)
+                    .entry(queue_name.clone())
                     .or_default()
                     .push_back(job);
-                self.index_job(job_id, JobLocation::Dlq { shard_idx: idx });
+                self.index_job(
+                    job_id,
+                    JobLocation::Dlq {
+                        shard_idx: idx,
+                        queue_name,
+                    },
+                );
             }
         }
 

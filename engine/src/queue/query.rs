@@ -15,7 +15,7 @@ impl QueueManager {
 
         // O(1) lock-free lookup in DashMap
         let location = match self.job_index.get(&id) {
-            Some(loc) => *loc,
+            Some(loc) => loc.clone(),
             None => return (None, JobState::Unknown),
         };
 
@@ -28,18 +28,26 @@ impl QueueManager {
                     .unwrap_or(JobState::Active);
                 (job, state)
             }
-            JobLocation::Queue { shard_idx } => {
+            JobLocation::Queue {
+                shard_idx,
+                ref queue_name,
+            } => {
+                // O(1) direct lookup using queue_name from JobLocation
                 let shard = self.shards[shard_idx].read();
-                for heap in shard.queues.values() {
-                    if let Some(job) = heap.iter().find(|j| j.id == id) {
+                if let Some(heap) = shard.queues.get(queue_name) {
+                    if let Some(job) = heap.get(id) {
                         return (Some(job.clone()), location.to_state(job.run_at, now));
                     }
                 }
                 (None, JobState::Unknown)
             }
-            JobLocation::Dlq { shard_idx } => {
+            JobLocation::Dlq {
+                shard_idx,
+                ref queue_name,
+            } => {
+                // O(1) direct lookup using queue_name from JobLocation, then O(n) in DLQ
                 let shard = self.shards[shard_idx].read();
-                for dlq in shard.dlq.values() {
+                if let Some(dlq) = shard.dlq.get(queue_name) {
                     if let Some(job) = dlq.iter().find(|j| j.id == id) {
                         return (Some(job.clone()), JobState::Failed);
                     }
@@ -70,12 +78,17 @@ impl QueueManager {
 
         match self.job_index.get(&id) {
             Some(location) => {
-                let location = *location;
+                let location = location.clone();
                 // For Queue state, we need run_at to determine Waiting vs Delayed
-                if let JobLocation::Queue { shard_idx } = location {
+                if let JobLocation::Queue {
+                    shard_idx,
+                    ref queue_name,
+                } = location
+                {
+                    // O(1) direct lookup using queue_name from JobLocation
                     let shard = self.shards[shard_idx].read();
-                    for heap in shard.queues.values() {
-                        if let Some(job) = heap.iter().find(|j| j.id == id) {
+                    if let Some(heap) = shard.queues.get(queue_name) {
+                        if let Some(job) = heap.get(id) {
                             return location.to_state(job.run_at, now);
                         }
                     }

@@ -27,10 +27,11 @@ impl QueueManager {
             self.job_index.remove(&id);
         }
 
-        // Clean custom_id_map separately
+        // Clean custom_id_map separately - O(n) with HashSet lookup instead of O(n²)
         {
+            let to_remove_set: std::collections::HashSet<u64> = to_remove.iter().copied().collect();
             let mut custom_id_map = self.custom_id_map.write();
-            custom_id_map.retain(|_, &mut internal_id| !to_remove.contains(&internal_id));
+            custom_id_map.retain(|_, &mut internal_id| !to_remove_set.contains(&internal_id));
         }
 
         // Remove from completed_jobs
@@ -123,13 +124,13 @@ impl QueueManager {
             }
 
             let id = *entry.key();
-            let location = *entry.value();
+            let location = entry.value().clone();
 
             let is_stale = match location {
                 JobLocation::Completed => !completed_jobs.contains(&id),
                 JobLocation::Processing => !processing_ids.contains(&id),
-                JobLocation::Queue { shard_idx } => !shard_queue_ids[shard_idx].contains(&id),
-                JobLocation::Dlq { shard_idx } => !shard_dlq_ids[shard_idx].contains(&id),
+                JobLocation::Queue { shard_idx, .. } => !shard_queue_ids[shard_idx].contains(&id),
+                JobLocation::Dlq { shard_idx, .. } => !shard_dlq_ids[shard_idx].contains(&id),
                 JobLocation::WaitingDeps { shard_idx } => {
                     !shard_waiting_deps[shard_idx].contains(&id)
                 }

@@ -55,21 +55,21 @@ async fn test_job_index_consistency_after_operations() {
     let j = qm.push("test".to_string(), job(json!({}))).await.unwrap();
 
     // Check index shows Queue location
-    let loc = qm.job_index.get(&j.id).map(|r| *r);
+    let loc = qm.job_index.get(&j.id).map(|r| r.clone());
     assert!(matches!(loc, Some(JobLocation::Queue { .. })));
 
     // Pull job
     let _pulled = qm.pull("test").await;
 
     // Check index shows Processing location
-    let loc = qm.job_index.get(&j.id).map(|r| *r);
+    let loc = qm.job_index.get(&j.id).map(|r| r.clone());
     assert!(matches!(loc, Some(JobLocation::Processing)));
 
     // Ack job
     qm.ack(j.id, None).await.unwrap();
 
     // Check index shows Completed location
-    let loc = qm.job_index.get(&j.id).map(|r| *r);
+    let loc = qm.job_index.get(&j.id).map(|r| r.clone());
     assert!(matches!(loc, Some(JobLocation::Completed)));
 }
 
@@ -95,6 +95,6 @@ async fn test_job_index_consistency_after_fail_to_dlq() {
     qm.fail(j.id, None).await.unwrap();
 
     // Check index shows DLQ location
-    let loc = qm.job_index.get(&j.id).map(|r| *r);
+    let loc = qm.job_index.get(&j.id).map(|r| r.clone());
     assert!(matches!(loc, Some(JobLocation::Dlq { .. })));
 }

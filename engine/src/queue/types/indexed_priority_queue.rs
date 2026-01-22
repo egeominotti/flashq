@@ -140,6 +140,7 @@ impl IndexedPriorityQueue {
 
     /// Check if job exists - O(1)
     #[inline]
+    #[allow(dead_code)]
     pub fn contains(&self, job_id: u64) -> bool {
         self.index.contains_key(&job_id)
     }
