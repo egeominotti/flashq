@@ -60,4 +60,5 @@ impl OpsCounter {
 mod basic;
 mod batch;
 mod cleanup;
+mod regression;
 mod stress;

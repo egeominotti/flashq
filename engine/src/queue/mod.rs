@@ -47,6 +47,8 @@ mod validation;
 mod admin;
 mod persistence;
 mod query;
+mod settings;
+mod webhooks;
 
 // Feature modules (split from features.rs)
 mod browser;
