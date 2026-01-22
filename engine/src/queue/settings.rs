@@ -8,52 +8,42 @@ impl QueueManager {
     // ============== Server Management ==============
 
     /// Reset all server memory - clears all queues, jobs, DLQ, metrics, etc.
+    /// Uses fresh allocations to actually release memory back to OS.
     pub async fn reset(&self) {
-        // Clear all shards
+        use super::types::{GxHashMap, GxHashSet, Shard};
+        use std::collections::VecDeque;
+
+        // Reset all shards with fresh allocations (releases memory)
         for shard in self.shards.iter() {
-            let mut shard = shard.write();
-            shard.queues.clear();
-            shard.dlq.clear();
-            shard.unique_keys.clear();
-            shard.waiting_deps.clear();
-            shard.waiting_children.clear();
-            shard.queue_state.clear();
+            let mut s = shard.write();
+            // Replace with fresh Shard to release all memory
+            *s = Shard::new();
         }
 
-        // Clear global structures (sharded processing)
+        // Clear and shrink processing shards
         for shard in &self.processing_shards {
-            shard.write().clear();
+            let mut s = shard.write();
+            *s = GxHashMap::default();
         }
-        self.cron_jobs.write().clear();
-        self.completed_jobs.write().clear();
-        self.job_results.write().clear();
 
-        // Clear job index (DashMap)
+        // Replace global structures with fresh GxHash allocations
+        *self.cron_jobs.write() = GxHashMap::default();
+        *self.completed_jobs.write() = GxHashSet::default();
+        *self.job_results.write() = GxHashMap::default();
+
+        // Clear and shrink DashMap
         self.job_index.clear();
+        self.job_index.shrink_to_fit();
 
-        // Clear workers
-        self.workers.write().clear();
-
-        // Clear metrics history
-        self.metrics_history.write().clear();
-
-        // Clear job logs
-        self.job_logs.write().clear();
-
-        // Clear stalled count
-        self.stalled_count.write().clear();
-
-        // Clear debounce cache
-        self.debounce_cache.write().clear();
-
-        // Clear custom ID map
-        self.custom_id_map.write().clear();
-
-        // Clear job waiters
-        self.job_waiters.write().clear();
-
-        // Clear completed retention
-        self.completed_retention.write().clear();
+        // Replace other structures with fresh GxHash allocations
+        *self.workers.write() = GxHashMap::default();
+        *self.metrics_history.write() = VecDeque::new();
+        *self.job_logs.write() = GxHashMap::default();
+        *self.stalled_count.write() = GxHashMap::default();
+        *self.debounce_cache.write() = GxHashMap::default();
+        *self.custom_id_map.write() = GxHashMap::default();
+        *self.job_waiters.write() = GxHashMap::default();
+        *self.completed_retention.write() = GxHashMap::default();
 
         // Reset metrics counters
         self.metrics

@@ -11,7 +11,7 @@ const TOTAL_JOBS = 1_000_000;
 const BATCH_SIZE = 1000;
 const NUM_WORKERS = 16;
 const CONCURRENCY_PER_WORKER = 100;
-const NUM_RUNS = 10;
+const NUM_RUNS = 1;
 const SERVER_HTTP_PORT = 6790; // flashQ HTTP API port
 
 // Latency tracking with reservoir sampling for memory efficiency
@@ -129,9 +129,11 @@ interface ServerMemoryStats {
 
 async function getServerMemory(): Promise<ServerMemorySnapshot | null> {
   try {
-    const response = await fetch(`http://localhost:${SERVER_HTTP_PORT}/system/metrics`);
+    const response = await fetch(
+      `http://localhost:${SERVER_HTTP_PORT}/system/metrics`,
+    );
     if (!response.ok) return null;
-    const data = await response.json() as {
+    const data = (await response.json()) as {
       ok: boolean;
       data?: {
         memory_used_mb: number;
@@ -151,12 +153,32 @@ async function getServerMemory(): Promise<ServerMemorySnapshot | null> {
   }
 }
 
-function calculateServerMemoryStats(snapshots: ServerMemorySnapshot[]): ServerMemoryStats {
-  const validSnapshots = snapshots.filter(s => s !== null);
-  if (validSnapshots.length === 0) {
-    return { peakMemory: 0, avgMemory: 0, startMemory: 0, endMemory: 0, deltaMemory: 0 };
+async function resetServer(): Promise<boolean> {
+  try {
+    const response = await fetch(
+      `http://localhost:${SERVER_HTTP_PORT}/server/reset`,
+      { method: "POST" },
+    );
+    return response.ok;
+  } catch {
+    return false;
   }
-  const memories = validSnapshots.map(s => s.memoryUsedMb);
+}
+
+function calculateServerMemoryStats(
+  snapshots: ServerMemorySnapshot[],
+): ServerMemoryStats {
+  const validSnapshots = snapshots.filter((s) => s !== null);
+  if (validSnapshots.length === 0) {
+    return {
+      peakMemory: 0,
+      avgMemory: 0,
+      startMemory: 0,
+      endMemory: 0,
+      deltaMemory: 0,
+    };
+  }
+  const memories = validSnapshots.map((s) => s.memoryUsedMb);
   return {
     peakMemory: Math.max(...memories),
     avgMemory: memories.reduce((s, v) => s + v, 0) / memories.length,
@@ -556,9 +578,21 @@ async function runBenchmark(runNumber: number): Promise<RunResult> {
 
   // Initial memory snapshot
   memorySnapshots.push(getMemoryMB());
-  getServerMemory().then(s => { if (s) serverMemorySnapshots.push(s); });
+  getServerMemory().then((s) => {
+    if (s) serverMemorySnapshots.push(s);
+  });
 
-  // Clean up before starting
+  // Reset server memory for clean baseline
+  console.log("🧹 Resetting server memory...");
+  const resetOk = await resetServer();
+  if (resetOk) {
+    console.log("✅ Server memory reset");
+    await new Promise((r) => setTimeout(r, 500)); // Wait for cleanup
+  } else {
+    console.log("⚠️  Server reset failed (server may not be running with HTTP)");
+  }
+
+  // Clean up queue before starting
   console.log("📋 Cleaning up queue...");
   await queue.obliterate();
 
@@ -705,7 +739,9 @@ async function runBenchmark(runNumber: number): Promise<RunResult> {
   await pushPromise;
   const pushTime = Date.now() - pushStart;
   const pushRate = Math.round(TOTAL_JOBS / (pushTime / 1000));
-  console.log(`✅ Push complete: ${pushRate.toLocaleString()}/s (${(pushTime / 1000).toFixed(2)}s)`);
+  console.log(
+    `✅ Push complete: ${pushRate.toLocaleString()}/s (${(pushTime / 1000).toFixed(2)}s)`,
+  );
 
   // Wait for all jobs to be processed
   const timeout = Date.now() + 600_000;
@@ -811,6 +847,17 @@ console.log(`Total concurrency: ${NUM_WORKERS * CONCURRENCY_PER_WORKER}`);
 console.log(`Node.js: ${process.version}`);
 console.log(`Platform: ${process.platform} ${process.arch}`);
 console.log("=".repeat(80));
+
+// Initial server reset for clean baseline
+console.log("\n🧹 Initial server reset for clean baseline...");
+const initialReset = await resetServer();
+if (initialReset) {
+  await new Promise((r) => setTimeout(r, 1000)); // Wait for full cleanup
+  const initialMem = await getServerMemory();
+  console.log(`✅ Server reset complete. Baseline memory: ${initialMem?.memoryUsedMb.toFixed(0) ?? "N/A"}MB`);
+} else {
+  console.log("⚠️  Server reset not available");
+}
 
 const results: RunResult[] = [];
 const overallStart = Date.now();
@@ -948,12 +995,8 @@ console.log(
 console.log(
   "\n┌─ CLIENT MEMORY (Node.js) ─────────────────────────────────────────────────┐",
 );
-console.log(
-  "│ Run  │ Peak RSS  │ Peak Heap │ Delta RSS │",
-);
-console.log(
-  "├──────┼───────────┼───────────┼───────────┤",
-);
+console.log("│ Run  │ Peak RSS  │ Peak Heap │ Delta RSS │");
+console.log("├──────┼───────────┼───────────┼───────────┤");
 
 for (const r of results) {
   const m = r.memory;
@@ -964,20 +1007,14 @@ for (const r of results) {
       `${(m.deltaRss >= 0 ? "+" : "") + m.deltaRss.toFixed(1).padStart(6)}MB │`,
   );
 }
-console.log(
-  "└──────┴───────────┴───────────┴───────────┘",
-);
+console.log("└──────┴───────────┴───────────┴───────────┘");
 
 // 4b. Server Memory Analysis (Rust)
 console.log(
   "\n┌─ SERVER MEMORY (Rust) ──────────────────────────────────────────────────────┐",
 );
-console.log(
-  "│ Run  │ Peak Mem  │ Avg Mem   │ Delta Mem │",
-);
-console.log(
-  "├──────┼───────────┼───────────┼───────────┤",
-);
+console.log("│ Run  │ Peak Mem  │ Avg Mem   │ Delta Mem │");
+console.log("├──────┼───────────┼───────────┼───────────┤");
 
 for (const r of results) {
   const s = r.serverMemory;
@@ -988,13 +1025,10 @@ for (const r of results) {
       `${(s.deltaMemory >= 0 ? "+" : "") + s.deltaMemory.toFixed(1).padStart(6)}MB │`,
   );
 }
-console.log(
-  "└──────┴───────────┴───────────┴───────────┘",
-);
+console.log("└──────┴───────────┴───────────┴───────────┘");
 
 // Memory statistics
 const peakRsss = results.map((r) => r.memory.peakRss);
-const peakHeaps = results.map((r) => r.memory.peakHeapUsed);
 const deltaRsss = results.map((r) => r.memory.deltaRss);
 const serverPeaks = results.map((r) => r.serverMemory.peakMemory);
 const serverDeltas = results.map((r) => r.serverMemory.deltaMemory);
@@ -1003,10 +1037,22 @@ console.log(
   "\n┌─ MEMORY SUMMARY ──────────────────────────────────────────────────────────┐",
 );
 console.log(
-  `│ Client Peak: Avg=${(peakRsss.reduce((s, v) => s + v, 0) / peakRsss.length).toFixed(0).padStart(5)}MB  Max=${Math.max(...peakRsss).toFixed(0).padStart(5)}MB  Delta=${(deltaRsss.reduce((s, v) => s + v, 0) / deltaRsss.length).toFixed(1).padStart(6)}MB │`,
+  `│ Client Peak: Avg=${(peakRsss.reduce((s, v) => s + v, 0) / peakRsss.length).toFixed(0).padStart(5)}MB  Max=${Math.max(
+    ...peakRsss,
+  )
+    .toFixed(0)
+    .padStart(
+      5,
+    )}MB  Delta=${(deltaRsss.reduce((s, v) => s + v, 0) / deltaRsss.length).toFixed(1).padStart(6)}MB │`,
 );
 console.log(
-  `│ Server Peak: Avg=${(serverPeaks.reduce((s, v) => s + v, 0) / serverPeaks.length).toFixed(0).padStart(5)}MB  Max=${Math.max(...serverPeaks).toFixed(0).padStart(5)}MB  Delta=${(serverDeltas.reduce((s, v) => s + v, 0) / serverDeltas.length).toFixed(1).padStart(6)}MB │`,
+  `│ Server Peak: Avg=${(serverPeaks.reduce((s, v) => s + v, 0) / serverPeaks.length).toFixed(0).padStart(5)}MB  Max=${Math.max(
+    ...serverPeaks,
+  )
+    .toFixed(0)
+    .padStart(
+      5,
+    )}MB  Delta=${(serverDeltas.reduce((s, v) => s + v, 0) / serverDeltas.length).toFixed(1).padStart(6)}MB │`,
 );
 console.log(
   "└───────────────────────────────────────────────────────────────────────────┘",
