@@ -1,80 +1,557 @@
 /**
- * 1 Million Jobs Benchmark with Data Integrity Verification
- * Runs 10 consecutive iterations to test stability
+ * 1 Million Jobs Benchmark with Engineering Metrics
+ * Tracks: Memory (RSS/Heap), Latency (P50/P95/P99/P99.9), Throughput variance
+ * Generates HTML report with interactive charts
  */
 import { Queue, Worker } from "../src";
+import { writeFileSync } from "fs";
+import { join } from "path";
 
-const TOTAL_JOBS = 1_000_000; // Full million jobs test
-const BATCH_SIZE = 1000; // Server limit: max 1000 per batch
-const NUM_WORKERS = 8;
+const TOTAL_JOBS = 1_000_000;
+const BATCH_SIZE = 1000;
+const NUM_WORKERS = 16;
 const CONCURRENCY_PER_WORKER = 100;
-const NUM_RUNS = 50;
+const NUM_RUNS = 10;
+
+// Latency tracking with reservoir sampling for memory efficiency
+class LatencyTracker {
+  private samples: number[] = [];
+  private readonly maxSamples = 100_000; // Keep max 100K samples
+  private count = 0;
+  private sum = 0;
+  private min = Infinity;
+  private max = -Infinity;
+
+  add(latencyMs: number): void {
+    this.count++;
+    this.sum += latencyMs;
+    if (latencyMs < this.min) this.min = latencyMs;
+    if (latencyMs > this.max) this.max = latencyMs;
+
+    // Reservoir sampling for percentile calculation
+    if (this.samples.length < this.maxSamples) {
+      this.samples.push(latencyMs);
+    } else {
+      // Random replacement for samples beyond maxSamples
+      const idx = Math.floor(Math.random() * this.count);
+      if (idx < this.maxSamples) {
+        this.samples[idx] = latencyMs;
+      }
+    }
+  }
+
+  getStats(): LatencyStats {
+    if (this.samples.length === 0) {
+      return {
+        count: 0,
+        min: 0,
+        max: 0,
+        avg: 0,
+        p50: 0,
+        p95: 0,
+        p99: 0,
+        p999: 0,
+      };
+    }
+
+    const sorted = [...this.samples].sort((a, b) => a - b);
+    const percentile = (p: number) => {
+      const idx = Math.ceil((p / 100) * sorted.length) - 1;
+      return sorted[Math.max(0, idx)];
+    };
+
+    return {
+      count: this.count,
+      min: this.min,
+      max: this.max,
+      avg: this.sum / this.count,
+      p50: percentile(50),
+      p95: percentile(95),
+      p99: percentile(99),
+      p999: percentile(99.9),
+    };
+  }
+
+  reset(): void {
+    this.samples = [];
+    this.count = 0;
+    this.sum = 0;
+    this.min = Infinity;
+    this.max = -Infinity;
+  }
+}
+
+interface LatencyStats {
+  count: number;
+  min: number;
+  max: number;
+  avg: number;
+  p50: number;
+  p95: number;
+  p99: number;
+  p999: number;
+}
+
+interface MemorySnapshot {
+  timestamp: number;
+  rss: number; // Resident Set Size (total memory)
+  heapUsed: number; // V8 heap used
+  heapTotal: number; // V8 heap total
+  external: number; // C++ objects bound to JS
+}
+
+interface MemoryStats {
+  peakRss: number;
+  peakHeapUsed: number;
+  avgRss: number;
+  avgHeapUsed: number;
+  startRss: number;
+  endRss: number;
+  deltaRss: number;
+}
 
 interface RunResult {
   run: number;
+  // Throughput
   pushTime: number;
   pushRate: number;
   processTime: number;
   processRate: number;
   totalTime: number;
+  // Counts
   processed: number;
   errors: number;
   dataErrors: number;
   missing: number;
   success: boolean;
+  // Latency
+  pushLatency: LatencyStats;
+  processLatency: LatencyStats;
+  e2eLatency: LatencyStats;
+  // Memory
+  memory: MemoryStats;
+  // Throughput samples for variance calculation
+  throughputSamples: number[];
+}
+
+function getMemoryMB(): MemorySnapshot {
+  const mem = process.memoryUsage();
+  return {
+    timestamp: Date.now(),
+    rss: mem.rss / 1024 / 1024,
+    heapUsed: mem.heapUsed / 1024 / 1024,
+    heapTotal: mem.heapTotal / 1024 / 1024,
+    external: mem.external / 1024 / 1024,
+  };
+}
+
+function calculateMemoryStats(snapshots: MemorySnapshot[]): MemoryStats {
+  if (snapshots.length === 0) {
+    return {
+      peakRss: 0,
+      peakHeapUsed: 0,
+      avgRss: 0,
+      avgHeapUsed: 0,
+      startRss: 0,
+      endRss: 0,
+      deltaRss: 0,
+    };
+  }
+
+  const peakRss = Math.max(...snapshots.map((s) => s.rss));
+  const peakHeapUsed = Math.max(...snapshots.map((s) => s.heapUsed));
+  const avgRss = snapshots.reduce((s, m) => s + m.rss, 0) / snapshots.length;
+  const avgHeapUsed =
+    snapshots.reduce((s, m) => s + m.heapUsed, 0) / snapshots.length;
+  const startRss = snapshots[0].rss;
+  const endRss = snapshots[snapshots.length - 1].rss;
+
+  return {
+    peakRss,
+    peakHeapUsed,
+    avgRss,
+    avgHeapUsed,
+    startRss,
+    endRss,
+    deltaRss: endRss - startRss,
+  };
+}
+
+function stdDev(values: number[]): number {
+  if (values.length === 0) return 0;
+  const avg = values.reduce((s, v) => s + v, 0) / values.length;
+  const squaredDiffs = values.map((v) => Math.pow(v - avg, 2));
+  return Math.sqrt(squaredDiffs.reduce((s, v) => s + v, 0) / values.length);
+}
+
+function formatMs(ms: number): string {
+  if (ms < 1) return `${(ms * 1000).toFixed(0)}µs`;
+  if (ms < 1000) return `${ms.toFixed(2)}ms`;
+  return `${(ms / 1000).toFixed(2)}s`;
+}
+
+function generateHtmlReport(results: RunResult[], overallTime: number): string {
+  const labels = results.map((r) => `Run ${r.run}`);
+  const pushRates = results.map((r) => r.pushRate);
+  const processRates = results.map((r) => r.processRate);
+  const p50s = results.map((r) => r.e2eLatency.p50);
+  const p95s = results.map((r) => r.e2eLatency.p95);
+  const p99s = results.map((r) => r.e2eLatency.p99);
+  const p999s = results.map((r) => r.e2eLatency.p999);
+  const peakRss = results.map((r) => r.memory.peakRss);
+  const peakHeap = results.map((r) => r.memory.peakHeapUsed);
+  const deltaRss = results.map((r) => r.memory.deltaRss);
+
+  const avgPushRate = Math.round(
+    pushRates.reduce((s, v) => s + v, 0) / pushRates.length,
+  );
+  const avgProcessRate = Math.round(
+    processRates.reduce((s, v) => s + v, 0) / processRates.length,
+  );
+  const avgP99 = p99s.reduce((s, v) => s + v, 0) / p99s.length;
+  const avgPeakRss = peakRss.reduce((s, v) => s + v, 0) / peakRss.length;
+  const successCount = results.filter((r) => r.success).length;
+  const totalJobs = results.reduce((s, r) => s + r.processed, 0);
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>flashQ Benchmark Report</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      color: #e4e4e4;
+      min-height: 100vh;
+      padding: 20px;
+    }
+    .container { max-width: 1400px; margin: 0 auto; }
+    h1 {
+      text-align: center;
+      font-size: 2.5rem;
+      margin-bottom: 10px;
+      background: linear-gradient(90deg, #00d4ff, #7b2cbf);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .subtitle { text-align: center; color: #888; margin-bottom: 30px; }
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 20px;
+      margin-bottom: 30px;
+    }
+    .stat-card {
+      background: rgba(255,255,255,0.05);
+      border-radius: 12px;
+      padding: 20px;
+      text-align: center;
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+    .stat-value {
+      font-size: 2rem;
+      font-weight: bold;
+      background: linear-gradient(90deg, #00d4ff, #7b2cbf);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .stat-label { color: #888; margin-top: 5px; font-size: 0.9rem; }
+    .charts-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(600px, 1fr));
+      gap: 20px;
+    }
+    .chart-card {
+      background: rgba(255,255,255,0.05);
+      border-radius: 12px;
+      padding: 20px;
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+    .chart-title {
+      font-size: 1.2rem;
+      margin-bottom: 15px;
+      color: #fff;
+    }
+    canvas { max-height: 300px; }
+    .footer {
+      text-align: center;
+      margin-top: 30px;
+      color: #666;
+      font-size: 0.85rem;
+    }
+    .status-badge {
+      display: inline-block;
+      padding: 5px 15px;
+      border-radius: 20px;
+      font-weight: bold;
+      margin-left: 10px;
+    }
+    .status-pass { background: #10b981; color: #fff; }
+    .status-fail { background: #ef4444; color: #fff; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>flashQ Engineering Benchmark</h1>
+    <p class="subtitle">
+      ${results.length} runs × ${(results[0]?.processed || 0).toLocaleString()} jobs/run = ${totalJobs.toLocaleString()} total jobs
+      <span class="status-badge ${successCount === results.length ? "status-pass" : "status-fail"}">
+        ${successCount}/${results.length} PASSED
+      </span>
+    </p>
+
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-value">${avgProcessRate.toLocaleString()}</div>
+        <div class="stat-label">Avg Process Rate (jobs/sec)</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">${avgPushRate.toLocaleString()}</div>
+        <div class="stat-label">Avg Push Rate (jobs/sec)</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">${avgP99.toFixed(1)}ms</div>
+        <div class="stat-label">Avg P99 Latency (E2E)</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">${avgPeakRss.toFixed(0)}MB</div>
+        <div class="stat-label">Avg Peak RSS Memory</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">${(overallTime / 1000 / 60).toFixed(1)}m</div>
+        <div class="stat-label">Total Runtime</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">${((successCount / results.length) * 100).toFixed(0)}%</div>
+        <div class="stat-label">Success Rate</div>
+      </div>
+    </div>
+
+    <div class="charts-grid">
+      <div class="chart-card">
+        <div class="chart-title">📈 Throughput (jobs/sec)</div>
+        <canvas id="throughputChart"></canvas>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">⏱️ Latency Percentiles (ms)</div>
+        <canvas id="latencyChart"></canvas>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">💾 Memory Usage (MB)</div>
+        <canvas id="memoryChart"></canvas>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">📊 Memory Delta per Run (MB)</div>
+        <canvas id="memoryDeltaChart"></canvas>
+      </div>
+    </div>
+
+    <div class="footer">
+      Generated: ${new Date().toISOString()} | Node.js ${process.version} | ${process.platform} ${process.arch}
+    </div>
+  </div>
+
+  <script>
+    const chartOptions = {
+      responsive: true,
+      maintainAspectRatio: true,
+      plugins: {
+        legend: { labels: { color: '#e4e4e4' } }
+      },
+      scales: {
+        x: { ticks: { color: '#888' }, grid: { color: 'rgba(255,255,255,0.1)' } },
+        y: { ticks: { color: '#888' }, grid: { color: 'rgba(255,255,255,0.1)' } }
+      }
+    };
+
+    // Throughput Chart
+    new Chart(document.getElementById('throughputChart'), {
+      type: 'line',
+      data: {
+        labels: ${JSON.stringify(labels)},
+        datasets: [
+          {
+            label: 'Process Rate',
+            data: ${JSON.stringify(processRates)},
+            borderColor: '#00d4ff',
+            backgroundColor: 'rgba(0,212,255,0.1)',
+            fill: true,
+            tension: 0.3
+          },
+          {
+            label: 'Push Rate',
+            data: ${JSON.stringify(pushRates)},
+            borderColor: '#7b2cbf',
+            backgroundColor: 'rgba(123,44,191,0.1)',
+            fill: true,
+            tension: 0.3
+          }
+        ]
+      },
+      options: chartOptions
+    });
+
+    // Latency Chart
+    new Chart(document.getElementById('latencyChart'), {
+      type: 'line',
+      data: {
+        labels: ${JSON.stringify(labels)},
+        datasets: [
+          { label: 'P50', data: ${JSON.stringify(p50s)}, borderColor: '#10b981', tension: 0.3 },
+          { label: 'P95', data: ${JSON.stringify(p95s)}, borderColor: '#f59e0b', tension: 0.3 },
+          { label: 'P99', data: ${JSON.stringify(p99s)}, borderColor: '#ef4444', tension: 0.3 },
+          { label: 'P99.9', data: ${JSON.stringify(p999s)}, borderColor: '#ec4899', tension: 0.3 }
+        ]
+      },
+      options: chartOptions
+    });
+
+    // Memory Chart
+    new Chart(document.getElementById('memoryChart'), {
+      type: 'line',
+      data: {
+        labels: ${JSON.stringify(labels)},
+        datasets: [
+          {
+            label: 'Peak RSS',
+            data: ${JSON.stringify(peakRss)},
+            borderColor: '#00d4ff',
+            backgroundColor: 'rgba(0,212,255,0.1)',
+            fill: true,
+            tension: 0.3
+          },
+          {
+            label: 'Peak Heap',
+            data: ${JSON.stringify(peakHeap)},
+            borderColor: '#7b2cbf',
+            backgroundColor: 'rgba(123,44,191,0.1)',
+            fill: true,
+            tension: 0.3
+          }
+        ]
+      },
+      options: chartOptions
+    });
+
+    // Memory Delta Chart (bar chart for leak detection)
+    new Chart(document.getElementById('memoryDeltaChart'), {
+      type: 'bar',
+      data: {
+        labels: ${JSON.stringify(labels)},
+        datasets: [{
+          label: 'Delta RSS (end - start)',
+          data: ${JSON.stringify(deltaRss)},
+          backgroundColor: ${JSON.stringify(deltaRss)}.map(v => v > 10 ? '#ef4444' : v > 0 ? '#f59e0b' : '#10b981'),
+          borderRadius: 4
+        }]
+      },
+      options: {
+        ...chartOptions,
+        plugins: {
+          ...chartOptions.plugins,
+          annotation: {
+            annotations: {
+              line1: { type: 'line', yMin: 0, yMax: 0, borderColor: '#888', borderDash: [5,5] }
+            }
+          }
+        }
+      }
+    });
+  </script>
+</body>
+</html>`;
 }
 
 async function runBenchmark(runNumber: number): Promise<RunResult> {
   const queue = new Queue("million-benchmark", {
-    timeout: 30000, // Client request timeout (30s to handle heavy load)
+    timeout: 30000,
     defaultJobOptions: {
       removeOnComplete: true,
-      timeout: 60000, // Job processing timeout
+      timeout: 60000,
     },
   });
 
-  console.log(`\n${"=".repeat(70)}`);
+  console.log(`\n${"=".repeat(80)}`);
   console.log(
     `🚀 RUN ${runNumber}/${NUM_RUNS} - ${TOTAL_JOBS.toLocaleString()} Jobs`,
   );
-  console.log("=".repeat(70));
+  console.log("=".repeat(80));
+
+  // Trackers
+  const pushLatencyTracker = new LatencyTracker();
+  const processLatencyTracker = new LatencyTracker();
+  const e2eLatencyTracker = new LatencyTracker();
+  const memorySnapshots: MemorySnapshot[] = [];
+  const throughputSamples: number[] = [];
+
+  // Memory sampling interval
+  const memoryInterval = setInterval(() => {
+    memorySnapshots.push(getMemoryMB());
+  }, 500);
+
+  // Initial memory snapshot
+  memorySnapshots.push(getMemoryMB());
 
   // Clean up before starting
   console.log("📋 Cleaning up queue...");
   await queue.obliterate();
 
-  // Push jobs in batches
+  // Force GC if available
+  if (global.gc) {
+    global.gc();
+    await new Promise((r) => setTimeout(r, 100));
+  }
+
+  memorySnapshots.push(getMemoryMB());
+
+  // Push jobs with latency tracking
   console.log(`📤 Pushing ${TOTAL_JOBS.toLocaleString()} jobs...`);
   const pushStart = Date.now();
+  const jobTimestamps = new Map<number, number>(); // jobId -> push timestamp
 
   let pushed = 0;
   for (let i = 0; i < TOTAL_JOBS; i += BATCH_SIZE) {
     const batchCount = Math.min(BATCH_SIZE, TOTAL_JOBS - i);
-    const jobs = Array.from({ length: batchCount }, (_, j) => ({
-      name: "task",
-      data: {
-        index: i + j,
-        value: `job-${i + j}`,
-        timestamp: Date.now(),
-      },
-    }));
+    const batchStart = Date.now();
+
+    const jobs = Array.from({ length: batchCount }, (_, j) => {
+      const jobIndex = i + j;
+      jobTimestamps.set(jobIndex, Date.now());
+      return {
+        name: "task",
+        data: {
+          index: jobIndex,
+          value: `job-${jobIndex}`,
+          pushTime: Date.now(),
+        },
+      };
+    });
+
     await queue.addBulk(jobs);
+    const batchLatency = Date.now() - batchStart;
+    pushLatencyTracker.add(batchLatency / batchCount); // Per-job latency
+
     pushed += batchCount;
 
-    // Progress update every 100K
     if (pushed % 100_000 === 0) {
       const elapsed = (Date.now() - pushStart) / 1000;
       const rate = Math.round(pushed / elapsed);
+      const mem = getMemoryMB();
       console.log(
-        `   Pushed: ${pushed.toLocaleString()} (${rate.toLocaleString()} jobs/sec)`,
+        `   Pushed: ${pushed.toLocaleString()} (${rate.toLocaleString()}/s) | RSS: ${mem.rss.toFixed(0)}MB | Heap: ${mem.heapUsed.toFixed(0)}MB`,
       );
     }
   }
 
   const pushTime = Date.now() - pushStart;
   const pushRate = Math.round(TOTAL_JOBS / (pushTime / 1000));
+  const memAfterPush = getMemoryMB();
   console.log(
-    `✅ Push complete: ${pushRate.toLocaleString()} jobs/sec (${(pushTime / 1000).toFixed(2)}s)`,
+    `✅ Push complete: ${pushRate.toLocaleString()}/s (${(pushTime / 1000).toFixed(2)}s) | RSS: ${memAfterPush.rss.toFixed(0)}MB`,
   );
 
   // Create workers
@@ -94,13 +571,15 @@ async function runBenchmark(runNumber: number): Promise<RunResult> {
         const data = job.data as {
           index: number;
           value: string;
-          timestamp: number;
+          pushTime: number;
         };
+        const processingStart = Date.now();
         return {
           index: data.index,
           value: data.value,
-          originalTimestamp: data.timestamp,
-          processedAt: Date.now(),
+          pushTime: data.pushTime,
+          processingStart,
+          completedAt: Date.now(),
         };
       },
       {
@@ -112,11 +591,29 @@ async function runBenchmark(runNumber: number): Promise<RunResult> {
 
     worker.on("completed", (job, result) => {
       processed++;
-      const input = job.data as { index: number; value: string };
-      const output = result as { index: number; value: string };
+      const input = job.data as {
+        index: number;
+        value: string;
+        pushTime: number;
+      };
+      const output = result as {
+        index: number;
+        value: string;
+        pushTime: number;
+        processingStart: number;
+        completedAt: number;
+      };
+
+      // Data integrity check
       if (input.index !== output.index || input.value !== output.value) {
         dataErrors++;
       }
+
+      // Latency tracking
+      const processLatency = output.completedAt - output.processingStart;
+      const e2eLatency = output.completedAt - input.pushTime;
+      processLatencyTracker.add(processLatency);
+      e2eLatencyTracker.add(e2eLatency);
     });
 
     worker.on("failed", () => {
@@ -129,7 +626,7 @@ async function runBenchmark(runNumber: number): Promise<RunResult> {
   // Start all workers
   await Promise.all(workers.map((w) => w.start()));
 
-  // Progress reporter
+  // Progress reporter with throughput sampling
   const progressInterval = setInterval(() => {
     const now = Date.now();
     const elapsed = (now - processStart) / 1000;
@@ -138,17 +635,22 @@ async function runBenchmark(runNumber: number): Promise<RunResult> {
     const currentRate = Math.round(intervalProcessed / intervalElapsed);
     const avgRate = Math.round(processed / elapsed);
     const pct = ((processed / TOTAL_JOBS) * 100).toFixed(1);
+    const mem = getMemoryMB();
+
+    throughputSamples.push(currentRate);
 
     console.log(
-      `   ${processed.toLocaleString()}/${TOTAL_JOBS.toLocaleString()} (${pct}%) | ${currentRate.toLocaleString()}/s | Avg: ${avgRate.toLocaleString()}/s`,
+      `   ${processed.toLocaleString()}/${TOTAL_JOBS.toLocaleString()} (${pct}%) | ` +
+        `${currentRate.toLocaleString()}/s | Avg: ${avgRate.toLocaleString()}/s | ` +
+        `RSS: ${mem.rss.toFixed(0)}MB | Heap: ${mem.heapUsed.toFixed(0)}MB`,
     );
 
     lastReport = now;
     lastProcessed = processed;
   }, 5000);
 
-  // Wait for all jobs to be processed or failed
-  const timeout = Date.now() + 600_000; // 10 minute timeout
+  // Wait for all jobs
+  const timeout = Date.now() + 600_000;
   while (processed + errors < TOTAL_JOBS) {
     if (Date.now() > timeout) {
       console.error(
@@ -160,9 +662,13 @@ async function runBenchmark(runNumber: number): Promise<RunResult> {
   }
 
   clearInterval(progressInterval);
+  clearInterval(memoryInterval);
 
   const processTime = Date.now() - processStart;
   const processRate = Math.round(TOTAL_JOBS / (processTime / 1000));
+
+  // Final memory snapshot
+  memorySnapshots.push(getMemoryMB());
 
   // Stop all workers
   await Promise.all(workers.map((w) => w.close()));
@@ -176,15 +682,35 @@ async function runBenchmark(runNumber: number): Promise<RunResult> {
   const allAccountedFor = totalHandled === TOTAL_JOBS;
   const success = errors === 0 && dataErrors === 0 && allAccountedFor;
 
+  // Get stats
+  const pushLatency = pushLatencyTracker.getStats();
+  const processLatency = processLatencyTracker.getStats();
+  const e2eLatency = e2eLatencyTracker.getStats();
+  const memory = calculateMemoryStats(memorySnapshots);
+
   if (!allAccountedFor) {
     console.error(
       `❌ MISSING JOBS: ${totalHandled}/${TOTAL_JOBS} (${TOTAL_JOBS - totalHandled} lost)`,
     );
   }
 
+  // Detailed run summary
+  console.log(`\n${"─".repeat(80)}`);
+  console.log(`📊 Run ${runNumber} Summary`);
+  console.log(`${"─".repeat(80)}`);
   console.log(
-    `\n📊 Run ${runNumber} Result: Push ${pushRate.toLocaleString()}/s | Process ${processRate.toLocaleString()}/s | Total ${(totalTime / 1000).toFixed(2)}s | ${success ? "✅" : "❌"}`,
+    `   Throughput: Push ${pushRate.toLocaleString()}/s | Process ${processRate.toLocaleString()}/s`,
   );
+  console.log(
+    `   Latency E2E: P50=${formatMs(e2eLatency.p50)} P95=${formatMs(e2eLatency.p95)} P99=${formatMs(e2eLatency.p99)} P99.9=${formatMs(e2eLatency.p999)}`,
+  );
+  console.log(
+    `   Latency Process: P50=${formatMs(processLatency.p50)} P95=${formatMs(processLatency.p95)} P99=${formatMs(processLatency.p99)}`,
+  );
+  console.log(
+    `   Memory: Peak RSS=${memory.peakRss.toFixed(0)}MB | Peak Heap=${memory.peakHeapUsed.toFixed(0)}MB | Delta=${memory.deltaRss.toFixed(1)}MB`,
+  );
+  console.log(`   Status: ${success ? "✅ PASS" : "❌ FAIL"}`);
 
   return {
     run: runNumber,
@@ -198,19 +724,26 @@ async function runBenchmark(runNumber: number): Promise<RunResult> {
     dataErrors,
     missing: TOTAL_JOBS - totalHandled,
     success,
+    pushLatency,
+    processLatency,
+    e2eLatency,
+    memory,
+    throughputSamples,
   };
 }
 
 // Main execution
-console.log("=".repeat(70));
-console.log("🚀 flashQ STABILITY BENCHMARK - 10 Consecutive Runs");
-console.log("=".repeat(70));
+console.log("=".repeat(80));
+console.log("🚀 flashQ ENGINEERING BENCHMARK");
+console.log("=".repeat(80));
 console.log(`Jobs per run: ${TOTAL_JOBS.toLocaleString()}`);
 console.log(`Total jobs: ${(TOTAL_JOBS * NUM_RUNS).toLocaleString()}`);
 console.log(`Workers: ${NUM_WORKERS}`);
 console.log(`Concurrency/worker: ${CONCURRENCY_PER_WORKER}`);
 console.log(`Total concurrency: ${NUM_WORKERS * CONCURRENCY_PER_WORKER}`);
-console.log("=".repeat(70));
+console.log(`Node.js: ${process.version}`);
+console.log(`Platform: ${process.platform} ${process.arch}`);
+console.log("=".repeat(80));
 
 const results: RunResult[] = [];
 const overallStart = Date.now();
@@ -222,13 +755,23 @@ for (let run = 1; run <= NUM_RUNS; run++) {
 
 const overallTime = Date.now() - overallStart;
 
-// Final summary
-console.log("\n" + "=".repeat(70));
-console.log("📊 FINAL SUMMARY - 10 RUNS");
-console.log("=".repeat(70));
-console.log("");
-console.log("Run  | Push Rate    | Process Rate | Total Time | Status");
-console.log("-".repeat(70));
+// ═══════════════════════════════════════════════════════════════════════════════
+// FINAL ENGINEERING REPORT
+// ═══════════════════════════════════════════════════════════════════════════════
+console.log("\n" + "═".repeat(80));
+console.log("📊 ENGINEERING REPORT - COMPLETE ANALYSIS");
+console.log("═".repeat(80));
+
+// 1. Throughput Summary Table
+console.log(
+  "\n┌─ THROUGHPUT ──────────────────────────────────────────────────────────────┐",
+);
+console.log(
+  "│ Run  │ Push Rate    │ Process Rate │ Total Time │ Status                 │",
+);
+console.log(
+  "├──────┼──────────────┼──────────────┼────────────┼────────────────────────┤",
+);
 
 for (const r of results) {
   let status = "✅ OK";
@@ -240,62 +783,231 @@ for (const r of results) {
     status = `❌ ${issues.join(" ")}`;
   }
   console.log(
-    `#${r.run.toString().padStart(2)}  | ` +
-      `${r.pushRate.toLocaleString().padStart(12)}/s | ` +
-      `${r.processRate.toLocaleString().padStart(12)}/s | ` +
-      `${(r.totalTime / 1000).toFixed(2).padStart(8)}s | ` +
-      status,
+    `│ #${r.run.toString().padStart(2)}  │ ` +
+      `${r.pushRate.toLocaleString().padStart(10)}/s │ ` +
+      `${r.processRate.toLocaleString().padStart(10)}/s │ ` +
+      `${(r.totalTime / 1000).toFixed(2).padStart(8)}s │ ` +
+      `${status.padEnd(22)} │`,
   );
 }
+console.log(
+  "└──────┴──────────────┴──────────────┴────────────┴────────────────────────┘",
+);
 
-console.log("-".repeat(70));
-
-// Averages
+// 2. Throughput Statistics
+const pushRates = results.map((r) => r.pushRate);
+const processRates = results.map((r) => r.processRate);
 const avgPushRate = Math.round(
-  results.reduce((s, r) => s + r.pushRate, 0) / results.length,
+  pushRates.reduce((s, v) => s + v, 0) / pushRates.length,
 );
 const avgProcessRate = Math.round(
-  results.reduce((s, r) => s + r.processRate, 0) / results.length,
+  processRates.reduce((s, v) => s + v, 0) / processRates.length,
 );
-const avgTotalTime =
-  results.reduce((s, r) => s + r.totalTime, 0) / results.length;
-const successCount = results.filter((r) => r.success).length;
 
 console.log(
-  `AVG  | ` +
-    `${avgPushRate.toLocaleString().padStart(12)}/s | ` +
-    `${avgProcessRate.toLocaleString().padStart(12)}/s | ` +
-    `${(avgTotalTime / 1000).toFixed(2).padStart(8)}s | ` +
-    `${successCount}/${NUM_RUNS} passed`,
+  "\n┌─ THROUGHPUT STATISTICS ───────────────────────────────────────────────────┐",
+);
+console.log(
+  `│ Push Rate:    Avg=${avgPushRate.toLocaleString().padStart(8)}/s  Min=${Math.min(
+    ...pushRates,
+  )
+    .toLocaleString()
+    .padStart(8)}/s  Max=${Math.max(...pushRates)
+    .toLocaleString()
+    .padStart(8)}/s  StdDev=${stdDev(pushRates).toFixed(0).padStart(6)} │`,
+);
+console.log(
+  `│ Process Rate: Avg=${avgProcessRate.toLocaleString().padStart(8)}/s  Min=${Math.min(
+    ...processRates,
+  )
+    .toLocaleString()
+    .padStart(8)}/s  Max=${Math.max(...processRates)
+    .toLocaleString()
+    .padStart(8)}/s  StdDev=${stdDev(processRates).toFixed(0).padStart(6)} │`,
+);
+console.log(
+  "└───────────────────────────────────────────────────────────────────────────┘",
 );
 
-// Min/Max
-const minProcessRate = Math.min(...results.map((r) => r.processRate));
-const maxProcessRate = Math.max(...results.map((r) => r.processRate));
+// 3. Latency Analysis
+console.log(
+  "\n┌─ LATENCY ANALYSIS (End-to-End) ──────────────────────────────────────────┐",
+);
+console.log(
+  "│ Run  │    P50    │    P95    │    P99    │   P99.9   │    Max    │  Avg    │",
+);
+console.log(
+  "├──────┼───────────┼───────────┼───────────┼───────────┼───────────┼─────────┤",
+);
+
+for (const r of results) {
+  const e = r.e2eLatency;
+  console.log(
+    `│ #${r.run.toString().padStart(2)}  │ ` +
+      `${formatMs(e.p50).padStart(9)} │ ` +
+      `${formatMs(e.p95).padStart(9)} │ ` +
+      `${formatMs(e.p99).padStart(9)} │ ` +
+      `${formatMs(e.p999).padStart(9)} │ ` +
+      `${formatMs(e.max).padStart(9)} │ ` +
+      `${formatMs(e.avg).padStart(7)} │`,
+  );
+}
+console.log(
+  "└──────┴───────────┴───────────┴───────────┴───────────┴───────────┴─────────┘",
+);
+
+// Aggregate latency stats
+const allP99s = results.map((r) => r.e2eLatency.p99);
+const allP999s = results.map((r) => r.e2eLatency.p999);
+const avgP99 = allP99s.reduce((s, v) => s + v, 0) / allP99s.length;
+const avgP999 = allP999s.reduce((s, v) => s + v, 0) / allP999s.length;
+const maxP99 = Math.max(...allP99s);
+const maxP999 = Math.max(...allP999s);
+
+console.log(
+  "\n┌─ LATENCY SUMMARY ─────────────────────────────────────────────────────────┐",
+);
+console.log(
+  `│ P99  (E2E): Avg=${formatMs(avgP99).padStart(9)}  Max=${formatMs(maxP99).padStart(9)}  StdDev=${formatMs(stdDev(allP99s)).padStart(9)}              │`,
+);
+console.log(
+  `│ P99.9(E2E): Avg=${formatMs(avgP999).padStart(9)}  Max=${formatMs(maxP999).padStart(9)}  StdDev=${formatMs(stdDev(allP999s)).padStart(9)}              │`,
+);
+console.log(
+  "└───────────────────────────────────────────────────────────────────────────┘",
+);
+
+// 4. Memory Analysis
+console.log(
+  "\n┌─ MEMORY ANALYSIS ─────────────────────────────────────────────────────────┐",
+);
+console.log(
+  "│ Run  │ Peak RSS  │ Peak Heap │  Avg RSS  │ Avg Heap  │ Delta RSS │",
+);
+console.log(
+  "├──────┼───────────┼───────────┼───────────┼───────────┼───────────┤",
+);
+
+for (const r of results) {
+  const m = r.memory;
+  console.log(
+    `│ #${r.run.toString().padStart(2)}  │ ` +
+      `${m.peakRss.toFixed(0).padStart(7)}MB │ ` +
+      `${m.peakHeapUsed.toFixed(0).padStart(7)}MB │ ` +
+      `${m.avgRss.toFixed(0).padStart(7)}MB │ ` +
+      `${m.avgHeapUsed.toFixed(0).padStart(7)}MB │ ` +
+      `${(m.deltaRss >= 0 ? "+" : "") + m.deltaRss.toFixed(1).padStart(6)}MB │`,
+  );
+}
+console.log(
+  "└──────┴───────────┴───────────┴───────────┴───────────┴───────────┘",
+);
+
+// Memory statistics
+const peakRsss = results.map((r) => r.memory.peakRss);
+const peakHeaps = results.map((r) => r.memory.peakHeapUsed);
+const deltaRsss = results.map((r) => r.memory.deltaRss);
+
+console.log(
+  "\n┌─ MEMORY SUMMARY ──────────────────────────────────────────────────────────┐",
+);
+console.log(
+  `│ Peak RSS:  Avg=${(peakRsss.reduce((s, v) => s + v, 0) / peakRsss.length).toFixed(0).padStart(5)}MB  Min=${Math.min(
+    ...peakRsss,
+  )
+    .toFixed(0)
+    .padStart(5)}MB  Max=${Math.max(...peakRsss)
+    .toFixed(0)
+    .padStart(5)}MB  StdDev=${stdDev(peakRsss).toFixed(1).padStart(6)}MB │`,
+);
+console.log(
+  `│ Peak Heap: Avg=${(peakHeaps.reduce((s, v) => s + v, 0) / peakHeaps.length).toFixed(0).padStart(5)}MB  Min=${Math.min(
+    ...peakHeaps,
+  )
+    .toFixed(0)
+    .padStart(5)}MB  Max=${Math.max(...peakHeaps)
+    .toFixed(0)
+    .padStart(5)}MB  StdDev=${stdDev(peakHeaps).toFixed(1).padStart(6)}MB │`,
+);
+console.log(
+  `│ Delta RSS: Avg=${(deltaRsss.reduce((s, v) => s + v, 0) / deltaRsss.length).toFixed(1).padStart(5)}MB  Min=${Math.min(
+    ...deltaRsss,
+  )
+    .toFixed(1)
+    .padStart(5)}MB  Max=${Math.max(...deltaRsss)
+    .toFixed(1)
+    .padStart(5)}MB  (memory leak indicator)      │`,
+);
+console.log(
+  "└───────────────────────────────────────────────────────────────────────────┘",
+);
+
+// 5. Throughput Variance Analysis
+const allThroughputSamples = results.flatMap((r) => r.throughputSamples);
+const throughputStdDev = stdDev(allThroughputSamples);
+const throughputCV = (throughputStdDev / avgProcessRate) * 100; // Coefficient of variation
+
+console.log(
+  "\n┌─ THROUGHPUT STABILITY ─────────────────────────────────────────────────────┐",
+);
+console.log(
+  `│ Coefficient of Variation: ${throughputCV.toFixed(2)}% (lower = more stable)                        │`,
+);
+console.log(
+  `│ Standard Deviation: ${throughputStdDev.toFixed(0)} jobs/sec                                        │`,
+);
+console.log(
+  `│ Sample count: ${allThroughputSamples.length} throughput measurements                                  │`,
+);
+console.log(
+  "└───────────────────────────────────────────────────────────────────────────┘",
+);
+
+// 6. Overall Summary
+const successCount = results.filter((r) => r.success).length;
 const totalProcessed = results.reduce((s, r) => s + r.processed, 0);
 const totalErrors = results.reduce((s, r) => s + r.errors, 0);
 const totalDataErrors = results.reduce((s, r) => s + r.dataErrors, 0);
 const totalMissing = results.reduce((s, r) => s + r.missing, 0);
 
-console.log("");
+console.log("\n" + "═".repeat(80));
+console.log("📈 FINAL SUMMARY");
+console.log("═".repeat(80));
+console.log(`   Total runs: ${NUM_RUNS}`);
 console.log(
-  `Process rate range: ${minProcessRate.toLocaleString()}/s - ${maxProcessRate.toLocaleString()}/s`,
+  `   Passed: ${successCount}/${NUM_RUNS} (${((successCount / NUM_RUNS) * 100).toFixed(1)}%)`,
 );
-console.log(`Total jobs pushed: ${(TOTAL_JOBS * NUM_RUNS).toLocaleString()}`);
-console.log(`Total processed: ${totalProcessed.toLocaleString()}`);
+console.log(
+  `   Total jobs pushed: ${(TOTAL_JOBS * NUM_RUNS).toLocaleString()}`,
+);
+console.log(`   Total processed: ${totalProcessed.toLocaleString()}`);
 if (totalErrors > 0)
-  console.log(`Total errors: ${totalErrors.toLocaleString()}`);
+  console.log(`   Total errors: ${totalErrors.toLocaleString()}`);
 if (totalDataErrors > 0)
-  console.log(`Total data errors: ${totalDataErrors.toLocaleString()}`);
+  console.log(
+    `   Total data integrity errors: ${totalDataErrors.toLocaleString()}`,
+  );
 if (totalMissing > 0)
-  console.log(`Total missing: ${totalMissing.toLocaleString()}`);
-console.log(`Total time: ${(overallTime / 1000 / 60).toFixed(2)} minutes`);
-console.log("=".repeat(70));
+  console.log(`   Total missing jobs: ${totalMissing.toLocaleString()}`);
+console.log(`   Total time: ${(overallTime / 1000 / 60).toFixed(2)} minutes`);
+console.log(`   Avg throughput: ${avgProcessRate.toLocaleString()} jobs/sec`);
+console.log(`   Avg P99 latency: ${formatMs(avgP99)}`);
+console.log(`   Peak memory (RSS): ${Math.max(...peakRsss).toFixed(0)}MB`);
+console.log("═".repeat(80));
 
 if (successCount === NUM_RUNS) {
-  console.log("\n✅ ALL RUNS PASSED - System is stable!");
+  console.log("\n✅ ALL RUNS PASSED - System is stable and production-ready!");
 } else {
-  console.log(`\n❌ ${NUM_RUNS - successCount} RUNS FAILED`);
+  console.log(
+    `\n❌ ${NUM_RUNS - successCount} RUNS FAILED - Investigation required`,
+  );
 }
+
+// Generate HTML Report with Charts
+const reportHtml = generateHtmlReport(results, overallTime);
+const reportPath = join(process.cwd(), `benchmark-report-${Date.now()}.html`);
+writeFileSync(reportPath, reportHtml);
+console.log(`\n📊 HTML Report generated: ${reportPath}`);
+console.log(`   Open in browser: file://${reportPath}`);
 
 process.exit(successCount === NUM_RUNS ? 0 : 1);
