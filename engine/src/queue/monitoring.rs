@@ -147,9 +147,9 @@ impl QueueManager {
             kv_store_count: self.kv_store.len(),
             total_queued_jobs: total_queued,
             total_dlq_jobs: total_dlq,
-            total_waiting_deps: total_waiting_deps,
-            total_waiting_children: total_waiting_children,
-            total_unique_keys: total_unique_keys,
+            total_waiting_deps,
+            total_waiting_children,
+            total_unique_keys,
         }
     }
 
