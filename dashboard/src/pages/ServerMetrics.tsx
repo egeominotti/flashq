@@ -1,5 +1,4 @@
-import { useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useMemo } from 'react';
 import {
   Title,
   Text,
@@ -21,15 +20,14 @@ import {
   Activity,
   Clock,
   Wifi,
+  WifiOff,
   Database,
   Zap,
   TrendingUp,
   MemoryStick,
   Gauge,
-  RefreshCw,
 } from 'lucide-react';
-import { useSettings, useMetrics, useMetricsHistory, useSparklineData } from '../hooks';
-import { fetchSystemMetrics, getSqliteStats } from '../api';
+import { useSettings, useDashboardWebSocket, useSparklineData } from '../hooks';
 import { formatNumber, formatUptime } from '../utils';
 import {
   AnimatedCounter,
@@ -41,40 +39,15 @@ import {
   StorageItem,
   JobDistItem,
 } from '../components/common';
+import type { MetricsHistory } from '../api/types';
 import './ServerMetrics.css';
-
-interface MetricsHistoryPoint {
-  timestamp: number;
-  throughput: number;
-  latency_ms: number;
-  queued: number;
-  processing: number;
-}
 
 export function ServerMetrics() {
   const { data: settings } = useSettings();
-  const { data: metrics } = useMetrics();
-  const { data: metricsHistory } = useMetricsHistory();
-  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const { data: systemMetrics, refetch: refetchSystem } = useQuery({
-    queryKey: ['systemMetrics'],
-    queryFn: fetchSystemMetrics,
-    refetchInterval: 2000,
-  });
-
-  const { data: sqliteStats, refetch: refetchSqlite } = useQuery({
-    queryKey: ['sqliteStats'],
-    queryFn: getSqliteStats,
-    refetchInterval: 5000,
-    enabled: settings?.sqlite?.enabled ?? false,
-  });
-
-  const handleRefresh = async () => {
-    setIsRefreshing(true);
-    await Promise.all([refetchSystem(), refetchSqlite()]);
-    setTimeout(() => setIsRefreshing(false), 500);
-  };
+  // WebSocket for real-time data
+  const { isConnected, metrics, metricsHistory, systemMetrics, sqliteStats } =
+    useDashboardWebSocket();
 
   // DRY: Use custom hook for sparkline data extraction
   const latencySparkline = useSparklineData(metricsHistory, 'latency_ms');
@@ -84,7 +57,7 @@ export function ServerMetrics() {
 
   const performanceChartData = useMemo(
     () =>
-      metricsHistory?.map((point: MetricsHistoryPoint) => ({
+      metricsHistory?.map((point: MetricsHistory) => ({
         date: new Date(point.timestamp).toLocaleTimeString('en-US', {
           hour: '2-digit',
           minute: '2-digit',
@@ -97,7 +70,7 @@ export function ServerMetrics() {
 
   const loadChartData = useMemo(
     () =>
-      metricsHistory?.map((point: MetricsHistoryPoint) => ({
+      metricsHistory?.map((point: MetricsHistory) => ({
         date: new Date(point.timestamp).toLocaleTimeString('en-US', {
           hour: '2-digit',
           minute: '2-digit',
@@ -117,21 +90,22 @@ export function ServerMetrics() {
       <header className="page-header">
         <div>
           <Title className="page-title">Server Metrics</Title>
-          <Text className="page-subtitle">
-            Real-time system performance and resource monitoring
-          </Text>
+          <Text className="page-subtitle">Real-time system monitoring via WebSocket</Text>
         </div>
         <div className="header-actions">
-          <button
-            className={`refresh-button ${isRefreshing ? 'refreshing' : ''}`}
-            onClick={handleRefresh}
-          >
-            <RefreshCw className="h-4 w-4" />
-            Refresh
-          </button>
-          <Badge size="lg" color="emerald" className="status-badge">
-            <span className="status-indicator" />
-            Server Online
+          <Badge size="lg" color={isConnected ? 'emerald' : 'rose'}>
+            {isConnected ? (
+              <>
+                <Wifi className="mr-1 h-4 w-4" />
+                <span className="status-indicator" />
+                Connected
+              </>
+            ) : (
+              <>
+                <WifiOff className="mr-1 h-4 w-4" />
+                Disconnected
+              </>
+            )}
           </Badge>
         </div>
       </header>
@@ -216,7 +190,7 @@ export function ServerMetrics() {
                     icon={<Clock className="h-4 w-4" />}
                     iconColor="cyan"
                     label="Uptime"
-                    value={formatUptime(settings?.uptime_seconds ?? 0)}
+                    value={formatUptime(systemMetrics?.uptime_seconds ?? 0)}
                   />
                   <InfoItem
                     icon={<Server className="h-4 w-4" />}
@@ -284,9 +258,9 @@ export function ServerMetrics() {
                     <Title className="chart-card-title">Performance Over Time</Title>
                     <Text className="chart-card-subtitle">Latency and throughput trends</Text>
                   </div>
-                  <Badge color="cyan" size="xs">
-                    <span className="live-dot" />
-                    Live
+                  <Badge color={isConnected ? 'cyan' : 'zinc'} size="xs">
+                    {isConnected && <span className="live-dot" />}
+                    {isConnected ? 'Live' : 'Offline'}
                   </Badge>
                 </div>
                 {performanceChartData.length > 0 ? (
@@ -316,9 +290,9 @@ export function ServerMetrics() {
                     <Title className="chart-card-title">Queue Load</Title>
                     <Text className="chart-card-subtitle">Jobs queued vs processing</Text>
                   </div>
-                  <Badge color="blue" size="xs">
-                    <span className="live-dot live-dot-blue" />
-                    Real-time
+                  <Badge color={isConnected ? 'blue' : 'zinc'} size="xs">
+                    {isConnected && <span className="live-dot live-dot-blue" />}
+                    {isConnected ? 'Real-time' : 'Offline'}
                   </Badge>
                 </div>
                 {loadChartData.length > 0 ? (
@@ -423,11 +397,11 @@ export function ServerMetrics() {
                     <Title className="info-card-title">SQLite Database</Title>
                     <Text className="info-card-subtitle">Persistent storage metrics</Text>
                   </div>
-                  <Badge color={settings?.sqlite?.enabled ? 'emerald' : 'zinc'} size="xs">
-                    {settings?.sqlite?.enabled ? 'Enabled' : 'Disabled'}
+                  <Badge color={sqliteStats?.enabled ? 'emerald' : 'zinc'} size="xs">
+                    {sqliteStats?.enabled ? 'Enabled' : 'Disabled'}
                   </Badge>
                 </div>
-                {settings?.sqlite?.enabled && sqliteStats ? (
+                {sqliteStats?.enabled ? (
                   <div className="storage-list">
                     {/* DRY: Using StorageItem component */}
                     <StorageItem
@@ -535,7 +509,7 @@ export function ServerMetrics() {
                 )}
               </Card>
 
-              {settings?.sqlite?.enabled && sqliteStats && (
+              {sqliteStats?.enabled && (
                 <Card className="info-card col-span-full">
                   <div className="info-card-header">
                     <div>

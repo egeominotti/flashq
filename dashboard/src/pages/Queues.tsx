@@ -21,15 +21,15 @@ import {
   Pause,
   Play,
   Trash2,
-  RefreshCw,
   Download,
   CheckSquare,
   Square,
+  Wifi,
+  WifiOff,
 } from 'lucide-react';
-import { useQueues, useToast } from '../hooks';
+import { useDashboardWebSocket, useToast } from '../hooks';
 import { api } from '../api/client';
 import { formatNumber } from '../utils';
-import { SkeletonTable } from '../components/common/Skeleton';
 import { ConfirmModal } from '../components/common/ConfirmModal';
 import { Tooltip } from '../components/common/Tooltip';
 import type { Queue } from '../api/types';
@@ -37,7 +37,7 @@ import './Queues.css';
 
 export function Queues() {
   const { showToast } = useToast();
-  const { data: queuesData, refetch, isLoading } = useQueues();
+  const { isConnected, queues: queuesData } = useDashboardWebSocket();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [selectedQueues, setSelectedQueues] = useState<Set<string>>(new Set());
@@ -95,7 +95,6 @@ export function Queues() {
     try {
       await api.pauseQueue(queueName);
       showToast(`Queue "${queueName}" paused`, 'success');
-      refetch();
     } catch {
       showToast('Failed to pause queue', 'error');
     }
@@ -105,7 +104,6 @@ export function Queues() {
     try {
       await api.resumeQueue(queueName);
       showToast(`Queue "${queueName}" resumed`, 'success');
-      refetch();
     } catch {
       showToast('Failed to resume queue', 'error');
     }
@@ -122,7 +120,6 @@ export function Queues() {
         try {
           await api.drainQueue(queueName);
           showToast(`Queue "${queueName}" drained`, 'success');
-          refetch();
         } catch {
           showToast('Failed to drain queue', 'error');
         }
@@ -144,7 +141,6 @@ export function Queues() {
           }
           showToast(`${selectedQueues.size} queues paused`, 'success');
           setSelectedQueues(new Set());
-          refetch();
         } catch {
           showToast('Failed to pause some queues', 'error');
         }
@@ -166,7 +162,6 @@ export function Queues() {
           }
           showToast(`${selectedQueues.size} queues resumed`, 'success');
           setSelectedQueues(new Set());
-          refetch();
         } catch {
           showToast('Failed to resume some queues', 'error');
         }
@@ -202,11 +197,6 @@ export function Queues() {
     }
   };
 
-  const handleRefresh = () => {
-    refetch();
-    showToast('Data refreshed', 'info');
-  };
-
   const getQueueStatus = (queue: Queue) => {
     if (queue.paused) return { label: 'Paused', color: 'amber' as const };
     if (queue.processing > 0) return { label: 'Active', color: 'emerald' as const };
@@ -219,7 +209,7 @@ export function Queues() {
       <header className="page-header">
         <div>
           <Title className="page-title">Queue Management</Title>
-          <Text className="page-subtitle">Monitor and control your job queues</Text>
+          <Text className="page-subtitle">Real-time queue monitoring via WebSocket</Text>
         </div>
         <Flex className="gap-2">
           <Tooltip content="Export to CSV">
@@ -227,9 +217,20 @@ export function Queues() {
               Export
             </Button>
           </Tooltip>
-          <Button icon={RefreshCw} variant="secondary" onClick={handleRefresh}>
-            Refresh
-          </Button>
+          <Badge size="lg" color={isConnected ? 'emerald' : 'rose'}>
+            {isConnected ? (
+              <>
+                <Wifi className="mr-1 h-4 w-4" />
+                <span className="status-indicator" />
+                Connected
+              </>
+            ) : (
+              <>
+                <WifiOff className="mr-1 h-4 w-4" />
+                Disconnected
+              </>
+            )}
+          </Badge>
         </Flex>
       </header>
 
@@ -266,137 +267,133 @@ export function Queues() {
         </Flex>
 
         {/* Table */}
-        {isLoading ? (
-          <SkeletonTable rows={8} columns={9} />
-        ) : (
-          <Table>
-            <TableHead>
+        <Table>
+          <TableHead>
+            <TableRow>
+              <TableHeaderCell className="w-10">
+                <button onClick={toggleSelectAll} className="select-checkbox">
+                  {selectedQueues.size === filteredQueues.length && filteredQueues.length > 0 ? (
+                    <CheckSquare size={18} className="text-cyan-400" />
+                  ) : (
+                    <Square size={18} className="text-zinc-500" />
+                  )}
+                </button>
+              </TableHeaderCell>
+              <TableHeaderCell>Queue Name</TableHeaderCell>
+              <TableHeaderCell>Status</TableHeaderCell>
+              <TableHeaderCell className="text-right">Waiting</TableHeaderCell>
+              <TableHeaderCell className="text-right">Active</TableHeaderCell>
+              <TableHeaderCell className="text-right">Completed</TableHeaderCell>
+              <TableHeaderCell className="text-right">Failed</TableHeaderCell>
+              <TableHeaderCell className="text-right">Delayed</TableHeaderCell>
+              <TableHeaderCell className="text-right">Actions</TableHeaderCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {filteredQueues.length === 0 ? (
               <TableRow>
-                <TableHeaderCell className="w-10">
-                  <button onClick={toggleSelectAll} className="select-checkbox">
-                    {selectedQueues.size === filteredQueues.length && filteredQueues.length > 0 ? (
-                      <CheckSquare size={18} className="text-cyan-400" />
-                    ) : (
-                      <Square size={18} className="text-zinc-500" />
-                    )}
-                  </button>
-                </TableHeaderCell>
-                <TableHeaderCell>Queue Name</TableHeaderCell>
-                <TableHeaderCell>Status</TableHeaderCell>
-                <TableHeaderCell className="text-right">Waiting</TableHeaderCell>
-                <TableHeaderCell className="text-right">Active</TableHeaderCell>
-                <TableHeaderCell className="text-right">Completed</TableHeaderCell>
-                <TableHeaderCell className="text-right">Failed</TableHeaderCell>
-                <TableHeaderCell className="text-right">Delayed</TableHeaderCell>
-                <TableHeaderCell className="text-right">Actions</TableHeaderCell>
+                <TableCell colSpan={9}>
+                  <div className="py-8 text-center">
+                    <Text>No queues found</Text>
+                  </div>
+                </TableCell>
               </TableRow>
-            </TableHead>
-            <TableBody>
-              {filteredQueues.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={9}>
-                    <div className="py-8 text-center">
-                      <Text>No queues found</Text>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ) : (
-                filteredQueues.map((queue) => {
-                  const status = getQueueStatus(queue);
-                  const isSelected = selectedQueues.has(queue.name);
-                  return (
-                    <TableRow key={queue.name} className={isSelected ? 'selected' : ''}>
-                      <TableCell>
-                        <button
-                          onClick={() => toggleSelectQueue(queue.name)}
-                          className="select-checkbox"
-                        >
-                          {isSelected ? (
-                            <CheckSquare size={18} className="text-cyan-400" />
-                          ) : (
-                            <Square size={18} className="text-zinc-500" />
-                          )}
-                        </button>
-                      </TableCell>
-                      <TableCell>
-                        <div className="queue-name">
-                          <Text className="font-mono font-semibold text-white">{queue.name}</Text>
-                          {queue.rate_limit && (
-                            <Tooltip content="Rate limit (jobs per minute)">
-                              <Badge size="xs" color="violet">
-                                {queue.rate_limit}/min
-                              </Badge>
-                            </Tooltip>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge color={status.color}>{status.label}</Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Badge color="cyan">{formatNumber(queue.pending)}</Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Badge color="blue">{formatNumber(queue.processing)}</Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <span className="font-mono text-emerald-400">
-                          {formatNumber(queue.completed || 0)}
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <span className="font-mono text-rose-400">{formatNumber(queue.dlq)}</span>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <span className="font-mono text-amber-400">
-                          {formatNumber(queue.delayed || 0)}
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Flex justifyContent="end" className="gap-2">
-                          {queue.paused ? (
-                            <Tooltip content="Resume processing">
-                              <Button
-                                size="xs"
-                                variant="secondary"
-                                icon={Play}
-                                onClick={() => handleResume(queue.name)}
-                              >
-                                Resume
-                              </Button>
-                            </Tooltip>
-                          ) : (
-                            <Tooltip content="Pause processing">
-                              <Button
-                                size="xs"
-                                variant="secondary"
-                                icon={Pause}
-                                onClick={() => handlePause(queue.name)}
-                              >
-                                Pause
-                              </Button>
-                            </Tooltip>
-                          )}
-                          <Tooltip content="Remove all waiting jobs">
+            ) : (
+              filteredQueues.map((queue) => {
+                const status = getQueueStatus(queue);
+                const isSelected = selectedQueues.has(queue.name);
+                return (
+                  <TableRow key={queue.name} className={isSelected ? 'selected' : ''}>
+                    <TableCell>
+                      <button
+                        onClick={() => toggleSelectQueue(queue.name)}
+                        className="select-checkbox"
+                      >
+                        {isSelected ? (
+                          <CheckSquare size={18} className="text-cyan-400" />
+                        ) : (
+                          <Square size={18} className="text-zinc-500" />
+                        )}
+                      </button>
+                    </TableCell>
+                    <TableCell>
+                      <div className="queue-name">
+                        <Text className="font-mono font-semibold text-white">{queue.name}</Text>
+                        {queue.rate_limit && (
+                          <Tooltip content="Rate limit (jobs per minute)">
+                            <Badge size="xs" color="violet">
+                              {queue.rate_limit}/min
+                            </Badge>
+                          </Tooltip>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge color={status.color}>{status.label}</Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Badge color="cyan">{formatNumber(queue.pending)}</Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Badge color="blue">{formatNumber(queue.processing)}</Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <span className="font-mono text-emerald-400">
+                        {formatNumber(queue.completed || 0)}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <span className="font-mono text-rose-400">{formatNumber(queue.dlq)}</span>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <span className="font-mono text-amber-400">
+                        {formatNumber(queue.delayed || 0)}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Flex justifyContent="end" className="gap-2">
+                        {queue.paused ? (
+                          <Tooltip content="Resume processing">
                             <Button
                               size="xs"
                               variant="secondary"
-                              color="rose"
-                              icon={Trash2}
-                              onClick={() => handleDrain(queue.name)}
+                              icon={Play}
+                              onClick={() => handleResume(queue.name)}
                             >
-                              Drain
+                              Resume
                             </Button>
                           </Tooltip>
-                        </Flex>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })
-              )}
-            </TableBody>
-          </Table>
-        )}
+                        ) : (
+                          <Tooltip content="Pause processing">
+                            <Button
+                              size="xs"
+                              variant="secondary"
+                              icon={Pause}
+                              onClick={() => handlePause(queue.name)}
+                            >
+                              Pause
+                            </Button>
+                          </Tooltip>
+                        )}
+                        <Tooltip content="Remove all waiting jobs">
+                          <Button
+                            size="xs"
+                            variant="secondary"
+                            color="rose"
+                            icon={Trash2}
+                            onClick={() => handleDrain(queue.name)}
+                          >
+                            Drain
+                          </Button>
+                        </Tooltip>
+                      </Flex>
+                    </TableCell>
+                  </TableRow>
+                );
+              })
+            )}
+          </TableBody>
+        </Table>
 
         {/* Summary */}
         <Flex className="mt-6 border-t border-zinc-800 pt-6">

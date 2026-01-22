@@ -152,3 +152,5 @@ export interface S3Backup {
   size: number;
   last_modified?: string;
 }
+
+// SystemMetrics and SqliteStats are defined in client.ts

@@ -1,18 +1,20 @@
 import { useMemo } from 'react';
 import { Title, Text, AreaChart, BarChart, LineChart, Badge, Grid } from '@tremor/react';
-import { TrendingUp, Activity, Clock, Zap, CheckCircle2, RefreshCw, BarChart3 } from 'lucide-react';
-import { useMetrics, useMetricsHistory, useSparklineData } from '../hooks';
+import {
+  TrendingUp,
+  Activity,
+  Clock,
+  Zap,
+  CheckCircle2,
+  BarChart3,
+  Wifi,
+  WifiOff,
+} from 'lucide-react';
+import { useDashboardWebSocket, useSparklineData } from '../hooks';
 import { formatNumber } from '../utils';
 import { GlowCard, EmptyState, MetricGlowCard } from '../components/common';
+import type { MetricsHistory } from '../api/types';
 import './Analytics.css';
-
-interface MetricsPoint {
-  timestamp: number;
-  throughput?: number;
-  latency_ms?: number;
-  queued?: number;
-  processing?: number;
-}
 
 interface QueueMetric {
   name: string;
@@ -22,17 +24,11 @@ interface QueueMetric {
 }
 
 export function Analytics() {
-  const { data: metrics, refetch } = useMetrics();
-  const { data: metricsHistory, refetch: refetchHistory } = useMetricsHistory();
-
-  const handleRefresh = () => {
-    refetch();
-    refetchHistory();
-  };
+  const { isConnected, metrics, metricsHistory } = useDashboardWebSocket();
 
   const throughputHistory = useMemo(
     () =>
-      metricsHistory?.map((point: MetricsPoint) => ({
+      metricsHistory?.map((point: MetricsHistory) => ({
         timestamp: new Date(point.timestamp).toLocaleTimeString('en-US', {
           hour: '2-digit',
           minute: '2-digit',
@@ -44,7 +40,7 @@ export function Analytics() {
 
   const latencyHistory = useMemo(
     () =>
-      metricsHistory?.map((point: MetricsPoint) => ({
+      metricsHistory?.map((point: MetricsHistory) => ({
         timestamp: new Date(point.timestamp).toLocaleTimeString('en-US', {
           hour: '2-digit',
           minute: '2-digit',
@@ -67,7 +63,7 @@ export function Analytics() {
 
   const jobsQueueHistory = useMemo(
     () =>
-      metricsHistory?.map((point: MetricsPoint) => ({
+      metricsHistory?.map((point: MetricsHistory) => ({
         timestamp: new Date(point.timestamp).toLocaleTimeString('en-US', {
           hour: '2-digit',
           minute: '2-digit',
@@ -92,12 +88,22 @@ export function Analytics() {
       <header className="page-header">
         <div>
           <Title className="page-title">Analytics</Title>
-          <Text className="page-subtitle">Performance metrics and system analytics</Text>
+          <Text className="page-subtitle">Real-time performance metrics via WebSocket</Text>
         </div>
-        <button className="refresh-btn-glow" onClick={handleRefresh}>
-          <RefreshCw className="h-4 w-4" />
-          Refresh
-        </button>
+        <Badge size="lg" color={isConnected ? 'emerald' : 'rose'}>
+          {isConnected ? (
+            <>
+              <Wifi className="mr-1 h-4 w-4" />
+              <span className="status-indicator" />
+              Connected
+            </>
+          ) : (
+            <>
+              <WifiOff className="mr-1 h-4 w-4" />
+              Disconnected
+            </>
+          )}
+        </Badge>
       </header>
 
       {/* Key Metrics with Glow Cards - DRY: Using MetricGlowCard */}
@@ -163,9 +169,9 @@ export function Analytics() {
               <Title className="chart-title">Throughput Over Time</Title>
               <Text className="chart-subtitle">Jobs processed per second</Text>
             </div>
-            <Badge color="cyan" size="xs">
-              <span className="live-dot" />
-              Live
+            <Badge color={isConnected ? 'cyan' : 'zinc'} size="xs">
+              {isConnected && <span className="live-dot" />}
+              {isConnected ? 'Live' : 'Offline'}
             </Badge>
           </div>
           {throughputHistory.length > 0 ? (
@@ -196,9 +202,9 @@ export function Analytics() {
               <Title className="chart-title">Latency Over Time</Title>
               <Text className="chart-subtitle">Average processing latency</Text>
             </div>
-            <Badge color="blue" size="xs">
-              <span className="live-dot live-dot-blue" />
-              Live
+            <Badge color={isConnected ? 'blue' : 'zinc'} size="xs">
+              {isConnected && <span className="live-dot live-dot-blue" />}
+              {isConnected ? 'Live' : 'Offline'}
             </Badge>
           </div>
           {latencyHistory.length > 0 ? (
@@ -263,9 +269,9 @@ export function Analytics() {
               <Title className="chart-title">Jobs in Queue</Title>
               <Text className="chart-subtitle">Queue depth over time</Text>
             </div>
-            <Badge color="emerald" size="xs">
-              <span className="live-dot live-dot-emerald" />
-              Live
+            <Badge color={isConnected ? 'emerald' : 'zinc'} size="xs">
+              {isConnected && <span className="live-dot live-dot-emerald" />}
+              {isConnected ? 'Live' : 'Offline'}
             </Badge>
           </div>
           {jobsQueueHistory.length > 0 ? (

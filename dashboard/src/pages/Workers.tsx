@@ -9,29 +9,21 @@ import {
   TableBody,
   TableCell,
   Badge,
-  Button,
   Flex,
   Grid,
   Metric,
   ProgressBar,
 } from '@tremor/react';
-import { RefreshCw, Server, Cpu, Activity, Clock, Users } from 'lucide-react';
-import { useWorkers } from '../hooks';
+import { Server, Cpu, Activity, Clock, Users, Wifi, WifiOff } from 'lucide-react';
+import { useDashboardWebSocket } from '../hooks';
 import { formatRelativeTime } from '../utils';
+import type { Worker } from '../api/types';
 import './Workers.css';
 
-interface Worker {
-  id: string;
-  queues: string[];
-  concurrency: number;
-  last_heartbeat: number;
-  jobs_processed: number;
-}
-
 export function Workers() {
-  const { data: workersData, refetch } = useWorkers();
+  const { isConnected, workers: workersData } = useDashboardWebSocket();
 
-  const workers: Worker[] = workersData?.workers || [];
+  const workers: Worker[] = workersData || [];
 
   // Determine worker status based on last heartbeat (active if heartbeat within last 30 seconds)
   const getWorkerStatus = (worker: Worker): 'active' | 'idle' | 'disconnected' => {
@@ -66,11 +58,22 @@ export function Workers() {
       <header className="page-header">
         <div>
           <Title className="page-title">Workers</Title>
-          <Text className="page-subtitle">Monitor connected workers and their status</Text>
+          <Text className="page-subtitle">Real-time worker monitoring via WebSocket</Text>
         </div>
-        <Button icon={RefreshCw} variant="secondary" onClick={() => refetch()}>
-          Refresh
-        </Button>
+        <Badge size="lg" color={isConnected ? 'emerald' : 'rose'}>
+          {isConnected ? (
+            <>
+              <Wifi className="mr-1 h-4 w-4" />
+              <span className="status-indicator" />
+              Connected
+            </>
+          ) : (
+            <>
+              <WifiOff className="mr-1 h-4 w-4" />
+              Disconnected
+            </>
+          )}
+        </Badge>
       </header>
 
       {/* Stats Cards */}

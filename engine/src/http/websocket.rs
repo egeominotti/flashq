@@ -16,9 +16,10 @@ use serde::Serialize;
 use tokio::sync::broadcast;
 use tokio::time::interval;
 
-use crate::protocol::{MetricsData, MetricsHistoryPoint, QueueInfo, WorkerInfo};
+use crate::protocol::{CronJob, MetricsData, MetricsHistoryPoint, QueueInfo, WorkerInfo};
 use crate::queue::QueueManager;
 
+use super::settings::{SqliteStats, SystemMetrics};
 use super::types::{AppState, StatsResponse, WsQuery};
 
 /// Maximum concurrent WebSocket connections
@@ -171,7 +172,10 @@ struct DashboardUpdate {
     metrics: MetricsData,
     queues: Vec<QueueInfo>,
     workers: Vec<WorkerInfo>,
+    crons: Vec<CronJob>,
     metrics_history: Vec<MetricsHistoryPoint>,
+    system_metrics: SystemMetrics,
+    sqlite_stats: Option<SqliteStats>,
     timestamp: u64,
 }
 
@@ -227,14 +231,28 @@ async fn handle_dashboard_websocket(mut socket: WebSocket, qm: Arc<QueueManager>
                 let metrics = qm.get_metrics().await;
                 let queues = qm.list_queues().await;
                 let workers = qm.list_workers().await;
+                let crons = qm.list_crons().await;
                 let metrics_history = qm.get_metrics_history();
+
+                // Collect system metrics
+                let system_metrics = collect_system_metrics(&qm);
+
+                // Collect SQLite stats if enabled
+                let sqlite_stats = if qm.has_storage() {
+                    Some(collect_sqlite_stats(&qm, queued, processing, delayed, dlq, completed).await)
+                } else {
+                    None
+                };
 
                 let update = DashboardUpdate {
                     stats: StatsResponse { queued, processing, delayed, dlq, completed },
                     metrics,
                     queues,
                     workers,
+                    crons,
                     metrics_history,
+                    system_metrics,
+                    sqlite_stats,
                     timestamp: crate::queue::QueueManager::now_ms(),
                 };
 
@@ -275,4 +293,200 @@ async fn handle_dashboard_websocket(mut socket: WebSocket, qm: Arc<QueueManager>
 #[allow(dead_code)]
 pub fn ws_connection_count() -> usize {
     WS_CONNECTION_COUNT.load(Ordering::Relaxed)
+}
+
+// ============================================================================
+// System Metrics Collection
+// ============================================================================
+
+/// Collect system metrics for dashboard WebSocket.
+fn collect_system_metrics(qm: &Arc<QueueManager>) -> SystemMetrics {
+    let uptime = super::settings::get_uptime_seconds();
+    let (memory_used, memory_total) = get_memory_info();
+    let tcp_connections = qm.connection_count();
+    let cpu_percent = get_cpu_percent();
+
+    SystemMetrics {
+        memory_used_mb: memory_used,
+        memory_total_mb: memory_total,
+        memory_percent: if memory_total > 0.0 {
+            (memory_used / memory_total) * 100.0
+        } else {
+            0.0
+        },
+        cpu_percent,
+        tcp_connections,
+        uptime_seconds: uptime,
+        process_id: std::process::id(),
+    }
+}
+
+/// Collect SQLite stats for dashboard WebSocket.
+async fn collect_sqlite_stats(
+    qm: &Arc<QueueManager>,
+    queued: usize,
+    processing: usize,
+    delayed: usize,
+    dlq: usize,
+    completed: usize,
+) -> SqliteStats {
+    let path = std::env::var("DATA_PATH")
+        .or_else(|_| std::env::var("SQLITE_PATH"))
+        .ok();
+
+    // Get file size if path exists
+    let (file_size_bytes, file_size_mb) = if let Some(ref p) = path {
+        match std::fs::metadata(p) {
+            Ok(meta) => {
+                let bytes = meta.len();
+                (bytes, bytes as f64 / 1024.0 / 1024.0)
+            }
+            Err(_) => (0, 0.0),
+        }
+    } else {
+        (0, 0.0)
+    };
+
+    // Get async writer stats if enabled
+    let (
+        async_writer_enabled,
+        queue_len,
+        ops_queued,
+        ops_written,
+        batches_written,
+        batch_interval_ms,
+        max_batch_size,
+    ) = if let Some((q_len, ops_q, ops_w, batches, interval, batch_sz)) =
+        qm.get_async_writer_stats()
+    {
+        (true, q_len, ops_q, ops_w, batches, interval, batch_sz)
+    } else {
+        (false, 0, 0, 0, 0, 50, 1000)
+    };
+
+    SqliteStats {
+        enabled: true,
+        path,
+        file_size_bytes,
+        file_size_mb,
+        total_jobs: (queued + processing + delayed + dlq + completed) as u64,
+        queued_jobs: queued as u64,
+        processing_jobs: processing as u64,
+        completed_jobs: completed as u64,
+        failed_jobs: dlq as u64,
+        delayed_jobs: delayed as u64,
+        async_writer_enabled,
+        async_writer_queue_len: queue_len,
+        async_writer_ops_queued: ops_queued,
+        async_writer_ops_written: ops_written,
+        async_writer_batches_written: batches_written,
+        async_writer_batch_interval_ms: batch_interval_ms,
+        async_writer_max_batch_size: max_batch_size,
+    }
+}
+
+// ============================================================================
+// Platform-specific CPU metrics
+// ============================================================================
+
+fn get_cpu_percent() -> f64 {
+    #[cfg(target_os = "macos")]
+    {
+        use std::process::Command;
+        let pid = std::process::id();
+        if let Ok(output) = Command::new("ps")
+            .args(["-o", "%cpu=", "-p", &pid.to_string()])
+            .output()
+        {
+            if let Ok(cpu_str) = String::from_utf8(output.stdout) {
+                return cpu_str.trim().parse().unwrap_or(0.0);
+            }
+        }
+        0.0
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        if let Ok(stat) = std::fs::read_to_string("/proc/self/stat") {
+            let parts: Vec<&str> = stat.split_whitespace().collect();
+            if parts.len() > 14 {
+                let utime: f64 = parts[13].parse().unwrap_or(0.0);
+                let stime: f64 = parts[14].parse().unwrap_or(0.0);
+                let total_time = utime + stime;
+                let uptime = super::settings::get_uptime_seconds() as f64;
+                if uptime > 0.0 {
+                    let clock_ticks = 100.0;
+                    return (total_time / clock_ticks / uptime) * 100.0;
+                }
+            }
+        }
+        0.0
+    }
+
+    #[cfg(not(any(target_os = "linux", target_os = "macos")))]
+    {
+        0.0
+    }
+}
+
+// ============================================================================
+// Platform-specific Memory metrics
+// ============================================================================
+
+fn get_memory_info() -> (f64, f64) {
+    #[cfg(target_os = "linux")]
+    {
+        if let Ok(statm) = std::fs::read_to_string("/proc/self/statm") {
+            let parts: Vec<&str> = statm.split_whitespace().collect();
+            if parts.len() >= 2 {
+                let page_size = 4096.0;
+                let resident: f64 = parts[1].parse().unwrap_or(0.0) * page_size / 1024.0 / 1024.0;
+                if let Ok(meminfo) = std::fs::read_to_string("/proc/meminfo") {
+                    for line in meminfo.lines() {
+                        if line.starts_with("MemTotal:") {
+                            let total_kb: f64 = line
+                                .split_whitespace()
+                                .nth(1)
+                                .and_then(|s| s.parse().ok())
+                                .unwrap_or(0.0);
+                            return (resident, total_kb / 1024.0);
+                        }
+                    }
+                }
+                return (resident, 0.0);
+            }
+        }
+        (0.0, 0.0)
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        use std::process::Command;
+        let pid = std::process::id();
+        if let Ok(output) = Command::new("ps")
+            .args(["-o", "rss=", "-p", &pid.to_string()])
+            .output()
+        {
+            if let Ok(rss_str) = String::from_utf8(output.stdout) {
+                let rss_kb: f64 = rss_str.trim().parse().unwrap_or(0.0);
+                let used_mb = rss_kb / 1024.0;
+
+                if let Ok(total_output) = Command::new("sysctl").args(["-n", "hw.memsize"]).output()
+                {
+                    if let Ok(total_str) = String::from_utf8(total_output.stdout) {
+                        let total_bytes: f64 = total_str.trim().parse().unwrap_or(0.0);
+                        let total_mb = total_bytes / 1024.0 / 1024.0;
+                        return (used_mb, total_mb);
+                    }
+                }
+                return (used_mb, 0.0);
+            }
+        }
+        (0.0, 0.0)
+    }
+
+    #[cfg(not(any(target_os = "linux", target_os = "macos")))]
+    {
+        (0.0, 0.0)
+    }
 }

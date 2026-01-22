@@ -38,8 +38,10 @@ import {
   Radio,
   GitBranch,
   List,
+  Wifi,
+  WifiOff,
 } from 'lucide-react';
-import { useJobs, useQueues, useStats, useToast, useJobEvents } from '../hooks';
+import { useJobs, useToast, useJobEvents, useDashboardWebSocket } from '../hooks';
 import { api } from '../api/client';
 import { formatRelativeTime } from '../utils';
 import {
@@ -72,8 +74,10 @@ const stateConfig: Record<
 
 export function Jobs() {
   const { showToast } = useToast();
-  const { data: queuesData, refetch: refetchQueues, isLoading: queuesLoading } = useQueues();
-  const { data: stats, refetch: refetchStats } = useStats();
+
+  // WebSocket for real-time data (queues, stats)
+  const { isConnected, queues: queuesData, stats } = useDashboardWebSocket();
+
   const [selectedQueue, setSelectedQueue] = useState('');
   const [selectedState, setSelectedState] = useState<JobState>('all');
   const [searchTerm, setSearchTerm] = useState('');
@@ -100,6 +104,7 @@ export function Jobs() {
 
   const queues: Queue[] = queuesData || [];
 
+  // Job list uses polling (paginated, filtered - not suitable for WebSocket)
   const {
     data: jobsData,
     refetch: refetchJobs,
@@ -112,10 +117,9 @@ export function Jobs() {
 
   const jobs = useMemo(() => jobsData?.jobs || [], [jobsData]);
 
-  // WebSocket for real-time event display only (polling handles data refresh)
-  const { isConnected, recentEvents, eventCounts } = useJobEvents({
+  // WebSocket for real-time event display
+  const { recentEvents, eventCounts } = useJobEvents({
     queue: selectedQueue || undefined,
-    // No onEvent callback - rely on polling to avoid UI freezing
   });
 
   const filteredJobs = useMemo(() => {
@@ -144,7 +148,6 @@ export function Jobs() {
       await api.retryJob(queueName, jobId);
       showToast('Job queued for retry', 'success');
       refetchJobs();
-      refetchQueues();
     } catch {
       showToast('Failed to retry job', 'error');
     }
@@ -161,7 +164,6 @@ export function Jobs() {
           await api.cancelJob(jobId);
           showToast('Job cancelled successfully', 'success');
           refetchJobs();
-          refetchQueues();
         } catch {
           showToast('Failed to cancel job', 'error');
         }
@@ -181,9 +183,7 @@ export function Jobs() {
 
   const handleRefresh = () => {
     refetchJobs();
-    refetchQueues();
-    refetchStats();
-    showToast('Data refreshed', 'info');
+    showToast('Jobs refreshed', 'info');
   };
 
   const handleViewJob = (job: Job) => {
@@ -191,7 +191,7 @@ export function Jobs() {
     setShowTimeline(true);
   };
 
-  // Flow visualization data from stats API (accurate counts)
+  // Flow visualization data from WebSocket stats (real-time)
   const flowData = useMemo(() => {
     return {
       waiting: stats?.queued || 0,
@@ -207,19 +207,27 @@ export function Jobs() {
     handleFilterChange();
   };
 
-  const isLoading = queuesLoading || jobsLoading;
-
   return (
     <div className="jobs-page">
       <header className="page-header">
         <div>
           <Title className="page-title">Jobs Browser</Title>
-          <Text className="page-subtitle">Browse and manage jobs across all queues</Text>
+          <Text className="page-subtitle">Real-time job monitoring via WebSocket</Text>
         </div>
         <div className="header-actions">
-          <Badge size="sm" color={isConnected ? 'emerald' : 'zinc'}>
-            <span className={`status-dot ${isConnected ? 'status-dot-live' : ''}`} />
-            {isConnected ? 'Live' : 'Offline'}
+          <Badge size="lg" color={isConnected ? 'emerald' : 'rose'}>
+            {isConnected ? (
+              <>
+                <Wifi className="mr-1 h-4 w-4" />
+                <span className="status-indicator" />
+                Connected
+              </>
+            ) : (
+              <>
+                <WifiOff className="mr-1 h-4 w-4" />
+                Disconnected
+              </>
+            )}
           </Badge>
           <Button icon={RefreshCw} variant="secondary" onClick={handleRefresh}>
             Refresh
@@ -316,7 +324,7 @@ export function Jobs() {
               </Flex>
 
               {/* Table */}
-              {isLoading ? (
+              {jobsLoading ? (
                 <SkeletonTable rows={10} columns={7} />
               ) : (
                 <Table>
@@ -423,7 +431,7 @@ export function Jobs() {
               )}
 
               {/* Pagination */}
-              {!isLoading && totalItems > 0 && (
+              {!jobsLoading && totalItems > 0 && (
                 <Pagination
                   currentPage={currentPage}
                   totalPages={totalPages}

@@ -14,28 +14,22 @@ import {
   Flex,
   TextInput,
 } from '@tremor/react';
-import { Plus, Trash2, RefreshCw, Clock, HelpCircle } from 'lucide-react';
-import { useCrons, useToast } from '../hooks';
+import { Plus, Trash2, RefreshCw, Clock, HelpCircle, Wifi, WifiOff } from 'lucide-react';
+import { useDashboardWebSocket, useToast } from '../hooks';
 import { api } from '../api/client';
 import { formatRelativeTime } from '../utils';
 import { SkeletonTable } from '../components/common/Skeleton';
 import { ConfirmModal } from '../components/common/ConfirmModal';
 import { Tooltip } from '../components/common/Tooltip';
+import type { CronJob } from '../api/types';
 import './Crons.css';
-
-interface CronJob {
-  name: string;
-  queue: string;
-  schedule: string;
-  data?: unknown;
-  enabled: boolean;
-  last_run?: string;
-  next_run?: string;
-}
 
 export function Crons() {
   const { showToast } = useToast();
-  const { data: cronsData, refetch, isLoading } = useCrons();
+
+  // WebSocket for real-time cron data
+  const { isConnected, crons: cronsData, reconnect } = useDashboardWebSocket();
+
   const [showAddModal, setShowAddModal] = useState(false);
   const [newCron, setNewCron] = useState({
     name: '',
@@ -54,7 +48,7 @@ export function Crons() {
   });
   const [isConfirmLoading, setIsConfirmLoading] = useState(false);
 
-  const crons: CronJob[] = cronsData?.crons || [];
+  const crons: CronJob[] = cronsData || [];
 
   const handleAddCron = async () => {
     if (!newCron.name || !newCron.queue || !newCron.schedule) {
@@ -78,7 +72,7 @@ export function Crons() {
       showToast(`Cron job "${newCron.name}" created`, 'success');
       setShowAddModal(false);
       setNewCron({ name: '', queue: '', schedule: '', data: '{}' });
-      refetch();
+      // WebSocket will push updated crons automatically
     } catch {
       showToast('Failed to add cron job', 'error');
     }
@@ -96,7 +90,7 @@ export function Crons() {
     try {
       await api.deleteCron(confirmModal.cronName);
       showToast(`Cron job "${confirmModal.cronName}" deleted`, 'success');
-      refetch();
+      // WebSocket will push updated crons automatically
     } catch {
       showToast('Failed to delete cron job', 'error');
     } finally {
@@ -106,8 +100,8 @@ export function Crons() {
   };
 
   const handleRefresh = () => {
-    refetch();
-    showToast('Data refreshed', 'info');
+    reconnect();
+    showToast('WebSocket reconnected', 'info');
   };
 
   return (
@@ -115,11 +109,24 @@ export function Crons() {
       <header className="page-header">
         <div>
           <Title className="page-title">Cron Jobs</Title>
-          <Text className="page-subtitle">Manage scheduled jobs and recurring tasks</Text>
+          <Text className="page-subtitle">Real-time scheduled jobs via WebSocket</Text>
         </div>
         <Flex className="gap-3">
+          <Badge size="lg" color={isConnected ? 'emerald' : 'rose'}>
+            {isConnected ? (
+              <>
+                <Wifi className="mr-1 h-4 w-4" />
+                Connected
+              </>
+            ) : (
+              <>
+                <WifiOff className="mr-1 h-4 w-4" />
+                Disconnected
+              </>
+            )}
+          </Badge>
           <Button icon={RefreshCw} variant="secondary" onClick={handleRefresh}>
-            Refresh
+            Reconnect
           </Button>
           <Button icon={Plus} onClick={() => setShowAddModal(true)}>
             Add Cron Job
@@ -128,7 +135,7 @@ export function Crons() {
       </header>
 
       <Card className="crons-card">
-        {isLoading ? (
+        {!isConnected && crons.length === 0 ? (
           <SkeletonTable rows={5} columns={7} />
         ) : (
           <Table>

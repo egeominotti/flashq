@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, useCallback, useMemo, type ReactNode } from 'react';
 import { getDashboardWebSocketUrl, type SystemMetrics, type SqliteStats } from '../api/client';
 import type { Stats, Metrics, Queue, Worker, MetricsHistory, CronJob } from '../api/types';
 
@@ -18,44 +18,35 @@ export interface DashboardUpdate {
   timestamp: number;
 }
 
-export interface UseDashboardWebSocketOptions {
-  enabled?: boolean;
-  onConnect?: () => void;
-  onDisconnect?: () => void;
-  onUpdate?: (data: DashboardUpdate) => void;
-}
-
-export interface UseDashboardWebSocketReturn {
+interface WebSocketContextValue {
   isConnected: boolean;
   data: DashboardUpdate | null;
-  stats: Stats | null;
-  metrics: Metrics | null;
-  queues: Queue[];
-  workers: Worker[];
-  crons: CronJob[];
-  metricsHistory: MetricsHistory[];
-  systemMetrics: SystemMetrics | null;
-  sqliteStats: SqliteStats | null;
-  lastUpdate: number | null;
   reconnect: () => void;
 }
 
-export function useDashboardWebSocket(
-  options: UseDashboardWebSocketOptions = {}
-): UseDashboardWebSocketReturn {
-  const { enabled = true, onConnect, onDisconnect, onUpdate } = options;
+const WebSocketContext = createContext<WebSocketContextValue | null>(null);
 
+interface WebSocketProviderProps {
+  children: ReactNode;
+}
+
+/**
+ * Singleton WebSocket provider - creates ONE connection shared by all components
+ */
+export function WebSocketProvider({ children }: WebSocketProviderProps) {
   const [isConnected, setIsConnected] = useState(false);
   const [data, setData] = useState<DashboardUpdate | null>(null);
 
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reconnectAttemptsRef = useRef(0);
-  const onUpdateRef = useRef(onUpdate);
-  onUpdateRef.current = onUpdate;
 
   const connect = useCallback(() => {
-    if (!enabled) return;
+    // Don't create duplicate connections
+    if (wsRef.current?.readyState === WebSocket.OPEN ||
+        wsRef.current?.readyState === WebSocket.CONNECTING) {
+      return;
+    }
 
     try {
       const wsUrl = getDashboardWebSocketUrl();
@@ -65,14 +56,12 @@ export function useDashboardWebSocket(
       ws.onopen = () => {
         setIsConnected(true);
         reconnectAttemptsRef.current = 0;
-        onConnect?.();
       };
 
       ws.onmessage = (event) => {
         try {
           const update: DashboardUpdate = JSON.parse(event.data);
           setData(update);
-          onUpdateRef.current?.(update);
         } catch (err) {
           console.error('Failed to parse WebSocket message:', err);
         }
@@ -81,14 +70,11 @@ export function useDashboardWebSocket(
       ws.onclose = () => {
         setIsConnected(false);
         wsRef.current = null;
-        onDisconnect?.();
 
         // Reconnect with exponential backoff
-        if (enabled) {
-          const delay = Math.min(1000 * Math.pow(2, reconnectAttemptsRef.current), 30000);
-          reconnectAttemptsRef.current++;
-          reconnectTimeoutRef.current = setTimeout(connect, delay);
-        }
+        const delay = Math.min(1000 * Math.pow(2, reconnectAttemptsRef.current), 30000);
+        reconnectAttemptsRef.current++;
+        reconnectTimeoutRef.current = setTimeout(connect, delay);
       };
 
       ws.onerror = (error) => {
@@ -97,7 +83,7 @@ export function useDashboardWebSocket(
     } catch (err) {
       console.error('Failed to create WebSocket:', err);
     }
-  }, [enabled, onConnect, onDisconnect]);
+  }, []);
 
   const reconnect = useCallback(() => {
     if (wsRef.current) {
@@ -111,14 +97,6 @@ export function useDashboardWebSocket(
   }, [connect]);
 
   useEffect(() => {
-    if (!enabled) {
-      if (wsRef.current) {
-        wsRef.current.close();
-        wsRef.current = null;
-      }
-      return;
-    }
-
     connect();
 
     return () => {
@@ -130,20 +108,28 @@ export function useDashboardWebSocket(
         wsRef.current = null;
       }
     };
-  }, [enabled, connect]);
+  }, [connect]);
 
-  return {
+  const value = useMemo(() => ({
     isConnected,
     data,
-    stats: data?.stats ?? null,
-    metrics: data?.metrics ?? null,
-    queues: data?.queues ?? [],
-    workers: data?.workers ?? [],
-    crons: data?.crons ?? [],
-    metricsHistory: data?.metrics_history ?? [],
-    systemMetrics: data?.system_metrics ?? null,
-    sqliteStats: data?.sqlite_stats ?? null,
-    lastUpdate: data?.timestamp ?? null,
     reconnect,
-  };
+  }), [isConnected, data, reconnect]);
+
+  return (
+    <WebSocketContext.Provider value={value}>
+      {children}
+    </WebSocketContext.Provider>
+  );
+}
+
+/**
+ * Hook to access the singleton WebSocket connection
+ */
+export function useWebSocketContext() {
+  const context = useContext(WebSocketContext);
+  if (!context) {
+    throw new Error('useWebSocketContext must be used within WebSocketProvider');
+  }
+  return context;
 }

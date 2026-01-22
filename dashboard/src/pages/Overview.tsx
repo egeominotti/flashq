@@ -9,17 +9,22 @@ import {
   ProgressBar,
   Grid,
 } from '@tremor/react';
-import { Activity, CheckCircle2, XCircle, Layers, TrendingUp, Zap, Clock } from 'lucide-react';
-import { useStats, useMetrics, useMetricsHistory, useSparklineData } from '../hooks';
+import {
+  Activity,
+  CheckCircle2,
+  XCircle,
+  Layers,
+  TrendingUp,
+  Zap,
+  Clock,
+  Wifi,
+  WifiOff,
+} from 'lucide-react';
+import { useDashboardWebSocket, useSparklineData } from '../hooks';
 import { formatNumber } from '../utils';
 import { GlowCard, EmptyState, MetricGlowCard } from '../components/common';
+import type { MetricsHistory } from '../api/types';
 import './Overview.css';
-
-interface MetricsPoint {
-  timestamp: number;
-  throughput: number;
-  queued?: number;
-}
 
 interface QueueData {
   name: string;
@@ -28,37 +33,36 @@ interface QueueData {
 }
 
 export function Overview() {
-  const { data: stats } = useStats();
-  const { data: metrics } = useMetrics();
-  const { data: metricsHistory } = useMetricsHistory();
+  // Single WebSocket connection for all dashboard data
+  const { isConnected, stats, metrics, metricsHistory } = useDashboardWebSocket();
 
-  // Calculate totals from actual API data
-  const totalQueued = stats?.queued || 0;
-  const totalProcessing = stats?.processing || 0;
-  const totalDelayed = stats?.delayed || 0;
-  const totalDlq = stats?.dlq || 0;
-  const totalCompleted = metrics?.total_completed || 0;
-  const totalPushed = metrics?.total_pushed || 0;
+  // Calculate totals from WebSocket data
+  const totalQueued = stats?.queued ?? 0;
+  const totalProcessing = stats?.processing ?? 0;
+  const totalDelayed = stats?.delayed ?? 0;
+  const totalDlq = stats?.dlq ?? 0;
+  const totalCompleted = metrics?.total_completed ?? 0;
+  const totalPushed = metrics?.total_pushed ?? 0;
 
-  // DRY: Use custom hook for sparkline data extraction
+  // Sparkline data from metrics history
   const throughputSparkline = useSparklineData(metricsHistory, 'throughput');
   const queuedSparkline = useSparklineData(metricsHistory, 'queued');
 
   // Transform metrics history for throughput chart
   const throughputData = useMemo(
     () =>
-      metricsHistory?.map((point: MetricsPoint) => ({
+      metricsHistory?.map((point: MetricsHistory) => ({
         date: new Date(point.timestamp).toLocaleTimeString('en-US', {
           hour: '2-digit',
           minute: '2-digit',
         }),
-        'Jobs/sec': point.throughput || 0,
-      })) || [],
+        'Jobs/sec': point.throughput ?? 0,
+      })) ?? [],
     [metricsHistory]
   );
 
-  // Get queue data from metrics endpoint
-  const queues = useMemo(() => metrics?.queues || [], [metrics?.queues]);
+  // Get queue data from metrics
+  const queues = useMemo(() => metrics?.queues ?? [], [metrics?.queues]);
 
   const queueDistribution = useMemo(
     () =>
@@ -91,19 +95,31 @@ export function Overview() {
       <header className="page-header">
         <div>
           <Title className="page-title">Dashboard Overview</Title>
-          <Text className="page-subtitle">
-            Real-time monitoring and analytics for your job queues
-          </Text>
+          <Text className="page-subtitle">Real-time monitoring via WebSocket</Text>
         </div>
         <div className="header-actions">
-          <Badge size="lg" color="emerald" className="status-badge">
-            <span className="status-indicator" />
-            System Online
+          <Badge
+            size="lg"
+            color={isConnected ? 'emerald' : 'rose'}
+            className="status-badge"
+          >
+            {isConnected ? (
+              <>
+                <Wifi className="mr-1 h-4 w-4" />
+                <span className="status-indicator" />
+                Connected
+              </>
+            ) : (
+              <>
+                <WifiOff className="mr-1 h-4 w-4" />
+                Disconnected
+              </>
+            )}
           </Badge>
         </div>
       </header>
 
-      {/* KPI Cards with Glow Effect - DRY: Using MetricGlowCard */}
+      {/* KPI Cards with Glow Effect */}
       <Grid numItemsSm={2} numItemsLg={4} className="mb-8 gap-6">
         <MetricGlowCard
           title="Queued"
@@ -163,9 +179,9 @@ export function Overview() {
               <Title className="chart-title">Throughput</Title>
               <Text className="chart-subtitle">Jobs processed per second over time</Text>
             </div>
-            <Badge color="cyan" size="xs">
-              <span className="live-dot" />
-              Live
+            <Badge color={isConnected ? 'cyan' : 'zinc'} size="xs">
+              {isConnected && <span className="live-dot" />}
+              {isConnected ? 'Live' : 'Offline'}
             </Badge>
           </div>
           {throughputData.length > 0 ? (
@@ -259,11 +275,11 @@ export function Overview() {
               <div className="health-metric-header">
                 <Text className="health-metric-label">Avg Latency</Text>
                 <Text className="health-metric-value">
-                  {metrics?.avg_latency_ms?.toFixed(1) || 0} ms
+                  {metrics?.avg_latency_ms?.toFixed(1) ?? 0} ms
                 </Text>
               </div>
               <ProgressBar
-                value={Math.min((metrics?.avg_latency_ms || 0) / 10, 100)}
+                value={Math.min((metrics?.avg_latency_ms ?? 0) / 10, 100)}
                 color="cyan"
                 className="health-progress"
               />
@@ -272,11 +288,11 @@ export function Overview() {
               <div className="health-metric-header">
                 <Text className="health-metric-label">Jobs/sec</Text>
                 <Text className="health-metric-value">
-                  {metrics?.jobs_per_second?.toFixed(1) || 0}
+                  {metrics?.jobs_per_second?.toFixed(1) ?? 0}
                 </Text>
               </div>
               <ProgressBar
-                value={Math.min((metrics?.jobs_per_second || 0) * 10, 100)}
+                value={Math.min((metrics?.jobs_per_second ?? 0) * 10, 100)}
                 color="blue"
                 className="health-progress"
               />
