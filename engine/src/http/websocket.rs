@@ -1,6 +1,6 @@
 //! WebSocket HTTP handlers.
 
-use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -12,7 +12,6 @@ use axum::{
     http::StatusCode,
     response::IntoResponse,
 };
-use parking_lot::RwLock;
 use serde::Serialize;
 use tokio::sync::broadcast;
 use tokio::time::interval;
@@ -20,7 +19,7 @@ use tokio::time::interval;
 use crate::protocol::{CronJob, MetricsData, MetricsHistoryPoint, QueueInfo, WorkerInfo};
 use crate::queue::QueueManager;
 
-use super::settings::{SqliteStats, SystemMetrics};
+use super::settings::{refresh_process_metrics, SqliteStats, SystemMetrics};
 use super::types::{AppState, StatsResponse, WsQuery};
 
 /// Maximum concurrent WebSocket connections
@@ -28,72 +27,6 @@ const MAX_WS_CONNECTIONS: usize = 100;
 
 /// Dashboard update interval in milliseconds (configurable via DASHBOARD_INTERVAL_MS env var)
 const DEFAULT_DASHBOARD_INTERVAL_MS: u64 = 2000;
-
-/// System metrics cache refresh interval (avoid spawning processes too often)
-const SYSTEM_METRICS_CACHE_MS: u64 = 5000;
-
-// ============================================================================
-// Cached System Metrics (avoid spawning processes every update)
-// ============================================================================
-
-/// Cached system metrics to avoid expensive process spawning
-struct CachedSystemMetrics {
-    cpu_percent: f64,
-    memory_used_mb: f64,
-    memory_total_mb: f64,
-}
-
-static CACHED_METRICS: RwLock<Option<CachedSystemMetrics>> = RwLock::new(None);
-static METRICS_LAST_UPDATE: AtomicU64 = AtomicU64::new(0);
-
-/// Get system metrics with caching (refreshes every SYSTEM_METRICS_CACHE_MS)
-fn get_cached_system_metrics() -> (f64, f64, f64) {
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis() as u64;
-
-    let last_update = METRICS_LAST_UPDATE.load(Ordering::Relaxed);
-
-    // Check if cache is still valid
-    if now - last_update < SYSTEM_METRICS_CACHE_MS {
-        if let Some(cached) = CACHED_METRICS.read().as_ref() {
-            return (
-                cached.cpu_percent,
-                cached.memory_used_mb,
-                cached.memory_total_mb,
-            );
-        }
-    }
-
-    // Refresh cache (only one thread should do this)
-    if METRICS_LAST_UPDATE
-        .compare_exchange(last_update, now, Ordering::SeqCst, Ordering::Relaxed)
-        .is_ok()
-    {
-        let cpu_percent = get_cpu_percent();
-        let (memory_used_mb, memory_total_mb) = get_memory_info();
-
-        *CACHED_METRICS.write() = Some(CachedSystemMetrics {
-            cpu_percent,
-            memory_used_mb,
-            memory_total_mb,
-        });
-
-        return (cpu_percent, memory_used_mb, memory_total_mb);
-    }
-
-    // Another thread is updating, return stale data or defaults
-    if let Some(cached) = CACHED_METRICS.read().as_ref() {
-        (
-            cached.cpu_percent,
-            cached.memory_used_mb,
-            cached.memory_total_mb,
-        )
-    } else {
-        (0.0, 0.0, 0.0)
-    }
-}
 
 /// Global WebSocket connection counter
 static WS_CONNECTION_COUNT: AtomicUsize = AtomicUsize::new(0);
@@ -323,7 +256,7 @@ async fn handle_dashboard_websocket(mut socket: WebSocket, qm: Arc<QueueManager>
                 // Collect metrics history (sync, fast)
                 let metrics_history = qm.get_metrics_history();
 
-                // Collect system metrics (uses cache, no process spawning)
+                // Collect system metrics using sysinfo (no shell spawning)
                 let system_metrics = collect_system_metrics(&qm);
 
                 // Collect SQLite stats if enabled
@@ -385,29 +318,33 @@ pub fn ws_connection_count() -> usize {
 }
 
 // ============================================================================
-// System Metrics Collection
+// System Metrics Collection (using sysinfo)
 // ============================================================================
 
-/// Collect system metrics for dashboard WebSocket (uses cached values).
+/// Collect system metrics for dashboard WebSocket using sysinfo crate.
 fn collect_system_metrics(qm: &Arc<QueueManager>) -> SystemMetrics {
     let uptime = super::settings::get_uptime_seconds();
     let tcp_connections = qm.connection_count();
+    let pid = std::process::id();
 
-    // Use cached metrics (refreshes every 5 seconds, avoids process spawning)
-    let (cpu_percent, memory_used, memory_total) = get_cached_system_metrics();
+    // Use sysinfo via shared refresh_process_metrics
+    let pm = refresh_process_metrics();
 
     SystemMetrics {
-        memory_used_mb: memory_used,
-        memory_total_mb: memory_total,
-        memory_percent: if memory_total > 0.0 {
-            (memory_used / memory_total) * 100.0
-        } else {
-            0.0
-        },
-        cpu_percent,
+        memory_used_mb: pm.memory_rss_mb,
+        memory_rss_mb: pm.memory_rss_mb,
+        memory_virtual_mb: pm.memory_virtual_mb,
+        cpu_percent: pm.cpu_percent,
+        disk_read_bytes: pm.disk_io.read_bytes,
+        disk_written_bytes: pm.disk_io.written_bytes,
+        disk_read_mb: pm.disk_io.read_mb,
+        disk_written_mb: pm.disk_io.written_mb,
+        process_id: pid,
+        start_time_unix: pm.start_time_unix,
+        run_time_seconds: pm.run_time_seconds,
+        process_status: pm.status,
         tcp_connections,
         uptime_seconds: uptime,
-        process_id: std::process::id(),
     }
 }
 
@@ -472,111 +409,5 @@ async fn collect_sqlite_stats(
         async_writer_batches_written: batches_written,
         async_writer_batch_interval_ms: batch_interval_ms,
         async_writer_max_batch_size: max_batch_size,
-    }
-}
-
-// ============================================================================
-// Platform-specific CPU metrics (implementation - called by cache)
-// ============================================================================
-
-fn get_cpu_percent() -> f64 {
-    #[cfg(target_os = "macos")]
-    {
-        use std::process::Command;
-        let pid = std::process::id();
-        if let Ok(output) = Command::new("ps")
-            .args(["-o", "%cpu=", "-p", &pid.to_string()])
-            .output()
-        {
-            if let Ok(cpu_str) = String::from_utf8(output.stdout) {
-                return cpu_str.trim().parse().unwrap_or(0.0);
-            }
-        }
-        0.0
-    }
-
-    #[cfg(target_os = "linux")]
-    {
-        if let Ok(stat) = std::fs::read_to_string("/proc/self/stat") {
-            let parts: Vec<&str> = stat.split_whitespace().collect();
-            if parts.len() > 14 {
-                let utime: f64 = parts[13].parse().unwrap_or(0.0);
-                let stime: f64 = parts[14].parse().unwrap_or(0.0);
-                let total_time = utime + stime;
-                let uptime = super::settings::get_uptime_seconds() as f64;
-                if uptime > 0.0 {
-                    let clock_ticks = 100.0;
-                    return (total_time / clock_ticks / uptime) * 100.0;
-                }
-            }
-        }
-        0.0
-    }
-
-    #[cfg(not(any(target_os = "linux", target_os = "macos")))]
-    {
-        0.0
-    }
-}
-
-// ============================================================================
-// Platform-specific Memory metrics (implementation - called by cache)
-// ============================================================================
-
-fn get_memory_info() -> (f64, f64) {
-    #[cfg(target_os = "linux")]
-    {
-        if let Ok(statm) = std::fs::read_to_string("/proc/self/statm") {
-            let parts: Vec<&str> = statm.split_whitespace().collect();
-            if parts.len() >= 2 {
-                let page_size = 4096.0;
-                let resident: f64 = parts[1].parse().unwrap_or(0.0) * page_size / 1024.0 / 1024.0;
-                if let Ok(meminfo) = std::fs::read_to_string("/proc/meminfo") {
-                    for line in meminfo.lines() {
-                        if line.starts_with("MemTotal:") {
-                            let total_kb: f64 = line
-                                .split_whitespace()
-                                .nth(1)
-                                .and_then(|s| s.parse().ok())
-                                .unwrap_or(0.0);
-                            return (resident, total_kb / 1024.0);
-                        }
-                    }
-                }
-                return (resident, 0.0);
-            }
-        }
-        (0.0, 0.0)
-    }
-
-    #[cfg(target_os = "macos")]
-    {
-        use std::process::Command;
-        let pid = std::process::id();
-        if let Ok(output) = Command::new("ps")
-            .args(["-o", "rss=", "-p", &pid.to_string()])
-            .output()
-        {
-            if let Ok(rss_str) = String::from_utf8(output.stdout) {
-                let rss_kb: f64 = rss_str.trim().parse().unwrap_or(0.0);
-                let used_mb = rss_kb / 1024.0;
-
-                if let Ok(total_output) = Command::new("sysctl").args(["-n", "hw.memsize"]).output()
-                {
-                    if let Ok(total_str) = String::from_utf8(total_output.stdout) {
-                        let total_bytes: f64 = total_str.trim().parse().unwrap_or(0.0);
-                        let total_mb = total_bytes / 1024.0 / 1024.0;
-                        return (used_mb, total_mb);
-                    }
-                }
-                return (used_mb, 0.0);
-            }
-        }
-        (0.0, 0.0)
-    }
-
-    #[cfg(not(any(target_os = "linux", target_os = "macos")))]
-    {
-        (0.0, 0.0)
     }
 }

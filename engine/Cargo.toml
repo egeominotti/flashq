@@ -75,6 +75,9 @@ url = "2"                           # URL parsing for webhook validation
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 
+# System metrics
+sysinfo = { version = "0.32", default-features = false, features = ["system"] }
+
 [build-dependencies]
 tonic-build = "0.13"
 

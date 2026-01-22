@@ -1,6 +1,6 @@
 /**
  * 1 Million Jobs Benchmark with Engineering Metrics
- * Tracks: Memory (RSS/Heap), Latency (P50/P95/P99/P99.9), Throughput variance
+ * Tracks: Memory (Client + Server), Latency (P50/P95/P99/P99.9), Throughput variance
  * Generates HTML report with interactive charts
  */
 import { Queue, Worker } from "../src";
@@ -12,6 +12,7 @@ const BATCH_SIZE = 1000;
 const NUM_WORKERS = 16;
 const CONCURRENCY_PER_WORKER = 100;
 const NUM_RUNS = 10;
+const SERVER_HTTP_PORT = 6790; // flashQ HTTP API port
 
 // Latency tracking with reservoir sampling for memory efficiency
 class LatencyTracker {
@@ -110,6 +111,61 @@ interface MemoryStats {
   deltaRss: number;
 }
 
+// Server (Rust) memory tracking
+interface ServerMemorySnapshot {
+  timestamp: number;
+  memoryUsedMb: number;
+  cpuPercent: number;
+  tcpConnections: number;
+}
+
+interface ServerMemoryStats {
+  peakMemory: number;
+  avgMemory: number;
+  startMemory: number;
+  endMemory: number;
+  deltaMemory: number;
+}
+
+async function getServerMemory(): Promise<ServerMemorySnapshot | null> {
+  try {
+    const response = await fetch(`http://localhost:${SERVER_HTTP_PORT}/system/metrics`);
+    if (!response.ok) return null;
+    const data = await response.json() as {
+      ok: boolean;
+      data?: {
+        memory_used_mb: number;
+        cpu_percent: number;
+        tcp_connections: number;
+      };
+    };
+    if (!data.ok || !data.data) return null;
+    return {
+      timestamp: Date.now(),
+      memoryUsedMb: data.data.memory_used_mb,
+      cpuPercent: data.data.cpu_percent,
+      tcpConnections: data.data.tcp_connections,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function calculateServerMemoryStats(snapshots: ServerMemorySnapshot[]): ServerMemoryStats {
+  const validSnapshots = snapshots.filter(s => s !== null);
+  if (validSnapshots.length === 0) {
+    return { peakMemory: 0, avgMemory: 0, startMemory: 0, endMemory: 0, deltaMemory: 0 };
+  }
+  const memories = validSnapshots.map(s => s.memoryUsedMb);
+  return {
+    peakMemory: Math.max(...memories),
+    avgMemory: memories.reduce((s, v) => s + v, 0) / memories.length,
+    startMemory: memories[0],
+    endMemory: memories[memories.length - 1],
+    deltaMemory: memories[memories.length - 1] - memories[0],
+  };
+}
+
 interface RunResult {
   run: number;
   // Throughput
@@ -128,8 +184,10 @@ interface RunResult {
   pushLatency: LatencyStats;
   processLatency: LatencyStats;
   e2eLatency: LatencyStats;
-  // Memory
+  // Memory (Client - Node.js)
   memory: MemoryStats;
+  // Memory (Server - Rust)
+  serverMemory: ServerMemoryStats;
   // Throughput samples for variance calculation
   throughputSamples: number[];
 }
@@ -486,15 +544,19 @@ async function runBenchmark(runNumber: number): Promise<RunResult> {
   const processLatencyTracker = new LatencyTracker();
   const e2eLatencyTracker = new LatencyTracker();
   const memorySnapshots: MemorySnapshot[] = [];
+  const serverMemorySnapshots: ServerMemorySnapshot[] = [];
   const throughputSamples: number[] = [];
 
-  // Memory sampling interval
-  const memoryInterval = setInterval(() => {
+  // Memory sampling interval (client + server)
+  const memoryInterval = setInterval(async () => {
     memorySnapshots.push(getMemoryMB());
+    const serverMem = await getServerMemory();
+    if (serverMem) serverMemorySnapshots.push(serverMem);
   }, 500);
 
   // Initial memory snapshot
   memorySnapshots.push(getMemoryMB());
+  getServerMemory().then(s => { if (s) serverMemorySnapshots.push(s); });
 
   // Clean up before starting
   console.log("📋 Cleaning up queue...");
@@ -508,60 +570,18 @@ async function runBenchmark(runNumber: number): Promise<RunResult> {
 
   memorySnapshots.push(getMemoryMB());
 
-  // Push jobs with latency tracking
-  console.log(`📤 Pushing ${TOTAL_JOBS.toLocaleString()} jobs...`);
-  const pushStart = Date.now();
-  const jobTimestamps = new Map<number, number>(); // jobId -> push timestamp
+  // === CONCURRENT PRODUCER-CONSUMER PATTERN ===
+  // Workers start FIRST, then push jobs while workers process
+  // This gives realistic production latency measurements
 
-  let pushed = 0;
-  for (let i = 0; i < TOTAL_JOBS; i += BATCH_SIZE) {
-    const batchCount = Math.min(BATCH_SIZE, TOTAL_JOBS - i);
-    const batchStart = Date.now();
-
-    const jobs = Array.from({ length: batchCount }, (_, j) => {
-      const jobIndex = i + j;
-      jobTimestamps.set(jobIndex, Date.now());
-      return {
-        name: "task",
-        data: {
-          index: jobIndex,
-          value: `job-${jobIndex}`,
-          pushTime: Date.now(),
-        },
-      };
-    });
-
-    await queue.addBulk(jobs);
-    const batchLatency = Date.now() - batchStart;
-    pushLatencyTracker.add(batchLatency / batchCount); // Per-job latency
-
-    pushed += batchCount;
-
-    if (pushed % 100_000 === 0) {
-      const elapsed = (Date.now() - pushStart) / 1000;
-      const rate = Math.round(pushed / elapsed);
-      const mem = getMemoryMB();
-      console.log(
-        `   Pushed: ${pushed.toLocaleString()} (${rate.toLocaleString()}/s) | RSS: ${mem.rss.toFixed(0)}MB | Heap: ${mem.heapUsed.toFixed(0)}MB`,
-      );
-    }
-  }
-
-  const pushTime = Date.now() - pushStart;
-  const pushRate = Math.round(TOTAL_JOBS / (pushTime / 1000));
-  const memAfterPush = getMemoryMB();
-  console.log(
-    `✅ Push complete: ${pushRate.toLocaleString()}/s (${(pushTime / 1000).toFixed(2)}s) | RSS: ${memAfterPush.rss.toFixed(0)}MB`,
-  );
-
-  // Create workers
-  console.log(`👷 Starting ${NUM_WORKERS} workers...`);
+  // Create workers FIRST (before pushing)
+  console.log(`👷 Creating ${NUM_WORKERS} workers...`);
   const workers: Worker[] = [];
   let processed = 0;
   let errors = 0;
   let dataErrors = 0;
-  const processStart = Date.now();
-  let lastReport = processStart;
+  const overallStart = Date.now();
+  let lastReport = overallStart;
   let lastProcessed = 0;
 
   for (let w = 0; w < NUM_WORKERS; w++) {
@@ -623,13 +643,45 @@ async function runBenchmark(runNumber: number): Promise<RunResult> {
     workers.push(worker);
   }
 
-  // Start all workers
+  // Start all workers BEFORE pushing (concurrent producer-consumer)
   await Promise.all(workers.map((w) => w.start()));
+  console.log(`✅ Workers started, now pushing jobs concurrently...`);
+
+  // Push jobs WHILE workers are processing (producer-consumer pattern)
+  console.log(`📤 Pushing ${TOTAL_JOBS.toLocaleString()} jobs...`);
+  const pushStart = Date.now();
+
+  let pushed = 0;
+  const pushPromise = (async () => {
+    for (let i = 0; i < TOTAL_JOBS; i += BATCH_SIZE) {
+      const batchCount = Math.min(BATCH_SIZE, TOTAL_JOBS - i);
+      const batchStart = Date.now();
+
+      const jobs = Array.from({ length: batchCount }, (_, j) => {
+        const jobIndex = i + j;
+        return {
+          name: "task",
+          data: {
+            index: jobIndex,
+            value: `job-${jobIndex}`,
+            pushTime: Date.now(),
+          },
+        };
+      });
+
+      await queue.addBulk(jobs);
+      const batchLatency = Date.now() - batchStart;
+      pushLatencyTracker.add(batchLatency / batchCount);
+      pushed += batchCount;
+    }
+  })();
+
+  // Don't await here - let push run concurrently with processing
 
   // Progress reporter with throughput sampling
   const progressInterval = setInterval(() => {
     const now = Date.now();
-    const elapsed = (now - processStart) / 1000;
+    const elapsed = (now - overallStart) / 1000;
     const intervalElapsed = (now - lastReport) / 1000;
     const intervalProcessed = processed - lastProcessed;
     const currentRate = Math.round(intervalProcessed / intervalElapsed);
@@ -649,7 +701,13 @@ async function runBenchmark(runNumber: number): Promise<RunResult> {
     lastProcessed = processed;
   }, 5000);
 
-  // Wait for all jobs
+  // Wait for push to complete
+  await pushPromise;
+  const pushTime = Date.now() - pushStart;
+  const pushRate = Math.round(TOTAL_JOBS / (pushTime / 1000));
+  console.log(`✅ Push complete: ${pushRate.toLocaleString()}/s (${(pushTime / 1000).toFixed(2)}s)`);
+
+  // Wait for all jobs to be processed
   const timeout = Date.now() + 600_000;
   while (processed + errors < TOTAL_JOBS) {
     if (Date.now() > timeout) {
@@ -664,11 +722,13 @@ async function runBenchmark(runNumber: number): Promise<RunResult> {
   clearInterval(progressInterval);
   clearInterval(memoryInterval);
 
-  const processTime = Date.now() - processStart;
-  const processRate = Math.round(TOTAL_JOBS / (processTime / 1000));
+  const totalTime = Date.now() - overallStart;
+  const processRate = Math.round(TOTAL_JOBS / (totalTime / 1000));
 
-  // Final memory snapshot
+  // Final memory snapshot (client + server)
   memorySnapshots.push(getMemoryMB());
+  const finalServerMem = await getServerMemory();
+  if (finalServerMem) serverMemorySnapshots.push(finalServerMem);
 
   // Stop all workers
   await Promise.all(workers.map((w) => w.close()));
@@ -677,16 +737,16 @@ async function runBenchmark(runNumber: number): Promise<RunResult> {
   await queue.obliterate();
   await queue.close();
 
-  const totalTime = pushTime + processTime;
   const totalHandled = processed + errors;
   const allAccountedFor = totalHandled === TOTAL_JOBS;
   const success = errors === 0 && dataErrors === 0 && allAccountedFor;
 
-  // Get stats
+  // Get stats (client + server)
   const pushLatency = pushLatencyTracker.getStats();
   const processLatency = processLatencyTracker.getStats();
   const e2eLatency = e2eLatencyTracker.getStats();
   const memory = calculateMemoryStats(memorySnapshots);
+  const serverMemory = calculateServerMemoryStats(serverMemorySnapshots);
 
   if (!allAccountedFor) {
     console.error(
@@ -708,9 +768,15 @@ async function runBenchmark(runNumber: number): Promise<RunResult> {
     `   Latency Process: P50=${formatMs(processLatency.p50)} P95=${formatMs(processLatency.p95)} P99=${formatMs(processLatency.p99)}`,
   );
   console.log(
-    `   Memory: Peak RSS=${memory.peakRss.toFixed(0)}MB | Peak Heap=${memory.peakHeapUsed.toFixed(0)}MB | Delta=${memory.deltaRss.toFixed(1)}MB`,
+    `   Client Memory: Peak=${memory.peakRss.toFixed(0)}MB | Delta=${memory.deltaRss.toFixed(1)}MB`,
+  );
+  console.log(
+    `   Server Memory: Peak=${serverMemory.peakMemory.toFixed(0)}MB | Delta=${serverMemory.deltaMemory.toFixed(1)}MB`,
   );
   console.log(`   Status: ${success ? "✅ PASS" : "❌ FAIL"}`);
+
+  // In concurrent mode, processTime = totalTime (push and process overlap)
+  const processTime = totalTime;
 
   return {
     run: runNumber,
@@ -728,6 +794,7 @@ async function runBenchmark(runNumber: number): Promise<RunResult> {
     processLatency,
     e2eLatency,
     memory,
+    serverMemory,
     throughputSamples,
   };
 }
@@ -877,15 +944,15 @@ console.log(
   "└───────────────────────────────────────────────────────────────────────────┘",
 );
 
-// 4. Memory Analysis
+// 4. Memory Analysis (Client - Node.js)
 console.log(
-  "\n┌─ MEMORY ANALYSIS ─────────────────────────────────────────────────────────┐",
+  "\n┌─ CLIENT MEMORY (Node.js) ─────────────────────────────────────────────────┐",
 );
 console.log(
-  "│ Run  │ Peak RSS  │ Peak Heap │  Avg RSS  │ Avg Heap  │ Delta RSS │",
+  "│ Run  │ Peak RSS  │ Peak Heap │ Delta RSS │",
 );
 console.log(
-  "├──────┼───────────┼───────────┼───────────┼───────────┼───────────┤",
+  "├──────┼───────────┼───────────┼───────────┤",
 );
 
 for (const r of results) {
@@ -894,49 +961,52 @@ for (const r of results) {
     `│ #${r.run.toString().padStart(2)}  │ ` +
       `${m.peakRss.toFixed(0).padStart(7)}MB │ ` +
       `${m.peakHeapUsed.toFixed(0).padStart(7)}MB │ ` +
-      `${m.avgRss.toFixed(0).padStart(7)}MB │ ` +
-      `${m.avgHeapUsed.toFixed(0).padStart(7)}MB │ ` +
       `${(m.deltaRss >= 0 ? "+" : "") + m.deltaRss.toFixed(1).padStart(6)}MB │`,
   );
 }
 console.log(
-  "└──────┴───────────┴───────────┴───────────┴───────────┴───────────┘",
+  "└──────┴───────────┴───────────┴───────────┘",
+);
+
+// 4b. Server Memory Analysis (Rust)
+console.log(
+  "\n┌─ SERVER MEMORY (Rust) ──────────────────────────────────────────────────────┐",
+);
+console.log(
+  "│ Run  │ Peak Mem  │ Avg Mem   │ Delta Mem │",
+);
+console.log(
+  "├──────┼───────────┼───────────┼───────────┤",
+);
+
+for (const r of results) {
+  const s = r.serverMemory;
+  console.log(
+    `│ #${r.run.toString().padStart(2)}  │ ` +
+      `${s.peakMemory.toFixed(0).padStart(7)}MB │ ` +
+      `${s.avgMemory.toFixed(0).padStart(7)}MB │ ` +
+      `${(s.deltaMemory >= 0 ? "+" : "") + s.deltaMemory.toFixed(1).padStart(6)}MB │`,
+  );
+}
+console.log(
+  "└──────┴───────────┴───────────┴───────────┘",
 );
 
 // Memory statistics
 const peakRsss = results.map((r) => r.memory.peakRss);
 const peakHeaps = results.map((r) => r.memory.peakHeapUsed);
 const deltaRsss = results.map((r) => r.memory.deltaRss);
+const serverPeaks = results.map((r) => r.serverMemory.peakMemory);
+const serverDeltas = results.map((r) => r.serverMemory.deltaMemory);
 
 console.log(
   "\n┌─ MEMORY SUMMARY ──────────────────────────────────────────────────────────┐",
 );
 console.log(
-  `│ Peak RSS:  Avg=${(peakRsss.reduce((s, v) => s + v, 0) / peakRsss.length).toFixed(0).padStart(5)}MB  Min=${Math.min(
-    ...peakRsss,
-  )
-    .toFixed(0)
-    .padStart(5)}MB  Max=${Math.max(...peakRsss)
-    .toFixed(0)
-    .padStart(5)}MB  StdDev=${stdDev(peakRsss).toFixed(1).padStart(6)}MB │`,
+  `│ Client Peak: Avg=${(peakRsss.reduce((s, v) => s + v, 0) / peakRsss.length).toFixed(0).padStart(5)}MB  Max=${Math.max(...peakRsss).toFixed(0).padStart(5)}MB  Delta=${(deltaRsss.reduce((s, v) => s + v, 0) / deltaRsss.length).toFixed(1).padStart(6)}MB │`,
 );
 console.log(
-  `│ Peak Heap: Avg=${(peakHeaps.reduce((s, v) => s + v, 0) / peakHeaps.length).toFixed(0).padStart(5)}MB  Min=${Math.min(
-    ...peakHeaps,
-  )
-    .toFixed(0)
-    .padStart(5)}MB  Max=${Math.max(...peakHeaps)
-    .toFixed(0)
-    .padStart(5)}MB  StdDev=${stdDev(peakHeaps).toFixed(1).padStart(6)}MB │`,
-);
-console.log(
-  `│ Delta RSS: Avg=${(deltaRsss.reduce((s, v) => s + v, 0) / deltaRsss.length).toFixed(1).padStart(5)}MB  Min=${Math.min(
-    ...deltaRsss,
-  )
-    .toFixed(1)
-    .padStart(5)}MB  Max=${Math.max(...deltaRsss)
-    .toFixed(1)
-    .padStart(5)}MB  (memory leak indicator)      │`,
+  `│ Server Peak: Avg=${(serverPeaks.reduce((s, v) => s + v, 0) / serverPeaks.length).toFixed(0).padStart(5)}MB  Max=${Math.max(...serverPeaks).toFixed(0).padStart(5)}MB  Delta=${(serverDeltas.reduce((s, v) => s + v, 0) / serverDeltas.length).toFixed(1).padStart(6)}MB │`,
 );
 console.log(
   "└───────────────────────────────────────────────────────────────────────────┘",
@@ -992,7 +1062,8 @@ if (totalMissing > 0)
 console.log(`   Total time: ${(overallTime / 1000 / 60).toFixed(2)} minutes`);
 console.log(`   Avg throughput: ${avgProcessRate.toLocaleString()} jobs/sec`);
 console.log(`   Avg P99 latency: ${formatMs(avgP99)}`);
-console.log(`   Peak memory (RSS): ${Math.max(...peakRsss).toFixed(0)}MB`);
+console.log(`   Client peak memory: ${Math.max(...peakRsss).toFixed(0)}MB`);
+console.log(`   Server peak memory: ${Math.max(...serverPeaks).toFixed(0)}MB`);
 console.log("═".repeat(80));
 
 if (successCount === NUM_RUNS) {
