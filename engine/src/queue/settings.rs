@@ -29,11 +29,14 @@ impl QueueManager {
         // Replace global structures with fresh GxHash allocations
         *self.cron_jobs.write() = GxHashMap::default();
         *self.completed_jobs.write() = GxHashSet::default();
+        *self.completed_jobs_data.write() = VecDeque::new(); // CRITICAL: clear job data
         *self.job_results.write() = GxHashMap::default();
 
-        // Clear and shrink DashMap
+        // Clear and shrink DashMaps
         self.job_index.clear();
         self.job_index.shrink_to_fit();
+        self.kv_store.clear();
+        self.kv_store.shrink_to_fit();
 
         // Replace other structures with fresh GxHash allocations
         *self.workers.write() = GxHashMap::default();
@@ -44,6 +47,12 @@ impl QueueManager {
         *self.custom_id_map.write() = GxHashMap::default();
         *self.job_waiters.write() = GxHashMap::default();
         *self.completed_retention.write() = GxHashMap::default();
+        *self.webhooks.write() = GxHashMap::default();
+        *self.webhook_circuits.write() = GxHashMap::default();
+        *self.subscribers.write() = Vec::new();
+
+        // Reset pubsub
+        self.pubsub.reset();
 
         // Reset metrics counters
         self.metrics

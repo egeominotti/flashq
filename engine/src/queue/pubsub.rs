@@ -173,6 +173,14 @@ impl PubSub {
         self.channels.retain(|_, v| !v.is_empty());
         self.patterns.retain(|_, v| !v.is_empty());
     }
+
+    /// Reset all pubsub state (clear all channels and patterns).
+    pub fn reset(&self) {
+        self.channels.clear();
+        self.channels.shrink_to_fit();
+        self.patterns.clear();
+        self.patterns.shrink_to_fit();
+    }
 }
 
 #[cfg(test)]

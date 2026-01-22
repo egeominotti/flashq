@@ -11,7 +11,7 @@ const TOTAL_JOBS = 1_000_000;
 const BATCH_SIZE = 1000;
 const NUM_WORKERS = 16;
 const CONCURRENCY_PER_WORKER = 100;
-const NUM_RUNS = 1;
+const NUM_RUNS = 20;
 const SERVER_HTTP_PORT = 6790; // flashQ HTTP API port
 
 // Latency tracking with reservoir sampling for memory efficiency
@@ -589,7 +589,9 @@ async function runBenchmark(runNumber: number): Promise<RunResult> {
     console.log("✅ Server memory reset");
     await new Promise((r) => setTimeout(r, 500)); // Wait for cleanup
   } else {
-    console.log("⚠️  Server reset failed (server may not be running with HTTP)");
+    console.log(
+      "⚠️  Server reset failed (server may not be running with HTTP)",
+    );
   }
 
   // Clean up queue before starting
@@ -854,7 +856,9 @@ const initialReset = await resetServer();
 if (initialReset) {
   await new Promise((r) => setTimeout(r, 1000)); // Wait for full cleanup
   const initialMem = await getServerMemory();
-  console.log(`✅ Server reset complete. Baseline memory: ${initialMem?.memoryUsedMb.toFixed(0) ?? "N/A"}MB`);
+  console.log(
+    `✅ Server reset complete. Baseline memory: ${initialMem?.memoryUsedMb.toFixed(0) ?? "N/A"}MB`,
+  );
 } else {
   console.log("⚠️  Server reset not available");
 }
