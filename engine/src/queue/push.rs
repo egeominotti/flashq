@@ -88,8 +88,18 @@ impl QueueManager {
         let idx = Self::shard_index(&queue);
         let queue_name = intern(&queue);
 
-        // Track if this job has unsatisfied dependencies
-        let needs_waiting_deps: bool;
+        // CRITICAL: Check dependencies FIRST (before acquiring shard lock) to avoid deadlock.
+        // stats() holds completed_jobs.read() then acquires shard.read()
+        // We must NOT hold shard.write() while acquiring completed_jobs.read()
+        let needs_waiting_deps = if !job.depends_on.is_empty() {
+            let completed = self.completed_jobs.read();
+            !job.depends_on.iter().all(|dep| completed.contains(dep))
+        } else {
+            false
+        };
+
+        // Track if unique key check fails (for rollback outside shard lock)
+        let mut unique_key_failed = false;
 
         {
             let mut shard = self.shards[idx].write();
@@ -98,49 +108,53 @@ impl QueueManager {
             if let Some(ref key) = input.unique_key {
                 let keys = shard.unique_keys.entry(queue_name.clone()).or_default();
                 if keys.contains(key) {
-                    // Rollback custom_id if it was inserted
-                    if let Some(ref custom_id) = input.job_id {
-                        self.custom_id_map.write().remove(custom_id);
-                    }
-                    return Err(format!("Duplicate job with key: {}", key));
+                    unique_key_failed = true;
+                    // Don't acquire custom_id_map.write() here - would deadlock!
+                } else {
+                    keys.insert(key.clone());
                 }
-                keys.insert(key.clone());
             }
 
-            // Check dependencies
-            if !job.depends_on.is_empty() {
-                let completed = self.completed_jobs.read();
-                let deps_satisfied = job.depends_on.iter().all(|dep| completed.contains(dep));
-                needs_waiting_deps = !deps_satisfied;
-
+            // Only proceed if unique key check passed
+            if !unique_key_failed {
+                // Add to appropriate location based on deps check done above
                 if needs_waiting_deps {
                     shard.waiting_deps.insert(job.id, job.clone());
                     self.index_job(job.id, JobLocation::WaitingDeps { shard_idx: idx });
+                } else {
+                    shard
+                        .queues
+                        .entry(queue_name)
+                        .or_default()
+                        .push(job.clone());
+                    self.index_job(job.id, JobLocation::Queue { shard_idx: idx });
                 }
-            } else {
-                needs_waiting_deps = false;
-            }
-
-            // Add to queue if deps are satisfied or no deps
-            if !needs_waiting_deps {
-                shard
-                    .queues
-                    .entry(queue_name)
-                    .or_default()
-                    .push(job.clone());
-                self.index_job(job.id, JobLocation::Queue { shard_idx: idx });
             }
         } // Lock released here before any await
+
+        // Rollback custom_id OUTSIDE shard lock to avoid deadlock
+        if unique_key_failed {
+            if let Some(ref custom_id) = input.job_id {
+                self.custom_id_map.write().remove(custom_id);
+            }
+            return Err(format!(
+                "Duplicate job with key: {}",
+                input.unique_key.as_ref().unwrap()
+            ));
+        }
 
         // Handle jobs waiting for dependencies
         if needs_waiting_deps {
             // Use sync persistence if enabled for durability guarantee
             if self.is_sync_persistence() {
                 if let Err(e) = self.persist_push_sync(&job, "waiting_children").await {
-                    // Rollback: remove from waiting_deps, index, and custom_id
-                    let mut shard = self.shards[idx].write();
-                    shard.waiting_deps.remove(&job.id);
+                    // Rollback: remove from waiting_deps and index
+                    {
+                        let mut shard = self.shards[idx].write();
+                        shard.waiting_deps.remove(&job.id);
+                    }
                     self.unindex_job(job.id);
+                    // Rollback custom_id OUTSIDE shard lock to avoid deadlock
                     if let Some(ref custom_id) = input.job_id {
                         self.custom_id_map.write().remove(custom_id);
                     }
@@ -155,13 +169,16 @@ impl QueueManager {
         // Persist to SQLite - use sync mode if enabled
         if self.is_sync_persistence() {
             if let Err(e) = self.persist_push_sync(&job, "waiting").await {
-                // Rollback: remove from queue, index, and custom_id
-                let rollback_queue = intern(&queue);
-                let mut shard = self.shards[idx].write();
-                if let Some(heap) = shard.queues.get_mut(&rollback_queue) {
-                    heap.retain(|j| j.id != job.id);
+                // Rollback: remove from queue and index
+                {
+                    let rollback_queue = intern(&queue);
+                    let mut shard = self.shards[idx].write();
+                    if let Some(heap) = shard.queues.get_mut(&rollback_queue) {
+                        heap.retain(|j| j.id != job.id);
+                    }
                 }
                 self.unindex_job(job.id);
+                // Rollback custom_id OUTSIDE shard lock to avoid deadlock
                 if let Some(ref custom_id) = input.job_id {
                     self.custom_id_map.write().remove(custom_id);
                 }

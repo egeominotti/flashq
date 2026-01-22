@@ -39,6 +39,11 @@ pub struct MemoryStats {
 
 impl QueueManager {
     /// Get detailed metrics for all queues.
+    ///
+    /// CRITICAL: This function previously held shard.read() while calling
+    /// processing_count_by_queue(), which acquires all 32 processing_shards.read().
+    /// This caused cascading deadlocks with write-preferring RwLock.
+    /// Fixed by collecting queue info FIRST, releasing shard lock, THEN getting processing counts.
     pub async fn get_metrics(&self) -> MetricsData {
         let latency_count = self.metrics.latency_count.load(Ordering::Relaxed);
         let avg_latency = if latency_count > 0 {
@@ -47,21 +52,38 @@ impl QueueManager {
             0.0
         };
 
-        let mut queues = Vec::new();
+        // PHASE 1: Collect basic queue info (pending, dlq, rate_limit) while holding shard.read()
+        // Do NOT call processing_count_by_queue() here - that would cause cascading deadlock!
+        let mut queue_info: Vec<(String, usize, usize, Option<u32>)> = Vec::new();
 
         for shard in &self.shards {
             let s = shard.read();
             for (name, heap) in &s.queues {
                 let state = s.queue_state.get(name);
-                queues.push(QueueMetrics {
-                    name: name.to_string(),
-                    pending: heap.len(),
-                    processing: self.processing_count_by_queue(name.as_str()),
-                    dlq: s.dlq.get(name).map_or(0, |d| d.len()),
-                    rate_limit: state.and_then(|s| s.rate_limiter.as_ref().map(|r| r.limit)),
-                });
+                queue_info.push((
+                    name.to_string(),
+                    heap.len(),
+                    s.dlq.get(name).map_or(0, |d| d.len()),
+                    state.and_then(|s| s.rate_limiter.as_ref().map(|r| r.limit)),
+                ));
             }
-        }
+        } // All shard.read() locks released here
+
+        // PHASE 2: Get processing counts AFTER releasing shard locks
+        // This is now safe - no shard locks held while acquiring processing_shards locks
+        let queues: Vec<QueueMetrics> = queue_info
+            .into_iter()
+            .map(|(name, pending, dlq, rate_limit)| {
+                let processing = self.processing_count_by_queue(&name);
+                QueueMetrics {
+                    name,
+                    pending,
+                    processing,
+                    dlq,
+                    rate_limit,
+                }
+            })
+            .collect();
 
         MetricsData {
             total_pushed: self.metrics.total_pushed.load(Ordering::Relaxed),
