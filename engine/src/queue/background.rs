@@ -317,39 +317,60 @@ impl QueueManager {
 
     /// Shrink memory buffers to release unused capacity back to the allocator.
     /// This is important after processing large batches of jobs.
+    ///
+    /// Uses try_write() to avoid deadlocks - if a lock is held, we skip that
+    /// structure and try again on the next cycle (every 10 seconds).
     pub(crate) fn shrink_memory_buffers(&self) {
-        // Shrink queue heaps in all shards
+        // Shrink queue heaps in all shards (non-blocking)
         for shard in &self.shards {
-            let mut s = shard.write();
-            for heap in s.queues.values_mut() {
-                heap.shrink_to_fit();
+            // Use try_write to avoid deadlock with concurrent operations
+            if let Some(mut s) = shard.try_write() {
+                for heap in s.queues.values_mut() {
+                    heap.shrink_to_fit();
+                }
+                // Remove empty queues entirely
+                s.queues.retain(|_, heap| !heap.is_empty());
+                s.dlq.retain(|_, dlq| !dlq.is_empty());
+                s.unique_keys.retain(|_, keys| !keys.is_empty());
+                // Shrink remaining structures
+                s.queues.shrink_to_fit();
+                s.dlq.shrink_to_fit();
+                s.waiting_deps.shrink_to_fit();
+                s.waiting_children.shrink_to_fit();
+                s.unique_keys.shrink_to_fit();
+                s.active_groups.shrink_to_fit();
             }
-            // Remove empty queues entirely
-            s.queues.retain(|_, heap| !heap.is_empty());
-            s.dlq.retain(|_, dlq| !dlq.is_empty());
-            s.unique_keys.retain(|_, keys| !keys.is_empty());
-            // Shrink remaining structures
-            s.queues.shrink_to_fit();
-            s.dlq.shrink_to_fit();
-            s.waiting_deps.shrink_to_fit();
-            s.waiting_children.shrink_to_fit();
-            s.unique_keys.shrink_to_fit();
-            s.active_groups.shrink_to_fit();
         }
 
-        // Shrink processing shards
+        // Shrink processing shards (non-blocking)
         for shard in &self.processing_shards {
-            shard.write().shrink_to_fit();
+            if let Some(mut s) = shard.try_write() {
+                s.shrink_to_fit();
+            }
         }
 
-        // Shrink other structures
-        self.completed_jobs.write().shrink_to_fit();
-        self.job_results.write().shrink_to_fit();
-        self.job_logs.write().shrink_to_fit();
-        self.stalled_count.write().shrink_to_fit();
-        self.custom_id_map.write().shrink_to_fit();
-        self.completed_retention.write().shrink_to_fit();
-        self.job_waiters.write().shrink_to_fit();
+        // Shrink other structures (non-blocking)
+        if let Some(mut guard) = self.completed_jobs.try_write() {
+            guard.shrink_to_fit();
+        }
+        if let Some(mut guard) = self.job_results.try_write() {
+            guard.shrink_to_fit();
+        }
+        if let Some(mut guard) = self.job_logs.try_write() {
+            guard.shrink_to_fit();
+        }
+        if let Some(mut guard) = self.stalled_count.try_write() {
+            guard.shrink_to_fit();
+        }
+        if let Some(mut guard) = self.custom_id_map.try_write() {
+            guard.shrink_to_fit();
+        }
+        if let Some(mut guard) = self.completed_retention.try_write() {
+            guard.shrink_to_fit();
+        }
+        if let Some(mut guard) = self.job_waiters.try_write() {
+            guard.shrink_to_fit();
+        }
     }
 
     pub(crate) async fn run_cron_jobs(&self) {

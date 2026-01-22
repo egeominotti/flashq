@@ -9,6 +9,7 @@ const NUM_WORKERS = 8;
 const CONCURRENCY_PER_WORKER = 100;
 
 const queue = new Queue('million-benchmark', {
+  timeout: 60000,  // 60s timeout for obliterate with many jobs
   defaultJobOptions: {
     removeOnComplete: true,  // Prevent memory bloat - don't store completed jobs
   }
