@@ -2,7 +2,7 @@
 
 # flashQ
 
-**High-performance job queue. No Redis required.**
+**High-performance job queue server built with Rust. No Redis required.**
 
 [![CI](https://img.shields.io/github/actions/workflow/status/egeominotti/flashq/ci.yml?branch=main&label=CI)](https://github.com/egeominotti/flashq/actions)
 [![npm](https://img.shields.io/npm/v/flashq)](https://www.npmjs.com/package/flashq)
@@ -13,6 +13,17 @@
 </div>
 
 ---
+
+## Features
+
+- **1.9M jobs/sec** push throughput, **280K jobs/sec** processing
+- **BullMQ-compatible API** - easy migration from Redis-based queues
+- **SQLite persistence** - embedded WAL mode, zero external dependencies
+- **S3 backup** - AWS S3, Cloudflare R2, MinIO, Backblaze B2 compatible
+- **Real-time dashboard** - WebSocket-powered monitoring UI
+- **Advanced scheduling** - priorities, delays, cron jobs, rate limiting
+- **Dead letter queues** - automatic retry with exponential backoff
+- **Job dependencies** - workflow orchestration with parent/child jobs
 
 ## Quick Start
 
@@ -27,18 +38,40 @@ npm install flashq  # or: bun add flashq
 ```typescript
 import { Queue, Worker } from 'flashq';
 
-const queue = new Queue('tasks');
-await queue.add('job', { data: 'hello' });
+// Create queue and add jobs
+const queue = new Queue('emails');
+await queue.add('send', { to: 'user@example.com', subject: 'Welcome!' });
 
-const worker = new Worker('tasks', async (job) => {
-  console.log(job.data);
+// Process jobs
+const worker = new Worker('emails', async (job) => {
+  await sendEmail(job.data);
+  return { sent: true };
 });
+
+worker.on('completed', (job) => console.log(`Job ${job.id} completed`));
+worker.on('failed', (job, err) => console.error(`Job ${job.id} failed: ${err}`));
+```
+
+## Architecture
+
+```
+┌─────────────┐     ┌─────────────────┐     ┌──────────────┐
+│   Client    │────▶│  flashQ Server  │────▶│    SQLite    │
+│  (SDK/API)  │     │   (Rust/Axum)   │     │  (embedded)  │
+└─────────────┘     └─────────────────┘     └──────────────┘
+      TCP/HTTP              │                      │
+      Binary/JSON           ▼                      ▼
+                    ┌───────────────┐      ┌──────────────┐
+                    │   Dashboard   │      │  S3 Backup   │
+                    │  (WebSocket)  │      │  (optional)  │
+                    └───────────────┘      └──────────────┘
 ```
 
 ## Links
 
 - **Documentation**: [flashq.dev/docs](https://flashq.dev/docs/)
 - **Examples**: [sdk/typescript/examples/](sdk/typescript/examples/)
+- **Technical Paper**: [docs/TECHNICAL_PAPER.md](docs/TECHNICAL_PAPER.md)
 - **Releases**: [GitHub Releases](https://github.com/egeominotti/flashq/releases)
 
 ## License
