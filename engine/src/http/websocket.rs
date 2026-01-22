@@ -1,6 +1,6 @@
 //! WebSocket HTTP handlers.
 
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -12,6 +12,7 @@ use axum::{
     http::StatusCode,
     response::IntoResponse,
 };
+use parking_lot::RwLock;
 use serde::Serialize;
 use tokio::sync::broadcast;
 use tokio::time::interval;
@@ -24,6 +25,75 @@ use super::types::{AppState, StatsResponse, WsQuery};
 
 /// Maximum concurrent WebSocket connections
 const MAX_WS_CONNECTIONS: usize = 100;
+
+/// Dashboard update interval in milliseconds (configurable via DASHBOARD_INTERVAL_MS env var)
+const DEFAULT_DASHBOARD_INTERVAL_MS: u64 = 2000;
+
+/// System metrics cache refresh interval (avoid spawning processes too often)
+const SYSTEM_METRICS_CACHE_MS: u64 = 5000;
+
+// ============================================================================
+// Cached System Metrics (avoid spawning processes every update)
+// ============================================================================
+
+/// Cached system metrics to avoid expensive process spawning
+struct CachedSystemMetrics {
+    cpu_percent: f64,
+    memory_used_mb: f64,
+    memory_total_mb: f64,
+}
+
+static CACHED_METRICS: RwLock<Option<CachedSystemMetrics>> = RwLock::new(None);
+static METRICS_LAST_UPDATE: AtomicU64 = AtomicU64::new(0);
+
+/// Get system metrics with caching (refreshes every SYSTEM_METRICS_CACHE_MS)
+fn get_cached_system_metrics() -> (f64, f64, f64) {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64;
+
+    let last_update = METRICS_LAST_UPDATE.load(Ordering::Relaxed);
+
+    // Check if cache is still valid
+    if now - last_update < SYSTEM_METRICS_CACHE_MS {
+        if let Some(cached) = CACHED_METRICS.read().as_ref() {
+            return (
+                cached.cpu_percent,
+                cached.memory_used_mb,
+                cached.memory_total_mb,
+            );
+        }
+    }
+
+    // Refresh cache (only one thread should do this)
+    if METRICS_LAST_UPDATE
+        .compare_exchange(last_update, now, Ordering::SeqCst, Ordering::Relaxed)
+        .is_ok()
+    {
+        let cpu_percent = get_cpu_percent();
+        let (memory_used_mb, memory_total_mb) = get_memory_info();
+
+        *CACHED_METRICS.write() = Some(CachedSystemMetrics {
+            cpu_percent,
+            memory_used_mb,
+            memory_total_mb,
+        });
+
+        return (cpu_percent, memory_used_mb, memory_total_mb);
+    }
+
+    // Another thread is updating, return stale data or defaults
+    if let Some(cached) = CACHED_METRICS.read().as_ref() {
+        (
+            cached.cpu_percent,
+            cached.memory_used_mb,
+            cached.memory_total_mb,
+        )
+    } else {
+        (0.0, 0.0, 0.0)
+    }
+}
 
 /// Global WebSocket connection counter
 static WS_CONNECTION_COUNT: AtomicUsize = AtomicUsize::new(0);
@@ -206,7 +276,13 @@ async fn handle_dashboard_websocket(mut socket: WebSocket, qm: Arc<QueueManager>
     // Track connection
     WS_CONNECTION_COUNT.fetch_add(1, Ordering::Relaxed);
 
-    let mut update_interval = interval(Duration::from_secs(1));
+    // Configurable update interval (default 2 seconds)
+    let interval_ms = std::env::var("DASHBOARD_INTERVAL_MS")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(DEFAULT_DASHBOARD_INTERVAL_MS);
+
+    let mut update_interval = interval(Duration::from_millis(interval_ms));
     let mut ping_interval = interval(Duration::from_secs(30));
     let mut last_activity = std::time::Instant::now();
     let timeout_duration = Duration::from_secs(120);
@@ -226,15 +302,28 @@ async fn handle_dashboard_websocket(mut socket: WebSocket, qm: Arc<QueueManager>
             }
 
             _ = update_interval.tick() => {
-                // Collect all dashboard data
-                let (queued, processing, delayed, dlq, completed) = qm.stats().await;
-                let metrics = qm.get_metrics().await;
-                let queues = qm.list_queues().await;
-                let workers = qm.list_workers().await;
-                let crons = qm.list_crons().await;
+                // Collect all dashboard data in PARALLEL using tokio::join!
+                let qm_ref = &qm;
+                let (
+                    stats_result,
+                    metrics,
+                    queues,
+                    workers,
+                    crons,
+                ) = tokio::join!(
+                    qm_ref.stats(),
+                    qm_ref.get_metrics(),
+                    qm_ref.list_queues(),
+                    qm_ref.list_workers(),
+                    qm_ref.list_crons(),
+                );
+
+                let (queued, processing, delayed, dlq, completed) = stats_result;
+
+                // Collect metrics history (sync, fast)
                 let metrics_history = qm.get_metrics_history();
 
-                // Collect system metrics
+                // Collect system metrics (uses cache, no process spawning)
                 let system_metrics = collect_system_metrics(&qm);
 
                 // Collect SQLite stats if enabled
@@ -299,12 +388,13 @@ pub fn ws_connection_count() -> usize {
 // System Metrics Collection
 // ============================================================================
 
-/// Collect system metrics for dashboard WebSocket.
+/// Collect system metrics for dashboard WebSocket (uses cached values).
 fn collect_system_metrics(qm: &Arc<QueueManager>) -> SystemMetrics {
     let uptime = super::settings::get_uptime_seconds();
-    let (memory_used, memory_total) = get_memory_info();
     let tcp_connections = qm.connection_count();
-    let cpu_percent = get_cpu_percent();
+
+    // Use cached metrics (refreshes every 5 seconds, avoids process spawning)
+    let (cpu_percent, memory_used, memory_total) = get_cached_system_metrics();
 
     SystemMetrics {
         memory_used_mb: memory_used,
@@ -386,7 +476,7 @@ async fn collect_sqlite_stats(
 }
 
 // ============================================================================
-// Platform-specific CPU metrics
+// Platform-specific CPU metrics (implementation - called by cache)
 // ============================================================================
 
 fn get_cpu_percent() -> f64 {
@@ -430,7 +520,7 @@ fn get_cpu_percent() -> f64 {
 }
 
 // ============================================================================
-// Platform-specific Memory metrics
+// Platform-specific Memory metrics (implementation - called by cache)
 // ============================================================================
 
 fn get_memory_info() -> (f64, f64) {

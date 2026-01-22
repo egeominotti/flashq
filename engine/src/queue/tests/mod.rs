@@ -104,3 +104,6 @@ mod async_writer;
 
 // Deadlock detection tests
 mod deadlock;
+
+// Phase 1 critical stability tests (memory, races, deadlocks)
+mod stability;
