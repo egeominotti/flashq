@@ -102,41 +102,43 @@ impl QueueManager {
         let mut acked = 0;
         let mut ids_to_persist: Vec<u64> = Vec::new();
         let mut ids_to_delete: Vec<u64> = Vec::new();
-        // OPTIMIZATION: Cache shard index and interned queue name to avoid
-        // re-hashing for jobs in the same queue (common case in batch ack)
-        let mut queue_cache: Option<(String, usize, compact_str::CompactString)> = None;
+        // Collect IDs for bulk cleanup operations (avoid acquiring locks per-job)
+        let mut logs_to_remove: Vec<u64> = Vec::new();
+        let mut stalled_to_remove: Vec<u64> = Vec::new();
+        let mut completed_to_insert: Vec<u64> = Vec::new();
+        // CRITICAL OPTIMIZATION: Collect shard resources to release, then batch release
+        // This prevents acquiring shard lock 100 times per batch (was causing lock convoy)
+        // Group by shard index for efficient batching
+        let mut shard_resources: std::collections::HashMap<
+            usize,
+            (
+                compact_str::CompactString,
+                Vec<Option<String>>,
+                Vec<Option<String>>,
+            ),
+        > = std::collections::HashMap::new();
 
+        // First pass: collect all jobs and their resource info WITHOUT acquiring shard locks
         for &id in ids {
             if let Some(job) = self.processing_remove(id) {
-                // Release concurrency
-                let (idx, queue_arc) = match &queue_cache {
-                    Some((cached_queue, idx, arc)) if cached_queue == &job.queue => {
-                        (*idx, arc.clone())
-                    }
-                    _ => {
-                        let idx = Self::shard_index(&job.queue);
-                        let arc = intern(&job.queue);
-                        queue_cache = Some((job.queue.clone(), idx, arc.clone()));
-                        (idx, arc)
-                    }
-                };
-                {
-                    let mut shard = self.shards[idx].write();
-                    shard.release_job_resources(
-                        &queue_arc,
-                        job.unique_key.as_ref(),
-                        job.group_id.as_ref(),
-                    );
-                }
+                let idx = Self::shard_index(&job.queue);
+                let queue_arc = intern(&job.queue);
 
-                // Handle remove_on_complete option (same as single ack)
+                // Collect resources for batch release
+                let entry = shard_resources
+                    .entry(idx)
+                    .or_insert_with(|| (queue_arc.clone(), Vec::new(), Vec::new()));
+                entry.1.push(job.unique_key.clone());
+                entry.2.push(job.group_id.clone());
+
+                // Handle remove_on_complete option - collect IDs for bulk operations
                 if job.remove_on_complete {
                     self.unindex_job(id);
-                    self.job_logs.write().remove(&id);
-                    self.stalled_count.write().remove(&id);
+                    logs_to_remove.push(id);
+                    stalled_to_remove.push(id);
                     ids_to_delete.push(id);
                 } else {
-                    self.completed_jobs.write().insert(id);
+                    completed_to_insert.push(id);
                     self.index_job(id, JobLocation::Completed);
                     ids_to_persist.push(id);
                 }
@@ -145,6 +147,49 @@ impl QueueManager {
                 self.notify_job_waiters(id, None);
 
                 acked += 1;
+            }
+        }
+
+        // CRITICAL: Release shard resources with SINGLE lock acquisition per shard
+        // This reduces lock contention from O(n) to O(shards) lock acquisitions
+        for (idx, (queue_arc, unique_keys, group_ids)) in shard_resources {
+            let mut shard = self.shards[idx].write();
+            let job_count = unique_keys.len();
+
+            // Bulk release concurrency
+            for _ in 0..job_count {
+                shard.release_concurrency(&queue_arc);
+            }
+
+            // Bulk release groups
+            for group_id in group_ids {
+                shard.release_group(&queue_arc, group_id.as_ref());
+            }
+
+            // Bulk remove unique keys
+            for unique_key in unique_keys {
+                shard.remove_unique_key(&queue_arc, unique_key.as_ref());
+            }
+        }
+
+        // OPTIMIZATION: Bulk operations with single lock acquisitions
+        // This reduces lock contention from O(n) to O(1) lock acquisitions
+        if !logs_to_remove.is_empty() {
+            let mut job_logs = self.job_logs.write();
+            for id in logs_to_remove {
+                job_logs.remove(&id);
+            }
+        }
+        if !stalled_to_remove.is_empty() {
+            let mut stalled = self.stalled_count.write();
+            for id in stalled_to_remove {
+                stalled.remove(&id);
+            }
+        }
+        if !completed_to_insert.is_empty() {
+            let mut completed = self.completed_jobs.write();
+            for id in completed_to_insert {
+                completed.insert(id);
             }
         }
 

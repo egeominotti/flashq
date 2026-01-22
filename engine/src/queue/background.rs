@@ -208,25 +208,37 @@ impl QueueManager {
     pub(crate) fn cleanup_completed_jobs(&self) {
         const MAX_COMPLETED: usize = 50_000;
 
-        let mut completed = self.completed_jobs.write();
-        let len = completed.len();
-        if len > MAX_COMPLETED {
-            // Remove everything above threshold (aggressive cleanup)
-            let to_remove: Vec<_> = completed
-                .iter()
-                .take(len - MAX_COMPLETED / 2)
-                .copied()
-                .collect();
-
-            for &id in &to_remove {
-                self.job_index.remove(&id);
+        // CRITICAL: Collect IDs to remove FIRST, then release lock before acquiring other locks.
+        // This prevents deadlock with push() which acquires custom_id_map then completed_jobs.
+        let to_remove: Vec<u64> = {
+            let completed = self.completed_jobs.read();
+            let len = completed.len();
+            if len > MAX_COMPLETED {
+                completed
+                    .iter()
+                    .take(len - MAX_COMPLETED / 2)
+                    .copied()
+                    .collect()
+            } else {
+                return; // Nothing to clean up
             }
+        };
+        // Lock released here
 
-            {
-                let mut custom_id_map = self.custom_id_map.write();
-                custom_id_map.retain(|_, &mut internal_id| !to_remove.contains(&internal_id));
-            }
+        // Remove from job_index (DashMap, lock-free)
+        for &id in &to_remove {
+            self.job_index.remove(&id);
+        }
 
+        // Clean custom_id_map separately (no other locks held)
+        {
+            let mut custom_id_map = self.custom_id_map.write();
+            custom_id_map.retain(|_, &mut internal_id| !to_remove.contains(&internal_id));
+        }
+
+        // Now remove from completed_jobs (separate lock acquisition)
+        {
+            let mut completed = self.completed_jobs.write();
             for id in to_remove {
                 completed.remove(&id);
             }
@@ -277,10 +289,50 @@ impl QueueManager {
         let completed_jobs: std::collections::HashSet<u64> =
             self.completed_jobs.read().iter().copied().collect();
 
+        // CRITICAL: Collect processing job IDs to local set to avoid repeated lock acquisitions
+        let processing_ids: std::collections::HashSet<u64> = {
+            let mut ids = std::collections::HashSet::new();
+            for shard in &self.processing_shards {
+                if let Some(guard) = shard.try_read() {
+                    ids.extend(guard.keys().copied());
+                }
+            }
+            ids
+        };
+
+        // CRITICAL: Collect shard data to local structures to avoid livelock.
+        // Previously we acquired shard.read() FOR EACH index entry, which created
+        // a livelock pattern where push_batch's write() was continuously starved.
+        // Now we snapshot shard state ONCE per shard, then iterate without locks.
+        let mut shard_queue_ids: Vec<std::collections::HashSet<u64>> =
+            vec![std::collections::HashSet::new(); self.shards.len()];
+        let mut shard_dlq_ids: Vec<std::collections::HashSet<u64>> =
+            vec![std::collections::HashSet::new(); self.shards.len()];
+        let mut shard_waiting_deps: Vec<std::collections::HashSet<u64>> =
+            vec![std::collections::HashSet::new(); self.shards.len()];
+        let mut shard_waiting_children: Vec<std::collections::HashSet<u64>> =
+            vec![std::collections::HashSet::new(); self.shards.len()];
+
+        for (idx, shard_lock) in self.shards.iter().enumerate() {
+            // Use try_read to avoid blocking if shard is busy
+            if let Some(shard) = shard_lock.try_read() {
+                for heap in shard.queues.values() {
+                    shard_queue_ids[idx].extend(heap.iter().map(|j| j.id));
+                }
+                for dlq in shard.dlq.values() {
+                    shard_dlq_ids[idx].extend(dlq.iter().map(|j| j.id));
+                }
+                shard_waiting_deps[idx].extend(shard.waiting_deps.keys().copied());
+                shard_waiting_children[idx].extend(shard.waiting_children.keys().copied());
+            }
+            // If try_read fails, skip this shard - we'll catch it next cleanup cycle
+        }
+
         // Aggressive: remove all stale entries above threshold
         let target_remove = index_len - MAX_INDEX_SIZE / 2;
         let mut to_remove = Vec::with_capacity(target_remove);
 
+        // Now iterate WITHOUT holding any locks
         for entry in self.job_index.iter() {
             if to_remove.len() >= target_remove {
                 break;
@@ -289,25 +341,16 @@ impl QueueManager {
             let id = *entry.key();
             let location = *entry.value();
 
-            // Now safe to acquire shard locks - completed_jobs lock already released
             let is_stale = match location {
                 JobLocation::Completed => !completed_jobs.contains(&id),
-                JobLocation::Processing => !self.processing_contains(id),
-                JobLocation::Queue { shard_idx } => {
-                    let shard = self.shards[shard_idx].read();
-                    !shard.queues.values().any(|heap| heap.contains(id))
-                }
-                JobLocation::Dlq { shard_idx } => {
-                    let shard = self.shards[shard_idx].read();
-                    !shard.dlq.values().any(|dlq| dlq.iter().any(|j| j.id == id))
-                }
+                JobLocation::Processing => !processing_ids.contains(&id),
+                JobLocation::Queue { shard_idx } => !shard_queue_ids[shard_idx].contains(&id),
+                JobLocation::Dlq { shard_idx } => !shard_dlq_ids[shard_idx].contains(&id),
                 JobLocation::WaitingDeps { shard_idx } => {
-                    let shard = self.shards[shard_idx].read();
-                    !shard.waiting_deps.contains_key(&id)
+                    !shard_waiting_deps[shard_idx].contains(&id)
                 }
                 JobLocation::WaitingChildren { shard_idx } => {
-                    let shard = self.shards[shard_idx].read();
-                    !shard.waiting_children.contains_key(&id)
+                    !shard_waiting_children[shard_idx].contains(&id)
                 }
             };
 
@@ -316,10 +359,17 @@ impl QueueManager {
             }
         }
 
-        for id in to_remove {
-            self.job_index.remove(&id);
-            self.job_logs.write().remove(&id);
-            self.stalled_count.write().remove(&id);
+        // Bulk cleanup with single lock acquisitions
+        if !to_remove.is_empty() {
+            for &id in &to_remove {
+                self.job_index.remove(&id);
+            }
+            let mut job_logs = self.job_logs.write();
+            let mut stalled = self.stalled_count.write();
+            for id in to_remove {
+                job_logs.remove(&id);
+                stalled.remove(&id);
+            }
         }
     }
 

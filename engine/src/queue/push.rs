@@ -266,23 +266,26 @@ impl QueueManager {
         let idx = Self::shard_index(&queue);
         let queue_name = intern(&queue);
 
-        // Check dependencies without cloning the entire completed set
-        // Note: debounce cache is updated atomically during filtering above
-        {
-            let completed = self.completed_jobs.read();
-            for (input, job_id) in valid_jobs.into_iter().zip(job_ids.into_iter()) {
-                let job = self.create_job_from_input(job_id, queue.clone(), input);
-                ids.push(job.id);
+        // CRITICAL: Copy completed_jobs to local set FIRST to avoid lock starvation.
+        // With write-preferring RwLock, holding read() while iterating 1000 jobs
+        // causes push_batch callers to be blocked by pending ack() writers.
+        // This was causing timeouts after 9M+ jobs due to accumulated contention.
+        let completed: std::collections::HashSet<u64> =
+            self.completed_jobs.read().iter().copied().collect();
 
-                if !job.depends_on.is_empty()
-                    && !job.depends_on.iter().all(|dep| completed.contains(dep))
-                {
-                    waiting_jobs.push(job);
-                    continue;
-                }
-                created_jobs.push(job);
+        // Now iterate WITHOUT holding any locks on completed_jobs
+        for (input, job_id) in valid_jobs.into_iter().zip(job_ids.into_iter()) {
+            let job = self.create_job_from_input(job_id, queue.clone(), input);
+            ids.push(job.id);
+
+            if !job.depends_on.is_empty()
+                && !job.depends_on.iter().all(|dep| completed.contains(dep))
+            {
+                waiting_jobs.push(job);
+                continue;
             }
-        } // Release completed_jobs read lock here
+            created_jobs.push(job);
+        }
 
         // Persist first (needs references), then insert (consumes jobs)
         self.persist_push_batch(&created_jobs, "waiting");

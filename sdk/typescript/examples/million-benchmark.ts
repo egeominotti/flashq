@@ -4,7 +4,7 @@
  */
 import { Queue, Worker } from '../src';
 
-const TOTAL_JOBS = 1_000_000;
+const TOTAL_JOBS = 1_000_000;  // Full million jobs test
 const BATCH_SIZE = 1000;  // Server limit: max 1000 per batch
 const NUM_WORKERS = 8;
 const CONCURRENCY_PER_WORKER = 100;
@@ -26,9 +26,10 @@ interface RunResult {
 
 async function runBenchmark(runNumber: number): Promise<RunResult> {
   const queue = new Queue('million-benchmark', {
-    timeout: 60000,
+    timeout: 30000,  // Client request timeout (30s to handle heavy load)
     defaultJobOptions: {
       removeOnComplete: true,
+      timeout: 60000,  // Job processing timeout
     }
   });
 
