@@ -33,6 +33,8 @@ impl QueueManager {
                 // Clean up logs for this job
                 self.job_logs.write().remove(&job_id);
                 self.stalled_count.write().remove(&job_id);
+                // Delete from SQLite (job was inserted at push, must be removed now)
+                self.persist_delete(job_id);
             } else {
                 // Store result if provided
                 if let Some(ref res) = result {
@@ -52,15 +54,13 @@ impl QueueManager {
                 }
             }
 
-            // Persist to PostgreSQL - use sync mode if enabled for durability
-            if self.is_sync_persistence() {
-                // Note: If sync persist fails, the job is already removed from processing
-                // but we still return success because the in-memory state is correct.
-                // On restart, PostgreSQL will show the job as "active" and timeout logic
-                // will handle re-queueing it.
-                let _ = self.persist_ack_sync(job_id, result.clone()).await;
-            } else {
-                self.persist_ack(job_id, result.clone());
+            // Persist to SQLite - skip if remove_on_complete to save memory/disk
+            if !job.remove_on_complete {
+                if self.is_sync_persistence() {
+                    let _ = self.persist_ack_sync(job_id, result.clone()).await;
+                } else {
+                    self.persist_ack(job_id, result.clone());
+                }
             }
             self.metrics.record_complete(now_ms() - job.created_at);
             self.notify_subscribers("completed", &job.queue, &job);
@@ -100,6 +100,8 @@ impl QueueManager {
 
     pub async fn ack_batch(&self, ids: &[u64]) -> usize {
         let mut acked = 0;
+        let mut ids_to_persist: Vec<u64> = Vec::new();
+        let mut ids_to_delete: Vec<u64> = Vec::new();
         // OPTIMIZATION: Cache shard index and interned queue name to avoid
         // re-hashing for jobs in the same queue (common case in batch ack)
         let mut queue_cache: Option<(String, usize, compact_str::CompactString)> = None;
@@ -132,9 +134,11 @@ impl QueueManager {
                     self.unindex_job(id);
                     self.job_logs.write().remove(&id);
                     self.stalled_count.write().remove(&id);
+                    ids_to_delete.push(id);
                 } else {
                     self.completed_jobs.write().insert(id);
                     self.index_job(id, JobLocation::Completed);
+                    ids_to_persist.push(id);
                 }
 
                 // Notify any waiters (finished() promise) - no result for batch ack
@@ -144,9 +148,13 @@ impl QueueManager {
             }
         }
 
-        // Persist to PostgreSQL
-        if acked > 0 {
-            self.persist_ack_batch(ids);
+        // Persist only jobs without remove_on_complete
+        if !ids_to_persist.is_empty() {
+            self.persist_ack_batch(&ids_to_persist);
+        }
+        // Delete jobs with remove_on_complete from SQLite
+        if !ids_to_delete.is_empty() {
+            self.persist_delete_batch(&ids_to_delete);
         }
 
         // Update metrics: increment completed, decrement processing

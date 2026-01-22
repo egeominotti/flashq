@@ -45,7 +45,7 @@ async function getDockerStats(containerName: string): Promise<{ memoryMB: number
   }
 }
 
-const queue = new Queue('benchmark-full');
+const queue = new Queue('benchmark-full', { defaultJobOptions: { removeOnComplete: true } });
 
 console.log('='.repeat(70));
 console.log('🚀 flashQ Full Benchmark (Memory + Latency + Throughput)');

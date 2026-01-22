@@ -1,6 +1,8 @@
 //! WebSocket HTTP handlers.
 
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::time::Duration;
 
 use axum::{
     extract::{
@@ -12,12 +14,18 @@ use axum::{
 };
 use serde::Serialize;
 use tokio::sync::broadcast;
-use tracing::warn;
+use tokio::time::interval;
 
 use crate::protocol::{MetricsData, MetricsHistoryPoint, QueueInfo, WorkerInfo};
 use crate::queue::QueueManager;
 
 use super::types::{AppState, StatsResponse, WsQuery};
+
+/// Maximum concurrent WebSocket connections
+const MAX_WS_CONNECTIONS: usize = 100;
+
+/// Global WebSocket connection counter
+static WS_CONNECTION_COUNT: AtomicUsize = AtomicUsize::new(0);
 
 /// WebSocket handler for all job events.
 pub async fn ws_handler(
@@ -29,6 +37,15 @@ pub async fn ws_handler(
     let token = params.token.as_deref().unwrap_or("");
     if !qm.verify_token(token) {
         return (StatusCode::UNAUTHORIZED, "Invalid or missing token").into_response();
+    }
+
+    // Check connection limit
+    if WS_CONNECTION_COUNT.load(Ordering::Relaxed) >= MAX_WS_CONNECTIONS {
+        return (
+            StatusCode::SERVICE_UNAVAILABLE,
+            "Too many WebSocket connections",
+        )
+            .into_response();
     }
 
     ws.on_upgrade(move |socket| handle_websocket(socket, qm, None))
@@ -47,6 +64,15 @@ pub async fn ws_queue_handler(
         return (StatusCode::UNAUTHORIZED, "Invalid or missing token").into_response();
     }
 
+    // Check connection limit
+    if WS_CONNECTION_COUNT.load(Ordering::Relaxed) >= MAX_WS_CONNECTIONS {
+        return (
+            StatusCode::SERVICE_UNAVAILABLE,
+            "Too many WebSocket connections",
+        )
+            .into_response();
+    }
+
     ws.on_upgrade(move |socket| handle_websocket(socket, qm, Some(queue)))
 }
 
@@ -55,10 +81,28 @@ async fn handle_websocket(
     qm: Arc<QueueManager>,
     queue_filter: Option<String>,
 ) {
+    // Track connection
+    WS_CONNECTION_COUNT.fetch_add(1, Ordering::Relaxed);
+
     let mut rx = qm.subscribe_events(queue_filter.clone());
+    let mut ping_interval = interval(Duration::from_secs(30));
+    let mut last_activity = std::time::Instant::now();
+    let timeout_duration = Duration::from_secs(120);
 
     loop {
+        // Check for timeout
+        if last_activity.elapsed() > timeout_duration {
+            break;
+        }
+
         tokio::select! {
+            // Server heartbeat - ping every 30s
+            _ = ping_interval.tick() => {
+                if socket.send(Message::Ping(vec![].into())).await.is_err() {
+                    break;
+                }
+            }
+
             // Receive events from broadcast channel and send to WebSocket
             result = rx.recv() => {
                 match result {
@@ -75,11 +119,11 @@ async fn handle_websocket(
                             if socket.send(Message::Text(json.into())).await.is_err() {
                                 break; // Client disconnected
                             }
+                            last_activity = std::time::Instant::now();
                         }
                     }
-                    Err(broadcast::error::RecvError::Lagged(n)) => {
-                        // Missed some messages, log and continue
-                        warn!(lagged = n, "WebSocket client lagged behind");
+                    Err(broadcast::error::RecvError::Lagged(_)) => {
+                        // Slow client, skip silently
                         continue;
                     }
                     Err(broadcast::error::RecvError::Closed) => {
@@ -95,15 +139,18 @@ async fn handle_websocket(
                         if socket.send(Message::Pong(data)).await.is_err() {
                             break;
                         }
+                        last_activity = std::time::Instant::now();
                     }
                     Some(Ok(Message::Pong(_))) => {
                         // Pong received, connection is alive
+                        last_activity = std::time::Instant::now();
                     }
                     Some(Ok(Message::Close(_))) | None => {
                         break; // Client closed connection
                     }
                     Some(Ok(Message::Text(_))) | Some(Ok(Message::Binary(_))) => {
                         // Ignore client messages (this is a push-only WebSocket)
+                        last_activity = std::time::Instant::now();
                     }
                     Some(Err(_)) => {
                         break; // Error reading from socket
@@ -112,6 +159,9 @@ async fn handle_websocket(
             }
         }
     }
+
+    // Untrack connection
+    WS_CONNECTION_COUNT.fetch_sub(1, Ordering::Relaxed);
 }
 
 /// Dashboard update payload.
@@ -136,16 +186,42 @@ pub async fn ws_dashboard_handler(
         return (StatusCode::UNAUTHORIZED, "Invalid or missing token").into_response();
     }
 
+    // Check connection limit
+    if WS_CONNECTION_COUNT.load(Ordering::Relaxed) >= MAX_WS_CONNECTIONS {
+        return (
+            StatusCode::SERVICE_UNAVAILABLE,
+            "Too many WebSocket connections",
+        )
+            .into_response();
+    }
+
     ws.on_upgrade(move |socket| handle_dashboard_websocket(socket, qm))
 }
 
 async fn handle_dashboard_websocket(mut socket: WebSocket, qm: Arc<QueueManager>) {
-    // Send updates every second
-    let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(1));
+    // Track connection
+    WS_CONNECTION_COUNT.fetch_add(1, Ordering::Relaxed);
+
+    let mut update_interval = interval(Duration::from_secs(1));
+    let mut ping_interval = interval(Duration::from_secs(30));
+    let mut last_activity = std::time::Instant::now();
+    let timeout_duration = Duration::from_secs(120);
 
     loop {
+        // Check for timeout
+        if last_activity.elapsed() > timeout_duration {
+            break;
+        }
+
         tokio::select! {
-            _ = interval.tick() => {
+            // Server heartbeat
+            _ = ping_interval.tick() => {
+                if socket.send(Message::Ping(vec![].into())).await.is_err() {
+                    break;
+                }
+            }
+
+            _ = update_interval.tick() => {
                 // Collect all dashboard data
                 let (queued, processing, delayed, dlq, completed) = qm.stats().await;
                 let metrics = qm.get_metrics().await;
@@ -166,6 +242,7 @@ async fn handle_dashboard_websocket(mut socket: WebSocket, qm: Arc<QueueManager>
                     if socket.send(Message::Text(json.into())).await.is_err() {
                         break; // Client disconnected
                     }
+                    last_activity = std::time::Instant::now();
                 }
             }
 
@@ -175,13 +252,27 @@ async fn handle_dashboard_websocket(mut socket: WebSocket, qm: Arc<QueueManager>
                         if socket.send(Message::Pong(data)).await.is_err() {
                             break;
                         }
+                        last_activity = std::time::Instant::now();
                     }
-                    Some(Ok(Message::Pong(_))) => {}
+                    Some(Ok(Message::Pong(_))) => {
+                        last_activity = std::time::Instant::now();
+                    }
                     Some(Ok(Message::Close(_))) | None => break,
-                    Some(Ok(Message::Text(_))) | Some(Ok(Message::Binary(_))) => {}
+                    Some(Ok(Message::Text(_))) | Some(Ok(Message::Binary(_))) => {
+                        last_activity = std::time::Instant::now();
+                    }
                     Some(Err(_)) => break,
                 }
             }
         }
     }
+
+    // Untrack connection
+    WS_CONNECTION_COUNT.fetch_sub(1, Ordering::Relaxed);
+}
+
+/// Get current WebSocket connection count.
+#[allow(dead_code)]
+pub fn ws_connection_count() -> usize {
+    WS_CONNECTION_COUNT.load(Ordering::Relaxed)
 }

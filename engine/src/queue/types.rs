@@ -178,6 +178,13 @@ impl IndexedPriorityQueue {
         self.index.drain().map(|(_, (job, _))| job)
     }
 
+    /// Shrink internal buffers to fit current size (releases memory)
+    #[inline]
+    pub fn shrink_to_fit(&mut self) {
+        self.heap.shrink_to_fit();
+        self.index.shrink_to_fit();
+    }
+
     /// Clear all jobs
     #[inline]
     pub fn clear(&mut self) {

@@ -8,6 +8,35 @@ use super::manager::QueueManager;
 use super::types::{intern, now_ms, JobLocation, Subscriber};
 use crate::protocol::{MetricsData, QueueMetrics};
 
+/// Memory usage statistics for debugging
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct MemoryStats {
+    pub completed_jobs_count: usize,
+    pub completed_jobs_data_count: usize,
+    pub job_results_count: usize,
+    pub job_index_count: usize,
+    pub processing_count: usize,
+    pub job_logs_count: usize,
+    pub stalled_count_entries: usize,
+    pub custom_id_map_count: usize,
+    pub debounce_cache_queues: usize,
+    pub debounce_cache_entries: usize,
+    pub job_waiters_count: usize,
+    pub completed_retention_count: usize,
+    pub subscribers_count: usize,
+    pub webhooks_count: usize,
+    pub workers_count: usize,
+    pub cron_jobs_count: usize,
+    pub metrics_history_count: usize,
+    pub kv_store_count: usize,
+    // Shard data
+    pub total_queued_jobs: usize,
+    pub total_dlq_jobs: usize,
+    pub total_waiting_deps: usize,
+    pub total_waiting_children: usize,
+    pub total_unique_keys: usize,
+}
+
 impl QueueManager {
     /// Get detailed metrics for all queues.
     pub async fn get_metrics(&self) -> MetricsData {
@@ -68,6 +97,60 @@ impl QueueManager {
             }
         }
         (ready, processing, delayed, dlq, completed)
+    }
+
+    /// Get memory usage statistics for debugging
+    pub fn memory_stats(&self) -> MemoryStats {
+        let mut total_queued = 0;
+        let mut total_dlq = 0;
+        let mut total_waiting_deps = 0;
+        let mut total_waiting_children = 0;
+        let mut total_unique_keys = 0;
+
+        for shard in &self.shards {
+            let s = shard.read();
+            for heap in s.queues.values() {
+                total_queued += heap.len();
+            }
+            for dlq in s.dlq.values() {
+                total_dlq += dlq.len();
+            }
+            total_waiting_deps += s.waiting_deps.len();
+            total_waiting_children += s.waiting_children.len();
+            for keys in s.unique_keys.values() {
+                total_unique_keys += keys.len();
+            }
+        }
+
+        let debounce_cache = self.debounce_cache.read();
+        let debounce_queues = debounce_cache.len();
+        let debounce_entries: usize = debounce_cache.values().map(|m| m.len()).sum();
+
+        MemoryStats {
+            completed_jobs_count: self.completed_jobs.read().len(),
+            completed_jobs_data_count: self.completed_jobs_data.read().len(),
+            job_results_count: self.job_results.read().len(),
+            job_index_count: self.job_index.len(),
+            processing_count: self.processing_len(),
+            job_logs_count: self.job_logs.read().len(),
+            stalled_count_entries: self.stalled_count.read().len(),
+            custom_id_map_count: self.custom_id_map.read().len(),
+            debounce_cache_queues: debounce_queues,
+            debounce_cache_entries: debounce_entries,
+            job_waiters_count: self.job_waiters.read().len(),
+            completed_retention_count: self.completed_retention.read().len(),
+            subscribers_count: self.subscribers.read().len(),
+            webhooks_count: self.webhooks.read().len(),
+            workers_count: self.workers.read().len(),
+            cron_jobs_count: self.cron_jobs.read().len(),
+            metrics_history_count: self.metrics_history.read().len(),
+            kv_store_count: self.kv_store.len(),
+            total_queued_jobs: total_queued,
+            total_dlq_jobs: total_dlq,
+            total_waiting_deps: total_waiting_deps,
+            total_waiting_children: total_waiting_children,
+            total_unique_keys: total_unique_keys,
+        }
     }
 
     // === Pub/Sub ===

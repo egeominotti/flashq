@@ -1,29 +1,35 @@
 # FlashQ Makefile
 # ===============
 
-.PHONY: dev run server release test postgres up down logs clean dashboard stress restart stop fmt lint check help
+.PHONY: build run dev server test fmt lint check clean help
 
-# Configuration (override with environment variables)
-DATABASE_URL ?= postgres://flashq:flashq@localhost:5432/flashq
+# Configuration
 HTTP_PORT ?= 6790
 TCP_PORT ?= 6789
+DATA_PATH ?= ./data/flashq.db
 PIDFILE := /tmp/flashq.pid
 
 # =============
-# Development
+# Quick Commands
 # =============
 
-dev:
-	cd engine && cargo run
+build:
+	cd engine && cargo build --release --bin flashq-server
 
-run:
-	cd engine && HTTP=1 cargo run
+kill:
+	@lsof -ti:$(TCP_PORT) | xargs kill -9 2>/dev/null || true
+	@lsof -ti:$(HTTP_PORT) | xargs kill -9 2>/dev/null || true
+	@lsof -ti:6791 | xargs kill -9 2>/dev/null || true
+	@pkill -9 -f flashq-server 2>/dev/null || true
+
+run: kill build
+	cd engine && HTTP=1 DATA_PATH=$(DATA_PATH) ./target/release/flashq-server
+
+dev:
+	cd engine && HTTP=1 cargo run --bin flashq-server
 
 server:
-	cd engine && HTTP=1 GRPC=1 cargo run --release
-
-release:
-	cd engine && HTTP=1 cargo run --release
+	cd engine && HTTP=1 GRPC=1 cargo run --release --bin flashq-server
 
 # =============
 # Code Quality
@@ -37,70 +43,51 @@ lint:
 
 check:
 	cd engine && cargo fmt --check && cargo clippy -- -D warnings
-	@echo "Code quality checks passed"
+	@echo "✓ Code quality checks passed"
 
 test:
 	cd engine && cargo test
 
 # =============
-# Docker
-# =============
-
-postgres:
-	docker-compose up -d postgres
-
-up:
-	docker-compose up -d
-
-down:
-	docker-compose down
-
-logs:
-	docker-compose logs -f
-
-docker-build:
-	docker build -t flashq .
-
-# =============
 # Server Management
 # =============
 
-persist: up
-	cd engine && DATABASE_URL=$(DATABASE_URL) HTTP=1 cargo run --release
+start: build
+	@mkdir -p ./data
+	@cd engine && HTTP=1 DATA_PATH=$(DATA_PATH) \
+		nohup ./target/release/flashq-server > /tmp/flashq.log 2>&1 & echo $$! > $(PIDFILE)
+	@echo "Starting server..."
+	@for i in $$(seq 1 15); do \
+		curl -s http://localhost:$(HTTP_PORT)/health > /dev/null 2>&1 && break; \
+		sleep 1; \
+	done
+	@curl -s http://localhost:$(HTTP_PORT)/health > /dev/null 2>&1 && \
+		echo "✓ Server ready at http://localhost:$(HTTP_PORT)" || \
+		(echo "✗ Server failed to start" && cat /tmp/flashq.log && exit 1)
 
 stop:
 	@if [ -f $(PIDFILE) ]; then \
 		kill $$(cat $(PIDFILE)) 2>/dev/null || true; \
 		rm -f $(PIDFILE); \
-		echo "Server stopped"; \
+		echo "✓ Server stopped"; \
 	else \
-		pkill -f "target/release/flashq-server" 2>/dev/null || echo "Server not running"; \
+		pkill -f "flashq-server" 2>/dev/null && echo "✓ Server stopped" || echo "Server not running"; \
 	fi
 
-restart: stop up
-	@sleep 1
-	@cd engine && DATABASE_URL=$(DATABASE_URL) HTTP=1 \
-		nohup cargo run --release > /tmp/flashq.log 2>&1 & echo $$! > $(PIDFILE)
-	@echo "Waiting for server..."
-	@for i in $$(seq 1 30); do \
-		curl -s http://localhost:$(HTTP_PORT)/health > /dev/null 2>&1 && break; \
-		sleep 1; \
-	done
-	@curl -s http://localhost:$(HTTP_PORT)/health > /dev/null 2>&1 || \
-		(echo "Server failed to start" && cat /tmp/flashq.log && exit 1)
-	@echo "Server ready at http://localhost:$(HTTP_PORT)"
+restart: stop start
 
-restart-mem: stop
-	@sleep 1
-	@cd engine && HTTP=1 \
-		nohup cargo run --release > /tmp/flashq.log 2>&1 & echo $$! > $(PIDFILE)
-	@echo "Waiting for server..."
-	@for i in $$(seq 1 15); do \
-		curl -s http://localhost:$(HTTP_PORT)/health > /dev/null 2>&1 && break; \
-		sleep 1; \
-	done
-	@echo "Server restarted (memory only)"
-	@echo "Dashboard: http://localhost:$(HTTP_PORT)"
+logs:
+	@tail -f /tmp/flashq.log
+
+# =============
+# Docker
+# =============
+
+docker-build:
+	docker build -t flashq .
+
+docker-run:
+	docker run -p $(TCP_PORT):6789 -p $(HTTP_PORT):6790 flashq
 
 # =============
 # Testing
@@ -112,21 +99,8 @@ sdk-test:
 stress:
 	cd sdk/typescript && bun run examples/stress-test.ts
 
-full-test: up
-	@echo "Starting server..."
-	@cd engine && DATABASE_URL=$(DATABASE_URL) HTTP=1 \
-		nohup cargo run --release > /tmp/flashq.log 2>&1 & echo $$! > $(PIDFILE)
-	@echo "Waiting for server..."
-	@for i in $$(seq 1 60); do \
-		curl -s http://localhost:$(HTTP_PORT)/health > /dev/null 2>&1 && break; \
-		sleep 1; \
-	done
-	@curl -s http://localhost:$(HTTP_PORT)/health > /dev/null 2>&1 || \
-		(echo "Server failed to start" && cat /tmp/flashq.log && exit 1)
-	@echo "Server ready, running tests..."
-	cd sdk/typescript && bun run examples/comprehensive-test.ts
-	@$(MAKE) stop
-	@echo "Full test completed"
+bench:
+	cd engine && cargo bench --bench queue_benchmark
 
 # =============
 # Utilities
@@ -135,15 +109,12 @@ full-test: up
 dashboard:
 ifeq ($(shell uname),Darwin)
 	open http://localhost:$(HTTP_PORT)
-else ifeq ($(shell uname),Linux)
-	xdg-open http://localhost:$(HTTP_PORT) 2>/dev/null || echo "Open http://localhost:$(HTTP_PORT)"
 else
-	@echo "Open http://localhost:$(HTTP_PORT) in your browser"
+	@echo "Open http://localhost:$(HTTP_PORT)"
 endif
 
 clean:
 	cd engine && cargo clean
-	docker-compose down -v
 	rm -f $(PIDFILE) /tmp/flashq.log
 
 # =============
@@ -153,33 +124,27 @@ clean:
 help:
 	@echo "FlashQ Commands"
 	@echo ""
+	@echo "Quick Start:"
+	@echo "  make build       Build release binary"
+	@echo "  make run         Build and run server (SQLite)"
+	@echo "  make dev         Run in dev mode (slower)"
+	@echo "  make server      Run with HTTP + gRPC"
+	@echo ""
 	@echo "Server:"
-	@echo "  make server      Run release server (HTTP + gRPC, in-memory)"
-	@echo "  make persist     Run with PostgreSQL persistence"
-	@echo "  make dev         Run server in dev mode"
-	@echo "  make stop        Stop running server"
-	@echo "  make restart     Restart server with PostgreSQL"
-	@echo "  make restart-mem Restart server (memory only)"
+	@echo "  make start       Start server in background"
+	@echo "  make stop        Stop server"
+	@echo "  make restart     Restart server"
+	@echo "  make logs        View server logs"
 	@echo ""
 	@echo "Code Quality:"
 	@echo "  make fmt         Format code"
 	@echo "  make lint        Run clippy"
-	@echo "  make check       Run fmt --check + clippy"
-	@echo ""
-	@echo "Docker:"
-	@echo "  make up          Start PostgreSQL container"
-	@echo "  make down        Stop all containers"
-	@echo "  make logs        View container logs"
-	@echo "  make docker-build Build Docker image"
-	@echo ""
-	@echo "Testing:"
-	@echo "  make test        Run Rust unit tests"
-	@echo "  make sdk-test    Run SDK comprehensive tests"
-	@echo "  make stress      Run stress tests"
-	@echo "  make full-test   Full integration test"
+	@echo "  make check       Run fmt + clippy"
+	@echo "  make test        Run unit tests"
 	@echo ""
 	@echo "Other:"
-	@echo "  make dashboard   Open dashboard in browser"
-	@echo "  make clean       Clean build artifacts"
+	@echo "  make dashboard   Open dashboard"
+	@echo "  make bench       Run benchmarks"
+	@echo "  make clean       Clean build"
 
 .DEFAULT_GOAL := help

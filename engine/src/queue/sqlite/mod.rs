@@ -230,6 +230,31 @@ impl SqliteStorage {
         jobs::ack_jobs_batch(&conn, ids)
     }
 
+    /// Delete a job without storing result (for remove_on_complete)
+    pub fn delete_job(&self, job_id: u64) -> Result<(), rusqlite::Error> {
+        // Use cancel operation which just deletes the job
+        if let Some(ref writer) = self.async_writer {
+            writer.queue_op(WriteOp::CancelJob { job_id });
+            return Ok(());
+        }
+        let conn = self.conn.lock();
+        jobs::delete_job(&conn, job_id)
+    }
+
+    /// Delete multiple jobs without storing results (for remove_on_complete batch)
+    pub fn delete_jobs_batch(&self, ids: &[u64]) -> Result<(), rusqlite::Error> {
+        if ids.is_empty() {
+            return Ok(());
+        }
+        // Use AckJobsBatch which just deletes without storing results
+        if let Some(ref writer) = self.async_writer {
+            writer.queue_op(WriteOp::AckJobsBatch { ids: ids.to_vec() });
+            return Ok(());
+        }
+        let conn = self.conn.lock();
+        jobs::delete_jobs_batch(&conn, ids)
+    }
+
     /// Mark job as failed and update for retry (async if writer enabled)
     pub fn fail_job(
         &self,

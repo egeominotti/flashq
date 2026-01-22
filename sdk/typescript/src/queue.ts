@@ -80,6 +80,8 @@ export class Queue<T = unknown> {
       depends_on: opts.depends_on,
       tags: opts.tags,
       group_id: opts.group_id,
+      remove_on_complete: opts.removeOnComplete === true || (typeof opts.removeOnComplete === 'number' && opts.removeOnComplete > 0),
+      remove_on_fail: opts.removeOnFail === true || (typeof opts.removeOnFail === 'number' && opts.removeOnFail > 0),
     };
 
     // Handle backoff (BullMQ uses object, flashQ uses number)
@@ -110,6 +112,8 @@ export class Queue<T = unknown> {
         jobId: opts.jobId,
         backoff: typeof opts.backoff === 'number' ? opts.backoff : opts.backoff?.delay,
         group_id: opts.group_id,
+        remove_on_complete: opts.removeOnComplete === true || (typeof opts.removeOnComplete === 'number' && opts.removeOnComplete > 0),
+        remove_on_fail: opts.removeOnFail === true || (typeof opts.removeOnFail === 'number' && opts.removeOnFail > 0),
       };
     });
 

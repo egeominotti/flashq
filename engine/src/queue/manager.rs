@@ -113,7 +113,7 @@ pub struct CleanupSettings {
 impl Default for CleanupSettings {
     fn default() -> Self {
         Self {
-            max_completed_jobs: 50000,
+            max_completed_jobs: 5000, // Reduced from 50000 to prevent memory bloat
             max_job_results: 5000,
             cleanup_interval_secs: 60,
             metrics_history_size: 1000,
@@ -215,7 +215,7 @@ impl QueueManager {
             storage,
             cron_jobs: RwLock::new(GxHashMap::default()),
             completed_jobs: RwLock::new(GxHashSet::default()),
-            completed_jobs_data: RwLock::new(VecDeque::with_capacity(50_000)),
+            completed_jobs_data: RwLock::new(VecDeque::with_capacity(5_000)), // Reduced from 50_000
             job_results: RwLock::new(GxHashMap::default()),
             subscribers: RwLock::new(Vec::new()),
             auth_tokens: RwLock::new(GxHashSet::default()),
@@ -358,13 +358,6 @@ impl QueueManager {
             }
         }
         false
-    }
-
-    // Compatibility aliases
-    #[inline]
-    #[allow(dead_code)]
-    pub fn is_postgres_connected(&self) -> bool {
-        self.is_sqlite_connected()
     }
 
     #[inline]

@@ -6,7 +6,9 @@ import { Queue, Worker } from '../src';
 const JOBS = 10_000;
 const BATCH = 1000;
 
-const queue = new Queue('benchmark');
+const queue = new Queue('benchmark', {
+  defaultJobOptions: { removeOnComplete: true }
+});
 await queue.obliterate();
 
 // Push in batches

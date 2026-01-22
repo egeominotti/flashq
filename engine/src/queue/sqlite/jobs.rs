@@ -149,6 +149,24 @@ pub fn cancel_job(conn: &Connection, job_id: u64) -> Result<(), rusqlite::Error>
     Ok(())
 }
 
+/// Delete a job (for remove_on_complete - no result storage).
+pub fn delete_job(conn: &Connection, job_id: u64) -> Result<(), rusqlite::Error> {
+    conn.execute("DELETE FROM jobs WHERE id = ?1", params![job_id as i64])?;
+    Ok(())
+}
+
+/// Delete multiple jobs in a batch (for remove_on_complete batch).
+pub fn delete_jobs_batch(conn: &Connection, ids: &[u64]) -> Result<(), rusqlite::Error> {
+    if ids.is_empty() {
+        return Ok(());
+    }
+    let tx = conn.unchecked_transaction()?;
+    for &id in ids {
+        tx.execute("DELETE FROM jobs WHERE id = ?1", params![id as i64])?;
+    }
+    tx.commit()
+}
+
 /// Load all pending jobs for recovery.
 pub fn load_pending_jobs(conn: &Connection) -> Result<Vec<(Job, String)>, rusqlite::Error> {
     let mut stmt = conn.prepare(

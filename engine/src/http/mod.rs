@@ -173,9 +173,18 @@ pub fn create_router(state: AppState) -> Router {
         .route("/s3/restore", post(settings::restore_s3_backup))
         // Health
         .route("/health", get(cluster::health_check))
+        // Debug
+        .route("/debug/memory", get(debug_memory_stats))
         .with_state(state);
 
     Router::new().merge(api_routes).layer(cors)
+}
+
+/// Debug endpoint for memory statistics
+async fn debug_memory_stats(
+    axum::extract::State(qm): axum::extract::State<AppState>,
+) -> axum::Json<crate::queue::monitoring::MemoryStats> {
+    axum::Json(qm.memory_stats())
 }
 
 #[cfg(test)]

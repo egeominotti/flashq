@@ -55,6 +55,8 @@ impl QueueManager {
                     self.cleanup_expired_kv();
                     self.cleanup_completed_retention();
                     cleanup_interned_strings();
+                    // Shrink memory buffers to release unused capacity
+                    self.shrink_memory_buffers();
                 }
                 _ = metrics_ticker.tick() => {
                     self.collect_metrics_history();
@@ -311,6 +313,43 @@ impl QueueManager {
             self.job_logs.write().remove(&id);
             self.stalled_count.write().remove(&id);
         }
+    }
+
+    /// Shrink memory buffers to release unused capacity back to the allocator.
+    /// This is important after processing large batches of jobs.
+    pub(crate) fn shrink_memory_buffers(&self) {
+        // Shrink queue heaps in all shards
+        for shard in &self.shards {
+            let mut s = shard.write();
+            for heap in s.queues.values_mut() {
+                heap.shrink_to_fit();
+            }
+            // Remove empty queues entirely
+            s.queues.retain(|_, heap| !heap.is_empty());
+            s.dlq.retain(|_, dlq| !dlq.is_empty());
+            s.unique_keys.retain(|_, keys| !keys.is_empty());
+            // Shrink remaining structures
+            s.queues.shrink_to_fit();
+            s.dlq.shrink_to_fit();
+            s.waiting_deps.shrink_to_fit();
+            s.waiting_children.shrink_to_fit();
+            s.unique_keys.shrink_to_fit();
+            s.active_groups.shrink_to_fit();
+        }
+
+        // Shrink processing shards
+        for shard in &self.processing_shards {
+            shard.write().shrink_to_fit();
+        }
+
+        // Shrink other structures
+        self.completed_jobs.write().shrink_to_fit();
+        self.job_results.write().shrink_to_fit();
+        self.job_logs.write().shrink_to_fit();
+        self.stalled_count.write().shrink_to_fit();
+        self.custom_id_map.write().shrink_to_fit();
+        self.completed_retention.write().shrink_to_fit();
+        self.job_waiters.write().shrink_to_fit();
     }
 
     pub(crate) async fn run_cron_jobs(&self) {

@@ -46,13 +46,9 @@ impl QueueManager {
     }
 
     /// Persist job acknowledgment to SQLite.
+    /// Note: job_results storage is handled by ack.rs, not here.
     #[inline]
     pub(crate) fn persist_ack(&self, job_id: u64, result: Option<Value>) {
-        // Store result in memory
-        if let Some(ref res) = result {
-            self.job_results.write().insert(job_id, res.clone());
-        }
-
         if let Some(ref storage) = self.storage {
             if let Err(e) = storage.ack_job(job_id, result) {
                 error!(job_id = job_id, error = %e, "Failed to persist ack");
@@ -61,16 +57,13 @@ impl QueueManager {
     }
 
     /// Persist job acknowledgment synchronously.
+    /// Note: job_results storage is handled by ack.rs, not here.
     #[inline]
     pub(crate) async fn persist_ack_sync(
         &self,
         job_id: u64,
         result: Option<Value>,
     ) -> Result<(), String> {
-        if let Some(ref res) = result {
-            self.job_results.write().insert(job_id, res.clone());
-        }
-
         if let Some(ref storage) = self.storage {
             storage
                 .ack_job(job_id, result)
@@ -88,6 +81,29 @@ impl QueueManager {
         if let Some(ref storage) = self.storage {
             if let Err(e) = storage.ack_jobs_batch(ids) {
                 error!(error = %e, "Failed to persist ack batch");
+            }
+        }
+    }
+
+    /// Delete job from SQLite without storing result (for remove_on_complete).
+    #[inline]
+    pub(crate) fn persist_delete(&self, job_id: u64) {
+        if let Some(ref storage) = self.storage {
+            if let Err(e) = storage.delete_job(job_id) {
+                error!(job_id = job_id, error = %e, "Failed to delete job");
+            }
+        }
+    }
+
+    /// Delete multiple jobs from SQLite (for remove_on_complete batch).
+    #[inline]
+    pub(crate) fn persist_delete_batch(&self, ids: &[u64]) {
+        if ids.is_empty() {
+            return;
+        }
+        if let Some(ref storage) = self.storage {
+            if let Err(e) = storage.delete_jobs_batch(ids) {
+                error!(error = %e, "Failed to delete jobs batch");
             }
         }
     }

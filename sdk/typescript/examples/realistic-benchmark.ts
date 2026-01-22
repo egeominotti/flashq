@@ -17,7 +17,7 @@ function doWork(iterations: number): number {
   return hash;
 }
 
-const queue = new Queue('realistic-benchmark');
+const queue = new Queue('realistic-benchmark', { defaultJobOptions: { removeOnComplete: true } });
 
 console.log('='.repeat(60));
 console.log('🚀 flashQ Realistic Benchmark');

@@ -64,7 +64,7 @@ impl QueueManager {
             queue_map.insert(id_key, expiry);
         }
 
-        // Get cluster-wide unique ID from PostgreSQL sequence
+        // Get cluster-wide unique ID from SQLite sequence
         // NOTE: Generated BEFORE custom_id check to enable atomic check+insert
         let internal_id = self.next_job_id().await;
 
@@ -152,7 +152,7 @@ impl QueueManager {
             return Ok(job);
         }
 
-        // Persist to PostgreSQL - use sync mode if enabled
+        // Persist to SQLite - use sync mode if enabled
         if self.is_sync_persistence() {
             if let Err(e) = self.persist_push_sync(&job, "waiting").await {
                 // Rollback: remove from queue, index, and custom_id

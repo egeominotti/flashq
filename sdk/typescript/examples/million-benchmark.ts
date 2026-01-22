@@ -8,7 +8,11 @@ const BATCH_SIZE = 1000;  // Server limit: max 1000 per batch
 const NUM_WORKERS = 8;
 const CONCURRENCY_PER_WORKER = 100;
 
-const queue = new Queue('million-benchmark');
+const queue = new Queue('million-benchmark', {
+  defaultJobOptions: {
+    removeOnComplete: true,  // Prevent memory bloat - don't store completed jobs
+  }
+});
 
 console.log('='.repeat(70));
 console.log('🚀 flashQ 1 MILLION Jobs Benchmark');

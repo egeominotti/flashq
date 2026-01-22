@@ -44,7 +44,7 @@ function cpuIntensiveWork(data: { payload: string; iterations: number }): {
   };
 }
 
-const queue = new Queue('cpu-benchmark');
+const queue = new Queue('cpu-benchmark', { defaultJobOptions: { removeOnComplete: true } });
 
 console.log('='.repeat(70));
 console.log('🔥 flashQ CPU-Bound Realistic Benchmark');

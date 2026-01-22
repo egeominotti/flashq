@@ -8,7 +8,7 @@ const BATCH_SIZE = 1000;
 const NUM_WORKERS = 4;
 const CONCURRENCY_PER_WORKER = 50;
 
-const queue = new Queue('heavy-benchmark');
+const queue = new Queue('heavy-benchmark', { defaultJobOptions: { removeOnComplete: true } });
 
 console.log('='.repeat(60));
 console.log('🚀 flashQ Heavy Benchmark');

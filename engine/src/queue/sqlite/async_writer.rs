@@ -71,7 +71,7 @@ impl Default for AsyncWriterConfig {
         Self {
             batch_interval_ms: 50,
             max_batch_size: 1000,
-            queue_capacity: 100_000,
+            queue_capacity: 10_000, // Reduced from 100_000 to limit memory usage
         }
     }
 }

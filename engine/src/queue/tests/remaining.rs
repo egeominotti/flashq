@@ -161,9 +161,9 @@ async fn test_auth_token_count() {
 }
 
 #[tokio::test]
-async fn test_is_postgres_connected() {
+async fn test_is_sqlite_connected() {
     let qm = setup();
-    assert!(!qm.is_postgres_connected());
+    assert!(!qm.is_sqlite_connected());
 }
 
 #[tokio::test]
