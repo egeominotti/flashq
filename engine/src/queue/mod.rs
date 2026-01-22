@@ -3,9 +3,9 @@
 //! ## Module Organization
 //!
 //! - `manager.rs` - Core QueueManager struct, constructors, shard helpers
-//! - `types.rs` - IndexedPriorityQueue, RateLimiter, Shard, GlobalMetrics
+//! - `types/` - IndexedPriorityQueue, RateLimiter, Shard, GlobalMetrics, etc.
 //! - `sqlite/` - SQLite embedded persistence with S3 backup
-//! - `background.rs` - Background tasks (cleanup, cron, timeout, snapshots)
+//! - `background/` - Background tasks (cleanup, cron, timeout, snapshots)
 //!
 //! ### Core operations
 //!
