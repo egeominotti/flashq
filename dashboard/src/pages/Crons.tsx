@@ -15,7 +15,8 @@ import {
   TextInput,
 } from '@tremor/react';
 import { Plus, Trash2, RefreshCw, Clock, HelpCircle, Wifi, WifiOff } from 'lucide-react';
-import { useDashboardWebSocket, useToast } from '../hooks';
+import { useIsConnected, useCrons as useCronsData, useReconnect } from '../stores';
+import { useToast } from '../hooks';
 import { api } from '../api/client';
 import { formatRelativeTime } from '../utils';
 import { SkeletonTable } from '../components/common/Skeleton';
@@ -27,8 +28,10 @@ import './Crons.css';
 export function Crons() {
   const { showToast } = useToast();
 
-  // WebSocket for real-time cron data
-  const { isConnected, crons: cronsData, reconnect } = useDashboardWebSocket();
+  // Granular WebSocket hooks - only re-render when crons change
+  const isConnected = useIsConnected();
+  const cronsData = useCronsData();
+  const reconnect = useReconnect();
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [newCron, setNewCron] = useState({

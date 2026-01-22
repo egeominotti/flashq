@@ -167,29 +167,36 @@ async fn test_lifo_ordering() {
 async fn test_lifo_mixed_with_fifo() {
     let qm = setup();
 
-    // Mix of LIFO and FIFO jobs - LIFO jobs get higher effective priority
-    let fifo_job = qm
-        .push("test".to_string(), job(json!({"type": "fifo"})))
-        .await
-        .unwrap();
-    let lifo_job = qm
-        .push(
-            "test".to_string(),
-            JobInput {
-                data: json!({"type": "lifo"}),
-                lifo: true, // lifo - should be pulled before fifo
-                ..Default::default()
-            },
-        )
-        .await
-        .unwrap();
+    // Mix of LIFO and FIFO jobs - LIFO is a tiebreaker when priority and run_at are equal.
+    // Use push_batch to ensure both jobs get the same run_at timestamp.
+    let fifo_input = JobInput {
+        data: json!({"type": "fifo"}),
+        lifo: false,
+        ..Default::default()
+    };
+    let lifo_input = JobInput {
+        data: json!({"type": "lifo"}),
+        lifo: true,
+        ..Default::default()
+    };
 
-    // LIFO job should be pulled first (pushed after but LIFO)
+    // Push both in single batch to guarantee same run_at
+    let job_ids = qm
+        .push_batch("test".to_string(), vec![fifo_input, lifo_input])
+        .await;
+    assert_eq!(job_ids.len(), 2, "Both jobs should be pushed");
+    let fifo_job_id = job_ids[0];
+    let lifo_job_id = job_ids[1];
+
+    // With same run_at and priority, LIFO job (higher ID) should be pulled first
     let p1 = qm.pull("test").await;
     let p2 = qm.pull("test").await;
 
-    assert_eq!(p1.id, lifo_job.id, "LIFO job should be pulled first");
-    assert_eq!(p2.id, fifo_job.id, "FIFO job should be pulled second");
+    assert_eq!(
+        p1.id, lifo_job_id,
+        "LIFO job should be pulled first (same run_at, higher ID)"
+    );
+    assert_eq!(p2.id, fifo_job_id, "FIFO job should be pulled second");
 }
 
 // ==================== DELAYED JOBS ====================

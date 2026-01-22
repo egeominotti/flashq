@@ -10,7 +10,8 @@ import {
   Wifi,
   WifiOff,
 } from 'lucide-react';
-import { useDashboardWebSocket, useSparklineData } from '../hooks';
+import { useIsConnected, useMetrics, useMetricsHistory } from '../stores';
+import { useSparklineData } from '../hooks';
 import { formatNumber } from '../utils';
 import { GlowCard, EmptyState, MetricGlowCard } from '../components/common';
 import type { MetricsHistory } from '../api/types';
@@ -24,8 +25,12 @@ interface QueueMetric {
 }
 
 export function Analytics() {
-  const { isConnected, metrics, metricsHistory } = useDashboardWebSocket();
+  // Granular WebSocket hooks - only re-render when needed data changes
+  const isConnected = useIsConnected();
+  const metrics = useMetrics();
+  const metricsHistory = useMetricsHistory();
 
+  // Ensure no negative values in chart data
   const throughputHistory = useMemo(
     () =>
       metricsHistory?.map((point: MetricsHistory) => ({
@@ -33,7 +38,7 @@ export function Analytics() {
           hour: '2-digit',
           minute: '2-digit',
         }),
-        'Jobs/sec': point.throughput || 0,
+        'Jobs/sec': Math.max(0, point.throughput || 0),
       })) || [],
     [metricsHistory]
   );
@@ -45,7 +50,7 @@ export function Analytics() {
           hour: '2-digit',
           minute: '2-digit',
         }),
-        'Avg Latency': point.latency_ms || 0,
+        'Avg Latency': Math.max(0, point.latency_ms || 0),
       })) || [],
     [metricsHistory]
   );
@@ -54,9 +59,9 @@ export function Analytics() {
     () =>
       metrics?.queues?.map((q: QueueMetric) => ({
         name: q.name,
-        Waiting: q.pending,
-        Active: q.processing,
-        DLQ: q.dlq,
+        Waiting: Math.max(0, q.pending),
+        Active: Math.max(0, q.processing),
+        DLQ: Math.max(0, q.dlq),
       })) || [],
     [metrics?.queues]
   );
@@ -68,8 +73,8 @@ export function Analytics() {
           hour: '2-digit',
           minute: '2-digit',
         }),
-        Queued: point.queued || 0,
-        Processing: point.processing || 0,
+        Queued: Math.max(0, point.queued || 0),
+        Processing: Math.max(0, point.processing || 0),
       })) || [],
     [metricsHistory]
   );
@@ -78,10 +83,11 @@ export function Analytics() {
   const throughputSparkline = useSparklineData(metricsHistory, 'throughput');
   const latencySparkline = useSparklineData(metricsHistory, 'latency_ms');
 
-  const totalPushed = metrics?.total_pushed || 0;
-  const totalCompleted = metrics?.total_completed || 0;
-  const avgLatency = metrics?.avg_latency_ms || 0;
-  const currentThroughput = metrics?.jobs_per_second || 0;
+  // Ensure no negative values in metrics
+  const totalPushed = Math.max(0, metrics?.total_pushed || 0);
+  const totalCompleted = Math.max(0, metrics?.total_completed || 0);
+  const avgLatency = Math.max(0, metrics?.avg_latency_ms || 0);
+  const currentThroughput = Math.max(0, metrics?.jobs_per_second || 0);
 
   return (
     <div className="analytics-page">

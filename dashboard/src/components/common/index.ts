@@ -23,4 +23,4 @@ export * from './JobDistItem';
 export * from './MetricGlowCard';
 export * from './JobFlowVisualization';
 export * from './JobTimeline';
-export * from './LiveEventFeed';
+export * from './LiveEventFeed/index';

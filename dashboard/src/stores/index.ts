@@ -1,6 +1,4 @@
 export {
-  WebSocketProvider,
-  useWebSocketContext,
   useIsConnected,
   useStats,
   useMetrics,
@@ -10,7 +8,8 @@ export {
   useMetricsHistory,
   useSystemMetrics,
   useSqliteStats,
+  useTimestamp,
   useReconnect,
   useDashboardData,
-  type DashboardUpdate,
-} from './WebSocketContext';
+  type DashboardData,
+} from './websocketStore';

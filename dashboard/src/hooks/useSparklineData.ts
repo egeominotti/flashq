@@ -14,7 +14,7 @@ export function useSparklineData<T>(
   count: number = 20
 ): number[] {
   return useMemo(
-    () => history?.slice(-count).map((p) => (p[field] as number) || 0) || [],
+    () => history?.slice(-count).map((p) => Math.max(0, (p[field] as number) || 0)) || [],
     [history, count, field]
   );
 }

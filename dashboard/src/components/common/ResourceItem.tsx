@@ -26,7 +26,9 @@ export function ResourceItem({
   color,
   className = '',
 }: ResourceItemProps) {
-  const barColor = color || getAutoColor(percent);
+  // Clamp percent between 0 and 100 to prevent display issues
+  const safePercent = Math.min(100, Math.max(0, percent));
+  const barColor = color || getAutoColor(safePercent);
 
   return (
     <div className={`resource-item ${className}`}>
@@ -37,7 +39,7 @@ export function ResourceItem({
         </div>
         <Text className="resource-item-value">{value}</Text>
       </div>
-      <ProgressBar value={percent} color={barColor} />
+      <ProgressBar value={safePercent} color={barColor} />
       {percentLabel && <Text className="resource-item-percent">{percentLabel}</Text>}
     </div>
   );

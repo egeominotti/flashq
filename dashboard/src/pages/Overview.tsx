@@ -20,7 +20,13 @@ import {
   Wifi,
   WifiOff,
 } from 'lucide-react';
-import { useDashboardWebSocket, useSparklineData } from '../hooks';
+import {
+  useIsConnected,
+  useStats,
+  useMetrics,
+  useMetricsHistory,
+} from '../stores';
+import { useSparklineData } from '../hooks';
 import { formatNumber } from '../utils';
 import { GlowCard, EmptyState, MetricGlowCard } from '../components/common';
 import type { MetricsHistory } from '../api/types';
@@ -33,22 +39,25 @@ interface QueueData {
 }
 
 export function Overview() {
-  // Single WebSocket connection for all dashboard data
-  const { isConnected, stats, metrics, metricsHistory } = useDashboardWebSocket();
+  // Granular WebSocket hooks - only re-render when needed data changes
+  const isConnected = useIsConnected();
+  const stats = useStats();
+  const metrics = useMetrics();
+  const metricsHistory = useMetricsHistory();
 
-  // Calculate totals from WebSocket data
-  const totalQueued = stats?.queued ?? 0;
-  const totalProcessing = stats?.processing ?? 0;
-  const totalDelayed = stats?.delayed ?? 0;
-  const totalDlq = stats?.dlq ?? 0;
-  const totalCompleted = metrics?.total_completed ?? 0;
-  const totalPushed = metrics?.total_pushed ?? 0;
+  // Calculate totals from WebSocket data - ensure no negative values
+  const totalQueued = Math.max(0, stats?.queued ?? 0);
+  const totalProcessing = Math.max(0, stats?.processing ?? 0);
+  const totalDelayed = Math.max(0, stats?.delayed ?? 0);
+  const totalDlq = Math.max(0, stats?.dlq ?? 0);
+  const totalCompleted = Math.max(0, metrics?.total_completed ?? 0);
+  const totalPushed = Math.max(0, metrics?.total_pushed ?? 0);
 
   // Sparkline data from metrics history
   const throughputSparkline = useSparklineData(metricsHistory, 'throughput');
   const queuedSparkline = useSparklineData(metricsHistory, 'queued');
 
-  // Transform metrics history for throughput chart
+  // Transform metrics history for throughput chart - ensure no negative values
   const throughputData = useMemo(
     () =>
       metricsHistory?.map((point: MetricsHistory) => ({
@@ -56,7 +65,7 @@ export function Overview() {
           hour: '2-digit',
           minute: '2-digit',
         }),
-        'Jobs/sec': point.throughput ?? 0,
+        'Jobs/sec': Math.max(0, point.throughput ?? 0),
       })) ?? [],
     [metricsHistory]
   );
@@ -275,11 +284,11 @@ export function Overview() {
               <div className="health-metric-header">
                 <Text className="health-metric-label">Avg Latency</Text>
                 <Text className="health-metric-value">
-                  {metrics?.avg_latency_ms?.toFixed(1) ?? 0} ms
+                  {Math.max(0, metrics?.avg_latency_ms ?? 0).toFixed(1)} ms
                 </Text>
               </div>
               <ProgressBar
-                value={Math.min((metrics?.avg_latency_ms ?? 0) / 10, 100)}
+                value={Math.min(Math.max(0, (metrics?.avg_latency_ms ?? 0) / 10), 100)}
                 color="cyan"
                 className="health-progress"
               />
@@ -288,11 +297,11 @@ export function Overview() {
               <div className="health-metric-header">
                 <Text className="health-metric-label">Jobs/sec</Text>
                 <Text className="health-metric-value">
-                  {metrics?.jobs_per_second?.toFixed(1) ?? 0}
+                  {Math.max(0, metrics?.jobs_per_second ?? 0).toFixed(1)}
                 </Text>
               </div>
               <ProgressBar
-                value={Math.min((metrics?.jobs_per_second ?? 0) * 10, 100)}
+                value={Math.min(Math.max(0, (metrics?.jobs_per_second ?? 0) * 10), 100)}
                 color="blue"
                 className="health-progress"
               />
@@ -303,7 +312,7 @@ export function Overview() {
                 <Text className="health-metric-value">{queues.length} queues</Text>
               </div>
               <ProgressBar
-                value={Math.min(queues.length * 10, 100)}
+                value={Math.min(Math.max(0, queues.length * 10), 100)}
                 color="emerald"
                 className="health-progress"
               />

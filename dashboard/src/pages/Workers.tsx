@@ -15,43 +15,46 @@ import {
   ProgressBar,
 } from '@tremor/react';
 import { Server, Cpu, Activity, Clock, Users, Wifi, WifiOff } from 'lucide-react';
-import { useDashboardWebSocket } from '../hooks';
+import { useIsConnected, useWorkers } from '../stores';
 import { formatRelativeTime } from '../utils';
 import type { Worker } from '../api/types';
 import './Workers.css';
 
+// Helper functions outside component to avoid recreation on every render
+function getWorkerStatus(worker: Worker): 'active' | 'idle' | 'disconnected' {
+  const now = Date.now();
+  const lastHeartbeat = worker.last_heartbeat;
+  const secondsSinceHeartbeat = (now - lastHeartbeat) / 1000;
+
+  if (secondsSinceHeartbeat < 30) return 'active';
+  if (secondsSinceHeartbeat < 60) return 'idle';
+  return 'disconnected';
+}
+
+function getStatusColor(status: string): 'emerald' | 'amber' | 'rose' | 'zinc' {
+  switch (status) {
+    case 'active':
+      return 'emerald';
+    case 'idle':
+      return 'amber';
+    case 'disconnected':
+      return 'rose';
+    default:
+      return 'zinc';
+  }
+}
+
 export function Workers() {
-  const { isConnected, workers: workersData } = useDashboardWebSocket();
+  // Granular WebSocket hooks - only re-render when workers change
+  const isConnected = useIsConnected();
+  const workersData = useWorkers();
 
   const workers: Worker[] = workersData || [];
 
-  // Determine worker status based on last heartbeat (active if heartbeat within last 30 seconds)
-  const getWorkerStatus = (worker: Worker): 'active' | 'idle' | 'disconnected' => {
-    const now = Date.now();
-    const lastHeartbeat = worker.last_heartbeat;
-    const secondsSinceHeartbeat = (now - lastHeartbeat) / 1000;
-
-    if (secondsSinceHeartbeat < 30) return 'active';
-    if (secondsSinceHeartbeat < 60) return 'idle';
-    return 'disconnected';
-  };
-
-  const activeWorkers = workers.filter((w) => getWorkerStatus(w) === 'active').length;
-  const idleWorkers = workers.filter((w) => getWorkerStatus(w) === 'idle').length;
-  const totalProcessed = workers.reduce((sum, w) => sum + w.jobs_processed, 0);
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'active':
-        return 'emerald';
-      case 'idle':
-        return 'amber';
-      case 'disconnected':
-        return 'rose';
-      default:
-        return 'zinc';
-    }
-  };
+  // Ensure no negative values
+  const activeWorkers = Math.max(0, workers.filter((w) => getWorkerStatus(w) === 'active').length);
+  const idleWorkers = Math.max(0, workers.filter((w) => getWorkerStatus(w) === 'idle').length);
+  const totalProcessed = Math.max(0, workers.reduce((sum, w) => sum + Math.max(0, w.jobs_processed), 0));
 
   return (
     <div className="workers-page">

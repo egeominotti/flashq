@@ -14,13 +14,17 @@ import {
 } from './pages';
 import { ToastProvider } from './context/ToastContext';
 import { ThemeProvider } from './context/ThemeContext';
+import { WebSocketProvider } from './contexts';
 import './styles/global.css';
 
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      refetchInterval: 5000,
-      staleTime: 2000,
+      // Disable polling - WebSocket handles real-time data
+      refetchInterval: false,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      staleTime: Infinity,
       retry: 1,
     },
   },
@@ -32,19 +36,21 @@ export function App() {
       <ThemeProvider>
         <ToastProvider>
           <BrowserRouter>
-            <Layout>
-              <Routes>
-                <Route path="/" element={<Overview />} />
-                <Route path="/queues" element={<Queues />} />
-                <Route path="/jobs" element={<Jobs />} />
-                <Route path="/analytics" element={<Analytics />} />
-                <Route path="/crons" element={<Crons />} />
-                <Route path="/workers" element={<Workers />} />
-                <Route path="/server-metrics" element={<ServerMetrics />} />
-                <Route path="/settings" element={<Settings />} />
-              </Routes>
-            </Layout>
-            <ToastContainer />
+            <WebSocketProvider>
+              <Layout>
+                <Routes>
+                  <Route path="/" element={<Overview />} />
+                  <Route path="/queues" element={<Queues />} />
+                  <Route path="/jobs" element={<Jobs />} />
+                  <Route path="/analytics" element={<Analytics />} />
+                  <Route path="/crons" element={<Crons />} />
+                  <Route path="/workers" element={<Workers />} />
+                  <Route path="/server-metrics" element={<ServerMetrics />} />
+                  <Route path="/settings" element={<Settings />} />
+                </Routes>
+              </Layout>
+              <ToastContainer />
+            </WebSocketProvider>
           </BrowserRouter>
         </ToastProvider>
       </ThemeProvider>

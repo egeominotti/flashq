@@ -1,11 +1,33 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
-import { getDashboardWebSocketUrl, type SystemMetrics, type SqliteStats } from '../api/client';
-import type { Stats, Metrics, Queue, Worker, MetricsHistory, CronJob } from '../api/types';
-
 /**
- * Dashboard update payload from WebSocket /ws/dashboard
- * Server sends this every 1 second
+ * Dashboard WebSocket Hook - React 19 Best Practices
+ *
+ * For better performance, use individual hooks:
+ * - useIsConnected()
+ * - useStats()
+ * - useMetrics()
+ * - useQueues()
+ * - useWorkers()
+ * - useCrons()
+ * - useMetricsHistory()
+ * - useSystemMetrics()
+ * - useSqliteStats()
  */
+
+import {
+  useIsConnected,
+  useStats,
+  useMetrics,
+  useQueues,
+  useWorkers,
+  useCrons,
+  useMetricsHistory,
+  useSystemMetrics,
+  useSqliteStats,
+  useReconnect,
+} from '../stores';
+import type { Stats, Metrics, Queue, Worker, MetricsHistory, CronJob } from '../api/types';
+import type { SystemMetrics, SqliteStats } from '../api/client';
+
 export interface DashboardUpdate {
   stats: Stats;
   metrics: Metrics;
@@ -16,13 +38,6 @@ export interface DashboardUpdate {
   system_metrics: SystemMetrics;
   sqlite_stats: SqliteStats | null;
   timestamp: number;
-}
-
-export interface UseDashboardWebSocketOptions {
-  enabled?: boolean;
-  onConnect?: () => void;
-  onDisconnect?: () => void;
-  onUpdate?: (data: DashboardUpdate) => void;
 }
 
 export interface UseDashboardWebSocketReturn {
@@ -40,110 +55,42 @@ export interface UseDashboardWebSocketReturn {
   reconnect: () => void;
 }
 
-export function useDashboardWebSocket(
-  options: UseDashboardWebSocketOptions = {}
-): UseDashboardWebSocketReturn {
-  const { enabled = true, onConnect, onDisconnect, onUpdate } = options;
-
-  const [isConnected, setIsConnected] = useState(false);
-  const [data, setData] = useState<DashboardUpdate | null>(null);
-
-  const wsRef = useRef<WebSocket | null>(null);
-  const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const reconnectAttemptsRef = useRef(0);
-  const onUpdateRef = useRef(onUpdate);
-  onUpdateRef.current = onUpdate;
-
-  const connect = useCallback(() => {
-    if (!enabled) return;
-
-    try {
-      const wsUrl = getDashboardWebSocketUrl();
-      const ws = new WebSocket(wsUrl);
-      wsRef.current = ws;
-
-      ws.onopen = () => {
-        setIsConnected(true);
-        reconnectAttemptsRef.current = 0;
-        onConnect?.();
-      };
-
-      ws.onmessage = (event) => {
-        try {
-          const update: DashboardUpdate = JSON.parse(event.data);
-          setData(update);
-          onUpdateRef.current?.(update);
-        } catch (err) {
-          console.error('Failed to parse WebSocket message:', err);
-        }
-      };
-
-      ws.onclose = () => {
-        setIsConnected(false);
-        wsRef.current = null;
-        onDisconnect?.();
-
-        // Reconnect with exponential backoff
-        if (enabled) {
-          const delay = Math.min(1000 * Math.pow(2, reconnectAttemptsRef.current), 30000);
-          reconnectAttemptsRef.current++;
-          reconnectTimeoutRef.current = setTimeout(connect, delay);
-        }
-      };
-
-      ws.onerror = (error) => {
-        console.error('Dashboard WebSocket error:', error);
-      };
-    } catch (err) {
-      console.error('Failed to create WebSocket:', err);
-    }
-  }, [enabled, onConnect, onDisconnect]);
-
-  const reconnect = useCallback(() => {
-    if (wsRef.current) {
-      wsRef.current.close();
-    }
-    if (reconnectTimeoutRef.current) {
-      clearTimeout(reconnectTimeoutRef.current);
-    }
-    reconnectAttemptsRef.current = 0;
-    connect();
-  }, [connect]);
-
-  useEffect(() => {
-    if (!enabled) {
-      if (wsRef.current) {
-        wsRef.current.close();
-        wsRef.current = null;
-      }
-      return;
-    }
-
-    connect();
-
-    return () => {
-      if (reconnectTimeoutRef.current) {
-        clearTimeout(reconnectTimeoutRef.current);
-      }
-      if (wsRef.current) {
-        wsRef.current.close();
-        wsRef.current = null;
-      }
-    };
-  }, [enabled, connect]);
+export function useDashboardWebSocket(): UseDashboardWebSocketReturn {
+  const isConnected = useIsConnected();
+  const stats = useStats();
+  const metrics = useMetrics();
+  const queues = useQueues();
+  const workers = useWorkers();
+  const crons = useCrons();
+  const metricsHistory = useMetricsHistory();
+  const systemMetrics = useSystemMetrics();
+  const sqliteStats = useSqliteStats();
+  const reconnect = useReconnect();
 
   return {
     isConnected,
-    data,
-    stats: data?.stats ?? null,
-    metrics: data?.metrics ?? null,
-    queues: data?.queues ?? [],
-    workers: data?.workers ?? [],
-    crons: data?.crons ?? [],
-    metricsHistory: data?.metrics_history ?? [],
-    systemMetrics: data?.system_metrics ?? null,
-    sqliteStats: data?.sqlite_stats ?? null,
-    lastUpdate: data?.timestamp ?? null,
+    stats,
+    metrics,
+    queues,
+    workers,
+    crons,
+    metricsHistory,
+    systemMetrics,
+    sqliteStats,
+    lastUpdate: null,
     reconnect,
+    data: stats
+      ? {
+          stats,
+          metrics: metrics!,
+          queues,
+          workers,
+          crons,
+          metrics_history: metricsHistory,
+          system_metrics: systemMetrics!,
+          sqlite_stats: sqliteStats,
+          timestamp: Date.now(),
+        }
+      : null,
   };
 }

@@ -2,18 +2,18 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { fetchCrons, createCron, deleteCron } from '../api';
 import type { CronJob, CronsResponse } from '../api/types';
 
+// DEPRECATED: Use useWebSocketStore(s => s.crons) instead
 export function useCrons() {
   return useQuery<CronsResponse | null>({
     queryKey: ['crons'],
     queryFn: async () => {
       const crons = await fetchCrons();
-      // Wrap in response object if array
       if (Array.isArray(crons)) {
         return { crons };
       }
       return crons as CronsResponse | null;
     },
-    refetchInterval: 10000,
+    enabled: false, // Disabled - WebSocket provides real-time data
   });
 }
 

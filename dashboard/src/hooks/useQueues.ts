@@ -1,11 +1,12 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { fetchQueues, pauseQueue, resumeQueue, retryDlq } from '../api';
 
+// DEPRECATED: Use useWebSocketStore(s => s.queues) instead
 export function useQueues() {
   return useQuery({
     queryKey: ['queues'],
     queryFn: fetchQueues,
-    refetchInterval: 2000,
+    enabled: false, // Disabled - WebSocket provides real-time data
   });
 }
 

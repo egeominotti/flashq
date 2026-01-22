@@ -4,51 +4,63 @@
 
 /**
  * Format a number with locale-specific separators or K/M suffix
+ * Always returns non-negative values
  */
 export function formatNumber(num: number): string {
-  if (num >= 1_000_000) {
-    return `${(num / 1_000_000).toFixed(1)}M`;
+  // Ensure value is never negative
+  const safeNum = Math.max(0, num);
+  if (safeNum >= 1_000_000) {
+    return `${(safeNum / 1_000_000).toFixed(1)}M`;
   }
-  if (num >= 10_000) {
-    return `${(num / 1_000).toFixed(1)}K`;
+  if (safeNum >= 10_000) {
+    return `${(safeNum / 1_000).toFixed(1)}K`;
   }
-  return num.toLocaleString();
+  return safeNum.toLocaleString();
 }
 
 /**
  * Format bytes to human-readable size
+ * Always returns non-negative values
  */
 export function formatBytes(bytes: number): string {
-  if (bytes === 0) return '0 B';
+  // Ensure value is never negative
+  const safeBytes = Math.max(0, bytes);
+  if (safeBytes === 0) return '0 B';
   const k = 1024;
   const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`;
+  const i = Math.floor(Math.log(safeBytes) / Math.log(k));
+  return `${parseFloat((safeBytes / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`;
 }
 
 /**
  * Format milliseconds to human-readable duration
+ * Always returns non-negative values
  */
 export function formatDuration(ms: number): string {
-  if (ms < 1000) return `${ms}ms`;
-  if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`;
-  if (ms < 3600000) {
-    const mins = Math.floor(ms / 60000);
-    const secs = Math.floor((ms % 60000) / 1000);
+  // Ensure value is never negative
+  const safeMs = Math.max(0, ms);
+  if (safeMs < 1000) return `${safeMs}ms`;
+  if (safeMs < 60000) return `${(safeMs / 1000).toFixed(1)}s`;
+  if (safeMs < 3600000) {
+    const mins = Math.floor(safeMs / 60000);
+    const secs = Math.floor((safeMs % 60000) / 1000);
     return `${mins}m ${secs}s`;
   }
-  const hours = Math.floor(ms / 3600000);
-  const mins = Math.floor((ms % 3600000) / 60000);
+  const hours = Math.floor(safeMs / 3600000);
+  const mins = Math.floor((safeMs % 3600000) / 60000);
   return `${hours}h ${mins}m`;
 }
 
 /**
  * Format seconds to HH:MM:SS
+ * Always returns non-negative values
  */
 export function formatUptime(seconds: number): string {
-  const hours = Math.floor(seconds / 3600);
-  const mins = Math.floor((seconds % 3600) / 60);
-  const secs = seconds % 60;
+  // Ensure value is never negative
+  const safeSeconds = Math.max(0, Math.floor(seconds));
+  const hours = Math.floor(safeSeconds / 3600);
+  const mins = Math.floor((safeSeconds % 3600) / 60);
+  const secs = safeSeconds % 60;
   return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
 }
 

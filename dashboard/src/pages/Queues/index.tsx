@@ -3,12 +3,6 @@ import {
   Card,
   Title,
   Text,
-  Table,
-  TableHead,
-  TableRow,
-  TableHeaderCell,
-  TableBody,
-  TableCell,
   Badge,
   Button,
   Flex,
@@ -16,28 +10,22 @@ import {
   Select,
   SelectItem,
 } from '@tremor/react';
-import {
-  Search,
-  Pause,
-  Play,
-  Trash2,
-  Download,
-  CheckSquare,
-  Square,
-  Wifi,
-  WifiOff,
-} from 'lucide-react';
-import { useDashboardWebSocket, useToast } from '../hooks';
-import { api } from '../api/client';
-import { formatNumber } from '../utils';
-import { ConfirmModal } from '../components/common/ConfirmModal';
-import { Tooltip } from '../components/common/Tooltip';
-import type { Queue } from '../api/types';
-import './Queues.css';
+import { Search, Pause, Play, Download, Wifi, WifiOff } from 'lucide-react';
+import { useIsConnected, useQueues as useQueuesData } from '../../stores';
+import { useToast } from '../../hooks';
+import { api } from '../../api/client';
+import { formatNumber } from '../../utils';
+import { ConfirmModal } from '../../components/common/ConfirmModal';
+import { Tooltip } from '../../components/common/Tooltip';
+import { QueuesTable } from './QueuesTable';
+import type { Queue } from '../../api/types';
+import '../Queues.css';
 
 export function Queues() {
   const { showToast } = useToast();
-  const { isConnected, queues: queuesData } = useDashboardWebSocket();
+  // Granular WebSocket hooks - only re-render when queues change
+  const isConnected = useIsConnected();
+  const queuesData = useQueuesData();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [selectedQueues, setSelectedQueues] = useState<Set<string>>(new Set());
@@ -197,12 +185,9 @@ export function Queues() {
     }
   };
 
-  const getQueueStatus = (queue: Queue) => {
-    if (queue.paused) return { label: 'Paused', color: 'amber' as const };
-    if (queue.processing > 0) return { label: 'Active', color: 'emerald' as const };
-    if (queue.pending > 0) return { label: 'Pending', color: 'blue' as const };
-    return { label: 'Idle', color: 'zinc' as const };
-  };
+  // Calculate totals - ensure no negative values
+  const totalWaiting = Math.max(0, queues.reduce((sum, q) => sum + q.pending, 0));
+  const totalActive = Math.max(0, queues.reduce((sum, q) => sum + q.processing, 0));
 
   return (
     <div className="queues-page">
@@ -267,133 +252,15 @@ export function Queues() {
         </Flex>
 
         {/* Table */}
-        <Table>
-          <TableHead>
-            <TableRow>
-              <TableHeaderCell className="w-10">
-                <button onClick={toggleSelectAll} className="select-checkbox">
-                  {selectedQueues.size === filteredQueues.length && filteredQueues.length > 0 ? (
-                    <CheckSquare size={18} className="text-cyan-400" />
-                  ) : (
-                    <Square size={18} className="text-zinc-500" />
-                  )}
-                </button>
-              </TableHeaderCell>
-              <TableHeaderCell>Queue Name</TableHeaderCell>
-              <TableHeaderCell>Status</TableHeaderCell>
-              <TableHeaderCell className="text-right">Waiting</TableHeaderCell>
-              <TableHeaderCell className="text-right">Active</TableHeaderCell>
-              <TableHeaderCell className="text-right">Completed</TableHeaderCell>
-              <TableHeaderCell className="text-right">Failed</TableHeaderCell>
-              <TableHeaderCell className="text-right">Delayed</TableHeaderCell>
-              <TableHeaderCell className="text-right">Actions</TableHeaderCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {filteredQueues.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={9}>
-                  <div className="py-8 text-center">
-                    <Text>No queues found</Text>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ) : (
-              filteredQueues.map((queue) => {
-                const status = getQueueStatus(queue);
-                const isSelected = selectedQueues.has(queue.name);
-                return (
-                  <TableRow key={queue.name} className={isSelected ? 'selected' : ''}>
-                    <TableCell>
-                      <button
-                        onClick={() => toggleSelectQueue(queue.name)}
-                        className="select-checkbox"
-                      >
-                        {isSelected ? (
-                          <CheckSquare size={18} className="text-cyan-400" />
-                        ) : (
-                          <Square size={18} className="text-zinc-500" />
-                        )}
-                      </button>
-                    </TableCell>
-                    <TableCell>
-                      <div className="queue-name">
-                        <Text className="font-mono font-semibold text-white">{queue.name}</Text>
-                        {queue.rate_limit && (
-                          <Tooltip content="Rate limit (jobs per minute)">
-                            <Badge size="xs" color="violet">
-                              {queue.rate_limit}/min
-                            </Badge>
-                          </Tooltip>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge color={status.color}>{status.label}</Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Badge color="cyan">{formatNumber(queue.pending)}</Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Badge color="blue">{formatNumber(queue.processing)}</Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <span className="font-mono text-emerald-400">
-                        {formatNumber(queue.completed || 0)}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <span className="font-mono text-rose-400">{formatNumber(queue.dlq)}</span>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <span className="font-mono text-amber-400">
-                        {formatNumber(queue.delayed || 0)}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Flex justifyContent="end" className="gap-2">
-                        {queue.paused ? (
-                          <Tooltip content="Resume processing">
-                            <Button
-                              size="xs"
-                              variant="secondary"
-                              icon={Play}
-                              onClick={() => handleResume(queue.name)}
-                            >
-                              Resume
-                            </Button>
-                          </Tooltip>
-                        ) : (
-                          <Tooltip content="Pause processing">
-                            <Button
-                              size="xs"
-                              variant="secondary"
-                              icon={Pause}
-                              onClick={() => handlePause(queue.name)}
-                            >
-                              Pause
-                            </Button>
-                          </Tooltip>
-                        )}
-                        <Tooltip content="Remove all waiting jobs">
-                          <Button
-                            size="xs"
-                            variant="secondary"
-                            color="rose"
-                            icon={Trash2}
-                            onClick={() => handleDrain(queue.name)}
-                          >
-                            Drain
-                          </Button>
-                        </Tooltip>
-                      </Flex>
-                    </TableCell>
-                  </TableRow>
-                );
-              })
-            )}
-          </TableBody>
-        </Table>
+        <QueuesTable
+          queues={filteredQueues}
+          selectedQueues={selectedQueues}
+          onToggleSelect={toggleSelectQueue}
+          onToggleSelectAll={toggleSelectAll}
+          onPause={handlePause}
+          onResume={handleResume}
+          onDrain={handleDrain}
+        />
 
         {/* Summary */}
         <Flex className="mt-6 border-t border-zinc-800 pt-6">
@@ -403,15 +270,11 @@ export function Queues() {
           <Flex className="gap-4">
             <Text>
               Total Waiting:{' '}
-              <span className="font-mono text-cyan-400">
-                {formatNumber(queues.reduce((sum, q) => sum + q.pending, 0))}
-              </span>
+              <span className="font-mono text-cyan-400">{formatNumber(totalWaiting)}</span>
             </Text>
             <Text>
               Total Active:{' '}
-              <span className="font-mono text-blue-400">
-                {formatNumber(queues.reduce((sum, q) => sum + q.processing, 0))}
-              </span>
+              <span className="font-mono text-blue-400">{formatNumber(totalActive)}</span>
             </Text>
           </Flex>
         </Flex>

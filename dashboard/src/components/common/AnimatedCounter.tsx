@@ -22,13 +22,15 @@ export function AnimatedCounter({
   className,
   formatter,
 }: AnimatedCounterProps) {
+  // Ensure incoming value is never negative
+  const safeValue = Math.max(0, value);
   const [displayValue, setDisplayValue] = useState(0);
   const previousValue = useRef(0);
   const animationRef = useRef<number | null>(null);
 
   useEffect(() => {
-    const startValue = previousValue.current;
-    const endValue = value;
+    const startValue = Math.max(0, previousValue.current);
+    const endValue = safeValue;
     const startTime = performance.now();
 
     const animate = (currentTime: number) => {
@@ -37,7 +39,8 @@ export function AnimatedCounter({
 
       // Easing function (ease-out-expo)
       const easeOutExpo = 1 - Math.pow(2, -10 * progress);
-      const currentValue = startValue + (endValue - startValue) * easeOutExpo;
+      // Ensure interpolated value is never negative
+      const currentValue = Math.max(0, startValue + (endValue - startValue) * easeOutExpo);
 
       setDisplayValue(currentValue);
 
@@ -55,9 +58,11 @@ export function AnimatedCounter({
         cancelAnimationFrame(animationRef.current);
       }
     };
-  }, [value, duration]);
+  }, [safeValue, duration]);
 
-  const formattedValue = formatter ? formatter(displayValue) : displayValue.toFixed(decimals);
+  // Final safety check - ensure displayed value is never negative
+  const safeDisplayValue = Math.max(0, displayValue);
+  const formattedValue = formatter ? formatter(safeDisplayValue) : safeDisplayValue.toFixed(decimals);
 
   return (
     <span className={cn('animated-counter', className)}>
@@ -70,11 +75,13 @@ export function AnimatedCounter({
 
 // Compact number formatter (1.2K, 3.4M, etc.)
 export function formatCompact(value: number): string {
-  if (value >= 1_000_000) {
-    return `${(value / 1_000_000).toFixed(1)}M`;
+  // Ensure value is never negative
+  const safeValue = Math.max(0, value);
+  if (safeValue >= 1_000_000) {
+    return `${(safeValue / 1_000_000).toFixed(1)}M`;
   }
-  if (value >= 1_000) {
-    return `${(value / 1_000).toFixed(1)}K`;
+  if (safeValue >= 1_000) {
+    return `${(safeValue / 1_000).toFixed(1)}K`;
   }
-  return value.toFixed(0);
+  return safeValue.toFixed(0);
 }
