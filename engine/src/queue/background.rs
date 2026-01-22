@@ -271,10 +271,15 @@ impl QueueManager {
             return;
         }
 
+        // CRITICAL: Copy completed_jobs to local set FIRST to avoid lock ordering deadlock.
+        // push() holds shard.write() then acquires completed_jobs.read()
+        // We must NOT hold completed_jobs.read() while acquiring shard.read()
+        let completed_jobs: std::collections::HashSet<u64> =
+            self.completed_jobs.read().iter().copied().collect();
+
         // Aggressive: remove all stale entries above threshold
         let target_remove = index_len - MAX_INDEX_SIZE / 2;
         let mut to_remove = Vec::with_capacity(target_remove);
-        let completed_jobs = self.completed_jobs.read();
 
         for entry in self.job_index.iter() {
             if to_remove.len() >= target_remove {
@@ -284,6 +289,7 @@ impl QueueManager {
             let id = *entry.key();
             let location = *entry.value();
 
+            // Now safe to acquire shard locks - completed_jobs lock already released
             let is_stale = match location {
                 JobLocation::Completed => !completed_jobs.contains(&id),
                 JobLocation::Processing => !self.processing_contains(id),
@@ -309,8 +315,6 @@ impl QueueManager {
                 to_remove.push(id);
             }
         }
-
-        drop(completed_jobs);
 
         for id in to_remove {
             self.job_index.remove(&id);
