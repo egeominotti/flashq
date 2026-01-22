@@ -465,6 +465,7 @@ impl QueueManager {
     }
 
     #[inline]
+    #[allow(dead_code)]
     pub(crate) fn processing_contains(&self, job_id: u64) -> bool {
         let idx = Self::processing_shard_index(job_id);
         self.processing_shards[idx].read().contains_key(&job_id)

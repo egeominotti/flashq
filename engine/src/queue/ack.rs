@@ -4,9 +4,14 @@
 
 use std::sync::atomic::Ordering;
 
+use compact_str::CompactString;
 use serde_json::Value;
 
 use super::manager::QueueManager;
+
+/// Type alias for batch ack shard resources: (queue_name, unique_keys, group_ids)
+type ShardResources =
+    std::collections::HashMap<usize, (CompactString, Vec<Option<String>>, Vec<Option<String>>)>;
 use super::types::{intern, now_ms, JobLocation};
 use crate::protocol::JobEvent;
 
@@ -109,14 +114,7 @@ impl QueueManager {
         // CRITICAL OPTIMIZATION: Collect shard resources to release, then batch release
         // This prevents acquiring shard lock 100 times per batch (was causing lock convoy)
         // Group by shard index for efficient batching
-        let mut shard_resources: std::collections::HashMap<
-            usize,
-            (
-                compact_str::CompactString,
-                Vec<Option<String>>,
-                Vec<Option<String>>,
-            ),
-        > = std::collections::HashMap::new();
+        let mut shard_resources: ShardResources = std::collections::HashMap::new();
 
         // First pass: collect all jobs and their resource info WITHOUT acquiring shard locks
         for &id in ids {

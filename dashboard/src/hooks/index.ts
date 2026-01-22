@@ -10,3 +10,4 @@ export * from './useToast';
 export * from './useTheme';
 export * from './useSparklineData';
 export * from './useJobEvents';
+export * from './useDashboardWebSocket';
