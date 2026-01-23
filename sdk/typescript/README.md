@@ -5,6 +5,8 @@
 [![GitHub stars](https://img.shields.io/github/stars/egeominotti/flashq)](https://github.com/egeominotti/flashq)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
+**[Website](https://flashq.dev)** · **[Documentation](https://flashq.dev/docs/)** · **[GitHub](https://github.com/egeominotti/flashq)**
+
 > **High-performance job queue with BullMQ-compatible API. No Redis required.**
 
 flashQ is a drop-in replacement for BullMQ that runs on a single Rust binary. It's designed for AI/ML workloads with support for 10MB payloads, job dependencies, and 300K+ jobs/sec throughput.
@@ -446,6 +448,13 @@ Key differences:
 - No Redis connection required
 - `connection` option replaced with `host`/`port`
 - Some advanced BullMQ features may have different behavior
+
+## Resources
+
+- **Website:** [flashq.dev](https://flashq.dev)
+- **Documentation:** [flashq.dev/docs](https://flashq.dev/docs/)
+- **GitHub:** [github.com/egeominotti/flashq](https://github.com/egeominotti/flashq)
+- **npm:** [npmjs.com/package/flashq](https://www.npmjs.com/package/flashq)
 
 ## License
 
