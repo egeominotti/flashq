@@ -13,7 +13,6 @@ import { ValidationError } from '../../errors';
 import {
   DEFAULT_PULL_TIMEOUT,
   CLIENT_TIMEOUT_BUFFER,
-  DEFAULT_JOB_PRIORITY,
   DEFAULT_STALL_TIMEOUT,
 } from '../../constants';
 
