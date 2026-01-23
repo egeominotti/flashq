@@ -30,7 +30,7 @@ export type { BullMQWorkerOptions } from './worker';
 export { FlashQ, FlashQ as default } from './client';
 
 // Constants and validation utilities
-export { MAX_BATCH_SIZE, MAX_JOB_DATA_SIZE } from './client/core';
+export { MAX_BATCH_SIZE, MAX_JOB_DATA_SIZE } from './client/methods/core';
 export { validateQueueName, validateJobDataSize } from './client/connection';
 
 // Optional: Real-time events

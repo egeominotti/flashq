@@ -1,7 +1,7 @@
 /**
  * Stats and metrics operations
  */
-import type { IFlashQClient, QueueStats, Metrics } from './types';
+import type { IFlashQClient, QueueStats, Metrics } from '../types';
 
 /**
  * Get queue statistics.

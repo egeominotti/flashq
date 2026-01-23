@@ -1,7 +1,7 @@
 /**
  * BullMQ-like advanced operations
  */
-import type { IFlashQClient, Job, JobState, JobWithState } from './types';
+import type { IFlashQClient, Job, JobState, JobWithState } from '../types';
 
 /**
  * Get jobs filtered by queue and/or state with pagination.

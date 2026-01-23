@@ -7,9 +7,9 @@
  */
 
 import { describe, test, expect, beforeAll, afterAll, beforeEach } from 'bun:test';
-import { FlashQ } from '../src/client';
-import { Worker } from '../src/worker';
-import { Queue } from '../src/queue';
+import { FlashQ } from '../../src/client';
+import { Worker } from '../../src/worker';
+import { Queue } from '../../src/queue';
 
 const TEST_QUEUE = 'test-integration';
 

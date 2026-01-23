@@ -1,7 +1,7 @@
 /**
  * Cron job operations
  */
-import type { IFlashQClient, CronJob, CronOptions } from './types';
+import type { IFlashQClient, CronJob, CronOptions } from '../types';
 
 /**
  * Add a cron job for scheduled recurring tasks.

@@ -1,466 +1,228 @@
 /**
- * FlashQ Client - High-performance job queue client
+ * FlashQ Client - High-performance job queue client.
  *
- * @example
- * ```typescript
- * import { FlashQ } from 'flashq';
- *
- * const client = new FlashQ();
- *
- * // Add a job (auto-connects!)
- * const job = await client.add('emails', { to: 'user@example.com' });
- *
- * // That's it! No connect() needed.
- * ```
- *
- * @example
- * ```typescript
- * // With options
- * const client = new FlashQ({
- *   host: 'localhost',
- *   port: 6789,
- *   token: 'secret'
- * });
- *
- * // Add with job options
- * await client.add('emails', { to: 'user@example.com' }, {
- *   priority: 10,
- *   delay: 5000,
- *   max_attempts: 3
- * });
- * ```
+ * This is the main facade that exposes all operations.
+ * Methods are organized into logical modules under ./methods/
  */
 import { FlashQConnection } from './connection';
-import * as core from './core';
-import * as jobs from './jobs';
-import * as queue from './queue';
-import * as dlq from './dlq';
-import * as cron from './cron';
-import * as metrics from './metrics';
-import * as flows from './flows';
-import * as advanced from './advanced';
-import * as kv from './kv';
-import * as pubsub from './pubsub';
+import * as core from './methods/core';
+import * as jobs from './methods/jobs';
+import * as queue from './methods/queue';
+import * as dlq from './methods/dlq';
+import * as cron from './methods/cron';
+import * as metrics from './methods/metrics';
+import * as flows from './methods/flows';
+import * as advanced from './methods/advanced';
 
 import type {
-  Job,
-  JobState,
-  JobWithState,
-  PushOptions,
-  QueueInfo,
-  QueueStats,
-  Metrics,
-  CronJob,
-  CronOptions,
-  JobLogEntry,
-  FlowChild,
-  FlowResult,
-  FlowOptions,
+  Job, JobState, JobWithState, PushOptions,
+  QueueInfo, QueueStats, Metrics,
+  CronJob, CronOptions, JobLogEntry,
+  FlowChild, FlowResult, FlowOptions,
 } from './types';
 
-/**
- * FlashQ Client - High-performance job queue client with auto-connect.
- */
+/** FlashQ Client - High-performance job queue client with auto-connect. */
 export class FlashQ extends FlashQConnection {
-  // ============== Core Operations ==============
+  // === CORE OPERATIONS ===
 
-  /**
-   * Push a job to a queue.
-   *
-   * @param queue - Queue name
-   * @param data - Job data payload
-   * @param options - Push options (priority, delay, ttl, etc.)
-   * @returns Created job
-   *
-   * @example
-   * ```typescript
-   * const job = await client.push('emails', { to: 'user@example.com' });
-   * ```
-   */
-  push<T = unknown>(queueName: string, data: T, options: PushOptions = {}): Promise<Job> {
-    return core.push(this, queueName, data, options);
+  /** Push a job to a queue */
+  push<T = unknown>(queue: string, data: T, opts: PushOptions = {}): Promise<Job> {
+    return core.push(this, queue, data, opts);
   }
 
-  /**
-   * Add a job to a queue (alias for push).
-   *
-   * @param queue - Queue name
-   * @param data - Job data payload
-   * @param options - Push options
-   * @returns Created job
-   */
-  add<T = unknown>(queueName: string, data: T, options: PushOptions = {}): Promise<Job> {
-    return this.push(queueName, data, options);
+  /** Add a job to a queue (alias for push) */
+  add<T = unknown>(queue: string, data: T, opts: PushOptions = {}): Promise<Job> {
+    return this.push(queue, data, opts);
   }
 
-  /**
-   * Push multiple jobs to a queue in a single batch.
-   *
-   * @param queue - Queue name
-   * @param jobs - Array of jobs with data and options
-   * @returns Array of created job IDs
-   */
-  pushBatch<T = unknown>(queueName: string, jobList: Array<{ data: T } & PushOptions>): Promise<number[]> {
-    return core.pushBatch(this, queueName, jobList);
+  /** Push multiple jobs in a single batch */
+  pushBatch<T = unknown>(queue: string, jobList: Array<{ data: T } & PushOptions>): Promise<number[]> {
+    return core.pushBatch(this, queue, jobList);
   }
 
-  /**
-   * Add multiple jobs to a queue (alias for pushBatch).
-   */
-  addBulk<T = unknown>(queueName: string, jobList: Array<{ data: T } & PushOptions>): Promise<number[]> {
-    return this.pushBatch(queueName, jobList);
+  /** Add multiple jobs (alias for pushBatch) */
+  addBulk<T = unknown>(queue: string, jobList: Array<{ data: T } & PushOptions>): Promise<number[]> {
+    return this.pushBatch(queue, jobList);
   }
 
-  /**
-   * Pull a job from a queue (blocking with server-side timeout).
-   *
-   * @param queue - Queue name
-   * @param timeout - Server-side timeout in ms (default: 60s)
-   * @returns Job or null if timeout
-   */
-  pull<T = unknown>(queueName: string, timeout?: number): Promise<(Job & { data: T }) | null> {
-    return core.pull(this, queueName, timeout);
+  /** Pull a job from a queue (blocking with timeout) */
+  pull<T = unknown>(queue: string, timeout?: number): Promise<(Job & { data: T }) | null> {
+    return core.pull(this, queue, timeout);
   }
 
-  /**
-   * Pull multiple jobs from a queue.
-   *
-   * @param queue - Queue name
-   * @param count - Number of jobs to pull
-   * @param timeout - Server-side timeout in ms (default: 60s)
-   * @returns Array of jobs
-   */
-  pullBatch<T = unknown>(queueName: string, count: number, timeout?: number): Promise<Array<Job & { data: T }>> {
-    return core.pullBatch(this, queueName, count, timeout);
+  /** Pull multiple jobs from a queue */
+  pullBatch<T = unknown>(queue: string, count: number, timeout?: number): Promise<Array<Job & { data: T }>> {
+    return core.pullBatch(this, queue, count, timeout);
   }
 
-  /**
-   * Acknowledge a job as completed.
-   *
-   * @param jobId - Job ID
-   * @param result - Optional result data
-   */
+  /** Acknowledge a job as completed */
   ack(jobId: number, result?: unknown): Promise<void> {
     return core.ack(this, jobId, result);
   }
 
-  /**
-   * Acknowledge multiple jobs at once.
-   *
-   * @param jobIds - Array of job IDs
-   * @returns Number of jobs acknowledged
-   */
+  /** Acknowledge multiple jobs at once */
   ackBatch(jobIds: number[]): Promise<number> {
     return core.ackBatch(this, jobIds);
   }
 
-  /**
-   * Fail a job (will retry or move to DLQ).
-   *
-   * @param jobId - Job ID
-   * @param error - Optional error message
-   */
+  /** Fail a job (will retry or move to DLQ) */
   fail(jobId: number, error?: string): Promise<void> {
     return core.fail(this, jobId, error);
   }
 
-  // ============== Job Management ==============
+  // === JOB QUERY & MANAGEMENT ===
 
-  /**
-   * Get a job with its current state.
-   *
-   * @param jobId - Job ID
-   * @returns Job with state, or null if not found
-   */
+  /** Get a job with its current state */
   getJob(jobId: number): Promise<JobWithState | null> {
     return jobs.getJob(this, jobId);
   }
 
-  /**
-   * Get job state only.
-   *
-   * @param jobId - Job ID
-   * @returns Job state or null if not found
-   */
+  /** Get job state only */
   getState(jobId: number): Promise<JobState | null> {
     return jobs.getState(this, jobId);
   }
 
-  /**
-   * Get job result.
-   *
-   * @param jobId - Job ID
-   * @returns Job result or null
-   */
+  /** Get job result */
   getResult<T = unknown>(jobId: number): Promise<T | null> {
     return jobs.getResult(this, jobId);
   }
 
-  /**
-   * Wait for a job to complete and return its result.
-   *
-   * @param jobId - Job ID
-   * @param timeout - Timeout in ms (default: 30000)
-   * @returns Job result or null
-   * @throws Error if job fails or times out
-   */
+  /** Wait for a job to complete (finished() promise pattern) */
   finished<T = unknown>(jobId: number, timeout?: number): Promise<T | null> {
     return jobs.finished(this, jobId, timeout);
   }
 
-  /**
-   * Get a job by its custom ID.
-   *
-   * @param customId - Custom job ID
-   * @returns Job with state or null
-   */
+  /** Get a job by its custom ID */
   getJobByCustomId(customId: string): Promise<JobWithState | null> {
     return jobs.getJobByCustomId(this, customId);
   }
 
-  /**
-   * Get multiple jobs by their IDs in a single call.
-   *
-   * @param jobIds - Array of job IDs
-   * @returns Array of jobs with states
-   */
+  /** Get multiple jobs by their IDs */
   getJobsBatch(jobIds: number[]): Promise<JobWithState[]> {
     return jobs.getJobsBatch(this, jobIds);
   }
 
-  /**
-   * Cancel a pending job.
-   *
-   * @param jobId - Job ID
-   */
+  /** Cancel a pending job */
   cancel(jobId: number): Promise<void> {
     return jobs.cancel(this, jobId);
   }
 
-  /**
-   * Update job progress.
-   *
-   * @param jobId - Job ID
-   * @param progress - Progress value (0-100)
-   * @param message - Optional progress message
-   */
-  progress(jobId: number, progressValue: number, message?: string): Promise<void> {
-    return jobs.progress(this, jobId, progressValue, message);
+  /** Update job progress */
+  progress(jobId: number, value: number, message?: string): Promise<void> {
+    return jobs.progress(this, jobId, value, message);
   }
 
-  /**
-   * Get job progress.
-   *
-   * @param jobId - Job ID
-   * @returns Progress value and message
-   */
+  /** Get job progress */
   getProgress(jobId: number): Promise<{ progress: number; message?: string }> {
     return jobs.getProgress(this, jobId);
   }
 
-  /**
-   * Add a log entry to a job.
-   *
-   * @param jobId - Job ID
-   * @param message - Log message
-   * @param level - Log level (info, warn, error)
-   */
+  /** Add a log entry to a job */
   log(jobId: number, message: string, level: 'info' | 'warn' | 'error' = 'info'): Promise<void> {
     return jobs.log(this, jobId, message, level);
   }
 
-  /**
-   * Get log entries for a job.
-   *
-   * @param jobId - Job ID
-   * @returns Array of log entries
-   */
+  /** Get log entries for a job */
   getLogs(jobId: number): Promise<JobLogEntry[]> {
     return jobs.getLogs(this, jobId);
   }
 
-  /**
-   * Send a heartbeat for a long-running job.
-   *
-   * @param jobId - Job ID
-   */
+  /** Send a heartbeat for a long-running job */
   heartbeat(jobId: number): Promise<void> {
     return jobs.heartbeat(this, jobId);
   }
 
-  // ============== Queue Control ==============
+  // === QUEUE CONTROL ===
 
-  /**
-   * Pause a queue.
-   *
-   * @param queue - Queue name
-   */
+  /** Pause a queue */
   pause(queueName: string): Promise<void> {
     return queue.pause(this, queueName);
   }
 
-  /**
-   * Resume a paused queue.
-   *
-   * @param queue - Queue name
-   */
+  /** Resume a paused queue */
   resume(queueName: string): Promise<void> {
     return queue.resume(this, queueName);
   }
 
-  /**
-   * Check if a queue is paused.
-   *
-   * @param queue - Queue name
-   * @returns true if paused
-   */
+  /** Check if a queue is paused */
   isPaused(queueName: string): Promise<boolean> {
     return queue.isPaused(this, queueName);
   }
 
-  /**
-   * Set rate limit for a queue (jobs per second).
-   *
-   * @param queue - Queue name
-   * @param limit - Jobs per second
-   */
+  /** Set rate limit for a queue (jobs per second) */
   setRateLimit(queueName: string, limit: number): Promise<void> {
     return queue.setRateLimit(this, queueName, limit);
   }
 
-  /**
-   * Clear rate limit for a queue.
-   *
-   * @param queue - Queue name
-   */
+  /** Clear rate limit for a queue */
   clearRateLimit(queueName: string): Promise<void> {
     return queue.clearRateLimit(this, queueName);
   }
 
-  /**
-   * Set concurrency limit for a queue.
-   *
-   * @param queue - Queue name
-   * @param limit - Max concurrent jobs
-   */
+  /** Set concurrency limit for a queue */
   setConcurrency(queueName: string, limit: number): Promise<void> {
     return queue.setConcurrency(this, queueName, limit);
   }
 
-  /**
-   * Clear concurrency limit for a queue.
-   *
-   * @param queue - Queue name
-   */
+  /** Clear concurrency limit for a queue */
   clearConcurrency(queueName: string): Promise<void> {
     return queue.clearConcurrency(this, queueName);
   }
 
-  /**
-   * List all queues.
-   *
-   * @returns Array of queue info
-   */
+  /** List all queues */
   listQueues(): Promise<QueueInfo[]> {
     return queue.listQueues(this);
   }
 
-  // ============== Dead Letter Queue ==============
+  // === DEAD LETTER QUEUE ===
 
-  /**
-   * Get jobs from the dead letter queue.
-   *
-   * @param queue - Queue name
-   * @param count - Max jobs to return (default: 100)
-   * @returns Array of failed jobs
-   */
+  /** Get jobs from the dead letter queue */
   getDlq(queueName: string, count = 100): Promise<Job[]> {
     return dlq.getDlq(this, queueName, count);
   }
 
-  /**
-   * Retry jobs from the dead letter queue.
-   *
-   * @param queue - Queue name
-   * @param jobId - Optional specific job ID to retry
-   * @returns Number of jobs retried
-   */
+  /** Retry jobs from the dead letter queue */
   retryDlq(queueName: string, jobId?: number): Promise<number> {
     return dlq.retryDlq(this, queueName, jobId);
   }
 
-  /**
-   * Purge all jobs from the dead letter queue.
-   *
-   * @param queue - Queue name
-   * @returns Number of jobs purged
-   */
+  /** Purge all jobs from the dead letter queue */
   purgeDlq(queueName: string): Promise<number> {
     return dlq.purgeDlq(this, queueName);
   }
 
-  // ============== Cron Jobs ==============
+  // === CRON JOBS ===
 
-  /**
-   * Add a cron job for scheduled recurring tasks.
-   *
-   * @param name - Unique cron job name
-   * @param options - Cron options
-   */
+  /** Add a cron job for scheduled recurring tasks */
   addCron(name: string, options: CronOptions): Promise<void> {
     return cron.addCron(this, name, options);
   }
 
-  /**
-   * Delete a cron job.
-   *
-   * @param name - Cron job name
-   * @returns true if deleted
-   */
+  /** Delete a cron job */
   deleteCron(name: string): Promise<boolean> {
     return cron.deleteCron(this, name);
   }
 
-  /**
-   * List all cron jobs.
-   *
-   * @returns Array of cron jobs
-   */
+  /** List all cron jobs */
   listCrons(): Promise<CronJob[]> {
     return cron.listCrons(this);
   }
 
-  // ============== Stats & Metrics ==============
+  // === STATS & METRICS ===
 
-  /**
-   * Get queue statistics.
-   *
-   * @returns Queue stats
-   */
+  /** Get queue statistics */
   stats(): Promise<QueueStats> {
     return metrics.stats(this);
   }
 
-  /**
-   * Get detailed metrics.
-   *
-   * @returns Detailed metrics object
-   */
+  /** Get detailed metrics */
   metrics(): Promise<Metrics> {
     return metrics.metrics(this);
   }
 
-  // ============== Flows ==============
+  // === FLOWS ===
 
-  /**
-   * Push a flow (parent job with children).
-   *
-   * @param queue - Parent queue name
-   * @param parentData - Parent job data
-   * @param children - Array of child jobs
-   * @param options - Flow options
-   * @returns Parent and children IDs
-   */
+  /** Push a flow (parent job with children) */
   pushFlow<T = unknown>(
     queueName: string,
     parentData: T,
@@ -470,24 +232,14 @@ export class FlashQ extends FlashQConnection {
     return flows.pushFlow(this, queueName, parentData, children, options);
   }
 
-  /**
-   * Get children job IDs for a parent job in a flow.
-   *
-   * @param jobId - Parent job ID
-   * @returns Array of children job IDs
-   */
+  /** Get children job IDs for a parent job */
   getChildren(jobId: number): Promise<number[]> {
     return flows.getChildren(this, jobId);
   }
 
-  // ============== BullMQ Advanced Features ==============
+  // === ADVANCED FEATURES ===
 
-  /**
-   * Get jobs filtered by queue and/or state with pagination.
-   *
-   * @param options - Filter options
-   * @returns Jobs and total count
-   */
+  /** Get jobs filtered by queue and/or state with pagination */
   getJobs(options: {
     queue?: string;
     state?: JobState;
@@ -497,12 +249,7 @@ export class FlashQ extends FlashQConnection {
     return advanced.getJobs(this, options);
   }
 
-  /**
-   * Get job counts by state for a queue.
-   *
-   * @param queue - Queue name
-   * @returns Counts by state
-   */
+  /** Get job counts by state for a queue */
   getJobCounts(queueName: string): Promise<{
     waiting: number;
     active: number;
@@ -513,25 +260,12 @@ export class FlashQ extends FlashQConnection {
     return advanced.getJobCounts(this, queueName);
   }
 
-  /**
-   * Get total count of jobs in a queue (waiting + delayed).
-   *
-   * @param queue - Queue name
-   * @returns Total job count
-   */
+  /** Get total count of jobs in a queue (waiting + delayed) */
   count(queueName: string): Promise<number> {
     return advanced.count(this, queueName);
   }
 
-  /**
-   * Clean jobs older than grace period by state.
-   *
-   * @param queue - Queue name
-   * @param grace - Grace period in ms
-   * @param state - Job state to clean
-   * @param limit - Optional max jobs to clean
-   * @returns Number of jobs cleaned
-   */
+  /** Clean jobs older than grace period by state */
   clean(
     queueName: string,
     grace: number,
@@ -541,89 +275,44 @@ export class FlashQ extends FlashQConnection {
     return advanced.clean(this, queueName, grace, state, limit);
   }
 
-  /**
-   * Drain all waiting jobs from a queue.
-   *
-   * @param queue - Queue name
-   * @returns Number of jobs drained
-   */
+  /** Drain all waiting jobs from a queue */
   drain(queueName: string): Promise<number> {
     return advanced.drain(this, queueName);
   }
 
-  /**
-   * Remove ALL data for a queue.
-   *
-   * @param queue - Queue name
-   * @returns Total items removed
-   */
+  /** Remove ALL data for a queue */
   obliterate(queueName: string): Promise<number> {
     return advanced.obliterate(this, queueName);
   }
 
-  /**
-   * Change job priority.
-   *
-   * @param jobId - Job ID
-   * @param priority - New priority
-   */
+  /** Change job priority */
   changePriority(jobId: number, priority: number): Promise<void> {
     return advanced.changePriority(this, jobId, priority);
   }
 
-  /**
-   * Move job from processing back to delayed.
-   *
-   * @param jobId - Job ID
-   * @param delay - Delay in ms
-   */
+  /** Move job from processing back to delayed */
   moveToDelayed(jobId: number, delay: number): Promise<void> {
     return advanced.moveToDelayed(this, jobId, delay);
   }
 
-  /**
-   * Promote delayed job to waiting immediately.
-   *
-   * @param jobId - Job ID
-   */
+  /** Promote delayed job to waiting immediately */
   promote(jobId: number): Promise<void> {
     return advanced.promote(this, jobId);
   }
 
-  /**
-   * Update job data.
-   *
-   * @param jobId - Job ID
-   * @param data - New data payload
-   */
+  /** Update job data */
   update<T = unknown>(jobId: number, data: T): Promise<void> {
     return advanced.update(this, jobId, data);
   }
 
-  /**
-   * Discard job - move directly to DLQ.
-   *
-   * @param jobId - Job ID
-   */
+  /** Discard job - move directly to DLQ */
   discard(jobId: number): Promise<void> {
     return advanced.discard(this, jobId);
   }
 
-  // ============== Event Subscriptions ==============
+  // === EVENT SUBSCRIPTIONS ===
 
-  /**
-   * Subscribe to real-time events via SSE.
-   *
-   * @param queue - Optional queue to filter events
-   * @returns EventSubscriber instance
-   *
-   * @example
-   * ```typescript
-   * const events = client.subscribe();
-   * events.on('completed', (e) => console.log(`Job ${e.jobId} completed`));
-   * await events.connect();
-   * ```
-   */
+  /** Subscribe to real-time events via SSE */
   subscribe(queueName?: string): import('../events').EventSubscriber {
     const { EventSubscriber } = require('../events');
     return new EventSubscriber({
@@ -635,12 +324,7 @@ export class FlashQ extends FlashQConnection {
     });
   }
 
-  /**
-   * Subscribe to real-time events via WebSocket.
-   *
-   * @param queue - Optional queue to filter events
-   * @returns EventSubscriber instance
-   */
+  /** Subscribe to real-time events via WebSocket */
   subscribeWs(queueName?: string): import('../events').EventSubscriber {
     const { EventSubscriber } = require('../events');
     return new EventSubscriber({
@@ -650,260 +334,6 @@ export class FlashQ extends FlashQConnection {
       queue: queueName,
       type: 'websocket',
     });
-  }
-
-  // ============== Key-Value Storage (Redis-like) ==============
-
-  /**
-   * Set a key-value pair.
-   *
-   * @param key - Key name
-   * @param value - Value (any JSON-serializable data)
-   * @param options - Optional TTL settings
-   *
-   * @example
-   * ```typescript
-   * await client.kvSet('user:123', { name: 'John' });
-   * await client.kvSet('session:abc', { token: 'xyz' }, { ttl: 3600000 }); // 1 hour TTL
-   * ```
-   */
-  kvSet(key: string, value: unknown, options: kv.KvSetOptions = {}): Promise<void> {
-    return kv.set(this, key, value, options);
-  }
-
-  /**
-   * Get a value by key.
-   *
-   * @param key - Key name
-   * @returns Value or null if not found/expired
-   *
-   * @example
-   * ```typescript
-   * const user = await client.kvGet<User>('user:123');
-   * ```
-   */
-  kvGet<T = unknown>(key: string): Promise<T | null> {
-    return kv.get<T>(this, key);
-  }
-
-  /**
-   * Delete a key.
-   *
-   * @param key - Key name
-   * @returns true if key existed
-   */
-  kvDel(key: string): Promise<boolean> {
-    return kv.del(this, key);
-  }
-
-  /**
-   * Check if a key exists.
-   *
-   * @param key - Key name
-   * @returns true if key exists and not expired
-   */
-  kvExists(key: string): Promise<boolean> {
-    return kv.exists(this, key);
-  }
-
-  /**
-   * Set TTL on an existing key.
-   *
-   * @param key - Key name
-   * @param ttl - Time-to-live in milliseconds
-   * @returns true if key existed
-   */
-  kvExpire(key: string, ttl: number): Promise<boolean> {
-    return kv.expire(this, key, ttl);
-  }
-
-  /**
-   * Get remaining TTL for a key.
-   *
-   * @param key - Key name
-   * @returns ms remaining, -1 if no TTL, -2 if key doesn't exist
-   */
-  kvTtl(key: string): Promise<number> {
-    return kv.ttl(this, key);
-  }
-
-  /**
-   * Get multiple values by keys (batch operation).
-   *
-   * @param keys - Array of keys
-   * @returns Array of values (null for missing keys)
-   *
-   * @example
-   * ```typescript
-   * const [user1, user2, user3] = await client.kvMget<User>(['user:1', 'user:2', 'user:3']);
-   * ```
-   */
-  kvMget<T = unknown>(keys: string[]): Promise<(T | null)[]> {
-    return kv.mget<T>(this, keys);
-  }
-
-  /**
-   * Set multiple key-value pairs (batch operation).
-   *
-   * @param entries - Array of {key, value, ttl?}
-   * @returns Number of keys set
-   *
-   * @example
-   * ```typescript
-   * await client.kvMset([
-   *   { key: 'user:1', value: { name: 'Alice' } },
-   *   { key: 'user:2', value: { name: 'Bob' }, ttl: 60000 },
-   * ]);
-   * ```
-   */
-  kvMset(entries: kv.KvEntry[]): Promise<number> {
-    return kv.mset(this, entries);
-  }
-
-  /**
-   * List keys matching a pattern.
-   *
-   * @param pattern - Glob pattern (* = any, ? = one char)
-   * @returns Array of matching keys
-   *
-   * @example
-   * ```typescript
-   * const userKeys = await client.kvKeys('user:*');
-   * const sessionKeys = await client.kvKeys('session:???');
-   * ```
-   */
-  kvKeys(pattern?: string): Promise<string[]> {
-    return kv.keys(this, pattern);
-  }
-
-  /**
-   * Increment a numeric value atomically.
-   *
-   * @param key - Key name
-   * @param by - Amount to increment (default: 1)
-   * @returns New value
-   *
-   * @example
-   * ```typescript
-   * const views = await client.kvIncr('page:views');
-   * const score = await client.kvIncr('user:123:score', 10);
-   * ```
-   */
-  kvIncr(key: string, by: number = 1): Promise<number> {
-    return kv.incr(this, key, by);
-  }
-
-  /**
-   * Decrement a numeric value atomically.
-   *
-   * @param key - Key name
-   * @param by - Amount to decrement (default: 1)
-   * @returns New value
-   */
-  kvDecr(key: string, by: number = 1): Promise<number> {
-    return kv.decr(this, key, by);
-  }
-
-  // ============== Pub/Sub (Redis-like) ==============
-
-  /**
-   * Publish a message to a channel.
-   *
-   * @param channel - Channel name
-   * @param message - Message data (any JSON-serializable data)
-   * @returns Number of subscribers that received the message
-   *
-   * @example
-   * ```typescript
-   * const receivers = await client.publish('notifications', { type: 'alert', text: 'Hello!' });
-   * console.log(`Message sent to ${receivers} subscribers`);
-   * ```
-   */
-  publish(channel: string, message: unknown): Promise<number> {
-    return pubsub.publish(this, channel, message);
-  }
-
-  /**
-   * Subscribe to channels.
-   * Note: For real-time message delivery, use WebSocket/SSE connections.
-   *
-   * @param channels - Array of channel names
-   * @returns List of subscribed channels
-   *
-   * @example
-   * ```typescript
-   * await client.pubsubSubscribe(['notifications', 'alerts']);
-   * ```
-   */
-  pubsubSubscribe(channels: string[]): Promise<string[]> {
-    return pubsub.subscribe(this, channels);
-  }
-
-  /**
-   * Subscribe to channels matching patterns (e.g., "events:*").
-   *
-   * @param patterns - Array of glob patterns
-   * @returns List of subscribed patterns
-   *
-   * @example
-   * ```typescript
-   * await client.pubsubPsubscribe(['events:*', 'logs:*']);
-   * ```
-   */
-  pubsubPsubscribe(patterns: string[]): Promise<string[]> {
-    return pubsub.psubscribe(this, patterns);
-  }
-
-  /**
-   * Unsubscribe from channels.
-   *
-   * @param channels - Array of channel names
-   * @returns List of unsubscribed channels
-   */
-  pubsubUnsubscribe(channels: string[]): Promise<string[]> {
-    return pubsub.unsubscribe(this, channels);
-  }
-
-  /**
-   * Unsubscribe from patterns.
-   *
-   * @param patterns - Array of patterns
-   * @returns List of unsubscribed patterns
-   */
-  pubsubPunsubscribe(patterns: string[]): Promise<string[]> {
-    return pubsub.punsubscribe(this, patterns);
-  }
-
-  /**
-   * List active channels (optionally matching a pattern).
-   *
-   * @param pattern - Optional glob pattern
-   * @returns Array of active channel names
-   *
-   * @example
-   * ```typescript
-   * const allChannels = await client.pubsubChannels();
-   * const eventChannels = await client.pubsubChannels('events:*');
-   * ```
-   */
-  pubsubChannels(pattern?: string): Promise<string[]> {
-    return pubsub.channels(this, pattern);
-  }
-
-  /**
-   * Get subscriber counts for channels.
-   *
-   * @param channels - Array of channel names
-   * @returns Array of [channel, count] tuples
-   *
-   * @example
-   * ```typescript
-   * const counts = await client.pubsubNumsub(['notifications', 'alerts']);
-   * // [['notifications', 5], ['alerts', 2]]
-   * ```
-   */
-  pubsubNumsub(channels: string[]): Promise<Array<[string, number]>> {
-    return pubsub.numsub(this, channels);
   }
 }
 

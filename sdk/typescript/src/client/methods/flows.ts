@@ -1,7 +1,7 @@
 /**
  * Flow operations (parent-child job dependencies)
  */
-import type { IFlashQClient, FlowChild, FlowResult, FlowOptions } from './types';
+import type { IFlashQClient, FlowChild, FlowResult, FlowOptions } from '../types';
 
 /**
  * Push a flow (parent job with children).

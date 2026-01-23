@@ -1,7 +1,7 @@
 /**
  * Job management operations
  */
-import type { IFlashQClient, Job, JobState, JobWithState, JobLogEntry } from './types';
+import type { IFlashQClient, Job, JobState, JobWithState, JobLogEntry } from '../types';
 
 /**
  * Get a job with its current state.
@@ -325,21 +325,7 @@ export async function getLogs(
   return response.logs;
 }
 
-/**
- * Send a heartbeat to prevent job from being marked as stalled.
- *
- * @param client - FlashQ client instance
- * @param jobId - Job ID
- *
- * @example
- * ```typescript
- * // In a long-running job processor
- * for (const item of largeDataset) {
- *   await processItem(item);
- *   await client.heartbeat(job.id);
- * }
- * ```
- */
+/** Send a heartbeat to prevent job from being marked as stalled. */
 export async function heartbeat(
   client: IFlashQClient,
   jobId: number

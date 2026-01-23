@@ -10,14 +10,14 @@
  */
 
 import { describe, test, expect, beforeAll, afterAll, beforeEach } from 'bun:test';
-import { FlashQ } from '../src/client';
+import { FlashQ } from '../../src/client';
 import {
   EventSubscriber,
   createEventSubscriber,
   createWebSocketSubscriber,
   subscribeToEvents,
-} from '../src/events';
-import type { JobEvent, EventSubscriberOptions } from '../src/events';
+} from '../../src/events';
+import type { JobEvent, EventSubscriberOptions } from '../../src/events';
 
 const TEST_QUEUE = 'test-events';
 

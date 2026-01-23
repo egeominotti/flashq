@@ -1,13 +1,13 @@
 /**
  * Core operations: push, pull, ack, fail
  */
-import type { IFlashQClient, Job, PushOptions } from './types';
+import type { IFlashQClient, Job, PushOptions } from '../types';
 import {
   validateQueueName,
   validateJobDataSize,
   MAX_BATCH_SIZE,
   MAX_JOB_DATA_SIZE,
-} from '../client/connection';
+} from '../connection';
 
 export { MAX_BATCH_SIZE, MAX_JOB_DATA_SIZE };
 

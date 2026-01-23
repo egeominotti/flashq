@@ -1,7 +1,7 @@
 /**
  * Dead Letter Queue operations
  */
-import type { IFlashQClient, Job } from './types';
+import type { IFlashQClient, Job } from '../types';
 
 /**
  * Get jobs from the dead letter queue.

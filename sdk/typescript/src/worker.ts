@@ -46,7 +46,6 @@ export class Worker<T = unknown, R = unknown> extends EventEmitter {
   private processing = 0;
   private jobsProcessed = 0;
   private workers: Promise<void>[] = [];
-  private heartbeatTimer?: NodeJS.Timeout;
   private startPromise: Promise<void> | null = null;
   private stopPromise: Promise<void> | null = null;
 
@@ -62,7 +61,6 @@ export class Worker<T = unknown, R = unknown> extends EventEmitter {
       id: options.id ?? `worker-${Date.now()}-${Math.random().toString(36).slice(2)}`,
       concurrency: options.concurrency ?? 10,
       batchSize: options.batchSize ?? 100,
-      heartbeatInterval: options.heartbeatInterval ?? 1000,
       autoAck: options.autoAck ?? true,
       autorun: options.autorun ?? true,  // BullMQ-compatible: auto-start
     };
@@ -120,9 +118,6 @@ export class Worker<T = unknown, R = unknown> extends EventEmitter {
     this.state = 'running';
     this.emit('ready');
 
-    // Start heartbeat
-    this.startHeartbeat();
-
     // Start worker loops (each with its own client)
     for (let i = 0; i < this.options.concurrency; i++) {
       this.workers.push(this.batchWorkerLoop(i, this.clients[i]));
@@ -167,12 +162,6 @@ export class Worker<T = unknown, R = unknown> extends EventEmitter {
   }
 
   private async doStop(): Promise<void> {
-    // Stop heartbeat
-    if (this.heartbeatTimer) {
-      clearInterval(this.heartbeatTimer);
-      this.heartbeatTimer = undefined;
-    }
-
     // Wait for current jobs to finish
     await Promise.all(this.workers);
     this.workers = [];
@@ -306,29 +295,6 @@ export class Worker<T = unknown, R = unknown> extends EventEmitter {
 
   private async processJob(job: Job & { data: T }): Promise<R> {
     return this.processor(job);
-  }
-
-  private startHeartbeat(): void {
-    const sendHeartbeat = async () => {
-      if (this.state !== 'running') return;
-      try {
-        const url = `http://${this.clientOptions.host ?? 'localhost'}:${this.clientOptions.httpPort ?? 6790}/workers/${this.options.id}/heartbeat`;
-        await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            queues: this.queues,
-            concurrency: this.options.concurrency,
-            jobs_processed: this.jobsProcessed,
-          }),
-        });
-      } catch {
-        // Ignore heartbeat errors (HTTP may not be available)
-      }
-    };
-
-    this.heartbeatTimer = setInterval(sendHeartbeat, this.options.heartbeatInterval);
-    sendHeartbeat();
   }
 
   private sleep(ms: number): Promise<void> {

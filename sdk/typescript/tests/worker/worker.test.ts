@@ -5,8 +5,8 @@
  */
 
 import { describe, test, expect, beforeAll, afterAll, beforeEach } from 'bun:test';
-import { FlashQ } from '../src/client';
-import { Worker } from '../src/worker';
+import { FlashQ } from '../../src/client';
+import { Worker } from '../../src/worker';
 import { EventEmitter } from 'events';
 
 const TEST_QUEUE = 'test-worker';

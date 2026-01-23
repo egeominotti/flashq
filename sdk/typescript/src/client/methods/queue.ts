@@ -1,7 +1,7 @@
 /**
  * Queue control operations
  */
-import type { IFlashQClient, QueueInfo } from './types';
+import type { IFlashQClient, QueueInfo } from '../types';
 
 /**
  * Pause a queue. Workers will stop pulling jobs.
