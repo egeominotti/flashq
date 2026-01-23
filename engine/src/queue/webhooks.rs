@@ -47,8 +47,19 @@ impl QueueManager {
     }
 
     /// Delete a webhook.
+    /// Also removes the associated circuit breaker entry to prevent memory leak.
     pub async fn delete_webhook(&self, id: &str) -> bool {
-        self.webhooks.write().remove(id).is_some()
+        // Get the webhook URL before removing (for circuit cleanup)
+        let url = self.webhooks.read().get(id).map(|w| w.url.clone());
+
+        let removed = self.webhooks.write().remove(id).is_some();
+
+        // Clean up circuit breaker entry for this webhook
+        if let Some(url) = url {
+            self.webhook_circuits.write().remove(&url);
+        }
+
+        removed
     }
 
     /// Fire webhooks for an event.

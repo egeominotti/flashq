@@ -12,6 +12,8 @@ interface MetricGlowCardProps {
   formatter?: (value: number) => string;
   decimals?: number;
   suffix?: string;
+  /** Use compact notation (K/M) even when decimals/suffix are specified */
+  compact?: boolean;
   badge?: {
     text: string;
     color?: 'cyan' | 'blue' | 'emerald' | 'violet' | 'rose' | 'amber' | 'zinc';
@@ -32,6 +34,26 @@ const iconColorClasses: Record<string, string> = {
   rose: 'icon-rose',
 };
 
+/**
+ * Creates a compact formatter that appends a suffix
+ * Example: formatCompactWithSuffix('/s')(74617) => "74.6K/s"
+ */
+function formatCompactWithSuffix(suffix: string, decimals = 1): (value: number) => string {
+  return (value: number) => {
+    const safeValue = Math.max(0, value);
+    if (safeValue >= 1_000_000_000) {
+      return `${(safeValue / 1_000_000_000).toFixed(decimals)}B${suffix}`;
+    }
+    if (safeValue >= 1_000_000) {
+      return `${(safeValue / 1_000_000).toFixed(decimals)}M${suffix}`;
+    }
+    if (safeValue >= 1_000) {
+      return `${(safeValue / 1_000).toFixed(decimals)}K${suffix}`;
+    }
+    return `${safeValue.toFixed(decimals)}${suffix}`;
+  };
+}
+
 export function MetricGlowCard({
   title,
   value,
@@ -40,10 +62,30 @@ export function MetricGlowCard({
   formatter = formatCompact,
   decimals,
   suffix,
+  compact = false,
   badge,
   sparkline,
   className = '',
 }: MetricGlowCardProps) {
+  // Determine which formatter to use
+  let effectiveFormatter: ((value: number) => string) | undefined;
+  let effectiveSuffix: string | undefined;
+  let effectiveDecimals: number | undefined;
+
+  if (compact && suffix) {
+    // Use compact notation with suffix (e.g., "74.6K/s")
+    effectiveFormatter = formatCompactWithSuffix(suffix, decimals ?? 1);
+    effectiveSuffix = undefined;
+    effectiveDecimals = undefined;
+  } else if (decimals === undefined && !suffix) {
+    // Default: use compact formatter
+    effectiveFormatter = formatter;
+  } else {
+    // Use decimals/suffix without compact notation
+    effectiveSuffix = suffix;
+    effectiveDecimals = decimals;
+  }
+
   return (
     <GlowCard glowColor={glowColor} className={`metric-glow-card ${className}`}>
       <div className="metric-glow-header">
@@ -53,9 +95,9 @@ export function MetricGlowCard({
       <div className="metric-glow-value">
         <AnimatedCounter
           value={value}
-          formatter={decimals === undefined && !suffix ? formatter : undefined}
-          decimals={decimals}
-          suffix={suffix}
+          formatter={effectiveFormatter}
+          decimals={effectiveDecimals}
+          suffix={effectiveSuffix}
         />
       </div>
       <div className="metric-glow-footer">

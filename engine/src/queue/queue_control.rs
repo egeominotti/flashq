@@ -31,16 +31,31 @@ impl QueueManager {
     /// List all queues with their current stats.
     pub async fn list_queues(&self) -> Vec<QueueInfo> {
         let mut queues = Vec::new();
+        let now = now_ms();
 
         for shard in &self.shards {
             // Use read lock instead of write lock - this is a read-only operation
             let s = shard.read();
             for (name, heap) in &s.queues {
                 let state = s.queue_state.get(name);
+
+                // Count waiting vs delayed (delayed = run_at > now)
+                let mut pending = 0;
+                let mut delayed = 0;
+                for job in heap.iter() {
+                    if job.run_at > now {
+                        delayed += 1;
+                    } else {
+                        pending += 1;
+                    }
+                }
+
                 queues.push(QueueInfo {
                     name: name.to_string(),
-                    pending: heap.len(),
+                    pending,
                     processing: self.processing_count_by_queue(name.as_str()),
+                    completed: self.completed_count_by_queue(name.as_str()),
+                    delayed,
                     dlq: s.dlq.get(name).map_or(0, |d| d.len()),
                     paused: state.is_some_and(|s| s.paused),
                     rate_limit: state.and_then(|s| s.rate_limiter.as_ref().map(|r| r.limit)),

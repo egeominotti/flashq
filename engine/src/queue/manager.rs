@@ -509,6 +509,14 @@ impl QueueManager {
         count
     }
 
+    pub(crate) fn completed_count_by_queue(&self, queue: &str) -> usize {
+        let completed_data = self.completed_jobs_data.read();
+        completed_data
+            .iter()
+            .filter(|(job, _, _)| job.queue == queue)
+            .count()
+    }
+
     #[inline(always)]
     pub fn now_ms() -> u64 {
         now_ms()

@@ -1,3 +1,4 @@
+import { useState, useMemo } from 'react';
 import {
   Card,
   Title,
@@ -16,9 +17,12 @@ import {
 } from '@tremor/react';
 import { Server, Cpu, Activity, Clock, Users, Wifi, WifiOff } from 'lucide-react';
 import { useIsConnected, useWorkers } from '../stores';
-import { formatRelativeTime } from '../utils';
+import { formatRelativeTime, formatCompact } from '../utils';
+import { Pagination } from '../components/common/Pagination';
 import type { Worker } from '../api/types';
 import './Workers.css';
+
+const PAGE_SIZE = 20;
 
 // Helper functions outside component to avoid recreation on every render
 function getWorkerStatus(worker: Worker): 'active' | 'idle' | 'disconnected' {
@@ -48,6 +52,7 @@ export function Workers() {
   // Granular WebSocket hooks - only re-render when workers change
   const isConnected = useIsConnected();
   const workersData = useWorkers();
+  const [currentPage, setCurrentPage] = useState(1);
 
   const workers: Worker[] = workersData || [];
 
@@ -55,6 +60,18 @@ export function Workers() {
   const activeWorkers = Math.max(0, workers.filter((w) => getWorkerStatus(w) === 'active').length);
   const idleWorkers = Math.max(0, workers.filter((w) => getWorkerStatus(w) === 'idle').length);
   const totalProcessed = Math.max(0, workers.reduce((sum, w) => sum + Math.max(0, w.jobs_processed), 0));
+
+  // Pagination
+  const totalPages = Math.max(1, Math.ceil(workers.length / PAGE_SIZE));
+  const paginatedWorkers = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return workers.slice(start, start + PAGE_SIZE);
+  }, [workers, currentPage]);
+
+  // Reset to page 1 if current page exceeds total pages
+  if (currentPage > totalPages && totalPages > 0) {
+    setCurrentPage(1);
+  }
 
   return (
     <div className="workers-page">
@@ -131,7 +148,7 @@ export function Workers() {
           <Flex alignItems="start" justifyContent="between">
             <div>
               <Text>Jobs Processed</Text>
-              <Metric>{totalProcessed.toLocaleString()}</Metric>
+              <Metric>{formatCompact(totalProcessed)}</Metric>
             </div>
             <div className="stat-icon blue">
               <Cpu className="h-5 w-5" />
@@ -169,13 +186,13 @@ export function Workers() {
                 </TableCell>
               </TableRow>
             ) : (
-              workers.map((worker) => {
+              paginatedWorkers.map((worker) => {
                 const status = getWorkerStatus(worker);
                 return (
                   <TableRow key={worker.id}>
                     <TableCell>
                       <span className="font-mono font-semibold text-white">
-                        {worker.id.length > 20 ? `${worker.id.slice(0, 20)}...` : worker.id}
+                        {worker.id}
                       </span>
                     </TableCell>
                     <TableCell>
@@ -202,7 +219,7 @@ export function Workers() {
                     </TableCell>
                     <TableCell className="text-right">
                       <span className="font-mono text-emerald-400">
-                        {worker.jobs_processed.toLocaleString()}
+                        {formatCompact(Math.max(0, worker.jobs_processed))}
                       </span>
                     </TableCell>
                     <TableCell>
@@ -216,6 +233,19 @@ export function Workers() {
             )}
           </TableBody>
         </Table>
+
+        {/* Pagination */}
+        {workers.length > PAGE_SIZE && (
+          <div className="mt-6 border-t border-zinc-800 pt-6">
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalItems={workers.length}
+              pageSize={PAGE_SIZE}
+              onPageChange={setCurrentPage}
+            />
+          </div>
+        )}
       </Card>
     </div>
   );

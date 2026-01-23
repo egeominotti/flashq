@@ -19,6 +19,25 @@ export function formatNumber(num: number): string {
 }
 
 /**
+ * Format a number with compact notation (K/M/B)
+ * Always uses suffix for numbers >= 1000
+ * Example: 74617 -> "74.6K", 2300000 -> "2.3M"
+ */
+export function formatCompact(num: number, decimals = 1): string {
+  const safeNum = Math.max(0, num);
+  if (safeNum >= 1_000_000_000) {
+    return `${(safeNum / 1_000_000_000).toFixed(decimals)}B`;
+  }
+  if (safeNum >= 1_000_000) {
+    return `${(safeNum / 1_000_000).toFixed(decimals)}M`;
+  }
+  if (safeNum >= 1_000) {
+    return `${(safeNum / 1_000).toFixed(decimals)}K`;
+  }
+  return safeNum.toFixed(decimals === 0 ? 0 : decimals);
+}
+
+/**
  * Format bytes to human-readable size
  * Always returns non-negative values
  */

@@ -159,6 +159,7 @@ export function Analytics() {
           glowColor="violet"
           decimals={1}
           suffix="/s"
+          compact
           badge={{
             text: 'Live',
             color: 'cyan',

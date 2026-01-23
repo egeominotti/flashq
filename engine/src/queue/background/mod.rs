@@ -77,6 +77,7 @@ impl QueueManager {
         self.cleanup_debounce_cache();
         self.cleanup_expired_kv();
         self.cleanup_completed_retention();
+        self.cleanup_webhook_circuits();
         cleanup_interned_strings();
         self.shrink_memory_buffers();
     }

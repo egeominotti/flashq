@@ -275,6 +275,8 @@ pub struct QueueInfo {
     pub name: String,
     pub pending: usize,
     pub processing: usize,
+    pub completed: usize,
+    pub delayed: usize,
     pub dlq: usize,
     pub paused: bool,
     pub rate_limit: Option<u32>,

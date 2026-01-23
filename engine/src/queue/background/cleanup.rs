@@ -157,6 +157,23 @@ impl QueueManager {
         }
     }
 
+    /// Clean up orphaned webhook circuit breaker entries.
+    /// Removes circuits for webhooks that no longer exist.
+    pub(crate) fn cleanup_webhook_circuits(&self) {
+        // Collect active webhook URLs
+        let active_urls: std::collections::HashSet<String> = self
+            .webhooks
+            .read()
+            .values()
+            .map(|w| w.url.clone())
+            .collect();
+
+        // Remove circuit entries for URLs that are no longer active
+        self.webhook_circuits
+            .write()
+            .retain(|url, _| active_urls.contains(url));
+    }
+
     /// Shrink memory buffers to release unused capacity.
     pub(crate) fn shrink_memory_buffers(&self) {
         // Shrink queue heaps in all shards
