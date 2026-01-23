@@ -59,7 +59,6 @@ mod job_ops;
 mod kv;
 mod logs;
 pub mod monitoring;
-mod pubsub;
 mod queue_control;
 mod rate_limit;
 

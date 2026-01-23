@@ -80,7 +80,6 @@ pub struct QueueManager {
     pub(crate) http_client: reqwest::Client,
     pub(crate) shutdown_flag: std::sync::atomic::AtomicBool,
     pub(crate) kv_store: DashMap<String, super::kv::KvValue, BuildHasherDefault<GxHasher>>,
-    pub(crate) pubsub: super::pubsub::PubSub,
     #[allow(dead_code)]
     pub(crate) s3_backup: Option<Arc<S3BackupManager>>,
     #[allow(dead_code)]
@@ -249,7 +248,6 @@ impl QueueManager {
                 .unwrap_or_else(|_| reqwest::Client::new()),
             shutdown_flag: std::sync::atomic::AtomicBool::new(false),
             kv_store: DashMap::with_capacity_and_hasher(1024, Default::default()),
-            pubsub: super::pubsub::PubSub::new(),
             s3_backup,
             snapshot_config,
         });

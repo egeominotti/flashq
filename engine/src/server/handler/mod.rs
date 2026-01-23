@@ -8,7 +8,6 @@
 
 mod commands;
 mod kv;
-mod pubsub;
 #[cfg(test)]
 mod tests;
 

@@ -51,9 +51,6 @@ impl QueueManager {
         *self.webhook_circuits.write() = GxHashMap::default();
         *self.subscribers.write() = Vec::new();
 
-        // Reset pubsub
-        self.pubsub.reset();
-
         // Reset metrics counters
         self.metrics
             .total_pushed

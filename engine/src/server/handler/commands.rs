@@ -7,18 +7,12 @@ use crate::queue::QueueManager;
 
 use super::kv::{handle_kv_command, is_kv_command};
 use super::ok_or_error;
-use super::pubsub::{handle_pubsub_command, is_pubsub_command};
 
 /// Process a single command and return the response
 pub async fn process_command(command: Command, queue_manager: &Arc<QueueManager>) -> Response {
     // Handle KV commands
     if is_kv_command(&command) {
         return handle_kv_command(command, queue_manager);
-    }
-
-    // Handle Pub/Sub commands
-    if is_pubsub_command(&command) {
-        return handle_pubsub_command(command, queue_manager);
     }
 
     match command {
@@ -334,7 +328,7 @@ pub async fn process_command(command: Command, queue_manager: &Arc<QueueManager>
         // Auth already handled in process_request
         Command::Auth { .. } => Response::ok(),
 
-        // KV and PubSub handled above
+        // KV handled above
         _ => Response::error("Unknown command"),
     }
 }
