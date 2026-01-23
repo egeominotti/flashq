@@ -1,6 +1,11 @@
 /**
  * WebSocket Store - React 19 Best Practices
  * Single shared connection with useSyncExternalStore pattern
+ *
+ * PERFORMANCE OPTIMIZATIONS:
+ * - Stable references: Only update fields that actually changed
+ * - Throttled updates: Max 5 updates per second (200ms minimum between updates)
+ * - Shallow comparison: Skip update if values are equal
  */
 
 import { useSyncExternalStore } from 'react';
@@ -19,45 +24,77 @@ export interface DashboardData {
   timestamp: number | null;
 }
 
-// Singleton state
+// Singleton state - each field is updated independently for stable references
 let socket: WebSocket | null = null;
 let isConnected = false;
-let data: DashboardData = {
-  stats: null,
-  metrics: null,
-  queues: [],
-  workers: [],
-  crons: [],
-  metricsHistory: [],
-  systemMetrics: null,
-  sqliteStats: null,
-  timestamp: null,
-};
+let stats: Stats | null = null;
+let metrics: Metrics | null = null;
+let queues: Queue[] = [];
+let workers: Worker[] = [];
+let crons: CronJob[] = [];
+let metricsHistory: MetricsHistory[] = [];
+let systemMetrics: SystemMetrics | null = null;
+let sqliteStats: SqliteStats | null = null;
+let timestamp: number | null = null;
+
 let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
 let reconnectAttempts = 0;
 
-// Helper function to ensure all numeric values are non-negative
-function sanitizeStats(stats: Stats | null | undefined): Stats | null {
-  if (!stats) return null;
+// Throttling state
+let lastNotifyTime = 0;
+let pendingNotify = false;
+const THROTTLE_MS = 200; // Max 5 updates per second
+
+// ============================================================================
+// Shallow Comparison Helpers
+// ============================================================================
+
+function shallowEqual<T extends Record<string, unknown>>(a: T | null, b: T | null): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  const keysA = Object.keys(a);
+  const keysB = Object.keys(b);
+  if (keysA.length !== keysB.length) return false;
+  for (const key of keysA) {
+    if (a[key] !== b[key]) return false;
+  }
+  return true;
+}
+
+function arraysEqual<T>(a: T[], b: T[], compareFn: (x: T, y: T) => boolean): boolean {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (!compareFn(a[i], b[i])) return false;
+  }
+  return true;
+}
+
+// ============================================================================
+// Sanitization Helpers (ensure non-negative values)
+// ============================================================================
+
+function sanitizeStats(s: Stats | null | undefined): Stats | null {
+  if (!s) return null;
   return {
-    queued: Math.max(0, stats.queued ?? 0),
-    processing: Math.max(0, stats.processing ?? 0),
-    completed: Math.max(0, stats.completed ?? 0),
-    delayed: Math.max(0, stats.delayed ?? 0),
-    dlq: Math.max(0, stats.dlq ?? 0),
+    queued: Math.max(0, s.queued ?? 0),
+    processing: Math.max(0, s.processing ?? 0),
+    completed: Math.max(0, s.completed ?? 0),
+    delayed: Math.max(0, s.delayed ?? 0),
+    dlq: Math.max(0, s.dlq ?? 0),
   };
 }
 
-function sanitizeMetrics(metrics: Metrics | null | undefined): Metrics | null {
-  if (!metrics) return null;
+function sanitizeMetrics(m: Metrics | null | undefined): Metrics | null {
+  if (!m) return null;
   return {
-    ...metrics,
-    total_pushed: Math.max(0, metrics.total_pushed ?? 0),
-    total_completed: Math.max(0, metrics.total_completed ?? 0),
-    total_failed: Math.max(0, metrics.total_failed ?? 0),
-    jobs_per_second: Math.max(0, metrics.jobs_per_second ?? 0),
-    avg_latency_ms: Math.max(0, metrics.avg_latency_ms ?? 0),
-    queues: (metrics.queues ?? []).map((q) => ({
+    ...m,
+    total_pushed: Math.max(0, m.total_pushed ?? 0),
+    total_completed: Math.max(0, m.total_completed ?? 0),
+    total_failed: Math.max(0, m.total_failed ?? 0),
+    jobs_per_second: Math.max(0, m.jobs_per_second ?? 0),
+    avg_latency_ms: Math.max(0, m.avg_latency_ms ?? 0),
+    queues: (m.queues ?? []).map((q) => ({
       ...q,
       pending: Math.max(0, q.pending ?? 0),
       processing: Math.max(0, q.processing ?? 0),
@@ -66,9 +103,9 @@ function sanitizeMetrics(metrics: Metrics | null | undefined): Metrics | null {
   };
 }
 
-function sanitizeQueues(queues: Queue[] | null | undefined): Queue[] {
-  if (!queues) return [];
-  return queues.map((q) => ({
+function sanitizeQueues(qs: Queue[] | null | undefined): Queue[] {
+  if (!qs) return [];
+  return qs.map((q) => ({
     ...q,
     pending: Math.max(0, q.pending ?? 0),
     processing: Math.max(0, q.processing ?? 0),
@@ -78,38 +115,64 @@ function sanitizeQueues(queues: Queue[] | null | undefined): Queue[] {
   }));
 }
 
-function sanitizeMetricsHistory(history: MetricsHistory[] | null | undefined): MetricsHistory[] {
-  if (!history) return [];
-  return history.map((h) => ({
-    ...h,
-    queued: Math.max(0, h.queued ?? 0),
-    processing: Math.max(0, h.processing ?? 0),
-    completed: Math.max(0, h.completed ?? 0),
-    failed: Math.max(0, h.failed ?? 0),
-    throughput: Math.max(0, h.throughput ?? 0),
+function sanitizeMetricsHistory(h: MetricsHistory[] | null | undefined): MetricsHistory[] {
+  if (!h) return [];
+  return h.map((p) => ({
+    ...p,
+    queued: Math.max(0, p.queued ?? 0),
+    processing: Math.max(0, p.processing ?? 0),
+    completed: Math.max(0, p.completed ?? 0),
+    failed: Math.max(0, p.failed ?? 0),
+    throughput: Math.max(0, p.throughput ?? 0),
   }));
 }
 
-function sanitizeSystemMetrics(metrics: SystemMetrics | null | undefined): SystemMetrics | null {
-  if (!metrics) return null;
+function sanitizeSystemMetrics(m: SystemMetrics | null | undefined): SystemMetrics | null {
+  if (!m) return null;
   return {
-    ...metrics,
-    cpu_percent: Math.max(0, metrics.cpu_percent ?? 0),
-    memory_percent: Math.max(0, metrics.memory_percent ?? 0),
-    memory_used_mb: Math.max(0, metrics.memory_used_mb ?? 0),
-    memory_total_mb: Math.max(0, metrics.memory_total_mb ?? 0),
-    tcp_connections: Math.max(0, metrics.tcp_connections ?? 0),
-    uptime_seconds: Math.max(0, metrics.uptime_seconds ?? 0),
-    process_id: Math.max(0, metrics.process_id ?? 0),
+    ...m,
+    cpu_percent: Math.max(0, m.cpu_percent ?? 0),
+    memory_percent: Math.max(0, m.memory_percent ?? 0),
+    memory_used_mb: Math.max(0, m.memory_used_mb ?? 0),
+    memory_total_mb: Math.max(0, m.memory_total_mb ?? 0),
+    tcp_connections: Math.max(0, m.tcp_connections ?? 0),
+    uptime_seconds: Math.max(0, m.uptime_seconds ?? 0),
+    process_id: Math.max(0, m.process_id ?? 0),
   };
 }
 
-// Listeners
+// ============================================================================
+// Listeners with Throttling
+// ============================================================================
+
 const listeners = new Set<() => void>();
 
 function notify() {
-  listeners.forEach((l) => l());
+  const now = performance.now();
+  const elapsed = now - lastNotifyTime;
+
+  if (elapsed >= THROTTLE_MS) {
+    // Enough time has passed, notify immediately
+    lastNotifyTime = now;
+    pendingNotify = false;
+    listeners.forEach((l) => l());
+  } else if (!pendingNotify) {
+    // Schedule a delayed notification
+    pendingNotify = true;
+    setTimeout(() => {
+      if (pendingNotify) {
+        lastNotifyTime = performance.now();
+        pendingNotify = false;
+        listeners.forEach((l) => l());
+      }
+    }, THROTTLE_MS - elapsed);
+  }
+  // If pendingNotify is already true, we just skip (coalesce updates)
 }
+
+// ============================================================================
+// Connection Management
+// ============================================================================
 
 function connect() {
   if (socket?.readyState === WebSocket.OPEN || socket?.readyState === WebSocket.CONNECTING) {
@@ -130,21 +193,91 @@ function connect() {
         const update = JSON.parse(event.data);
         if (!update || typeof update !== 'object') return;
 
-        // Update data immutably with sanitization to prevent negative values
-        data = {
-          stats: sanitizeStats(update.stats) ?? data.stats,
-          metrics: sanitizeMetrics(update.metrics) ?? data.metrics,
-          queues: update.queues ? sanitizeQueues(update.queues) : data.queues,
-          workers: update.workers ?? data.workers,
-          crons: update.crons ?? data.crons,
-          metricsHistory: update.metrics_history
-            ? sanitizeMetricsHistory(update.metrics_history)
-            : data.metricsHistory,
-          systemMetrics: sanitizeSystemMetrics(update.system_metrics) ?? data.systemMetrics,
-          sqliteStats: update.sqlite_stats ?? data.sqliteStats,
-          timestamp: update.timestamp ?? data.timestamp,
-        };
-        notify();
+        let hasChanges = false;
+
+        // Update each field only if it actually changed
+        const newStats = sanitizeStats(update.stats);
+        if (newStats && !shallowEqual(stats as unknown as Record<string, unknown>, newStats as unknown as Record<string, unknown>)) {
+          stats = newStats;
+          hasChanges = true;
+        }
+
+        const newMetrics = sanitizeMetrics(update.metrics);
+        if (newMetrics && !shallowEqual(metrics as unknown as Record<string, unknown>, newMetrics as unknown as Record<string, unknown>)) {
+          metrics = newMetrics;
+          hasChanges = true;
+        }
+
+        if (update.queues) {
+          const newQueues = sanitizeQueues(update.queues);
+          // Quick length check first, then compare
+          if (newQueues.length !== queues.length ||
+              !arraysEqual(queues, newQueues, (a, b) =>
+                a.name === b.name &&
+                a.pending === b.pending &&
+                a.processing === b.processing &&
+                a.completed === b.completed &&
+                a.delayed === b.delayed &&
+                a.dlq === b.dlq &&
+                a.paused === b.paused
+              )) {
+            queues = newQueues;
+            hasChanges = true;
+          }
+        }
+
+        if (update.workers) {
+          const newWorkers = update.workers as Worker[];
+          if (newWorkers.length !== workers.length ||
+              !arraysEqual(workers, newWorkers, (a, b) =>
+                a.id === b.id &&
+                a.jobs_processed === b.jobs_processed &&
+                a.last_heartbeat === b.last_heartbeat
+              )) {
+            workers = newWorkers;
+            hasChanges = true;
+          }
+        }
+
+        if (update.crons) {
+          const newCrons = update.crons as CronJob[];
+          if (newCrons.length !== crons.length) {
+            crons = newCrons;
+            hasChanges = true;
+          }
+        }
+
+        if (update.metrics_history) {
+          const newHistory = sanitizeMetricsHistory(update.metrics_history);
+          // Only update if length changed or last item is different
+          if (newHistory.length !== metricsHistory.length ||
+              (newHistory.length > 0 && metricsHistory.length > 0 &&
+               newHistory[newHistory.length - 1].timestamp !== metricsHistory[metricsHistory.length - 1].timestamp)) {
+            metricsHistory = newHistory;
+            hasChanges = true;
+          }
+        }
+
+        const newSystemMetrics = sanitizeSystemMetrics(update.system_metrics);
+        if (newSystemMetrics && !shallowEqual(systemMetrics as unknown as Record<string, unknown>, newSystemMetrics as unknown as Record<string, unknown>)) {
+          systemMetrics = newSystemMetrics;
+          hasChanges = true;
+        }
+
+        if (update.sqlite_stats && !shallowEqual(sqliteStats as unknown as Record<string, unknown>, update.sqlite_stats as unknown as Record<string, unknown>)) {
+          sqliteStats = update.sqlite_stats;
+          hasChanges = true;
+        }
+
+        if (update.timestamp && update.timestamp !== timestamp) {
+          timestamp = update.timestamp;
+          // Timestamp changes don't trigger re-render alone
+        }
+
+        // Only notify if something actually changed
+        if (hasChanges) {
+          notify();
+        }
       } catch {
         // Ignore parse errors
       }
@@ -198,23 +331,23 @@ function subscribe(callback: () => void): () => void {
 
   return () => {
     listeners.delete(callback);
-
-    // Disconnect when no subscribers (optional - keep alive for better UX)
-    // if (listeners.size === 0) disconnect();
   };
 }
 
-// Snapshots - must return stable references when data hasn't changed
+// ============================================================================
+// Snapshots - Return stable references
+// ============================================================================
+
 const getIsConnected = () => isConnected;
-const getStats = () => data.stats;
-const getMetrics = () => data.metrics;
-const getQueues = () => data.queues;
-const getWorkers = () => data.workers;
-const getCrons = () => data.crons;
-const getMetricsHistory = () => data.metricsHistory;
-const getSystemMetrics = () => data.systemMetrics;
-const getSqliteStats = () => data.sqliteStats;
-const getTimestamp = () => data.timestamp;
+const getStats = () => stats;
+const getMetrics = () => metrics;
+const getQueues = () => queues;
+const getWorkers = () => workers;
+const getCrons = () => crons;
+const getMetricsHistory = () => metricsHistory;
+const getSystemMetrics = () => systemMetrics;
+const getSqliteStats = () => sqliteStats;
+const getTimestamp = () => timestamp;
 
 // Server snapshots (for SSR)
 const getServerIsConnected = () => false;
