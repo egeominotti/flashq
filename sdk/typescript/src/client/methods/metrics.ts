@@ -18,9 +18,7 @@ import type { IFlashQClient, QueueStats, Metrics } from '../types';
  * console.log(`DLQ: ${stats.dlq}`);
  * ```
  */
-export async function stats(
-  client: IFlashQClient
-): Promise<QueueStats> {
+export async function stats(client: IFlashQClient): Promise<QueueStats> {
   const response = await client.send<{
     ok: boolean;
     queued: number;
@@ -50,9 +48,7 @@ export async function stats(
  * console.log('Throughput:', metrics.throughput);
  * ```
  */
-export async function metrics(
-  client: IFlashQClient
-): Promise<Metrics> {
+export async function metrics(client: IFlashQClient): Promise<Metrics> {
   const response = await client.send<{ ok: boolean; metrics: Metrics }>({
     cmd: 'METRICS',
   });

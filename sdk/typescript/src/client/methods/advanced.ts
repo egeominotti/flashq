@@ -102,10 +102,7 @@ export async function getJobCounts(
  * console.log(`${total} jobs in queue`);
  * ```
  */
-export async function count(
-  client: IFlashQClient,
-  queue: string
-): Promise<number> {
+export async function count(client: IFlashQClient, queue: string): Promise<number> {
   const response = await client.send<{ ok: boolean; count: number }>({
     cmd: 'COUNT',
     queue,
@@ -159,10 +156,7 @@ export async function clean(
  * console.log(`Drained ${drained} jobs`);
  * ```
  */
-export async function drain(
-  client: IFlashQClient,
-  queue: string
-): Promise<number> {
+export async function drain(client: IFlashQClient, queue: string): Promise<number> {
   const response = await client.send<{ ok: boolean; count: number }>({
     cmd: 'DRAIN',
     queue,
@@ -183,10 +177,7 @@ export async function drain(
  * const removed = await client.obliterate('test-queue');
  * ```
  */
-export async function obliterate(
-  client: IFlashQClient,
-  queue: string
-): Promise<number> {
+export async function obliterate(client: IFlashQClient, queue: string): Promise<number> {
   const response = await client.send<{ ok: boolean; count: number }>({
     cmd: 'OBLITERATE',
     queue,
@@ -254,10 +245,7 @@ export async function moveToDelayed(
  * await client.promote(jobId);
  * ```
  */
-export async function promote(
-  client: IFlashQClient,
-  jobId: number
-): Promise<void> {
+export async function promote(client: IFlashQClient, jobId: number): Promise<void> {
   await client.send<{ ok: boolean }>({
     cmd: 'PROMOTE',
     id: jobId,
@@ -299,10 +287,7 @@ export async function update<T = unknown>(
  * await client.discard(jobId);
  * ```
  */
-export async function discard(
-  client: IFlashQClient,
-  jobId: number
-): Promise<void> {
+export async function discard(client: IFlashQClient, jobId: number): Promise<void> {
   await client.send<{ ok: boolean }>({
     cmd: 'DISCARD',
     id: jobId,

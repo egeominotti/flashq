@@ -69,10 +69,7 @@ export async function pushFlow<T = unknown>(
  * }
  * ```
  */
-export async function getChildren(
-  client: IFlashQClient,
-  jobId: number
-): Promise<number[]> {
+export async function getChildren(client: IFlashQClient, jobId: number): Promise<number[]> {
   const response = await client.send<{ ok: boolean; children_ids: number[] }>({
     cmd: 'GETCHILDREN',
     parent_id: jobId,

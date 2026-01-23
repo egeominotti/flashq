@@ -23,6 +23,8 @@ export interface EventSubscriberOptions {
   autoReconnect?: boolean;
   reconnectDelay?: number;
   maxReconnectAttempts?: number;
+  /** Enable debug logging (default: false) */
+  debug?: boolean;
 }
 
 export interface EventSubscriberEvents {

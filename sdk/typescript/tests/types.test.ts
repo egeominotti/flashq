@@ -7,13 +7,7 @@
  */
 
 import { describe, test, expect } from 'bun:test';
-import type {
-  Job,
-  JobState,
-  PushOptions,
-  WorkerOptions,
-  ClientOptions,
-} from '../src/types';
+import type { Job, JobState, PushOptions, WorkerOptions, ClientOptions } from '../src/types';
 
 describe('Type Definitions', () => {
   // ============== Job Types ==============
@@ -53,13 +47,7 @@ describe('Type Definitions', () => {
     });
 
     test('JobState should include all states', () => {
-      const states: JobState[] = [
-        'waiting',
-        'delayed',
-        'active',
-        'completed',
-        'failed',
-      ];
+      const states: JobState[] = ['waiting', 'delayed', 'active', 'completed', 'failed'];
 
       expect(states.length).toBe(5);
     });

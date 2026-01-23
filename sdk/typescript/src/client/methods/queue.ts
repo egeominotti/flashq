@@ -14,10 +14,7 @@ import type { IFlashQClient, QueueInfo } from '../types';
  * await client.pause('emails');
  * ```
  */
-export async function pause(
-  client: IFlashQClient,
-  queue: string
-): Promise<void> {
+export async function pause(client: IFlashQClient, queue: string): Promise<void> {
   await client.send<{ ok: boolean }>({
     cmd: 'PAUSE',
     queue,
@@ -35,10 +32,7 @@ export async function pause(
  * await client.resume('emails');
  * ```
  */
-export async function resume(
-  client: IFlashQClient,
-  queue: string
-): Promise<void> {
+export async function resume(client: IFlashQClient, queue: string): Promise<void> {
   await client.send<{ ok: boolean }>({
     cmd: 'RESUME',
     queue,
@@ -59,10 +53,7 @@ export async function resume(
  * }
  * ```
  */
-export async function isPaused(
-  client: IFlashQClient,
-  queue: string
-): Promise<boolean> {
+export async function isPaused(client: IFlashQClient, queue: string): Promise<boolean> {
   const response = await client.send<{ ok: boolean; paused: boolean }>({
     cmd: 'ISPAUSED',
     queue,
@@ -106,10 +97,7 @@ export async function setRateLimit(
  * await client.clearRateLimit('api-calls');
  * ```
  */
-export async function clearRateLimit(
-  client: IFlashQClient,
-  queue: string
-): Promise<void> {
+export async function clearRateLimit(client: IFlashQClient, queue: string): Promise<void> {
   await client.send<{ ok: boolean }>({
     cmd: 'RATELIMITCLEAR',
     queue,
@@ -152,10 +140,7 @@ export async function setConcurrency(
  * await client.clearConcurrency('heavy-tasks');
  * ```
  */
-export async function clearConcurrency(
-  client: IFlashQClient,
-  queue: string
-): Promise<void> {
+export async function clearConcurrency(client: IFlashQClient, queue: string): Promise<void> {
   await client.send<{ ok: boolean }>({
     cmd: 'CLEARCONCURRENCY',
     queue,
@@ -176,9 +161,7 @@ export async function clearConcurrency(
  * }
  * ```
  */
-export async function listQueues(
-  client: IFlashQClient
-): Promise<QueueInfo[]> {
+export async function listQueues(client: IFlashQClient): Promise<QueueInfo[]> {
   const response = await client.send<{ ok: boolean; queues: QueueInfo[] }>({
     cmd: 'LISTQUEUES',
   });

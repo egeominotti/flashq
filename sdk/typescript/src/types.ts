@@ -38,12 +38,7 @@ export interface Job<T = unknown> {
   group_id?: string;
 }
 
-export type JobState =
-  | 'waiting'
-  | 'delayed'
-  | 'active'
-  | 'completed'
-  | 'failed';
+export type JobState = 'waiting' | 'delayed' | 'active' | 'completed' | 'failed';
 
 export interface JobWithState<T = unknown> {
   job: Job<T>;
@@ -104,6 +99,21 @@ export interface WorkerOptions {
   autoAck?: boolean;
 }
 
+export interface RetryConfig {
+  /** Enable automatic retry on retryable errors (default: false) */
+  enabled?: boolean;
+  /** Max retry attempts (default: 3) */
+  maxRetries?: number;
+  /** Initial delay in ms (default: 100) */
+  initialDelay?: number;
+  /** Max delay in ms (default: 5000) */
+  maxDelay?: number;
+  /** Callback on each retry */
+  onRetry?: (error: Error, attempt: number, delay: number) => void;
+}
+
+import type { ClientHooks } from './hooks';
+
 export interface ClientOptions {
   /** Server host (default: localhost) */
   host?: string;
@@ -129,6 +139,24 @@ export interface ClientOptions {
   reconnectDelay?: number;
   /** Max reconnect delay in ms (default: 30000) */
   maxReconnectDelay?: number;
+  /** Enable debug logging (default: false) - deprecated, use logLevel */
+  debug?: boolean;
+  /** Log level: 'trace' | 'debug' | 'info' | 'warn' | 'error' | 'silent' (default: 'silent') */
+  logLevel?: 'trace' | 'debug' | 'info' | 'warn' | 'error' | 'silent';
+  /** Automatic retry configuration for failed requests */
+  retry?: boolean | RetryConfig;
+  /** Queue requests during reconnection instead of failing (default: false) */
+  queueOnDisconnect?: boolean;
+  /** Max queued requests during disconnect (default: 100) */
+  maxQueuedRequests?: number;
+  /** Enable request ID tracking for debugging (default: false) */
+  trackRequestIds?: boolean;
+  /** Enable gzip compression for large payloads (default: false) */
+  compression?: boolean;
+  /** Minimum payload size to compress in bytes (default: 1024) */
+  compressionThreshold?: number;
+  /** Hooks for observability (OpenTelemetry, metrics, etc.) */
+  hooks?: ClientHooks;
 }
 
 // ============== Queue Info ==============
@@ -219,6 +247,24 @@ export interface ApiResponse<T = unknown> {
   error?: string;
 }
 
-export type JobProcessor<T = unknown, R = unknown> = (
-  job: Job<T>
-) => R | Promise<R>;
+export type JobProcessor<T = unknown, R = unknown> = (job: Job<T>) => R | Promise<R>;
+
+// ============== Batch Results ==============
+
+export interface BatchResult<T> {
+  /** Successfully processed items */
+  succeeded: T[];
+  /** Failed items with their errors */
+  failed: Array<{ index: number; error: string }>;
+  /** Whether all items succeeded */
+  allSucceeded: boolean;
+}
+
+export interface BatchPushResult {
+  /** Successfully created job IDs */
+  ids: number[];
+  /** Failed jobs with their errors */
+  failed: Array<{ index: number; error: string }>;
+  /** Whether all jobs were created */
+  allSucceeded: boolean;
+}

@@ -109,7 +109,7 @@ describe('FlashQ Worker', () => {
       await client.push(TEST_QUEUE, { message: 'hello worker' });
 
       // Wait for processing
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise((resolve) => setTimeout(resolve, 500));
 
       await worker.stop();
 
@@ -120,11 +120,11 @@ describe('FlashQ Worker', () => {
       let completedJob: any = null;
       let completedResult: any = null;
 
-      const worker = new Worker(
-        TEST_QUEUE,
-        async () => ({ result: 'success' }),
-        { host: 'localhost', port: 6789, concurrency: 1 }
-      );
+      const worker = new Worker(TEST_QUEUE, async () => ({ result: 'success' }), {
+        host: 'localhost',
+        port: 6789,
+        concurrency: 1,
+      });
 
       worker.on('completed', (job, result) => {
         completedJob = job;
@@ -134,7 +134,7 @@ describe('FlashQ Worker', () => {
       await worker.start();
       await client.push(TEST_QUEUE, { data: 1 });
 
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise((resolve) => setTimeout(resolve, 500));
       await worker.stop();
 
       expect(completedJob).not.toBeNull();
@@ -161,7 +161,7 @@ describe('FlashQ Worker', () => {
       await worker.start();
       await client.push(TEST_QUEUE, { data: 1 }, { max_attempts: 1 });
 
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise((resolve) => setTimeout(resolve, 500));
       await worker.stop();
 
       expect(failedJob).not.toBeNull();
@@ -179,8 +179,8 @@ describe('FlashQ Worker', () => {
 
       const worker = new Worker(
         TEST_QUEUE,
-        async (job) => {
-          await new Promise(r => setTimeout(r, 100));
+        async (_job) => {
+          await new Promise((r) => setTimeout(r, 100));
           processingTimes.push(Date.now() - startTime);
           return {};
         },
@@ -195,7 +195,7 @@ describe('FlashQ Worker', () => {
       }
 
       // Wait for all to complete
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise((resolve) => setTimeout(resolve, 500));
       await worker.stop();
 
       // With concurrency 5, all jobs should complete around the same time
@@ -212,7 +212,7 @@ describe('FlashQ Worker', () => {
         async () => {
           const current = worker.getProcessingCount();
           maxProcessing = Math.max(maxProcessing, current);
-          await new Promise(r => setTimeout(r, 100));
+          await new Promise((r) => setTimeout(r, 100));
           return {};
         },
         { host: 'localhost', port: 6789, concurrency: 3 }
@@ -224,7 +224,7 @@ describe('FlashQ Worker', () => {
         await client.push(TEST_QUEUE, { i });
       }
 
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise((resolve) => setTimeout(resolve, 500));
       await worker.stop();
 
       expect(maxProcessing).toBeLessThanOrEqual(3);
@@ -259,7 +259,7 @@ describe('FlashQ Worker', () => {
       await client.push(QUEUE_A, { queue: 'A' });
       await client.push(QUEUE_B, { queue: 'B' });
 
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise((resolve) => setTimeout(resolve, 500));
       await worker.stop();
 
       expect(processed).toContain(QUEUE_A);
@@ -271,11 +271,11 @@ describe('FlashQ Worker', () => {
 
   describe('Jobs Processed Counter', () => {
     test.skip('should track total jobs processed', async () => {
-      const worker = new Worker(
-        TEST_QUEUE,
-        async () => ({}),
-        { host: 'localhost', port: 6789, concurrency: 2 }
-      );
+      const worker = new Worker(TEST_QUEUE, async () => ({}), {
+        host: 'localhost',
+        port: 6789,
+        concurrency: 2,
+      });
 
       await worker.start();
 
@@ -283,7 +283,7 @@ describe('FlashQ Worker', () => {
         await client.push(TEST_QUEUE, { i });
       }
 
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise((resolve) => setTimeout(resolve, 500));
 
       const processed = worker.getJobsProcessed();
       await worker.stop();
@@ -301,7 +301,7 @@ describe('FlashQ Worker', () => {
       const worker = new Worker(
         TEST_QUEUE,
         async () => {
-          await new Promise(r => setTimeout(r, 200));
+          await new Promise((r) => setTimeout(r, 200));
           completed++;
           return {};
         },
@@ -312,7 +312,7 @@ describe('FlashQ Worker', () => {
       await client.push(TEST_QUEUE, { data: 1 });
 
       // Wait for job to start processing
-      await new Promise(resolve => setTimeout(resolve, 50));
+      await new Promise((resolve) => setTimeout(resolve, 50));
 
       // Stop should wait for current job
       await worker.stop();
@@ -323,11 +323,11 @@ describe('FlashQ Worker', () => {
     test('should emit stopping and stopped events', async () => {
       const events: string[] = [];
 
-      const worker = new Worker(
-        TEST_QUEUE,
-        async () => ({}),
-        { host: 'localhost', port: 6789, concurrency: 1 }
-      );
+      const worker = new Worker(TEST_QUEUE, async () => ({}), {
+        host: 'localhost',
+        port: 6789,
+        concurrency: 1,
+      });
 
       worker.on('ready', () => events.push('ready'));
       worker.on('stopping', () => events.push('stopping'));
@@ -346,17 +346,17 @@ describe('FlashQ Worker', () => {
 
   describe('Auto Ack', () => {
     test('should auto-ack successful jobs by default', async () => {
-      const worker = new Worker(
-        TEST_QUEUE,
-        async () => ({ success: true }),
-        { host: 'localhost', port: 6789, concurrency: 1 }
-      );
+      const worker = new Worker(TEST_QUEUE, async () => ({ success: true }), {
+        host: 'localhost',
+        port: 6789,
+        concurrency: 1,
+      });
 
       await worker.start();
 
       const job = await client.push(TEST_QUEUE, { data: 1 });
 
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise((resolve) => setTimeout(resolve, 500));
       await worker.stop();
 
       const state = await client.getState(job.id);
@@ -376,7 +376,7 @@ describe('FlashQ Worker', () => {
 
       const job = await client.push(TEST_QUEUE, { data: 1 }, { max_attempts: 1 });
 
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise((resolve) => setTimeout(resolve, 500));
       await worker.stop();
 
       const state = await client.getState(job.id);
@@ -388,11 +388,11 @@ describe('FlashQ Worker', () => {
 
   describe('updateProgress', () => {
     test('should have updateProgress method', async () => {
-      const worker = new Worker<{ data: number }>(
-        TEST_QUEUE,
-        async () => ({}),
-        { host: 'localhost', port: 6789, concurrency: 1 }
-      );
+      const worker = new Worker<{ data: number }>(TEST_QUEUE, async () => ({}), {
+        host: 'localhost',
+        port: 6789,
+        concurrency: 1,
+      });
 
       // Verify method exists
       expect(typeof worker.updateProgress).toBe('function');
@@ -407,7 +407,7 @@ describe('FlashQ Worker', () => {
           capturedJobId = job.id;
           // Update progress during processing
           await worker.updateProgress(job.id, 50, 'Processing...');
-          await new Promise(r => setTimeout(r, 100));
+          await new Promise((r) => setTimeout(r, 100));
           await worker.updateProgress(job.id, 100, 'Done');
           return {};
         },
@@ -417,7 +417,7 @@ describe('FlashQ Worker', () => {
       await worker.start();
       await client.push(TEST_QUEUE, { data: 1 });
 
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise((resolve) => setTimeout(resolve, 500));
       await worker.stop();
 
       // Verify progress was updated
@@ -432,7 +432,7 @@ describe('FlashQ Worker', () => {
 
   describe('Error Events', () => {
     test.skip('should emit error event on connection issues', async () => {
-      let errorEmitted = false;
+      let _errorEmitted = false;
 
       const worker = new Worker(
         TEST_QUEUE,
@@ -441,12 +441,12 @@ describe('FlashQ Worker', () => {
       );
 
       worker.on('error', () => {
-        errorEmitted = true;
+        _errorEmitted = true;
       });
 
       try {
         await worker.start();
-        await new Promise(r => setTimeout(r, 200));
+        await new Promise((r) => setTimeout(r, 200));
       } catch {
         // Expected to fail
       }
@@ -465,7 +465,7 @@ describe('FlashQ Worker', () => {
       const worker = new Worker(
         TEST_QUEUE,
         async () => {
-          await new Promise(r => setTimeout(r, 50));
+          await new Promise((r) => setTimeout(r, 50));
           return {};
         },
         { host: 'localhost', port: 6789, concurrency: 1 }
@@ -479,7 +479,7 @@ describe('FlashQ Worker', () => {
       await worker.start();
       await client.push(TEST_QUEUE, { data: 1 });
 
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise((resolve) => setTimeout(resolve, 500));
       await worker.stop();
 
       expect(activeJob).not.toBeNull();
@@ -521,7 +521,7 @@ describe('FlashQ Worker', () => {
       await worker.start();
       await client.push(TEST_QUEUE, { value: 5, name: 'Alice' });
 
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise((resolve) => setTimeout(resolve, 500));
       await worker.stop();
 
       expect(results.length).toBe(1);
@@ -534,11 +534,11 @@ describe('FlashQ Worker', () => {
 
   describe('Idempotent Operations', () => {
     test('should handle double start gracefully', async () => {
-      const worker = new Worker(
-        TEST_QUEUE,
-        async () => ({}),
-        { host: 'localhost', port: 6789, concurrency: 1 }
-      );
+      const worker = new Worker(TEST_QUEUE, async () => ({}), {
+        host: 'localhost',
+        port: 6789,
+        concurrency: 1,
+      });
 
       await worker.start();
       await worker.start(); // Second start should be no-op
@@ -549,11 +549,11 @@ describe('FlashQ Worker', () => {
     });
 
     test('should handle double stop gracefully', async () => {
-      const worker = new Worker(
-        TEST_QUEUE,
-        async () => ({}),
-        { host: 'localhost', port: 6789, concurrency: 1 }
-      );
+      const worker = new Worker(TEST_QUEUE, async () => ({}), {
+        host: 'localhost',
+        port: 6789,
+        concurrency: 1,
+      });
 
       await worker.start();
       await worker.stop();

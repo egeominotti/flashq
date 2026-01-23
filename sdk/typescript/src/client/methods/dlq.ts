@@ -17,11 +17,7 @@ import type { IFlashQClient, Job } from '../types';
  * console.log(`${failed.length} jobs in DLQ`);
  * ```
  */
-export async function getDlq(
-  client: IFlashQClient,
-  queue: string,
-  count = 100
-): Promise<Job[]> {
+export async function getDlq(client: IFlashQClient, queue: string, count = 100): Promise<Job[]> {
   const response = await client.send<{ ok: boolean; jobs: Job[] }>({
     cmd: 'DLQ',
     queue,
@@ -73,10 +69,7 @@ export async function retryDlq(
  * console.log(`Purged ${purged} failed jobs`);
  * ```
  */
-export async function purgeDlq(
-  client: IFlashQClient,
-  queue: string
-): Promise<number> {
+export async function purgeDlq(client: IFlashQClient, queue: string): Promise<number> {
   const response = await client.send<{ ok: boolean; count: number }>({
     cmd: 'PURGEDLQ',
     queue,

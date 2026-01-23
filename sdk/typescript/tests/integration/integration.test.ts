@@ -72,14 +72,14 @@ describe('Integration Tests', () => {
       await client.fail(pulled!.id, 'Attempt 1 failed');
 
       // Wait for backoff
-      await new Promise(r => setTimeout(r, 200));
+      await new Promise((r) => setTimeout(r, 200));
 
       // Second attempt - fail
       pulled = await client.pull(TEST_QUEUE, 5000);
       expect(pulled).not.toBeNull();
       await client.fail(pulled!.id, 'Attempt 2 failed');
 
-      await new Promise(r => setTimeout(r, 400));
+      await new Promise((r) => setTimeout(r, 400));
 
       // Third attempt - success
       pulled = await client.pull(TEST_QUEUE, 5000);
@@ -99,7 +99,7 @@ describe('Integration Tests', () => {
       let pulled = await client.pull(TEST_QUEUE, 5000);
       await client.fail(pulled!.id, 'Fail 1');
 
-      await new Promise(r => setTimeout(r, 200));
+      await new Promise((r) => setTimeout(r, 200));
 
       // Second attempt (last)
       pulled = await client.pull(TEST_QUEUE, 5000);
@@ -110,7 +110,7 @@ describe('Integration Tests', () => {
       expect(state).toBe('failed');
 
       const dlqJobs = await client.getDlq(TEST_QUEUE);
-      expect(dlqJobs.some(j => j.id === job.id)).toBe(true);
+      expect(dlqJobs.some((j) => j.id === job.id)).toBe(true);
     });
   });
 
@@ -137,7 +137,7 @@ describe('Integration Tests', () => {
       }
 
       // Wait for processing
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
 
       await worker.stop();
 
@@ -172,7 +172,7 @@ describe('Integration Tests', () => {
         await client.push(TEST_QUEUE, { num: i }, { max_attempts: 1 });
       }
 
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
       await worker.stop();
 
       expect(processed.sort()).toEqual([1, 3, 5]);
@@ -204,7 +204,7 @@ describe('Integration Tests', () => {
       );
 
       await worker.start();
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
       await worker.stop();
 
       // High priority should come first
@@ -237,11 +237,11 @@ describe('Integration Tests', () => {
       await client.push(TEST_QUEUE, { id: 2 }, { delay: 500 });
 
       // Wait less than delay
-      await new Promise(resolve => setTimeout(resolve, 200));
+      await new Promise((resolve) => setTimeout(resolve, 200));
       expect(processed).toEqual([1]); // Only immediate job
 
       // Wait for delay to pass
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise((resolve) => setTimeout(resolve, 500));
       expect(processed).toContain(2);
 
       await worker.stop();
@@ -286,7 +286,7 @@ describe('Integration Tests', () => {
       await worker.start();
 
       // Wait for processing
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      await new Promise((resolve) => setTimeout(resolve, 2000));
 
       await worker.stop();
 
@@ -300,14 +300,10 @@ describe('Integration Tests', () => {
   describe('Flow Processing', () => {
     test.skip('should create flow with parent and children', async () => {
       // Create flow
-      const flow = await client.pushFlow(
-        TEST_QUEUE,
-        { type: 'parent', aggregate: [] },
-        [
-          { queue: TEST_QUEUE, data: { type: 'child', value: 1 } },
-          { queue: TEST_QUEUE, data: { type: 'child', value: 2 } },
-        ]
-      );
+      const flow = await client.pushFlow(TEST_QUEUE, { type: 'parent', aggregate: [] }, [
+        { queue: TEST_QUEUE, data: { type: 'child', value: 1 } },
+        { queue: TEST_QUEUE, data: { type: 'child', value: 2 } },
+      ]);
 
       expect(flow.parent_id).toBeGreaterThan(0);
       expect(flow.children_ids.length).toBeGreaterThanOrEqual(0);
@@ -323,10 +319,10 @@ describe('Integration Tests', () => {
   describe('Queue API Integration', () => {
     test('should work with Queue high-level API', async () => {
       // BullMQ pattern: separate Queue for adding, Worker for processing
-      const emailQueue = new Queue<{ to: string; subject: string }>(
-        TEST_QUEUE,
-        { host: 'localhost', port: 6789 }
-      );
+      const emailQueue = new Queue<{ to: string; subject: string }>(TEST_QUEUE, {
+        host: 'localhost',
+        port: 6789,
+      });
 
       const sentEmails: string[] = [];
 
@@ -346,7 +342,7 @@ describe('Integration Tests', () => {
       await emailQueue.add('send', { to: 'a@test.com', subject: 'Hello A' });
       await emailQueue.add('send', { to: 'b@test.com', subject: 'Hello B' });
 
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise((resolve) => setTimeout(resolve, 500));
 
       expect(sentEmails).toContain('a@test.com');
       expect(sentEmails).toContain('b@test.com');
@@ -382,7 +378,7 @@ describe('Integration Tests', () => {
       await Promise.all(pushPromises);
 
       // Wait for processing
-      await new Promise(resolve => setTimeout(resolve, 3000));
+      await new Promise((resolve) => setTimeout(resolve, 3000));
 
       await worker.stop();
 

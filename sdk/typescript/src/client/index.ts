@@ -13,51 +13,166 @@ import * as cron from './methods/cron';
 import * as metrics from './methods/metrics';
 import * as flows from './methods/flows';
 import * as advanced from './methods/advanced';
+import {
+  callHook,
+  callErrorHook,
+  createHookContext,
+  type ClientHooks,
+  type PushHookContext,
+  type PullHookContext,
+  type AckHookContext,
+  type FailHookContext,
+  type BatchPushHookContext,
+  type BatchPullHookContext,
+} from '../hooks';
 
 import type {
-  Job, JobState, JobWithState, PushOptions,
-  QueueInfo, QueueStats, Metrics,
-  CronJob, CronOptions, JobLogEntry,
-  FlowChild, FlowResult, FlowOptions,
+  Job,
+  JobState,
+  JobWithState,
+  PushOptions,
+  QueueInfo,
+  QueueStats,
+  Metrics,
+  CronJob,
+  CronOptions,
+  JobLogEntry,
+  FlowChild,
+  FlowResult,
+  FlowOptions,
+  BatchPushResult,
 } from './types';
+
+export type { BatchPushResult } from './types';
 
 /** FlashQ Client - High-performance job queue client with auto-connect. */
 export class FlashQ extends FlashQConnection {
+  /** Hooks for observability */
+  get hooks(): ClientHooks | undefined {
+    return this._options.hooks;
+  }
+
   // === CORE OPERATIONS ===
 
   /** Push a job to a queue */
-  push<T = unknown>(queue: string, data: T, opts: PushOptions = {}): Promise<Job> {
-    return core.push(this, queue, data, opts);
+  async push<T = unknown>(queueName: string, data: T, opts: PushOptions = {}): Promise<Job> {
+    const ctx = createHookContext<PushHookContext>({ queue: queueName, data, options: opts });
+    await callHook(this.hooks?.onPush, ctx);
+    try {
+      const job = await core.push(this, queueName, data, opts);
+      ctx.job = job;
+      await callHook(this.hooks?.onPushComplete, ctx);
+      return job;
+    } catch (error) {
+      await callErrorHook(this.hooks?.onPushError, ctx, error as Error);
+      throw error;
+    }
   }
 
   /** Add a job to a queue (alias for push) */
-  add<T = unknown>(queue: string, data: T, opts: PushOptions = {}): Promise<Job> {
-    return this.push(queue, data, opts);
+  add<T = unknown>(queueName: string, data: T, opts: PushOptions = {}): Promise<Job> {
+    return this.push(queueName, data, opts);
   }
 
   /** Push multiple jobs in a single batch */
-  pushBatch<T = unknown>(queue: string, jobList: Array<{ data: T } & PushOptions>): Promise<number[]> {
-    return core.pushBatch(this, queue, jobList);
+  async pushBatch<T = unknown>(
+    queueName: string,
+    jobList: Array<{ data: T } & PushOptions>
+  ): Promise<number[]> {
+    const ctx = createHookContext<BatchPushHookContext>({
+      queue: queueName,
+      count: jobList.length,
+    });
+    await callHook(this.hooks?.onBatchPush, ctx);
+    try {
+      const ids = await core.pushBatch(this, queueName, jobList);
+      ctx.ids = ids;
+      await callHook(this.hooks?.onBatchPushComplete, ctx);
+      return ids;
+    } catch (error) {
+      await callErrorHook(this.hooks?.onBatchPushError, ctx, error as Error);
+      throw error;
+    }
   }
 
   /** Add multiple jobs (alias for pushBatch) */
-  addBulk<T = unknown>(queue: string, jobList: Array<{ data: T } & PushOptions>): Promise<number[]> {
-    return this.pushBatch(queue, jobList);
+  addBulk<T = unknown>(
+    queueName: string,
+    jobList: Array<{ data: T } & PushOptions>
+  ): Promise<number[]> {
+    return this.pushBatch(queueName, jobList);
+  }
+
+  /** Push multiple jobs with partial failure handling */
+  async pushBatchSafe<T = unknown>(
+    queueName: string,
+    jobList: Array<{ data: T } & PushOptions>
+  ): Promise<BatchPushResult> {
+    const ctx = createHookContext<BatchPushHookContext>({
+      queue: queueName,
+      count: jobList.length,
+    });
+    await callHook(this.hooks?.onBatchPush, ctx);
+    try {
+      const result = await core.pushBatchSafe(this, queueName, jobList);
+      ctx.ids = result.ids;
+      ctx.failedCount = result.failed.length;
+      await callHook(this.hooks?.onBatchPushComplete, ctx);
+      return result;
+    } catch (error) {
+      await callErrorHook(this.hooks?.onBatchPushError, ctx, error as Error);
+      throw error;
+    }
   }
 
   /** Pull a job from a queue (blocking with timeout) */
-  pull<T = unknown>(queue: string, timeout?: number): Promise<(Job & { data: T }) | null> {
-    return core.pull(this, queue, timeout);
+  async pull<T = unknown>(
+    queueName: string,
+    timeout?: number
+  ): Promise<(Job & { data: T }) | null> {
+    const ctx = createHookContext<PullHookContext>({ queue: queueName, timeout });
+    await callHook(this.hooks?.onPull, ctx);
+    try {
+      const job = await core.pull<T>(this, queueName, timeout);
+      ctx.job = job;
+      await callHook(this.hooks?.onPullComplete, ctx);
+      return job;
+    } catch (error) {
+      await callErrorHook(this.hooks?.onPullError, ctx, error as Error);
+      throw error;
+    }
   }
 
   /** Pull multiple jobs from a queue */
-  pullBatch<T = unknown>(queue: string, count: number, timeout?: number): Promise<Array<Job & { data: T }>> {
-    return core.pullBatch(this, queue, count, timeout);
+  async pullBatch<T = unknown>(
+    queueName: string,
+    count: number,
+    timeout?: number
+  ): Promise<Array<Job & { data: T }>> {
+    const ctx = createHookContext<BatchPullHookContext>({ queue: queueName, count, timeout });
+    await callHook(this.hooks?.onBatchPull, ctx);
+    try {
+      const jobList = await core.pullBatch<T>(this, queueName, count, timeout);
+      ctx.jobs = jobList;
+      await callHook(this.hooks?.onBatchPullComplete, ctx);
+      return jobList;
+    } catch (error) {
+      await callErrorHook(this.hooks?.onBatchPullError, ctx, error as Error);
+      throw error;
+    }
   }
 
   /** Acknowledge a job as completed */
-  ack(jobId: number, result?: unknown): Promise<void> {
-    return core.ack(this, jobId, result);
+  async ack(jobId: number, result?: unknown): Promise<void> {
+    const ctx = createHookContext<AckHookContext>({ jobId, result });
+    await callHook(this.hooks?.onAck, ctx);
+    try {
+      await core.ack(this, jobId, result);
+      await callHook(this.hooks?.onAckComplete, ctx);
+    } catch (error) {
+      await callErrorHook(this.hooks?.onAckError, ctx, error as Error);
+      throw error;
+    }
   }
 
   /** Acknowledge multiple jobs at once */
@@ -66,8 +181,16 @@ export class FlashQ extends FlashQConnection {
   }
 
   /** Fail a job (will retry or move to DLQ) */
-  fail(jobId: number, error?: string): Promise<void> {
-    return core.fail(this, jobId, error);
+  async fail(jobId: number, error?: string): Promise<void> {
+    const ctx = createHookContext<FailHookContext>({ jobId, error });
+    await callHook(this.hooks?.onFail, ctx);
+    try {
+      await core.fail(this, jobId, error);
+      await callHook(this.hooks?.onFailComplete, ctx);
+    } catch (err) {
+      await callErrorHook(this.hooks?.onFailError, ctx, err as Error);
+      throw err;
+    }
   }
 
   // === JOB QUERY & MANAGEMENT ===
@@ -240,12 +363,14 @@ export class FlashQ extends FlashQConnection {
   // === ADVANCED FEATURES ===
 
   /** Get jobs filtered by queue and/or state with pagination */
-  getJobs(options: {
-    queue?: string;
-    state?: JobState;
-    limit?: number;
-    offset?: number;
-  } = {}): Promise<{ jobs: JobWithState[]; total: number }> {
+  getJobs(
+    options: {
+      queue?: string;
+      state?: JobState;
+      limit?: number;
+      offset?: number;
+    } = {}
+  ): Promise<{ jobs: JobWithState[]; total: number }> {
     return advanced.getJobs(this, options);
   }
 

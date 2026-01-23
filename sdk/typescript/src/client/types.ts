@@ -15,7 +15,14 @@ import type {
   JobLogEntry,
   FlowChild,
   FlowResult,
+  BatchPushResult,
 } from '../types';
+import type { ClientHooks } from '../hooks';
+
+/** Client options with required fields except hooks */
+export type ResolvedClientOptions = Required<Omit<ClientOptions, 'hooks'>> & {
+  hooks?: ClientHooks;
+};
 
 /**
  * Interface for the internal send method.
@@ -25,7 +32,9 @@ export interface IFlashQClient {
   /** Send a command to the server */
   send<T>(command: Record<string, unknown>, customTimeout?: number): Promise<T>;
   /** Client options */
-  readonly options: Required<ClientOptions>;
+  readonly options: ResolvedClientOptions;
+  /** Client hooks for observability */
+  readonly hooks?: ClientHooks;
 }
 
 /**
@@ -51,4 +60,5 @@ export type {
   JobLogEntry,
   FlowChild,
   FlowResult,
+  BatchPushResult,
 };

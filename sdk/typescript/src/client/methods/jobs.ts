@@ -18,10 +18,7 @@ import type { IFlashQClient, Job, JobState, JobWithState, JobLogEntry } from '..
  * }
  * ```
  */
-export async function getJob(
-  client: IFlashQClient,
-  jobId: number
-): Promise<JobWithState | null> {
+export async function getJob(client: IFlashQClient, jobId: number): Promise<JobWithState | null> {
   const response = await client.send<{
     ok: boolean;
     job: Job | null;
@@ -47,10 +44,7 @@ export async function getJob(
  * console.log(`Job state: ${state}`);
  * ```
  */
-export async function getState(
-  client: IFlashQClient,
-  jobId: number
-): Promise<JobState | null> {
+export async function getState(client: IFlashQClient, jobId: number): Promise<JobState | null> {
   const response = await client.send<{
     ok: boolean;
     id: number;
@@ -207,10 +201,7 @@ export async function getJobsBatch(
  * await client.cancel(job.id);
  * ```
  */
-export async function cancel(
-  client: IFlashQClient,
-  jobId: number
-): Promise<void> {
+export async function cancel(client: IFlashQClient, jobId: number): Promise<void> {
   await client.send<{ ok: boolean }>({
     cmd: 'CANCEL',
     id: jobId,
@@ -314,10 +305,7 @@ export async function log(
  * const logs = await client.getLogs(job.id);
  * ```
  */
-export async function getLogs(
-  client: IFlashQClient,
-  jobId: number
-): Promise<JobLogEntry[]> {
+export async function getLogs(client: IFlashQClient, jobId: number): Promise<JobLogEntry[]> {
   const response = await client.send<{ ok: boolean; logs: JobLogEntry[] }>({
     cmd: 'GETLOGS',
     job_id: jobId,
@@ -326,10 +314,7 @@ export async function getLogs(
 }
 
 /** Send a heartbeat to prevent job from being marked as stalled. */
-export async function heartbeat(
-  client: IFlashQClient,
-  jobId: number
-): Promise<void> {
+export async function heartbeat(client: IFlashQClient, jobId: number): Promise<void> {
   await client.send<{ ok: boolean }>({
     cmd: 'HEARTBEAT',
     job_id: jobId,

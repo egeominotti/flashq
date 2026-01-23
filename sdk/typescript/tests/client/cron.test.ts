@@ -21,7 +21,11 @@ describe('FlashQ Cron Jobs', () => {
   });
 
   afterEach(async () => {
-    try { await client.deleteCron(CRON_NAME); } catch {}
+    try {
+      await client.deleteCron(CRON_NAME);
+    } catch {
+      /* ignore cleanup errors */
+    }
   });
 
   test('should add cron job with schedule', async () => {
@@ -32,7 +36,7 @@ describe('FlashQ Cron Jobs', () => {
     });
 
     const crons = await client.listCrons();
-    expect(crons.some(c => c.name === CRON_NAME)).toBe(true);
+    expect(crons.some((c) => c.name === CRON_NAME)).toBe(true);
   });
 
   test('should add cron job with repeat_every', async () => {
@@ -43,7 +47,7 @@ describe('FlashQ Cron Jobs', () => {
     });
 
     const crons = await client.listCrons();
-    const cron = crons.find(c => c.name === CRON_NAME);
+    const cron = crons.find((c) => c.name === CRON_NAME);
     expect(cron).toBeDefined();
     expect(cron!.repeat_every).toBe(5000);
   });
@@ -57,7 +61,7 @@ describe('FlashQ Cron Jobs', () => {
     });
 
     const crons = await client.listCrons();
-    const cron = crons.find(c => c.name === CRON_NAME);
+    const cron = crons.find((c) => c.name === CRON_NAME);
     expect(cron).toBeDefined();
     expect(cron!.limit).toBe(10);
   });
@@ -71,7 +75,7 @@ describe('FlashQ Cron Jobs', () => {
     });
 
     const crons = await client.listCrons();
-    const cron = crons.find(c => c.name === CRON_NAME);
+    const cron = crons.find((c) => c.name === CRON_NAME);
     expect(cron).toBeDefined();
     expect(cron!.priority).toBe(100);
   });
@@ -160,7 +164,7 @@ describe('FlashQ Job Logs', () => {
   });
 
   test.skip('should get empty logs for new job', async () => {
-    const job = await client.push(TEST_QUEUE, { data: 1 });
+    const _job = await client.push(TEST_QUEUE, { data: 1 });
     const pulled = await client.pull(TEST_QUEUE, 1000);
 
     if (pulled) {

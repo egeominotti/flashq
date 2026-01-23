@@ -87,7 +87,7 @@ describe('FlashQ Queue API', () => {
       await queue.add('calc', { value: 5 });
       await queue.add('calc', { value: 10 });
 
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise((resolve) => setTimeout(resolve, 500));
 
       expect(results).toContain(5);
       expect(results).toContain(10);
@@ -107,7 +107,7 @@ describe('FlashQ Queue API', () => {
         async () => {
           currentConcurrent++;
           maxConcurrent = Math.max(maxConcurrent, currentConcurrent);
-          await new Promise(r => setTimeout(r, 100));
+          await new Promise((r) => setTimeout(r, 100));
           currentConcurrent--;
           return {};
         },
@@ -119,7 +119,7 @@ describe('FlashQ Queue API', () => {
         await queue.add('task', { i });
       }
 
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise((resolve) => setTimeout(resolve, 500));
 
       expect(maxConcurrent).toBeLessThanOrEqual(3);
 

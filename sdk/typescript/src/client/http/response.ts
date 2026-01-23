@@ -12,7 +12,9 @@ export function parseHttpResponse(cmd: string, json: ApiResponse): unknown {
 
   switch (cmd) {
     case 'PUSH':
-      return data && typeof data === 'object' ? { ok: true, id: (data as { id: number }).id } : json;
+      return data && typeof data === 'object'
+        ? { ok: true, id: (data as { id: number }).id }
+        : json;
     case 'PUSHB':
       return Array.isArray(data) ? { ok: true, ids: data } : json;
     case 'PULL':

@@ -24,27 +24,19 @@ describe('FlashQ Flows (Parent-Child Jobs)', () => {
   });
 
   test.skip('should create flow with children', async () => {
-    const flow = await client.pushFlow(
-      TEST_QUEUE,
-      { parent: true },
-      [
-        { queue: TEST_QUEUE, data: { child: 1 } },
-        { queue: TEST_QUEUE, data: { child: 2 } },
-      ]
-    );
+    const flow = await client.pushFlow(TEST_QUEUE, { parent: true }, [
+      { queue: TEST_QUEUE, data: { child: 1 } },
+      { queue: TEST_QUEUE, data: { child: 2 } },
+    ]);
 
     expect(flow.parent_id).toBeGreaterThan(0);
     expect(flow.children_ids.length).toBeGreaterThanOrEqual(0);
   });
 
   test.skip('should get children of parent job', async () => {
-    const flow = await client.pushFlow(
-      TEST_QUEUE,
-      { parent: true },
-      [
-        { queue: TEST_QUEUE, data: { child: 1 } },
-      ]
-    );
+    const flow = await client.pushFlow(TEST_QUEUE, { parent: true }, [
+      { queue: TEST_QUEUE, data: { child: 1 } },
+    ]);
 
     const children = await client.getChildren(flow.parent_id);
     expect(Array.isArray(children)).toBe(true);

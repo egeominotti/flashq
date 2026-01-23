@@ -62,7 +62,7 @@ describe('FlashQ Binary Protocol (MessagePack)', () => {
       nullValue: null,
     };
 
-    const job = await binaryClient.push(TEST_QUEUE, complexData);
+    const _job = await binaryClient.push(TEST_QUEUE, complexData);
     const pulled = await binaryClient.pull(TEST_QUEUE, 1000);
 
     expect(pulled!.data).toEqual(complexData);

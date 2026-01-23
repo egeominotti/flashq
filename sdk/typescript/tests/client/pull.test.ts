@@ -2,7 +2,6 @@
  * FlashQ Client - Pull & Ack/Fail Tests
  */
 import { describe, test, expect, beforeEach } from 'bun:test';
-import { FlashQ } from '../../src/client';
 import { setupSharedClient } from '../helpers/setup';
 
 const TEST_QUEUE = 'test-pull';
@@ -41,7 +40,10 @@ describe('FlashQ Pull Operations', () => {
 
   test('should pull with typed data', async () => {
     const client = getClient();
-    interface TestData { name: string; value: number; }
+    interface TestData {
+      name: string;
+      value: number;
+    }
     await client.push(TEST_QUEUE, { name: 'test', value: 42 });
     const job = await client.pull<TestData>(TEST_QUEUE, 1000);
     expect(job).not.toBeNull();

@@ -75,7 +75,7 @@ describe('FlashQ Job Query Operations', () => {
 
     const jobs = await client.getJobsBatch(ids);
     expect(jobs.length).toBe(5);
-    jobs.forEach(j => expect(ids).toContain(j.job.id));
+    jobs.forEach((j) => expect(ids).toContain(j.job.id));
   });
 
   test('should get jobs with filtering', async () => {
@@ -91,7 +91,7 @@ describe('FlashQ Job Query Operations', () => {
     await client.push(TEST_QUEUE, { type: 'waiting' });
 
     const result = await client.getJobs({ queue: TEST_QUEUE, state: 'waiting' });
-    expect(result.jobs.every(j => j.state === 'waiting')).toBe(true);
+    expect(result.jobs.every((j) => j.state === 'waiting')).toBe(true);
   });
 
   test('should get jobs with pagination', async () => {

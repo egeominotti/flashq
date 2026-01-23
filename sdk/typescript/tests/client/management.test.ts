@@ -101,7 +101,7 @@ describe('FlashQ Job Management', () => {
     expect(state).toBe('failed');
 
     const dlq = await client.getDlq(TEST_QUEUE);
-    expect(dlq.some(j => j.id === job.id)).toBe(true);
+    expect(dlq.some((j) => j.id === job.id)).toBe(true);
   });
 
   test.skip('should send heartbeat for active job', async () => {
@@ -138,7 +138,7 @@ describe('FlashQ Finished (Wait for Completion)', () => {
     await workerClient.connect();
 
     const processPromise = (async () => {
-      await new Promise(r => setTimeout(r, 100));
+      await new Promise((r) => setTimeout(r, 100));
       const pulled = await workerClient.pull(TEST_QUEUE, 2000);
       if (pulled) {
         await workerClient.ack(pulled.id, { result: 'done' });
@@ -149,7 +149,7 @@ describe('FlashQ Finished (Wait for Completion)', () => {
     try {
       const result = await client.finished(job.id, 10000);
       expect(result).toEqual({ result: 'done' });
-    } catch (e) {
+    } catch (_e) {
       await processPromise;
     }
   });

@@ -110,9 +110,9 @@ describe('EventSubscriber', () => {
 
         subscriber.close();
         // Give time for event to fire
-        await new Promise(r => setTimeout(r, 100));
+        await new Promise((r) => setTimeout(r, 100));
         expect(disconnectedEmitted).toBe(true);
-      } catch (e) {
+      } catch (_e) {
         // Server might not have HTTP enabled, skip
         subscriber.close();
       }
@@ -136,14 +136,14 @@ describe('EventSubscriber', () => {
 
       subscriber.on('connected', () => {});
       subscriber.on('disconnected', () => {});
-      subscriber.on('reconnecting', (attempt) => {});
-      subscriber.on('error', (error) => {});
-      subscriber.on('event', (event) => {});
-      subscriber.on('pushed', (event) => {});
-      subscriber.on('completed', (event) => {});
-      subscriber.on('failed', (event) => {});
-      subscriber.on('progress', (event) => {});
-      subscriber.on('timeout', (event) => {});
+      subscriber.on('reconnecting', (_attempt) => {});
+      subscriber.on('error', (_error) => {});
+      subscriber.on('event', (_event) => {});
+      subscriber.on('pushed', (_event) => {});
+      subscriber.on('completed', (_event) => {});
+      subscriber.on('failed', (_event) => {});
+      subscriber.on('progress', (_event) => {});
+      subscriber.on('timeout', (_event) => {});
     });
   });
 
@@ -210,7 +210,7 @@ describe('EventSubscriber', () => {
 
         // Cleanup
         unsubscribe();
-      } catch (e) {
+      } catch (_e) {
         // HTTP server might not be running
         // Test passes if no crash
       }
@@ -288,7 +288,7 @@ describe('EventSubscriber', () => {
 
       // Push a job and wait for event
       await client.push(TEST_QUEUE, { test: 'event' });
-      await new Promise(r => setTimeout(r, 500));
+      await new Promise((r) => setTimeout(r, 500));
 
       subscriber.close();
 
@@ -314,11 +314,11 @@ describe('EventSubscriber', () => {
       // Push to different queue (should not be received)
       await client.push('other-queue', { test: 'other' });
 
-      await new Promise(r => setTimeout(r, 500));
+      await new Promise((r) => setTimeout(r, 500));
       subscriber.close();
 
       // Should only have events from TEST_QUEUE
-      events.forEach(event => {
+      events.forEach((event) => {
         expect(event.queue).toBe(TEST_QUEUE);
       });
     });
@@ -344,8 +344,8 @@ describe('EventSubscriber', () => {
       await subscriber.connect();
 
       // Push job
-      const job = await client.push(TEST_QUEUE, { test: 'events' });
-      await new Promise(r => setTimeout(r, 200));
+      const _job = await client.push(TEST_QUEUE, { test: 'events' });
+      await new Promise((r) => setTimeout(r, 200));
 
       // Complete job
       const pulled = await client.pull(TEST_QUEUE, 1000);
@@ -353,7 +353,7 @@ describe('EventSubscriber', () => {
         await client.ack(pulled.id, { done: true });
       }
 
-      await new Promise(r => setTimeout(r, 200));
+      await new Promise((r) => setTimeout(r, 200));
       subscriber.close();
 
       expect(pushedReceived).toBe(true);
@@ -391,7 +391,7 @@ describe('EventSubscriber', () => {
       await subscriber.connect();
 
       await client.push(TEST_QUEUE, { websocket: 'test' });
-      await new Promise(r => setTimeout(r, 500));
+      await new Promise((r) => setTimeout(r, 500));
 
       subscriber.close();
 
@@ -419,11 +419,11 @@ describe('EventSubscriber', () => {
 
       try {
         await subscriber.connect();
-      } catch (e) {
+      } catch (_e) {
         // Expected to fail
       }
 
-      await new Promise(r => setTimeout(r, 500));
+      await new Promise((r) => setTimeout(r, 500));
       subscriber.close();
 
       // Should have attempted reconnect
@@ -449,9 +449,11 @@ describe('EventSubscriber', () => {
 
       try {
         await subscriber.connect();
-      } catch (e) {}
+      } catch (_e) {
+        /* Expected to fail */
+      }
 
-      await new Promise(r => setTimeout(r, 500));
+      await new Promise((r) => setTimeout(r, 500));
       subscriber.close();
 
       expect(errorReceived).toBe(true);
@@ -473,11 +475,11 @@ describe('EventSubscriber', () => {
 
       try {
         await subscriber.connect();
-      } catch (e) {
+      } catch (_e) {
         // Expected to fail
       }
 
-      await new Promise(r => setTimeout(r, 200));
+      await new Promise((r) => setTimeout(r, 200));
       subscriber.close();
 
       expect(reconnectAttempts).toBe(0);
@@ -511,7 +513,7 @@ describe('EventSubscriber', () => {
 
       const subscriber = new EventSubscriber();
 
-      eventTypes.forEach(type => {
+      eventTypes.forEach((type) => {
         subscriber.on(type as any, (event: JobEvent) => {
           expect(event.eventType).toBe(type);
         });

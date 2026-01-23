@@ -80,8 +80,12 @@ export class Queue<T = unknown> {
       depends_on: opts.depends_on,
       tags: opts.tags,
       group_id: opts.group_id,
-      remove_on_complete: opts.removeOnComplete === true || (typeof opts.removeOnComplete === 'number' && opts.removeOnComplete > 0),
-      remove_on_fail: opts.removeOnFail === true || (typeof opts.removeOnFail === 'number' && opts.removeOnFail > 0),
+      remove_on_complete:
+        opts.removeOnComplete === true ||
+        (typeof opts.removeOnComplete === 'number' && opts.removeOnComplete > 0),
+      remove_on_fail:
+        opts.removeOnFail === true ||
+        (typeof opts.removeOnFail === 'number' && opts.removeOnFail > 0),
     };
 
     // Handle backoff (BullMQ uses object, flashQ uses number)
@@ -93,17 +97,17 @@ export class Queue<T = unknown> {
       }
     }
 
-    return this.client.add(this.name, { name, ...data as object }, pushOpts) as Promise<Job<T>>;
+    return this.client.add(this.name, { name, ...(data as object) }, pushOpts) as Promise<Job<T>>;
   }
 
   /**
    * Add multiple jobs (BullMQ-compatible)
    */
   async addBulk(jobs: Array<{ name: string; data: T; opts?: JobOptions }>): Promise<Job<T>[]> {
-    const flashqJobs = jobs.map(job => {
+    const flashqJobs = jobs.map((job) => {
       const opts = { ...this.defaultJobOptions, ...job.opts };
       return {
-        data: { name: job.name, ...job.data as object },
+        data: { name: job.name, ...(job.data as object) },
         priority: opts.priority,
         delay: opts.delay,
         max_attempts: opts.attempts,
@@ -112,8 +116,12 @@ export class Queue<T = unknown> {
         jobId: opts.jobId,
         backoff: typeof opts.backoff === 'number' ? opts.backoff : opts.backoff?.delay,
         group_id: opts.group_id,
-        remove_on_complete: opts.removeOnComplete === true || (typeof opts.removeOnComplete === 'number' && opts.removeOnComplete > 0),
-        remove_on_fail: opts.removeOnFail === true || (typeof opts.removeOnFail === 'number' && opts.removeOnFail > 0),
+        remove_on_complete:
+          opts.removeOnComplete === true ||
+          (typeof opts.removeOnComplete === 'number' && opts.removeOnComplete > 0),
+        remove_on_fail:
+          opts.removeOnFail === true ||
+          (typeof opts.removeOnFail === 'number' && opts.removeOnFail > 0),
       };
     });
 
@@ -191,7 +199,11 @@ export class Queue<T = unknown> {
   /**
    * Clean jobs by state and age
    */
-  async clean(grace: number, limit: number, type: 'completed' | 'failed' | 'delayed' | 'waiting'): Promise<number[]> {
+  async clean(
+    grace: number,
+    limit: number,
+    type: 'completed' | 'failed' | 'delayed' | 'waiting'
+  ): Promise<number[]> {
     const count = await this.client.clean(this.name, grace, type, limit);
     return Array(count).fill(0);
   }

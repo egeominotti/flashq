@@ -30,9 +30,12 @@ export async function createTestClient(): Promise<FlashQ> {
  *   await client.push('my-queue', { data: 1 });
  * });
  */
-export function setupTestSuite(queueName: string, options?: {
-  skipBeforeEach?: boolean;
-}): () => FlashQ {
+export function setupTestSuite(
+  queueName: string,
+  options?: {
+    skipBeforeEach?: boolean;
+  }
+): () => FlashQ {
   let client: FlashQ;
 
   beforeAll(async () => {

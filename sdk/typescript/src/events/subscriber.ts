@@ -3,15 +3,10 @@
  * Supports SSE (Server-Sent Events) and WebSocket connections.
  */
 import { EventEmitter } from 'events';
-import type {
-  EventType,
-  JobEvent,
-  EventSubscriberOptions,
-  EventSubscriberEvents,
-} from './types';
+import type { EventType, JobEvent, EventSubscriberOptions, EventSubscriberEvents } from './types';
 
 export class EventSubscriber extends EventEmitter {
-  private options: Required<EventSubscriberOptions>;
+  private options: Required<EventSubscriberOptions> & { debug: boolean };
   private eventSource: EventSource | null = null;
   private websocket: WebSocket | null = null;
   private connected = false;
@@ -32,7 +27,18 @@ export class EventSubscriber extends EventEmitter {
       autoReconnect: options.autoReconnect ?? true,
       reconnectDelay: options.reconnectDelay ?? 1000,
       maxReconnectAttempts: options.maxReconnectAttempts ?? 10,
+      debug: options.debug ?? false,
     };
+  }
+
+  private log(message: string, data?: unknown): void {
+    if (!this.options.debug) return;
+    const timestamp = new Date().toISOString();
+    if (data !== undefined) {
+      console.log(`[flashQ EventSubscriber ${timestamp}] ${message}`, data);
+    } else {
+      console.log(`[flashQ EventSubscriber ${timestamp}] ${message}`);
+    }
   }
 
   on<K extends keyof EventSubscriberEvents>(event: K, listener: EventSubscriberEvents[K]): this {
@@ -43,21 +49,27 @@ export class EventSubscriber extends EventEmitter {
     return super.off(event, listener as (...args: unknown[]) => void);
   }
 
-  emit<K extends keyof EventSubscriberEvents>(event: K, ...args: Parameters<EventSubscriberEvents[K]>): boolean {
+  emit<K extends keyof EventSubscriberEvents>(
+    event: K,
+    ...args: Parameters<EventSubscriberEvents[K]>
+  ): boolean {
     return super.emit(event, ...args);
   }
 
   async connect(): Promise<void> {
     this.closed = false;
     this.reconnectAttempts = 0;
+    this.log('Connecting', { type: this.options.type, queue: this.options.queue || 'all' });
     if (this.options.type === 'websocket') {
       await this.connectWebSocket();
     } else {
       await this.connectSSE();
     }
+    this.log('Connected');
   }
 
   close(): void {
+    this.log('Closing subscriber');
     this.closed = true;
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
@@ -70,11 +82,13 @@ export class EventSubscriber extends EventEmitter {
       this.sseHandlers.clear();
       this.eventSource.close();
       this.eventSource = null;
+      this.log('SSE connection closed');
     }
     if (this.websocket) {
       this.wsMessageHandler = null;
       this.websocket.close();
       this.websocket = null;
+      this.log('WebSocket connection closed');
     }
     if (this.connected) {
       this.connected = false;
@@ -123,9 +137,16 @@ export class EventSubscriber extends EventEmitter {
               const messageEvent = e as MessageEvent;
               const rawEvent = JSON.parse(messageEvent.data);
               const event = this.normalizeEvent(rawEvent);
+              this.log('SSE event received', { eventType, jobId: event.jobId });
               this.emit('event', event);
               this.emit(eventType, event);
-            } catch { /* ignore */ }
+            } catch (err) {
+              this.log('Failed to parse SSE event', {
+                eventType,
+                error: err instanceof Error ? err.message : err,
+              });
+              this.emit('error', err instanceof Error ? err : new Error(String(err)));
+            }
           };
           this.sseHandlers.set(eventType, handler);
           this.eventSource.addEventListener(eventType, handler);
@@ -141,14 +162,17 @@ export class EventSubscriber extends EventEmitter {
       const protocol = this.options.host === 'localhost' ? 'ws' : 'wss';
       let url = `${protocol}://${this.options.host}:${this.options.httpPort}`;
       url += this.options.queue ? `/ws/${this.options.queue}` : '/ws';
-      if (this.options.token) {
-        url += `?token=${encodeURIComponent(this.options.token)}`;
-      }
+      // Token sent after connection for security (not in URL)
 
       try {
         this.websocket = new WebSocket(url);
 
         this.websocket.onopen = () => {
+          // Send auth token after connection (more secure than URL query string)
+          if (this.options.token && this.websocket) {
+            this.log('Sending WebSocket auth');
+            this.websocket.send(JSON.stringify({ type: 'auth', token: this.options.token }));
+          }
           this.connected = true;
           this.reconnectAttempts = 0;
           this.emit('connected');
@@ -175,9 +199,18 @@ export class EventSubscriber extends EventEmitter {
           try {
             const rawEvent = JSON.parse(e.data);
             const event = this.normalizeEvent(rawEvent);
+            this.log('WebSocket event received', {
+              eventType: event.eventType,
+              jobId: event.jobId,
+            });
             this.emit('event', event);
             this.emit(event.eventType, event);
-          } catch { /* ignore */ }
+          } catch (err) {
+            this.log('Failed to parse WebSocket event', {
+              error: err instanceof Error ? err.message : err,
+            });
+            this.emit('error', err instanceof Error ? err : new Error(String(err)));
+          }
         };
         this.websocket.onmessage = this.wsMessageHandler;
       } catch (error) {
@@ -202,6 +235,7 @@ export class EventSubscriber extends EventEmitter {
     if (this.closed) return;
     const maxAttempts = this.options.maxReconnectAttempts;
     if (maxAttempts > 0 && this.reconnectAttempts >= maxAttempts) {
+      this.log('Max reconnect attempts reached', { attempts: this.reconnectAttempts });
       this.emit('error', new Error('Max reconnect attempts reached'));
       return;
     }
@@ -209,13 +243,17 @@ export class EventSubscriber extends EventEmitter {
     this.emit('reconnecting', this.reconnectAttempts);
 
     const delay = Math.min(
-      this.options.reconnectDelay * Math.pow(1.5, this.reconnectAttempts - 1) + Math.random() * 1000,
+      this.options.reconnectDelay * Math.pow(1.5, this.reconnectAttempts - 1) +
+        Math.random() * 1000,
       30000
     );
 
+    this.log('Scheduling reconnect', { attempt: this.reconnectAttempts, delay: Math.round(delay) });
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
-      this.connect().catch(() => { /* reconnect will trigger again */ });
+      this.connect().catch((err) => {
+        this.log('Reconnect failed', { error: err instanceof Error ? err.message : err });
+      });
     }, delay);
   }
 }

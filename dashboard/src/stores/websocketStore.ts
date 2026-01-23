@@ -43,7 +43,7 @@ let reconnectAttempts = 0;
 // Throttling state
 let lastNotifyTime = 0;
 let pendingNotify = false;
-const THROTTLE_MS = 500; // Max 2 updates per second (reduced for high-load scenarios)
+const THROTTLE_MS = 5000; // 1 update every 5 seconds (optimized for high-load scenarios)
 
 // ============================================================================
 // Shallow Comparison Helpers

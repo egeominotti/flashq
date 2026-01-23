@@ -133,7 +133,7 @@ describe('FlashQ Batch Push Operations', () => {
     const jobs = Array.from({ length: 10 }, (_, i) => ({ data: { index: i } }));
     const ids = await client.pushBatch(TEST_QUEUE, jobs);
     expect(ids).toHaveLength(10);
-    ids.forEach(id => expect(id).toBeGreaterThan(0));
+    ids.forEach((id) => expect(id).toBeGreaterThan(0));
   });
 
   test('should push batch with mixed options', async () => {

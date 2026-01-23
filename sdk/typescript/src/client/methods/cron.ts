@@ -57,10 +57,7 @@ export async function addCron(
  * await client.deleteCron('daily-cleanup');
  * ```
  */
-export async function deleteCron(
-  client: IFlashQClient,
-  name: string
-): Promise<boolean> {
+export async function deleteCron(client: IFlashQClient, name: string): Promise<boolean> {
   const response = await client.send<{ ok: boolean }>({
     cmd: 'CRONDELETE',
     name,
@@ -82,9 +79,7 @@ export async function deleteCron(
  * }
  * ```
  */
-export async function listCrons(
-  client: IFlashQClient
-): Promise<CronJob[]> {
+export async function listCrons(client: IFlashQClient): Promise<CronJob[]> {
   const response = await client.send<{ ok: boolean; crons: CronJob[] }>({
     cmd: 'CRONLIST',
   });

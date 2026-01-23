@@ -57,10 +57,7 @@ describe('FlashQ Queue Management', () => {
   });
 
   test('should drain queue', async () => {
-    await client.pushBatch(TEST_QUEUE, [
-      { data: { i: 1 } },
-      { data: { i: 2 } },
-    ]);
+    await client.pushBatch(TEST_QUEUE, [{ data: { i: 1 } }, { data: { i: 2 } }]);
 
     const drained = await client.drain(TEST_QUEUE);
     expect(drained).toBeGreaterThanOrEqual(2);
@@ -74,7 +71,7 @@ describe('FlashQ Queue Management', () => {
 
     const queues = await client.listQueues();
     expect(queues.length).toBeGreaterThan(0);
-    expect(queues.some(q => q.name === TEST_QUEUE)).toBe(true);
+    expect(queues.some((q) => q.name === TEST_QUEUE)).toBe(true);
   });
 
   test('should obliterate queue', async () => {
