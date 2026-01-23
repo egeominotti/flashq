@@ -26,7 +26,8 @@ use super::types::{AppState, StatsResponse, WsQuery};
 const MAX_WS_CONNECTIONS: usize = 100;
 
 /// Dashboard update interval in milliseconds (configurable via DASHBOARD_INTERVAL_MS env var)
-const DEFAULT_DASHBOARD_INTERVAL_MS: u64 = 2000;
+/// Increased to 3 seconds for better performance during high-load scenarios
+const DEFAULT_DASHBOARD_INTERVAL_MS: u64 = 3000;
 
 /// Global WebSocket connection counter
 static WS_CONNECTION_COUNT: AtomicUsize = AtomicUsize::new(0);
