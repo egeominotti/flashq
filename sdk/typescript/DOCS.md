@@ -93,7 +93,7 @@ docker run -d --name flashq \
 │         TCP (Binary/JSON)  │  HTTP (REST API)               │
 ├─────────────────────────────────────────────────────────────┤
 │                    flashQ Server (Rust)                      │
-│     32 Shards  │  DashMap  │  io_uring  │  PostgreSQL       │
+│     32 Shards  │  DashMap  │  io_uring  │  SQLite           │
 └─────────────────────────────────────────────────────────────┘
 ```
 

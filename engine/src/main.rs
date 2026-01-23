@@ -189,8 +189,12 @@ async fn start_http_server(queue_manager: &Arc<QueueManager>, shutdown_tx: &broa
                 return;
             }
         };
-        info!(port = http_port, "HTTP API listening");
-        info!(url = %format!("http://localhost:{}", http_port), "Dashboard available");
+        info!(
+            version = env!("CARGO_PKG_VERSION"),
+            port = http_port,
+            endpoint = %format!("http://0.0.0.0:{}", http_port),
+            "HTTP API ready"
+        );
         if let Err(e) = axum::serve(listener, router)
             .with_graceful_shutdown(async move {
                 let _ = shutdown_rx.recv().await;
@@ -225,7 +229,12 @@ async fn start_grpc_server(queue_manager: &Arc<QueueManager>) {
                 return;
             }
         };
-        info!(port = grpc_port, "gRPC server listening");
+        info!(
+            version = env!("CARGO_PKG_VERSION"),
+            port = grpc_port,
+            endpoint = %format!("grpc://0.0.0.0:{}", grpc_port),
+            "gRPC API ready"
+        );
         if let Err(e) = grpc::run_grpc_server(addr, qm_grpc).await {
             error!(error = %e, "gRPC server error");
         }
@@ -244,8 +253,10 @@ async fn run_tcp_server(
         let _ = std::fs::remove_file(UNIX_SOCKET_PATH);
         let listener = UnixListener::bind(UNIX_SOCKET_PATH)?;
         info!(
+            version = env!("CARGO_PKG_VERSION"),
             socket = UNIX_SOCKET_PATH,
-            "flashQ TCP server listening (Unix socket)"
+            endpoint = %format!("unix://{}", UNIX_SOCKET_PATH),
+            "flashQ server ready"
         );
 
         loop {
@@ -281,7 +292,12 @@ async fn run_tcp_server(
             .unwrap_or(DEFAULT_TCP_PORT);
 
         let listener = TcpListener::bind(format!("0.0.0.0:{}", port)).await?;
-        info!(port = port, "flashQ TCP server listening");
+        info!(
+            version = env!("CARGO_PKG_VERSION"),
+            port = port,
+            endpoint = %format!("tcp://0.0.0.0:{}", port),
+            "flashQ server ready"
+        );
 
         loop {
             tokio::select! {

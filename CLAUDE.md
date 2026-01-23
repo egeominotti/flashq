@@ -139,8 +139,8 @@ cargo run
 # Production (optimized)
 cargo run --release
 
-# With PostgreSQL persistence
-DATABASE_URL=postgres://user:pass@localhost/flashq cargo run --release
+# With SQLite persistence (enabled by default)
+DATA_PATH=/path/to/data cargo run --release
 
 # With HTTP API & Dashboard
 HTTP=1 cargo run --release
@@ -150,9 +150,6 @@ GRPC=1 cargo run --release
 
 # With Unix socket
 UNIX_SOCKET=1 cargo run --release
-
-# With Clustering (HA mode)
-CLUSTER_MODE=1 NODE_ID=node-1 DATABASE_URL=postgres://user:pass@localhost/flashq HTTP=1 cargo run --release
 
 # Run tests
 cargo test
@@ -168,16 +165,6 @@ bun test
 
 # Run benchmarks
 bun run examples/benchmark-full.ts
-```
-
-### Docker Compose (Recommended)
-
-```bash
-# Start PostgreSQL + flashQ
-docker-compose up -d
-
-# View logs
-docker-compose logs -f flashq
 ```
 
 ### Docker (Standalone)
@@ -203,8 +190,10 @@ engine/src/
     ├── mod.rs        # Module exports
     ├── types.rs      # IndexedPriorityQueue, RateLimiter, Shard, GlobalMetrics, JobLocation
     ├── manager.rs    # QueueManager struct, DashMap job_index, sharded processing
-    ├── postgres.rs   # PostgreSQL storage layer
-    ├── cluster.rs    # Clustering and leader election
+    ├── sqlite/       # SQLite storage layer
+    │   ├── mod.rs    # SqliteStorage, SqliteConfig, S3BackupManager
+    │   ├── jobs.rs   # Job persistence operations
+    │   └── migration.rs # Schema migrations
     ├── core.rs       # Core ops: push, pull, ack, fail
     ├── features.rs   # Advanced: cancel, progress, DLQ, cron, metrics, BullMQ-like ops
     ├── background.rs # Background tasks: cleanup, cron runner
@@ -371,7 +360,7 @@ PUSH --> [WAITING/DELAYED/WAITING_CHILDREN]
 - Job priorities (BinaryHeap)
 - Delayed jobs (run_at timestamp)
 - Job state tracking (GETJOB/GETSTATE)
-- PostgreSQL persistence
+- SQLite persistence with S3-compatible backups
 
 ### Advanced
 
@@ -389,7 +378,6 @@ PUSH --> [WAITING/DELAYED/WAITING_CHILDREN]
 - **SSE**: Server-Sent Events for job lifecycle
 - **Webhooks**: HTTP callbacks on job events
 - **Prometheus Metrics**: `/metrics/prometheus` endpoint
-- **Clustering/HA**: Multi-node support with automatic leader election
 
 ### BullMQ-like Features (NEW)
 
@@ -409,63 +397,6 @@ PUSH --> [WAITING/DELAYED/WAITING_CHILDREN]
 - **getJobCounts()**: Get job counts grouped by state
 - **count()**: Count waiting + delayed jobs
 - **isPaused()**: Check if queue is paused
-
-## Clustering (High Availability)
-
-flashQ supports clustering for high availability using PostgreSQL as the coordination layer.
-
-### Environment Variables
-
-| Variable              | Description                                        |
-| --------------------- | -------------------------------------------------- |
-| `CLUSTER_MODE=1`      | Enable cluster mode                                |
-| `NODE_ID=node-1`      | Unique node identifier (auto-generated if not set) |
-| `NODE_HOST=localhost` | Host address for node registration                 |
-| `DATABASE_URL`        | PostgreSQL connection (required for clustering)    |
-
-### Architecture
-
-```
-┌──────────┐    ┌──────────┐    ┌──────────┐
-│  Node 1  │    │  Node 2  │    │  Node 3  │
-│ (Leader) │    │(Follower)│    │(Follower)│
-└────┬─────┘    └────┬─────┘    └────┬─────┘
-     │               │               │
-     └───────────────┼───────────────┘
-                     │
-              ┌──────▼──────┐
-              │  PostgreSQL │
-              │  (Shared)   │
-              └─────────────┘
-```
-
-### Leader Election
-
-- Uses PostgreSQL advisory locks (`pg_try_advisory_lock`)
-- Only the leader runs background tasks (cron, cleanup, timeout checks)
-- All nodes handle client requests (push/pull/ack)
-- Automatic failover when leader crashes (within 5 seconds)
-- Stale nodes cleaned up after 30 seconds of no heartbeat
-
-### HTTP Endpoints
-
-| Endpoint             | Description                             |
-| -------------------- | --------------------------------------- |
-| `GET /health`        | Node health with leader/follower status |
-| `GET /cluster/nodes` | List all nodes in cluster               |
-
-### Example: Multi-Node Setup
-
-```bash
-# Start Node 1 (becomes leader)
-CLUSTER_MODE=1 NODE_ID=node-1 DATABASE_URL=postgres://... HTTP=1 HTTP_PORT=6790 PORT=6789 ./flashq-server
-
-# Start Node 2 (becomes follower)
-CLUSTER_MODE=1 NODE_ID=node-2 DATABASE_URL=postgres://... HTTP=1 HTTP_PORT=6792 PORT=6793 ./flashq-server
-
-# Check cluster status
-curl http://localhost:6790/cluster/nodes
-```
 
 ## Common Tasks
 
