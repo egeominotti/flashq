@@ -1,0 +1,46 @@
+"""
+flashQ SDK Constants
+
+Centralized configuration values for the SDK.
+"""
+
+# Connection defaults
+DEFAULT_HOST = "localhost"
+DEFAULT_PORT = 6789
+DEFAULT_HTTP_PORT = 6790
+DEFAULT_TIMEOUT = 5000  # ms
+DEFAULT_CONNECT_TIMEOUT = 5000  # ms
+
+# Reconnection settings
+DEFAULT_RECONNECT_DELAY = 1000  # ms
+MAX_RECONNECT_DELAY = 30000  # ms
+MAX_RECONNECT_ATTEMPTS = 10
+RECONNECT_JITTER_FACTOR = 0.3
+
+# Pull settings
+DEFAULT_PULL_TIMEOUT = 30000  # ms
+CLIENT_TIMEOUT_BUFFER = 1000  # ms
+
+# Job defaults
+DEFAULT_JOB_PRIORITY = 0
+DEFAULT_MAX_ATTEMPTS = 3
+DEFAULT_BACKOFF = 1000  # ms
+DEFAULT_STALL_TIMEOUT = 30000  # ms
+
+# Worker settings
+DEFAULT_WORKER_CONCURRENCY = 1
+DEFAULT_BATCH_SIZE = 100
+WORKER_PULL_TIMEOUT = 500  # ms - short for responsive shutdown
+WORKER_ERROR_RETRY_DELAY = 1000  # ms
+DEFAULT_CLOSE_TIMEOUT = 30000  # ms
+
+# Validation limits
+MAX_QUEUE_NAME_LENGTH = 256
+MAX_JOB_DATA_SIZE = 1024 * 1024  # 1MB
+MAX_BATCH_SIZE = 1000
+
+# Queue name validation pattern
+QUEUE_NAME_PATTERN = r"^[a-zA-Z0-9_.-]{1,256}$"
+
+# Request queue settings
+DEFAULT_MAX_QUEUED_REQUESTS = 1000
