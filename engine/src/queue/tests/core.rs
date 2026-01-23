@@ -262,3 +262,166 @@ async fn test_fail_nonexistent_job() {
     let result = qm.fail(999999, None).await;
     assert!(result.is_err());
 }
+
+// ==================== PUSH BATCH IDEMPOTENCY ====================
+
+#[tokio::test]
+async fn test_push_batch_with_custom_id_idempotency() {
+    let qm = setup();
+
+    // Push batch with custom job IDs
+    let inputs = vec![
+        JobInput {
+            data: json!({"order": 1}),
+            job_id: Some("order-1".to_string()),
+            ..Default::default()
+        },
+        JobInput {
+            data: json!({"order": 2}),
+            job_id: Some("order-2".to_string()),
+            ..Default::default()
+        },
+        JobInput {
+            data: json!({"order": 1, "duplicate": true}),
+            job_id: Some("order-1".to_string()), // Duplicate custom_id!
+            ..Default::default()
+        },
+    ];
+
+    let ids = qm.push_batch("orders".to_string(), inputs).await;
+
+    // Should return 3 IDs (2 new + 1 existing)
+    assert_eq!(ids.len(), 3, "Should return 3 IDs");
+
+    // First and third ID should be the same (idempotent)
+    assert_eq!(
+        ids[0], ids[2],
+        "Duplicate custom_id should return same job ID"
+    );
+
+    // Only 2 jobs should be in queue
+    let (queued, _, _, _, _) = qm.stats().await;
+    assert_eq!(queued, 2, "Only 2 unique jobs should be queued");
+}
+
+#[tokio::test]
+async fn test_push_batch_with_unique_key_deduplication() {
+    let qm = setup();
+
+    // Push batch with unique keys
+    let inputs = vec![
+        JobInput {
+            data: json!({"event": "click", "user": 1}),
+            unique_key: Some("user-1-click".to_string()),
+            ..Default::default()
+        },
+        JobInput {
+            data: json!({"event": "click", "user": 2}),
+            unique_key: Some("user-2-click".to_string()),
+            ..Default::default()
+        },
+        JobInput {
+            data: json!({"event": "click", "user": 1, "duplicate": true}),
+            unique_key: Some("user-1-click".to_string()), // Duplicate unique_key!
+            ..Default::default()
+        },
+    ];
+
+    let ids = qm.push_batch("events".to_string(), inputs).await;
+
+    // Should return only 2 IDs (third is filtered out due to duplicate unique_key)
+    assert_eq!(ids.len(), 2, "Duplicate unique_key should be filtered");
+
+    // Only 2 jobs should be in queue
+    let (queued, _, _, _, _) = qm.stats().await;
+    assert_eq!(queued, 2, "Only 2 unique jobs should be queued");
+}
+
+#[tokio::test]
+async fn test_push_batch_custom_id_with_existing_job() {
+    let qm = setup();
+
+    // First, push a single job with custom_id
+    let existing = qm
+        .push(
+            "orders".to_string(),
+            JobInput {
+                data: json!({"order": "existing"}),
+                job_id: Some("order-existing".to_string()),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+
+    // Now push batch that includes the same custom_id
+    let inputs = vec![
+        JobInput {
+            data: json!({"order": "new-1"}),
+            job_id: Some("order-new-1".to_string()),
+            ..Default::default()
+        },
+        JobInput {
+            data: json!({"order": "existing", "from_batch": true}),
+            job_id: Some("order-existing".to_string()), // Same as existing job!
+            ..Default::default()
+        },
+    ];
+
+    let ids = qm.push_batch("orders".to_string(), inputs).await;
+
+    // Should return 2 IDs
+    assert_eq!(ids.len(), 2);
+
+    // Second ID should match the existing job's ID (idempotent)
+    assert_eq!(
+        ids[1], existing.id,
+        "Batch should return existing job ID for duplicate custom_id"
+    );
+
+    // Only 2 total jobs (1 existing + 1 new)
+    let (queued, _, _, _, _) = qm.stats().await;
+    assert_eq!(queued, 2, "Should have 2 total jobs");
+}
+
+#[tokio::test]
+async fn test_push_batch_combined_custom_id_and_unique_key() {
+    let qm = setup();
+
+    // Test both custom_id and unique_key in same batch
+    let inputs = vec![
+        JobInput {
+            data: json!({"i": 1}),
+            job_id: Some("job-1".to_string()),
+            unique_key: Some("key-1".to_string()),
+            ..Default::default()
+        },
+        JobInput {
+            data: json!({"i": 2}),
+            job_id: Some("job-2".to_string()),
+            unique_key: Some("key-1".to_string()), // Same unique_key as first!
+            ..Default::default()
+        },
+        JobInput {
+            data: json!({"i": 3}),
+            job_id: Some("job-1".to_string()), // Same custom_id as first!
+            unique_key: Some("key-3".to_string()),
+            ..Default::default()
+        },
+    ];
+
+    let ids = qm.push_batch("test".to_string(), inputs).await;
+
+    // Job 1: created (new custom_id, new unique_key)
+    // Job 2: filtered (duplicate unique_key)
+    // Job 3: idempotent (duplicate custom_id returns existing ID)
+    assert_eq!(ids.len(), 2, "Should return 2 IDs");
+    assert_eq!(
+        ids[0], ids[1],
+        "Job 3 should return Job 1's ID (idempotent)"
+    );
+
+    // Only 1 job in queue (job 2 filtered, job 3 was idempotent)
+    let (queued, _, _, _, _) = qm.stats().await;
+    assert_eq!(queued, 1, "Only 1 job should be queued");
+}

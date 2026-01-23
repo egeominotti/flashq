@@ -226,15 +226,21 @@ impl QueueManager {
             return Vec::new();
         }
 
-        // Filter valid jobs and check debounce atomically
-        // FIX: Use write lock and insert atomically to prevent race condition
         let now = now_ms();
         let queue_key = intern(&queue);
-        let valid_jobs: Vec<_> = {
+        let idx = Self::shard_index(&queue);
+        let queue_name = intern(&queue);
+
+        // Result: (original_index, job_id) to preserve order
+        let mut results: Vec<(usize, u64)> = Vec::with_capacity(jobs.len());
+
+        // Phase 1: Filter by data validity and debounce, keep original indices
+        let after_debounce: Vec<(usize, JobInput)> = {
             let mut debounce_cache = self.debounce_cache.write();
             let queue_debounce = debounce_cache.entry(queue_key.clone()).or_default();
             jobs.into_iter()
-                .filter(|input| {
+                .enumerate()
+                .filter(|(_, input)| {
                     // Check data validity
                     if validate_job_data(&input.data).is_err() {
                         return false;
@@ -250,7 +256,6 @@ impl QueueManager {
                                 return false; // Debounced
                             }
                         }
-                        // Insert/update atomically with check
                         queue_debounce.insert(id_key, expiry);
                     }
                     true
@@ -258,49 +263,129 @@ impl QueueManager {
                 .collect()
         };
 
-        if valid_jobs.is_empty() {
+        if after_debounce.is_empty() {
             return Vec::new();
         }
 
-        // Get cluster-wide unique IDs for all jobs at once
-        let job_ids = self.next_job_ids(valid_jobs.len()).await;
+        // Phase 2: Check custom_id for idempotency (global + intra-batch)
+        // Track custom_ids seen in this batch to handle duplicates within same batch
+        let mut batch_custom_ids: std::collections::HashMap<String, u64> =
+            std::collections::HashMap::new();
+        let mut jobs_needing_ids: Vec<(usize, JobInput)> = Vec::with_capacity(after_debounce.len());
 
-        let mut ids = Vec::with_capacity(valid_jobs.len());
-        let mut created_jobs = Vec::with_capacity(valid_jobs.len());
-        let mut waiting_jobs = Vec::new();
+        {
+            let custom_id_map = self.custom_id_map.read();
+            for (orig_idx, input) in after_debounce {
+                if let Some(ref custom_id) = input.job_id {
+                    // Check global map first
+                    if let Some(&existing_id) = custom_id_map.get(custom_id) {
+                        results.push((orig_idx, existing_id));
+                        continue;
+                    }
+                    // Check intra-batch duplicates
+                    if let Some(&batch_id) = batch_custom_ids.get(custom_id) {
+                        results.push((orig_idx, batch_id));
+                        continue;
+                    }
+                    // This custom_id is new - will need an internal ID
+                    // Mark it as "pending" in batch_custom_ids (we'll update with real ID later)
+                }
+                jobs_needing_ids.push((orig_idx, input));
+            }
+        }
 
-        let idx = Self::shard_index(&queue);
-        let queue_name = intern(&queue);
+        if jobs_needing_ids.is_empty() {
+            // Sort by original index and return
+            results.sort_by_key(|(idx, _)| *idx);
+            return results.into_iter().map(|(_, id)| id).collect();
+        }
 
-        // CRITICAL: Copy completed_jobs to local set FIRST to avoid lock starvation.
-        // With write-preferring RwLock, holding read() while iterating 1000 jobs
-        // causes push_batch callers to be blocked by pending ack() writers.
-        // This was causing timeouts after 9M+ jobs due to accumulated contention.
+        // Phase 3: Get cluster-wide unique IDs for new jobs
+        let internal_ids = self.next_job_ids(jobs_needing_ids.len()).await;
+
+        // Phase 4: Register custom_ids and handle unique_keys
+        let mut jobs_to_create: Vec<(usize, JobInput, u64)> =
+            Vec::with_capacity(jobs_needing_ids.len());
+        let mut custom_ids_to_rollback: Vec<String> = Vec::new();
+
+        {
+            let mut custom_id_map = self.custom_id_map.write();
+            let mut shard = self.shards[idx].write();
+            let unique_keys_set = shard.unique_keys.entry(queue_name.clone()).or_default();
+
+            for ((orig_idx, input), internal_id) in
+                jobs_needing_ids.into_iter().zip(internal_ids.into_iter())
+            {
+                // Register custom_id (check for race condition)
+                if let Some(ref custom_id) = input.job_id {
+                    if let Some(&existing_id) = custom_id_map.get(custom_id) {
+                        // Race: another thread registered this custom_id
+                        results.push((orig_idx, existing_id));
+                        continue;
+                    }
+                    // Check intra-batch duplicate (another job in this batch with same custom_id)
+                    if let Some(&batch_id) = batch_custom_ids.get(custom_id) {
+                        results.push((orig_idx, batch_id));
+                        continue;
+                    }
+                    // Register and track for potential rollback
+                    custom_id_map.insert(custom_id.clone(), internal_id);
+                    batch_custom_ids.insert(custom_id.clone(), internal_id);
+                }
+
+                // Check unique_key
+                if let Some(ref key) = input.unique_key {
+                    if unique_keys_set.contains(key) {
+                        // Duplicate unique_key - rollback custom_id if we just registered it
+                        if let Some(ref custom_id) = input.job_id {
+                            custom_id_map.remove(custom_id);
+                            batch_custom_ids.remove(custom_id);
+                            custom_ids_to_rollback.push(custom_id.clone());
+                        }
+                        continue;
+                    }
+                    unique_keys_set.insert(key.clone());
+                }
+
+                jobs_to_create.push((orig_idx, input, internal_id));
+            }
+        }
+
+        if jobs_to_create.is_empty() {
+            // Sort by original index and return
+            results.sort_by_key(|(idx, _)| *idx);
+            return results.into_iter().map(|(_, id)| id).collect();
+        }
+
+        // Phase 5: Create jobs and check dependencies
+        let mut created_jobs: Vec<Job> = Vec::with_capacity(jobs_to_create.len());
+        let mut waiting_jobs: Vec<Job> = Vec::new();
+
+        // Copy completed_jobs to avoid lock starvation
         let completed: std::collections::HashSet<u64> =
             self.completed_jobs.read().iter().copied().collect();
 
-        // Now iterate WITHOUT holding any locks on completed_jobs
-        for (input, job_id) in valid_jobs.into_iter().zip(job_ids.into_iter()) {
-            let job = self.create_job_from_input(job_id, queue.clone(), input);
-            ids.push(job.id);
+        for (orig_idx, input, internal_id) in jobs_to_create {
+            let job = self.create_job_from_input(internal_id, queue.clone(), input);
+            results.push((orig_idx, job.id));
 
             if !job.depends_on.is_empty()
                 && !job.depends_on.iter().all(|dep| completed.contains(dep))
             {
                 waiting_jobs.push(job);
-                continue;
+            } else {
+                created_jobs.push(job);
             }
-            created_jobs.push(job);
         }
 
-        // Persist first (needs references), then insert (consumes jobs)
+        // Phase 6: Persist and insert into queues
         self.persist_push_batch(&created_jobs, "waiting");
         self.persist_push_batch(&waiting_jobs, "waiting_children");
 
         {
             let mut shard = self.shards[idx].write();
             let heap = shard.queues.entry(queue_name.clone()).or_default();
-            // Use into_iter to move jobs instead of cloning
+
             for job in created_jobs {
                 self.index_job(
                     job.id,
@@ -318,10 +403,12 @@ impl QueueManager {
             }
         }
 
-        // Note: debounce cache is updated atomically during filtering above
+        // Sort by original index to preserve input order
+        results.sort_by_key(|(idx, _)| *idx);
+        let result_ids: Vec<u64> = results.into_iter().map(|(_, id)| id).collect();
 
-        self.metrics.record_push(ids.len() as u64);
+        self.metrics.record_push(result_ids.len() as u64);
         self.notify_shard(idx);
-        ids
+        result_ids
     }
 }
