@@ -54,6 +54,8 @@ pub struct ProcessMetrics {
 pub struct SystemMetrics {
     // Process memory
     pub memory_used_mb: f64,
+    pub memory_total_mb: f64,
+    pub memory_percent: f64,
     pub memory_rss_mb: f64,
     pub memory_virtual_mb: f64,
     // CPU
@@ -118,6 +120,13 @@ pub fn refresh_process_metrics() -> ProcessMetrics {
 // Handlers
 // ============================================================================
 
+/// Get total system memory in MB.
+pub fn get_total_memory_mb() -> f64 {
+    let mut sys = get_system().lock();
+    sys.refresh_memory();
+    sys.total_memory() as f64 / 1024.0 / 1024.0
+}
+
 /// Get system metrics using sysinfo crate.
 pub async fn get_system_metrics(State(qm): State<AppState>) -> Json<ApiResponse<SystemMetrics>> {
     let uptime = get_uptime_seconds();
@@ -125,9 +134,17 @@ pub async fn get_system_metrics(State(qm): State<AppState>) -> Json<ApiResponse<
     let pid = std::process::id();
 
     let pm = refresh_process_metrics();
+    let total_memory_mb = get_total_memory_mb();
+    let memory_percent = if total_memory_mb > 0.0 {
+        (pm.memory_rss_mb / total_memory_mb) * 100.0
+    } else {
+        0.0
+    };
 
     let metrics = SystemMetrics {
         memory_used_mb: pm.memory_rss_mb,
+        memory_total_mb: total_memory_mb,
+        memory_percent,
         memory_rss_mb: pm.memory_rss_mb,
         memory_virtual_mb: pm.memory_virtual_mb,
         cpu_percent: pm.cpu_percent,

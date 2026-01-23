@@ -19,7 +19,7 @@ use tokio::time::interval;
 use crate::protocol::{CronJob, MetricsData, MetricsHistoryPoint, QueueInfo, WorkerInfo};
 use crate::queue::QueueManager;
 
-use super::settings::{refresh_process_metrics, SqliteStats, SystemMetrics};
+use super::settings::{get_total_memory_mb, refresh_process_metrics, SqliteStats, SystemMetrics};
 use super::types::{AppState, StatsResponse, WsQuery};
 
 /// Maximum concurrent WebSocket connections
@@ -329,9 +329,17 @@ fn collect_system_metrics(qm: &Arc<QueueManager>) -> SystemMetrics {
 
     // Use sysinfo via shared refresh_process_metrics
     let pm = refresh_process_metrics();
+    let total_memory_mb = get_total_memory_mb();
+    let memory_percent = if total_memory_mb > 0.0 {
+        (pm.memory_rss_mb / total_memory_mb) * 100.0
+    } else {
+        0.0
+    };
 
     SystemMetrics {
         memory_used_mb: pm.memory_rss_mb,
+        memory_total_mb: total_memory_mb,
+        memory_percent,
         memory_rss_mb: pm.memory_rss_mb,
         memory_virtual_mb: pm.memory_virtual_mb,
         cpu_percent: pm.cpu_percent,

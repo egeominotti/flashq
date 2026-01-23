@@ -28,6 +28,7 @@ import {
   useSqliteStats,
 } from '../../stores';
 import { useSettings, useSparklineData } from '../../hooks';
+import { formatCompact } from '../../utils';
 import { StatCard } from '../../components/common';
 import { SystemTab } from './SystemTab';
 import { PerformanceTab } from './PerformanceTab';
@@ -115,7 +116,7 @@ export function ServerMetrics() {
           value={jobsPerSecond}
           icon={<Zap className="h-5 w-5" />}
           iconColor="emerald"
-          formatter={(v) => `${v.toFixed(1)}/s`}
+          formatter={(v) => `${formatCompact(v)}/s`}
           badge={{
             text: 'Jobs/sec',
             icon: <TrendingUp className="mr-1 h-3 w-3" />,
