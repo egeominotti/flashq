@@ -1,29 +1,37 @@
 # flashQ TypeScript SDK
 
-**Drop-in BullMQ replacement. No Redis required.**
+[![npm version](https://img.shields.io/npm/v/flashq)](https://www.npmjs.com/package/flashq)
+[![npm downloads](https://img.shields.io/npm/dm/flashq)](https://www.npmjs.com/package/flashq)
+[![GitHub stars](https://img.shields.io/github/stars/egeominotti/flashq)](https://github.com/egeominotti/flashq)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-Same API. Single binary. 10x faster. Built with Rust.
+> **High-performance job queue with BullMQ-compatible API. No Redis required.**
 
-**Perfect for AI workloads:** LLM pipelines, RAG, agents, batch inference.
+flashQ is a drop-in replacement for BullMQ that runs on a single Rust binary. It's designed for AI/ML workloads with support for 10MB payloads, job dependencies, and 300K+ jobs/sec throughput.
 
-[![npm](https://img.shields.io/npm/v/flashq)](https://www.npmjs.com/package/flashq)
-[![GitHub](https://img.shields.io/github/stars/egeominotti/flashq)](https://github.com/egeominotti/flashq)
+## Features
+
+- **BullMQ-Compatible API** - Migrate with minimal code changes
+- **No Redis Required** - Single binary, zero infrastructure
+- **10x Faster** - Rust + io_uring + lock-free data structures
+- **AI/ML Ready** - 10MB payloads, job dependencies, progress tracking
+- **Production Ready** - Typed errors, retry logic, graceful shutdown, observability hooks
 
 ## Installation
 
 ```bash
-bun add flashq
-# or
 npm install flashq
+# or
+yarn add flashq
+# or
+bun add flashq
 ```
 
-## Start the Server
+## Quick Start
+
+### 1. Start the Server
 
 ```bash
-# Pull from GitHub Container Registry (multi-arch: amd64 + arm64)
-docker pull ghcr.io/egeominotti/flashq:latest
-
-# Run with HTTP/Dashboard enabled
 docker run -d --name flashq \
   -p 6789:6789 \
   -p 6790:6790 \
@@ -31,42 +39,323 @@ docker run -d --name flashq \
   ghcr.io/egeominotti/flashq:latest
 ```
 
-Dashboard: http://localhost:6790
+Dashboard available at http://localhost:6790
 
-## Quick Start
+### 2. Create a Queue and Worker
 
 ```typescript
 import { Queue, Worker } from 'flashq';
 
-// Create queue
+// Create a queue
 const queue = new Queue('emails');
 
-// Add job
-await queue.add('send', { to: 'user@example.com' });
+// Add a job
+const job = await queue.add('send-welcome', {
+  to: 'user@example.com',
+  subject: 'Welcome!',
+});
 
-// Process jobs (auto-starts)
+// Process jobs
 const worker = new Worker('emails', async (job) => {
-  console.log('Processing:', job.data);
-  return { sent: true };
+  console.log(`Sending email to ${job.data.to}`);
+  // ... send email
+  return { sent: true, timestamp: Date.now() };
+});
+
+// Handle events
+worker.on('completed', (job, result) => {
+  console.log(`Job ${job.id} completed:`, result);
+});
+
+worker.on('failed', (job, error) => {
+  console.error(`Job ${job.id} failed:`, error.message);
 });
 ```
 
----
+## API Reference
 
-## Built for AI Workloads
-
-flashQ is designed for modern AI/ML pipelines with **10MB payload support** for embeddings, images, and large contexts.
-
-| Use Case | How flashQ Helps |
-|----------|------------------|
-| **LLM API Calls** | Rate limiting to control OpenAI/Anthropic costs |
-| **Batch Inference** | 300K jobs/sec throughput for high-volume inference |
-| **AI Agents** | Job dependencies for multi-step workflows |
-| **RAG Pipelines** | Chain jobs: embed → search → generate |
-| **Training Jobs** | Progress tracking, long timeouts, retries |
+### Queue
 
 ```typescript
-// AI Agent workflow example
+import { Queue } from 'flashq';
+
+const queue = new Queue('my-queue', {
+  host: 'localhost',
+  port: 6789,
+});
+
+// Add a single job
+const job = await queue.add('job-name', { data: 'value' }, {
+  priority: 10,           // Higher = processed first
+  delay: 5000,            // Delay in ms
+  attempts: 3,            // Max retry attempts
+  backoff: 1000,          // Exponential backoff base (ms)
+  timeout: 30000,         // Processing timeout (ms)
+  jobId: 'unique-id',     // Custom ID for idempotency
+  depends_on: [1, 2],     // Wait for these jobs to complete
+});
+
+// Add multiple jobs
+await queue.addBulk([
+  { name: 'task', data: { id: 1 } },
+  { name: 'task', data: { id: 2 }, opts: { priority: 10 } },
+]);
+
+// Wait for job completion
+const result = await queue.finished(job.id, 30000); // timeout in ms
+
+// Queue control
+await queue.pause();
+await queue.resume();
+await queue.drain();       // Remove all waiting jobs
+await queue.obliterate();  // Remove ALL queue data
+
+// Cleanup
+await queue.close();
+```
+
+### Worker
+
+```typescript
+import { Worker } from 'flashq';
+
+const worker = new Worker('my-queue', async (job) => {
+  // Process job
+  console.log('Processing:', job.id, job.data);
+
+  // Update progress
+  await worker.updateProgress(job.id, 50, 'Halfway done');
+
+  // Return result (auto-acknowledged)
+  return { processed: true };
+}, {
+  concurrency: 10,        // Parallel job processing
+  autostart: true,        // Start automatically (default: true)
+  closeTimeout: 30000,    // Graceful shutdown timeout (ms)
+});
+
+// Events
+worker.on('ready', () => console.log('Worker ready'));
+worker.on('active', (job) => console.log('Job started:', job.id));
+worker.on('completed', (job, result) => console.log('Job done:', result));
+worker.on('failed', (job, error) => console.log('Job failed:', error));
+worker.on('stopping', () => console.log('Worker stopping...'));
+worker.on('stopped', () => console.log('Worker stopped'));
+
+// Graceful shutdown
+await worker.close();        // Wait for current jobs
+await worker.close(true);    // Force close immediately
+```
+
+### Low-Level Client
+
+For advanced use cases, use the `FlashQ` client directly:
+
+```typescript
+import { FlashQ } from 'flashq';
+
+const client = new FlashQ({
+  host: 'localhost',
+  port: 6789,
+  timeout: 5000,
+});
+
+await client.connect();
+
+// Push/Pull operations
+const job = await client.push('queue', { data: 'value' });
+const pulled = await client.pull('queue', 5000);
+await client.ack(pulled.id, { result: 'done' });
+
+// Job management
+const state = await client.getState(job.id);
+const counts = await client.getJobCounts('queue');
+await client.cancel(job.id);
+
+// Cron jobs
+await client.addCron('daily-cleanup', {
+  queue: 'maintenance',
+  schedule: '0 0 * * *',
+  data: { task: 'cleanup' },
+});
+
+await client.close();
+```
+
+## Error Handling
+
+flashQ provides typed error classes for precise error handling:
+
+```typescript
+import {
+  FlashQError,
+  ConnectionError,
+  TimeoutError,
+  ValidationError,
+  ServerError,
+  AuthenticationError,
+} from 'flashq';
+
+try {
+  await client.push('queue', data);
+} catch (error) {
+  if (error instanceof ConnectionError) {
+    console.log('Connection failed, retrying...');
+  } else if (error instanceof TimeoutError) {
+    console.log(`Timeout after ${error.timeout}ms`);
+  } else if (error instanceof ValidationError) {
+    console.log(`Invalid ${error.field}: ${error.message}`);
+  } else if (error instanceof ServerError) {
+    console.log(`Server error: ${error.serverCode}`);
+  }
+
+  // Check if error is retryable
+  if (error instanceof FlashQError && error.retryable) {
+    // Safe to retry
+  }
+}
+```
+
+## Retry Logic
+
+Built-in retry utilities with exponential backoff:
+
+```typescript
+import { withRetry, retryable, RetryPresets } from 'flashq';
+
+// Wrap a single operation
+const result = await withRetry(
+  () => client.push('queue', data),
+  {
+    maxRetries: 3,
+    initialDelay: 100,
+    maxDelay: 5000,
+    backoffMultiplier: 2,
+    jitter: true,
+    onRetry: (error, attempt, delay) => {
+      console.log(`Retry ${attempt} after ${delay}ms: ${error.message}`);
+    },
+  }
+);
+
+// Create a retryable function
+const retryablePush = retryable(
+  (queue: string, data: unknown) => client.push(queue, data),
+  RetryPresets.standard
+);
+
+await retryablePush('emails', { to: 'user@example.com' });
+
+// Available presets
+RetryPresets.fast       // 2 retries, 50ms initial, 500ms max
+RetryPresets.standard   // 3 retries, 100ms initial, 5s max
+RetryPresets.aggressive // 5 retries, 200ms initial, 30s max
+RetryPresets.none       // No retries
+```
+
+## Observability Hooks
+
+Integrate with OpenTelemetry, DataDog, or any observability platform:
+
+```typescript
+import { FlashQ, ClientHooks } from 'flashq';
+
+const hooks: ClientHooks = {
+  onPush: (ctx) => {
+    console.log(`Pushing to ${ctx.queue}`, ctx.data);
+  },
+  onPushComplete: (ctx) => {
+    console.log(`Pushed job ${ctx.job?.id} in ${ctx.duration}ms`);
+  },
+  onPushError: (ctx, error) => {
+    console.error(`Push failed: ${error.message}`);
+  },
+  onConnect: (ctx) => {
+    console.log('Connected to flashQ');
+  },
+  onDisconnect: (ctx) => {
+    console.log(`Disconnected: ${ctx.reason}`);
+  },
+};
+
+const client = new FlashQ({ hooks });
+```
+
+Worker hooks for job processing:
+
+```typescript
+import { Worker, WorkerHooks } from 'flashq';
+
+const workerHooks: WorkerHooks = {
+  onProcess: (ctx) => {
+    console.log(`Processing job ${ctx.job.id}`);
+  },
+  onProcessComplete: (ctx) => {
+    console.log(`Job ${ctx.job.id} completed in ${ctx.duration}ms`);
+  },
+  onProcessError: (ctx, error) => {
+    console.error(`Job ${ctx.job.id} failed: ${error.message}`);
+  },
+};
+
+const worker = new Worker('queue', processor, { workerHooks });
+```
+
+## Logging
+
+Configurable logging with request ID tracking:
+
+```typescript
+import { FlashQ, Logger, createLogger } from 'flashq';
+
+// Use built-in logger
+const client = new FlashQ({
+  logLevel: 'debug', // trace | debug | info | warn | error | silent
+});
+
+// Custom logger
+const logger = createLogger({
+  level: 'info',
+  prefix: 'my-app',
+  timestamps: true,
+  handler: (entry) => {
+    // Send to your logging service
+    myLoggingService.log(entry);
+  },
+});
+
+// Request ID tracking for distributed tracing
+logger.setRequestId('req-12345');
+logger.info('Processing request', { userId: 123 });
+// Output: [2024-01-15T10:30:00.000Z] [INFO] [my-app] [req-12345] Processing request {"userId":123}
+```
+
+## Performance
+
+flashQ is **3-10x faster** than BullMQ in real-world benchmarks:
+
+| Metric | flashQ | BullMQ | Speedup |
+|--------|-------:|-------:|--------:|
+| Push Rate | 307,692/s | 43,649/s | **7.0x** |
+| Process Rate | 292,398/s | 27,405/s | **10.7x** |
+| CPU-Bound Processing | 62,814/s | 23,923/s | **2.6x** |
+
+### Why flashQ is Faster
+
+| Optimization | Description |
+|--------------|-------------|
+| **Rust + tokio** | Zero-cost abstractions, no GC pauses |
+| **io_uring** | Linux kernel async I/O |
+| **32 Shards** | Lock-free concurrent access |
+| **MessagePack** | 40% smaller payloads |
+| **No Redis** | Direct TCP protocol |
+
+## AI/ML Workloads
+
+flashQ is designed for AI pipelines with large payloads and complex workflows:
+
+```typescript
+// AI Agent with job dependencies
 const agent = new Queue('ai-agent');
 
 // Step 1: Parse user intent
@@ -74,277 +363,89 @@ const parse = await agent.add('parse', { prompt: userInput });
 
 // Step 2: Retrieve context (waits for step 1)
 const retrieve = await agent.add('retrieve', { query }, {
-  depends_on: [parse.id]
+  depends_on: [parse.id],
 });
 
 // Step 3: Generate response (waits for step 2)
 const generate = await agent.add('generate', { context }, {
   depends_on: [retrieve.id],
-  priority: 10
+  priority: 10,
 });
 
 // Wait for the final result
-const result = await agent.finished(generate.id);
+const result = await agent.finished(generate.id, 60000);
 ```
 
----
+## Configuration
 
-## ⚡ Performance Benchmark: flashQ vs BullMQ
-
-> **flashQ is 3x to 10x faster than BullMQ** in real-world benchmarks.
-
-### Test Environment
-
-| Component | Version | Configuration |
-|-----------|---------|---------------|
-| **flashQ Server** | 0.1.0 | Docker with `io_uring` enabled, Rust + tokio async runtime |
-| **BullMQ** | 5.66.5 | npm package |
-| **Redis** | 7.4.7 | Docker (`redis:7-alpine`), jemalloc allocator |
-| **Bun** | 1.3.6 | TypeScript runtime |
-| **Platform** | Linux/macOS | Docker containers |
-
-### Benchmark Configuration
-
-```
-Workers:              8
-Concurrency/worker:   50
-Total concurrency:    400
-Batch size:           1,000 jobs
-Data verification:    Enabled (input === output)
-```
-
-### Results: No-op Jobs (100,000 jobs)
-
-Minimal job processing to measure pure queue overhead.
-
-| Metric | flashQ | BullMQ | Speedup |
-|--------|-------:|-------:|--------:|
-| **Push Rate** | 307,692 jobs/sec | 43,649 jobs/sec | **7.0x** |
-| **Process Rate** | 292,398 jobs/sec | 27,405 jobs/sec | **10.7x** |
-| **Total Time** | 0.67s | 5.94s | **8.9x** |
-
-### Results: CPU-Bound Jobs (100,000 jobs)
-
-Each job performs realistic CPU work:
-- JSON serialize/deserialize
-- 10x SHA256 hash rounds
-- Array sort/filter/reduce (100 elements)
-- String manipulation
-
-| Metric | flashQ | BullMQ | Speedup |
-|--------|-------:|-------:|--------:|
-| **Push Rate** | 220,751 jobs/sec | 43,422 jobs/sec | **5.1x** |
-| **Process Rate** | 62,814 jobs/sec | 23,923 jobs/sec | **2.6x** |
-| **Total Time** | 2.04s | 6.48s | **3.2x** |
-
-### Results: 1 Million Jobs (flashQ only)
-
-| Scenario | Push Rate | Process Rate | Total Time | Data Integrity |
-|----------|----------:|-------------:|-----------:|:--------------:|
-| **No-op** | 266,809/s | 262,536/s | 7.56s | ✅ 100% |
-| **CPU-bound** | 257,334/s | 65,240/s | 19.21s | ✅ 100% |
-
-### Why flashQ is Faster
-
-| Optimization | Description |
-|--------------|-------------|
-| **Rust + tokio** | Zero-cost abstractions, no GC pauses |
-| **io_uring** | Linux kernel async I/O (when available) |
-| **32 Shards** | Lock-free concurrent access via DashMap |
-| **MessagePack** | 40% smaller payloads vs JSON |
-| **Batch Operations** | Amortized network overhead |
-| **No Redis Dependency** | Direct TCP protocol, no intermediary |
-
-### Run Benchmarks
-
-```bash
-# flashQ benchmarks
-bun run examples/heavy-benchmark.ts      # No-op 100K
-bun run examples/cpu-benchmark.ts        # CPU-bound 100K
-bun run examples/million-benchmark.ts    # 1M jobs
-
-# BullMQ comparison (requires Redis)
-docker run -d -p 6379:6379 redis:7-alpine
-bun run examples/bullmq-benchmark.ts     # No-op 100K
-bun run examples/bullmq-cpu-benchmark.ts # CPU-bound 100K
-```
-
----
-
-## Queue
+### Client Options
 
 ```typescript
-const queue = new Queue('emails', {
-  host: 'localhost',
-  port: 6789,
-});
-
-// Add single job
-await queue.add('send', data, {
-  priority: 10,
-  delay: 5000,
-  attempts: 3,
-  backoff: { type: 'exponential', delay: 1000 },
-});
-
-// Add bulk
-await queue.addBulk([
-  { name: 'send', data: { to: 'a@test.com' } },
-  { name: 'send', data: { to: 'b@test.com' }, opts: { priority: 10 } },
-]);
-
-// Control
-await queue.pause();
-await queue.resume();
-await queue.drain();      // remove waiting
-await queue.obliterate(); // remove all
-
-// Wait for job completion (synchronous workflow)
-const job = await queue.add('process', data);
-const result = await queue.finished(job.id);  // blocks until done
+interface ClientOptions {
+  host?: string;              // Default: 'localhost'
+  port?: number;              // Default: 6789
+  httpPort?: number;          // Default: 6790
+  token?: string;             // Auth token
+  timeout?: number;           // Connection timeout (ms)
+  useHttp?: boolean;          // Use HTTP instead of TCP
+  useBinary?: boolean;        // Use MessagePack (40% smaller)
+  logLevel?: LogLevel;        // Logging level
+  compression?: boolean;      // Enable gzip compression
+  compressionThreshold?: number; // Min size to compress (bytes)
+  hooks?: ClientHooks;        // Observability hooks
+}
 ```
 
-## Worker
+### Worker Options
 
 ```typescript
-// Auto-starts by default (like BullMQ)
-const worker = new Worker('emails', async (job) => {
-  return { done: true };
-}, {
-  concurrency: 10,
-});
-
-// Events
-worker.on('completed', (job, result) => {});
-worker.on('failed', (job, error) => {});
-
-// Shutdown
-await worker.close();
-```
-
-## Job Options
-
-| Option | Type | Description |
-|--------|------|-------------|
-| `priority` | number | Higher = first (default: 0) |
-| `delay` | number | Delay in ms |
-| `attempts` | number | Retry count |
-| `backoff` | number \| object | Backoff config |
-| `timeout` | number | Processing timeout |
-| `jobId` | string | Custom ID for idempotency |
-| `depends_on` | number[] | Wait for these job IDs to complete |
-
-## Key-Value Storage
-
-Redis-like KV store with TTL support and batch operations.
-
-```typescript
-import { FlashQ } from 'flashq';
-
-const client = new FlashQ();
-
-// Basic operations
-await client.kvSet('user:123', { name: 'John', email: 'john@example.com' });
-const user = await client.kvGet('user:123');
-await client.kvDel('user:123');
-
-// With TTL (milliseconds)
-await client.kvSet('session:abc', { token: 'xyz' }, { ttl: 3600000 }); // 1 hour
-
-// TTL operations
-await client.kvExpire('user:123', 60000);  // Set TTL
-const ttl = await client.kvTtl('user:123'); // Get remaining TTL
-
-// Batch operations (10-100x faster!)
-await client.kvMset([
-  { key: 'user:1', value: { name: 'Alice' } },
-  { key: 'user:2', value: { name: 'Bob' } },
-  { key: 'user:3', value: { name: 'Charlie' }, ttl: 60000 },
-]);
-
-const users = await client.kvMget(['user:1', 'user:2', 'user:3']);
-
-// Pattern matching
-const userKeys = await client.kvKeys('user:*');
-const sessionKeys = await client.kvKeys('session:???');
-
-// Atomic counters
-await client.kvIncr('page:views');           // +1
-await client.kvIncr('user:123:score', 10);   // +10
-await client.kvDecr('stock:item:456');       // -1
-```
-
-### KV Performance
-
-| Operation | Throughput |
-|-----------|------------|
-| Sequential SET/GET | ~30K ops/sec |
-| **Batch MSET** | **640K ops/sec** |
-| **Batch MGET** | **1.2M ops/sec** |
-
-> Use batch operations (MSET/MGET) for best performance!
-
-## Pub/Sub
-
-Redis-like publish/subscribe messaging.
-
-```typescript
-import { FlashQ } from 'flashq';
-
-const client = new FlashQ();
-
-// Publish messages to a channel
-const receivers = await client.publish('notifications', { type: 'alert', text: 'Hello!' });
-console.log(`Message sent to ${receivers} subscribers`);
-
-// Subscribe to channels
-await client.pubsubSubscribe(['notifications', 'alerts']);
-
-// Pattern subscribe (e.g., "events:*" matches "events:user:signup")
-await client.pubsubPsubscribe(['events:*', 'logs:*']);
-
-// List active channels
-const allChannels = await client.pubsubChannels();
-const eventChannels = await client.pubsubChannels('events:*');
-
-// Get subscriber counts
-const counts = await client.pubsubNumsub(['notifications', 'alerts']);
-// [['notifications', 5], ['alerts', 2]]
-
-// Unsubscribe
-await client.pubsubUnsubscribe(['notifications']);
-await client.pubsubPunsubscribe(['events:*']);
+interface WorkerOptions {
+  concurrency?: number;       // Parallel jobs (default: 1)
+  autostart?: boolean;        // Auto-start (default: true)
+  closeTimeout?: number;      // Graceful shutdown timeout (ms)
+  workerHooks?: WorkerHooks;  // Processing hooks
+}
 ```
 
 ## Examples
+
+Run examples with:
 
 ```bash
 bun run examples/01-basic.ts
 ```
 
-| File | Description |
-|------|-------------|
-| 01-basic.ts | Queue + Worker basics |
-| 02-job-options.ts | Priority, delay, retry |
-| 03-bulk-jobs.ts | Add multiple jobs |
-| 04-events.ts | Worker events |
-| 05-queue-control.ts | Pause, resume, drain |
-| 06-delayed.ts | Scheduled jobs |
-| 07-retry.ts | Retry with backoff |
-| 08-priority.ts | Priority ordering |
-| 09-concurrency.ts | Parallel processing |
-| 10-benchmark.ts | Basic performance test |
-| **heavy-benchmark.ts** | 100K no-op benchmark |
-| **cpu-benchmark.ts** | 100K CPU-bound benchmark |
-| **million-benchmark.ts** | 1M jobs with verification |
-| **benchmark-full.ts** | Memory + latency + throughput |
-| **bullmq-benchmark.ts** | BullMQ comparison (no-op) |
-| **bullmq-cpu-benchmark.ts** | BullMQ comparison (CPU) |
-| **bullmq-benchmark-full.ts** | BullMQ memory + latency |
-| kv-benchmark.ts | KV store benchmark |
-| pubsub-example.ts | Pub/Sub messaging |
-| **ai-workflow.ts** | AI agent with job dependencies |
-| **ai-workflow-manual.ts** | Manual AI workflow control |
+| Example | Description |
+|---------|-------------|
+| `01-basic.ts` | Queue and Worker basics |
+| `02-job-options.ts` | Priority, delay, retry |
+| `03-bulk-jobs.ts` | Batch operations |
+| `04-events.ts` | Worker events |
+| `05-queue-control.ts` | Pause, resume, drain |
+| `06-delayed.ts` | Scheduled jobs |
+| `07-retry.ts` | Retry with backoff |
+| `08-priority.ts` | Priority ordering |
+| `09-concurrency.ts` | Parallel processing |
+| `ai-workflow.ts` | AI agent with dependencies |
+
+## Migration from BullMQ
+
+flashQ provides a BullMQ-compatible API. Most code works with minimal changes:
+
+```typescript
+// Before (BullMQ)
+import { Queue, Worker } from 'bullmq';
+const queue = new Queue('my-queue', { connection: { host: 'redis' } });
+
+// After (flashQ)
+import { Queue, Worker } from 'flashq';
+const queue = new Queue('my-queue', { host: 'flashq-server' });
+```
+
+Key differences:
+- No Redis connection required
+- `connection` option replaced with `host`/`port`
+- Some advanced BullMQ features may have different behavior
 
 ## License
 
