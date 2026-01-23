@@ -208,3 +208,122 @@ describe('constants', () => {
     expect(MAX_BATCH_SIZE).toBe(1000);
   });
 });
+
+// Import mapJobToPayload for testing
+import { mapJobToPayload, type JobPayload } from '../../src/client/validation';
+import { DEFAULT_JOB_PRIORITY } from '../../src/constants';
+
+describe('mapJobToPayload', () => {
+  test('maps minimal data with defaults', () => {
+    const payload = mapJobToPayload({ email: 'test@example.com' });
+
+    expect(payload.data).toEqual({ email: 'test@example.com' });
+    expect(payload.priority).toBe(DEFAULT_JOB_PRIORITY);
+    expect(payload.lifo).toBe(false);
+    expect(payload.remove_on_complete).toBe(false);
+    expect(payload.remove_on_fail).toBe(false);
+    expect(payload.delay).toBeUndefined();
+    expect(payload.ttl).toBeUndefined();
+    expect(payload.timeout).toBeUndefined();
+    expect(payload.max_attempts).toBeUndefined();
+    expect(payload.backoff).toBeUndefined();
+    expect(payload.unique_key).toBeUndefined();
+    expect(payload.depends_on).toBeUndefined();
+    expect(payload.tags).toBeUndefined();
+    expect(payload.job_id).toBeUndefined();
+    expect(payload.group_id).toBeUndefined();
+  });
+
+  test('maps all options correctly', () => {
+    const payload = mapJobToPayload(
+      { task: 'process' },
+      {
+        priority: 10,
+        delay: 5000,
+        ttl: 60000,
+        timeout: 30000,
+        max_attempts: 3,
+        backoff: 1000,
+        unique_key: 'unique-123',
+        depends_on: [1, 2, 3],
+        tags: ['important', 'urgent'],
+        lifo: true,
+        remove_on_complete: true,
+        remove_on_fail: true,
+        stall_timeout: 15000,
+        debounce_id: 'debounce-1',
+        debounce_ttl: 2000,
+        jobId: 'custom-job-id',
+        keepCompletedAge: 86400000,
+        keepCompletedCount: 100,
+        group_id: 'group-1',
+      }
+    );
+
+    expect(payload.data).toEqual({ task: 'process' });
+    expect(payload.priority).toBe(10);
+    expect(payload.delay).toBe(5000);
+    expect(payload.ttl).toBe(60000);
+    expect(payload.timeout).toBe(30000);
+    expect(payload.max_attempts).toBe(3);
+    expect(payload.backoff).toBe(1000);
+    expect(payload.unique_key).toBe('unique-123');
+    expect(payload.depends_on).toEqual([1, 2, 3]);
+    expect(payload.tags).toEqual(['important', 'urgent']);
+    expect(payload.lifo).toBe(true);
+    expect(payload.remove_on_complete).toBe(true);
+    expect(payload.remove_on_fail).toBe(true);
+    expect(payload.stall_timeout).toBe(15000);
+    expect(payload.debounce_id).toBe('debounce-1');
+    expect(payload.debounce_ttl).toBe(2000);
+    expect(payload.job_id).toBe('custom-job-id');
+    expect(payload.keep_completed_age).toBe(86400000);
+    expect(payload.keep_completed_count).toBe(100);
+    expect(payload.group_id).toBe('group-1');
+  });
+
+  test('maps partial options with correct defaults', () => {
+    const payload = mapJobToPayload(
+      { data: 'value' },
+      { priority: 5, delay: 1000 }
+    );
+
+    expect(payload.data).toEqual({ data: 'value' });
+    expect(payload.priority).toBe(5);
+    expect(payload.delay).toBe(1000);
+    expect(payload.lifo).toBe(false);
+    expect(payload.remove_on_complete).toBe(false);
+    expect(payload.remove_on_fail).toBe(false);
+  });
+
+  test('handles empty options object', () => {
+    const payload = mapJobToPayload('string-data', {});
+
+    expect(payload.data).toBe('string-data');
+    expect(payload.priority).toBe(DEFAULT_JOB_PRIORITY);
+    expect(payload.lifo).toBe(false);
+  });
+
+  test('preserves data types', () => {
+    // String data
+    expect(mapJobToPayload('string').data).toBe('string');
+
+    // Number data
+    expect(mapJobToPayload(123).data).toBe(123);
+
+    // Array data
+    expect(mapJobToPayload([1, 2, 3]).data).toEqual([1, 2, 3]);
+
+    // Null data
+    expect(mapJobToPayload(null).data).toBeNull();
+
+    // Complex object
+    const complex = { nested: { deep: { value: true } }, arr: [1, 2] };
+    expect(mapJobToPayload(complex).data).toEqual(complex);
+  });
+
+  test('returns correct TypeScript type', () => {
+    const payload: JobPayload<{ email: string }> = mapJobToPayload({ email: 'test@test.com' });
+    expect(payload.data.email).toBe('test@test.com');
+  });
+});

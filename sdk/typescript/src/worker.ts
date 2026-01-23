@@ -8,6 +8,15 @@ import {
   type WorkerHooks,
   type ProcessHookContext,
 } from './hooks';
+import { Logger } from './utils/logger';
+import {
+  DEFAULT_WORKER_CONCURRENCY,
+  DEFAULT_WORKER_BATCH_SIZE,
+  DEFAULT_CLOSE_TIMEOUT,
+  WORKER_PULL_TIMEOUT,
+  WORKER_ERROR_RETRY_DELAY,
+  WORKER_JOB_CHECK_INTERVAL,
+} from './constants';
 
 export interface BullMQWorkerOptions extends Omit<ClientOptions, 'hooks'>, WorkerOptions {
   /** Auto-start worker (BullMQ-compatible, default: true) */
@@ -62,17 +71,7 @@ export class Worker<T = unknown, R = unknown> extends EventEmitter {
   private stopPromise: Promise<void> | null = null;
   private abortController: AbortController | null = null;
   private workerHooks?: WorkerHooks;
-
-  private log(message: string, data?: unknown): void {
-    if (!this.options.debug) return;
-    const timestamp = new Date().toISOString();
-    const prefix = `[flashQ Worker ${this.options.id} ${timestamp}]`;
-    if (data !== undefined) {
-      console.log(`${prefix} ${message}`, data);
-    } else {
-      console.log(`${prefix} ${message}`);
-    }
-  }
+  private logger: Logger;
 
   constructor(
     queues: string | string[],
@@ -82,15 +81,24 @@ export class Worker<T = unknown, R = unknown> extends EventEmitter {
     super();
     this.queues = Array.isArray(queues) ? queues : [queues];
     this.processor = processor;
+
+    const workerId = options.id ?? `worker-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
     this.options = {
-      id: options.id ?? `worker-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-      concurrency: options.concurrency ?? 10,
-      batchSize: options.batchSize ?? 100,
+      id: workerId,
+      concurrency: options.concurrency ?? DEFAULT_WORKER_CONCURRENCY,
+      batchSize: options.batchSize ?? DEFAULT_WORKER_BATCH_SIZE,
       autoAck: options.autoAck ?? true,
       autorun: options.autorun ?? true,
       debug: options.debug ?? false,
-      closeTimeout: options.closeTimeout ?? 30000,
+      closeTimeout: options.closeTimeout ?? DEFAULT_CLOSE_TIMEOUT,
     };
+
+    // Initialize logger with worker-specific prefix
+    this.logger = new Logger({
+      level: this.options.debug ? 'debug' : 'silent',
+      prefix: `flashQ:worker:${workerId}`,
+    });
 
     this.workerHooks = options.workerHooks;
 
@@ -137,18 +145,18 @@ export class Worker<T = unknown, R = unknown> extends EventEmitter {
   }
 
   private async doStart(): Promise<void> {
-    this.log('Starting worker', { queues: this.queues, concurrency: this.options.concurrency });
+    this.logger.info('Starting worker', { queues: this.queues, concurrency: this.options.concurrency });
     // Create a separate client for each worker (TCP pull is blocking)
     for (let i = 0; i < this.options.concurrency; i++) {
       const client = new FlashQ({ ...this.clientOptions, debug: this.options.debug });
       await client.connect();
       this.clients.push(client);
-      this.log(`Client ${i} connected`);
+      this.logger.debug(`Client ${i} connected`);
     }
 
     this.state = 'running';
     this.emit('ready');
-    this.log('Worker ready');
+    this.logger.info('Worker ready');
 
     // Start worker loops (each with its own client)
     for (let i = 0; i < this.options.concurrency; i++) {
@@ -196,7 +204,7 @@ export class Worker<T = unknown, R = unknown> extends EventEmitter {
   }
 
   private async doStop(force: boolean): Promise<void> {
-    this.log('Stopping worker', { processing: this.processing, force });
+    this.logger.info('Stopping worker', { processing: this.processing, force });
 
     if (force) {
       // Force close - abort immediately
@@ -217,7 +225,7 @@ export class Worker<T = unknown, R = unknown> extends EventEmitter {
         ]);
 
         if (result === 'timeout') {
-          this.log('Graceful shutdown timeout reached', { timeout, processing: this.processing });
+          this.logger.warn('Graceful shutdown timeout reached', { timeout, processing: this.processing });
           this.emit(
             'error',
             new Error(
@@ -232,18 +240,18 @@ export class Worker<T = unknown, R = unknown> extends EventEmitter {
     }
 
     this.workers = [];
-    this.log('All worker loops stopped');
+    this.logger.debug('All worker loops stopped');
 
     // Close all clients
     const clientsToClose = [...this.clients];
     this.clients = [];
     await Promise.all(clientsToClose.map((c) => c.close()));
-    this.log('All clients closed');
+    this.logger.debug('All clients closed');
 
     this.state = 'stopped';
     this.emit('stopped');
     this.emit('drained');
-    this.log('Worker stopped', { totalProcessed: this.jobsProcessed });
+    this.logger.info('Worker stopped', { totalProcessed: this.jobsProcessed });
   }
 
   /**
@@ -263,7 +271,7 @@ export class Worker<T = unknown, R = unknown> extends EventEmitter {
           clearTimeout(timer);
           resolve(true);
         }
-      }, 50);
+      }, WORKER_JOB_CHECK_INTERVAL);
 
       const timer = setTimeout(() => {
         clearInterval(checkInterval);
@@ -312,8 +320,8 @@ export class Worker<T = unknown, R = unknown> extends EventEmitter {
         if (this.state !== 'running') break;
 
         try {
-          // Batch pull with SHORT timeout (500ms) for responsive shutdown
-          const jobs = await client.pullBatch<T>(queue, batchSize, 500);
+          // Batch pull with SHORT timeout for responsive shutdown
+          const jobs = await client.pullBatch<T>(queue, batchSize, WORKER_PULL_TIMEOUT);
 
           // No jobs available - continue polling
           if (!jobs || jobs.length === 0) {
@@ -333,13 +341,13 @@ export class Worker<T = unknown, R = unknown> extends EventEmitter {
           // Connection error - wait before retry
           if (this.state === 'running') {
             this.emit('error', error);
-            await this.sleep(1000);
+            await this.sleep(WORKER_ERROR_RETRY_DELAY);
           }
         }
       }
     }
 
-    this.log(`Worker loop ${workerId} exited`, { state: this.state });
+    this.logger.debug(`Worker loop ${workerId} exited`, { state: this.state });
   }
 
   /**
@@ -433,16 +441,16 @@ export class Worker<T = unknown, R = unknown> extends EventEmitter {
   async updateProgress(jobId: number, progress: number, message?: string): Promise<void> {
     if (this.state !== 'running') {
       const error = new Error(`Cannot update progress: worker is ${this.state}`);
-      this.log('updateProgress failed', { jobId, state: this.state });
+      this.logger.warn('updateProgress failed', { jobId, state: this.state });
       throw error;
     }
     if (this.clients.length === 0) {
       const error = new Error('Cannot update progress: no active clients');
-      this.log('updateProgress failed', { jobId, reason: 'no clients' });
+      this.logger.warn('updateProgress failed', { jobId, reason: 'no clients' });
       throw error;
     }
     await this.clients[0].progress(jobId, progress, message);
-    this.log('Progress updated', { jobId, progress, message });
+    this.logger.debug('Progress updated', { jobId, progress, message });
   }
 }
 

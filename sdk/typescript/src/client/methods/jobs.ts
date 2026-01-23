@@ -2,6 +2,7 @@
  * Job management operations
  */
 import type { IFlashQClient, Job, JobState, JobWithState, JobLogEntry } from '../types';
+import { DEFAULT_FINISHED_TIMEOUT, CLIENT_TIMEOUT_BUFFER } from '../../constants';
 
 /**
  * Get a job with its current state.
@@ -105,8 +106,8 @@ export async function finished<T = unknown>(
   jobId: number,
   timeout?: number
 ): Promise<T | null> {
-  const waitTimeout = timeout ?? 30000;
-  const requestTimeout = waitTimeout + 5000;
+  const waitTimeout = timeout ?? DEFAULT_FINISHED_TIMEOUT;
+  const requestTimeout = waitTimeout + CLIENT_TIMEOUT_BUFFER;
 
   const response = await client.send<{
     ok: boolean;

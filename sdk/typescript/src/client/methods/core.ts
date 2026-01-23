@@ -5,10 +5,17 @@ import type { IFlashQClient, Job, PushOptions, BatchPushResult } from '../types'
 import {
   validateQueueName,
   validateJobDataSize,
+  mapJobToPayload,
   MAX_BATCH_SIZE,
   MAX_JOB_DATA_SIZE,
 } from '../connection';
 import { ValidationError } from '../../errors';
+import {
+  DEFAULT_PULL_TIMEOUT,
+  CLIENT_TIMEOUT_BUFFER,
+  DEFAULT_JOB_PRIORITY,
+  DEFAULT_STALL_TIMEOUT,
+} from '../../constants';
 
 export { MAX_BATCH_SIZE, MAX_JOB_DATA_SIZE };
 
@@ -35,38 +42,21 @@ export async function push<T = unknown>(
   validateQueueName(queue);
   validateJobDataSize(data);
 
+  const payload = mapJobToPayload(data, options);
   const response = await client.send<{ ok: boolean; id: number }>({
     cmd: 'PUSH',
     queue,
-    data,
-    priority: options.priority ?? 0,
-    delay: options.delay,
-    ttl: options.ttl,
-    timeout: options.timeout,
-    max_attempts: options.max_attempts,
-    backoff: options.backoff,
-    unique_key: options.unique_key,
-    depends_on: options.depends_on,
-    tags: options.tags,
-    lifo: options.lifo ?? false,
-    remove_on_complete: options.remove_on_complete ?? false,
-    remove_on_fail: options.remove_on_fail ?? false,
-    stall_timeout: options.stall_timeout,
-    debounce_id: options.debounce_id,
-    debounce_ttl: options.debounce_ttl,
-    job_id: options.jobId,
-    keep_completed_age: options.keepCompletedAge,
-    keep_completed_count: options.keepCompletedCount,
-    group_id: options.group_id,
+    ...payload,
   });
 
+  const now = Date.now();
   return {
     id: response.id,
     queue,
     data,
-    priority: options.priority ?? 0,
-    created_at: Date.now(),
-    run_at: options.delay ? Date.now() + options.delay : Date.now(),
+    priority: payload.priority,
+    created_at: now,
+    run_at: options.delay ? now + options.delay : now,
     started_at: 0,
     attempts: 0,
     max_attempts: options.max_attempts ?? 0,
@@ -77,11 +67,11 @@ export async function push<T = unknown>(
     depends_on: options.depends_on ?? [],
     progress: 0,
     tags: options.tags ?? [],
-    lifo: options.lifo ?? false,
-    remove_on_complete: options.remove_on_complete ?? false,
-    remove_on_fail: options.remove_on_fail ?? false,
+    lifo: payload.lifo,
+    remove_on_complete: payload.remove_on_complete,
+    remove_on_fail: payload.remove_on_fail,
     last_heartbeat: 0,
-    stall_timeout: options.stall_timeout ?? 30000,
+    stall_timeout: options.stall_timeout ?? DEFAULT_STALL_TIMEOUT,
     stall_count: 0,
     parent_id: undefined,
     children_ids: [],
@@ -117,7 +107,10 @@ export async function pushBatch<T = unknown>(
 ): Promise<number[]> {
   validateQueueName(queue);
   if (jobs.length > MAX_BATCH_SIZE) {
-    throw new Error(`Batch size ${jobs.length} exceeds maximum allowed (${MAX_BATCH_SIZE})`);
+    throw new ValidationError(
+      `Batch size ${jobs.length} exceeds maximum allowed (${MAX_BATCH_SIZE})`,
+      'jobs'
+    );
   }
 
   // Validate each job's data size
@@ -128,28 +121,7 @@ export async function pushBatch<T = unknown>(
   const response = await client.send<{ ok: boolean; ids: number[] }>({
     cmd: 'PUSHB',
     queue,
-    jobs: jobs.map((j) => ({
-      data: j.data,
-      priority: j.priority ?? 0,
-      delay: j.delay,
-      ttl: j.ttl,
-      timeout: j.timeout,
-      max_attempts: j.max_attempts,
-      backoff: j.backoff,
-      unique_key: j.unique_key,
-      depends_on: j.depends_on,
-      tags: j.tags,
-      lifo: j.lifo ?? false,
-      remove_on_complete: j.remove_on_complete ?? false,
-      remove_on_fail: j.remove_on_fail ?? false,
-      stall_timeout: j.stall_timeout,
-      debounce_id: j.debounce_id,
-      debounce_ttl: j.debounce_ttl,
-      job_id: j.jobId,
-      keep_completed_age: j.keepCompletedAge,
-      keep_completed_count: j.keepCompletedCount,
-      group_id: j.group_id,
-    })),
+    jobs: jobs.map((j) => mapJobToPayload(j.data, j)),
   });
   return response.ids;
 }
@@ -218,28 +190,7 @@ export async function pushBatchSafe<T = unknown>(
     }>({
       cmd: 'PUSHB',
       queue,
-      jobs: validJobs.map((j) => ({
-        data: j.data,
-        priority: j.priority ?? 0,
-        delay: j.delay,
-        ttl: j.ttl,
-        timeout: j.timeout,
-        max_attempts: j.max_attempts,
-        backoff: j.backoff,
-        unique_key: j.unique_key,
-        depends_on: j.depends_on,
-        tags: j.tags,
-        lifo: j.lifo ?? false,
-        remove_on_complete: j.remove_on_complete ?? false,
-        remove_on_fail: j.remove_on_fail ?? false,
-        stall_timeout: j.stall_timeout,
-        debounce_id: j.debounce_id,
-        debounce_ttl: j.debounce_ttl,
-        job_id: j.jobId,
-        keep_completed_age: j.keepCompletedAge,
-        keep_completed_count: j.keepCompletedCount,
-        group_id: j.group_id,
-      })),
+      jobs: validJobs.map((j) => mapJobToPayload(j.data, j)),
     });
 
     // Map response IDs back to original indices
@@ -297,8 +248,8 @@ export async function pull<T = unknown>(
   timeout?: number
 ): Promise<(Job & { data: T }) | null> {
   validateQueueName(queue);
-  const serverTimeout = timeout ?? 60000;
-  const clientTimeout = serverTimeout + 5000;
+  const serverTimeout = timeout ?? DEFAULT_PULL_TIMEOUT;
+  const clientTimeout = serverTimeout + CLIENT_TIMEOUT_BUFFER;
   const response = await client.send<{ ok: boolean; job: Job | null }>(
     {
       cmd: 'PULL',
@@ -335,11 +286,14 @@ export async function pullBatch<T = unknown>(
 ): Promise<Array<Job & { data: T }>> {
   validateQueueName(queue);
   if (count > MAX_BATCH_SIZE) {
-    throw new Error(`Batch size ${count} exceeds maximum allowed (${MAX_BATCH_SIZE})`);
+    throw new ValidationError(
+      `Batch size ${count} exceeds maximum allowed (${MAX_BATCH_SIZE})`,
+      'count'
+    );
   }
 
-  const serverTimeout = timeout ?? 60000;
-  const clientTimeout = serverTimeout + 5000;
+  const serverTimeout = timeout ?? DEFAULT_PULL_TIMEOUT;
+  const clientTimeout = serverTimeout + CLIENT_TIMEOUT_BUFFER;
   const response = await client.send<{ ok: boolean; jobs: Job[] }>(
     {
       cmd: 'PULLB',
@@ -386,7 +340,10 @@ export async function ack(client: IFlashQClient, jobId: number, result?: unknown
  */
 export async function ackBatch(client: IFlashQClient, jobIds: number[]): Promise<number> {
   if (jobIds.length > MAX_BATCH_SIZE) {
-    throw new Error(`Batch size ${jobIds.length} exceeds maximum allowed (${MAX_BATCH_SIZE})`);
+    throw new ValidationError(
+      `Batch size ${jobIds.length} exceeds maximum allowed (${MAX_BATCH_SIZE})`,
+      'jobIds'
+    );
   }
 
   const response = await client.send<{ ok: boolean; ids: number[] }>({

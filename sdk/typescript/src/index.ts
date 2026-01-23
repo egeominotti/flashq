@@ -21,7 +21,7 @@
 
 // BullMQ-compatible API
 export { Queue } from './queue';
-export type { QueueOptions, JobOptions } from './queue';
+export type { QueueOptions, JobOptions, JobReference } from './queue';
 
 export { Worker } from './worker';
 export type { BullMQWorkerOptions } from './worker';
@@ -31,7 +31,11 @@ export { FlashQ, FlashQ as default } from './client';
 
 // Constants and validation utilities
 export { MAX_BATCH_SIZE, MAX_JOB_DATA_SIZE } from './client/methods/core';
-export { validateQueueName, validateJobDataSize } from './client/connection';
+export { validateQueueName, validateJobDataSize, mapJobToPayload } from './client/connection';
+export type { JobPayload } from './client/connection';
+
+// All constants for advanced configuration
+export * as Constants from './constants';
 
 // Optional: Real-time events
 export { EventSubscriber } from './events';

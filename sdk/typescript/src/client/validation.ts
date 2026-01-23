@@ -6,12 +6,18 @@
  */
 
 import { ValidationError } from '../errors';
+import type { PushOptions } from '../types';
+import {
+  MAX_JOB_DATA_SIZE as _MAX_JOB_DATA_SIZE,
+  MAX_BATCH_SIZE as _MAX_BATCH_SIZE,
+  DEFAULT_JOB_PRIORITY,
+} from '../constants';
 
 /** Maximum allowed job data size in bytes (1MB) */
-export const MAX_JOB_DATA_SIZE = 1024 * 1024;
+export const MAX_JOB_DATA_SIZE = _MAX_JOB_DATA_SIZE;
 
 /** Maximum number of jobs per batch operation */
-export const MAX_BATCH_SIZE = 1000;
+export const MAX_BATCH_SIZE = _MAX_BATCH_SIZE;
 
 /** Regex pattern for valid queue names: alphanumeric, underscore, hyphen, dot (1-256 chars) */
 const QUEUE_NAME_REGEX = /^[a-zA-Z0-9_.-]{1,256}$/;
@@ -121,4 +127,71 @@ export function validateTimeout(timeout: number, min = 0, max = 600000): void {
       'timeout'
     );
   }
+}
+
+/**
+ * Server-side job payload structure.
+ * This is the format expected by the flashQ server.
+ */
+export interface JobPayload<T = unknown> {
+  data: T;
+  priority: number;
+  delay?: number;
+  ttl?: number;
+  timeout?: number;
+  max_attempts?: number;
+  backoff?: number;
+  unique_key?: string;
+  depends_on?: number[];
+  tags?: string[];
+  lifo: boolean;
+  remove_on_complete: boolean;
+  remove_on_fail: boolean;
+  stall_timeout?: number;
+  debounce_id?: string;
+  debounce_ttl?: number;
+  job_id?: string;
+  keep_completed_age?: number;
+  keep_completed_count?: number;
+  group_id?: string;
+}
+
+/**
+ * Maps PushOptions to server payload format.
+ *
+ * This is the single source of truth for option-to-payload mapping,
+ * eliminating duplication across push, pushBatch, and pushBatchSafe.
+ *
+ * @param data - Job data payload
+ * @param options - Push options
+ * @returns Server-compatible job payload
+ *
+ * @example
+ * ```typescript
+ * const payload = mapJobToPayload({ email: 'test@example.com' }, { priority: 10 });
+ * ```
+ */
+export function mapJobToPayload<T>(data: T, options: PushOptions = {}): JobPayload<T> {
+  return {
+    data,
+    priority: options.priority ?? DEFAULT_JOB_PRIORITY,
+    delay: options.delay,
+    ttl: options.ttl,
+    timeout: options.timeout,
+    max_attempts: options.max_attempts,
+    backoff: options.backoff,
+    unique_key: options.unique_key,
+    depends_on: options.depends_on,
+    tags: options.tags,
+    lifo: options.lifo ?? false,
+    remove_on_complete: options.remove_on_complete ?? false,
+    remove_on_fail: options.remove_on_fail ?? false,
+    stall_timeout: options.stall_timeout,
+    debounce_id: options.debounce_id,
+    debounce_ttl: options.debounce_ttl,
+    job_id: options.jobId,
+    keep_completed_age: options.keepCompletedAge,
+    keep_completed_count: options.keepCompletedCount,
+    group_id: options.group_id,
+  };
 }

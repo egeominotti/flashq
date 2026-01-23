@@ -4,6 +4,19 @@
 import { FlashQ } from './client';
 import type { Job, PushOptions, ClientOptions } from './types';
 
+/**
+ * Minimal job reference returned from bulk operations.
+ * Contains only the essential fields available immediately after creation.
+ */
+export interface JobReference<T = unknown> {
+  /** Server-assigned job ID */
+  id: number;
+  /** Queue name */
+  queue: string;
+  /** Original job data */
+  data: T;
+}
+
 export interface QueueOptions extends ClientOptions {
   /** Default job options for all jobs in this queue */
   defaultJobOptions?: JobOptions;
@@ -102,8 +115,11 @@ export class Queue<T = unknown> {
 
   /**
    * Add multiple jobs (BullMQ-compatible)
+   *
+   * @returns Array of job references with id, queue, and data.
+   *          Use getJob() if you need full job details.
    */
-  async addBulk(jobs: Array<{ name: string; data: T; opts?: JobOptions }>): Promise<Job<T>[]> {
+  async addBulk(jobs: Array<{ name: string; data: T; opts?: JobOptions }>): Promise<JobReference<T>[]> {
     const flashqJobs = jobs.map((job) => {
       const opts = { ...this.defaultJobOptions, ...job.opts };
       return {
@@ -130,7 +146,7 @@ export class Queue<T = unknown> {
       id,
       queue: this.name,
       data: jobs[i].data,
-    })) as Job<T>[];
+    }));
   }
 
   /**

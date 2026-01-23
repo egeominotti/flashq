@@ -23,6 +23,21 @@ import { Logger, type LogLevel } from '../utils/logger';
 import { callHook, createHookContext, type ConnectionHookContext } from '../hooks';
 import { encode } from '@msgpack/msgpack';
 import {
+  DEFAULT_HOST,
+  DEFAULT_TCP_PORT,
+  DEFAULT_HTTP_PORT,
+  DEFAULT_CONNECTION_TIMEOUT,
+  DEFAULT_RECONNECT_DELAY,
+  DEFAULT_MAX_RECONNECT_DELAY,
+  DEFAULT_MAX_RECONNECT_ATTEMPTS,
+  DEFAULT_MAX_QUEUED_REQUESTS,
+  DEFAULT_COMPRESSION_THRESHOLD,
+  DEFAULT_RETRY_MAX_ATTEMPTS,
+  DEFAULT_RETRY_INITIAL_DELAY,
+  DEFAULT_RETRY_MAX_DELAY,
+  RECONNECT_JITTER_FACTOR,
+} from '../constants';
+import {
   type PendingRequest,
   generateRequestId,
   JsonBufferHandler,
@@ -36,7 +51,9 @@ export {
   MAX_BATCH_SIZE,
   validateQueueName,
   validateJobDataSize,
+  mapJobToPayload,
 } from './validation';
+export type { JobPayload } from './validation';
 
 const gzip = promisify(zlib.gzip);
 
@@ -51,9 +68,9 @@ interface QueuedRequest {
 /** Default retry configuration */
 const DEFAULT_RETRY_CONFIG: Required<Omit<RetryConfig, 'onRetry'>> = {
   enabled: false,
-  maxRetries: 3,
-  initialDelay: 100,
-  maxDelay: 5000,
+  maxRetries: DEFAULT_RETRY_MAX_ATTEMPTS,
+  initialDelay: DEFAULT_RETRY_INITIAL_DELAY,
+  maxDelay: DEFAULT_RETRY_MAX_DELAY,
 };
 
 /** Client options with required fields except hooks */
@@ -95,26 +112,26 @@ export class FlashQConnection extends EventEmitter {
     });
 
     this._options = {
-      host: options.host ?? 'localhost',
-      port: options.port ?? 6789,
-      httpPort: options.httpPort ?? 6790,
+      host: options.host ?? DEFAULT_HOST,
+      port: options.port ?? DEFAULT_TCP_PORT,
+      httpPort: options.httpPort ?? DEFAULT_HTTP_PORT,
       socketPath: options.socketPath ?? '',
       token: options.token ?? '',
-      timeout: options.timeout ?? 5000,
+      timeout: options.timeout ?? DEFAULT_CONNECTION_TIMEOUT,
       useHttp: options.useHttp ?? false,
       useBinary: options.useBinary ?? false,
       autoReconnect: options.autoReconnect ?? true,
-      maxReconnectAttempts: options.maxReconnectAttempts ?? 10,
-      reconnectDelay: options.reconnectDelay ?? 1000,
-      maxReconnectDelay: options.maxReconnectDelay ?? 30000,
+      maxReconnectAttempts: options.maxReconnectAttempts ?? DEFAULT_MAX_RECONNECT_ATTEMPTS,
+      reconnectDelay: options.reconnectDelay ?? DEFAULT_RECONNECT_DELAY,
+      maxReconnectDelay: options.maxReconnectDelay ?? DEFAULT_MAX_RECONNECT_DELAY,
       debug: options.debug ?? false,
       logLevel: logLevel,
       retry: options.retry ?? false,
       queueOnDisconnect: options.queueOnDisconnect ?? false,
-      maxQueuedRequests: options.maxQueuedRequests ?? 100,
+      maxQueuedRequests: options.maxQueuedRequests ?? DEFAULT_MAX_QUEUED_REQUESTS,
       trackRequestIds: options.trackRequestIds ?? false,
       compression: options.compression ?? false,
-      compressionThreshold: options.compressionThreshold ?? 1024,
+      compressionThreshold: options.compressionThreshold ?? DEFAULT_COMPRESSION_THRESHOLD,
       hooks: options.hooks,
     };
 
@@ -273,7 +290,7 @@ export class FlashQConnection extends EventEmitter {
       this._options.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1),
       this._options.maxReconnectDelay
     );
-    const delay = baseDelay + Math.random() * 0.3 * baseDelay;
+    const delay = baseDelay + Math.random() * RECONNECT_JITTER_FACTOR * baseDelay;
     this.emit('reconnecting', { attempt: this.reconnectAttempts, delay });
     this.callConnectionHook('reconnecting', undefined, this.reconnectAttempts);
     this.reconnectTimer = setTimeout(async () => {

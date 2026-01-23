@@ -2,6 +2,13 @@
  * Retry utility for automatic retries on transient failures
  */
 import { FlashQError } from '../errors';
+import {
+  DEFAULT_RETRY_MAX_ATTEMPTS,
+  DEFAULT_RETRY_INITIAL_DELAY,
+  DEFAULT_RETRY_MAX_DELAY,
+  DEFAULT_BACKOFF_MULTIPLIER,
+  RETRY_JITTER_FACTOR,
+} from '../constants';
 
 export interface RetryOptions {
   /** Max retry attempts (default: 3) */
@@ -23,10 +30,10 @@ export interface RetryOptions {
 }
 
 const DEFAULT_OPTIONS: Required<Omit<RetryOptions, 'retryOn' | 'shouldRetry' | 'onRetry'>> = {
-  maxRetries: 3,
-  initialDelay: 100,
-  maxDelay: 5000,
-  backoffMultiplier: 2,
+  maxRetries: DEFAULT_RETRY_MAX_ATTEMPTS,
+  initialDelay: DEFAULT_RETRY_INITIAL_DELAY,
+  maxDelay: DEFAULT_RETRY_MAX_DELAY,
+  backoffMultiplier: DEFAULT_BACKOFF_MULTIPLIER,
   jitter: true,
 };
 
@@ -66,8 +73,8 @@ export function calculateDelay(
   );
 
   if (options.jitter) {
-    // Add ±25% jitter
-    const jitterRange = delay * 0.25;
+    // Add ±RETRY_JITTER_FACTOR jitter (default: ±25%)
+    const jitterRange = delay * RETRY_JITTER_FACTOR;
     return delay + (Math.random() * jitterRange * 2 - jitterRange);
   }
 
@@ -170,11 +177,11 @@ export const RetryPresets = {
     maxDelay: 500,
   } as RetryOptions,
 
-  /** Standard retries for most operations */
+  /** Standard retries for most operations (uses SDK defaults) */
   standard: {
-    maxRetries: 3,
-    initialDelay: 100,
-    maxDelay: 5000,
+    maxRetries: DEFAULT_RETRY_MAX_ATTEMPTS,
+    initialDelay: DEFAULT_RETRY_INITIAL_DELAY,
+    maxDelay: DEFAULT_RETRY_MAX_DELAY,
   } as RetryOptions,
 
   /** Aggressive retries for critical operations */
