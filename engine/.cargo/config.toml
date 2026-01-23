@@ -1,29 +1,148 @@
-# flashQ Build Configuration
-# These flags optimize for maximum performance on the target CPU
+# =============================================================================
+# flashQ - Platform-Specific Build Optimizations
+# =============================================================================
+#
+# CPU Feature Levels:
+#   x86-64    = Baseline (SSE2)
+#   x86-64-v2 = SSE4.2, POPCNT (2008+ CPUs)
+#   x86-64-v3 = AVX2, BMI1/2, FMA (2013+ CPUs - Haswell/Zen)
+#   x86-64-v4 = AVX-512 (2017+ server CPUs)
+#
+# For portable binaries (Docker/CI), override with:
+#   RUSTFLAGS="-C target-cpu=x86-64-v2" cargo build --release
+#
+# =============================================================================
 
-[build]
-rustflags = [
-    "-C", "target-cpu=native",      # Use all CPU features (AVX2, AVX-512, etc.)
-    "-C", "link-arg=-fuse-ld=lld",  # Faster linker (if lld installed)
-]
+# =============================================================================
+# LINUX x86-64
+# =============================================================================
 
+# Linux x86-64 GNU (most common)
 [target.x86_64-unknown-linux-gnu]
 rustflags = [
-    "-C", "target-cpu=native",
+    "-C", "target-cpu=x86-64-v3",
+    "-C", "target-feature=+aes,+avx2,+sse4.2,+bmi1,+bmi2,+fma,+popcnt",
     "-C", "link-arg=-fuse-ld=lld",
 ]
 
+# Linux x86-64 musl (Alpine, static binaries)
+[target.x86_64-unknown-linux-musl]
+rustflags = [
+    "-C", "target-cpu=x86-64-v3",
+    "-C", "target-feature=+aes,+avx2,+sse4.2,+bmi1,+bmi2,+fma,+popcnt",
+]
+
+# =============================================================================
+# LINUX ARM64
+# =============================================================================
+
+# Linux ARM64 GNU (AWS Graviton2/3, Ampere Altra, Raspberry Pi 4+)
+[target.aarch64-unknown-linux-gnu]
+rustflags = [
+    "-C", "target-cpu=neoverse-n1",
+    "-C", "target-feature=+aes,+sha2,+crc,+lse,+rcpc",
+]
+
+# Linux ARM64 musl (Alpine ARM containers)
+[target.aarch64-unknown-linux-musl]
+rustflags = [
+    "-C", "target-cpu=neoverse-n1",
+    "-C", "target-feature=+aes,+sha2,+crc,+lse,+rcpc",
+]
+
+# =============================================================================
+# macOS
+# =============================================================================
+
+# macOS Apple Silicon (M1/M2/M3/M4)
 [target.aarch64-apple-darwin]
 rustflags = [
-    "-C", "target-cpu=native",      # Apple Silicon optimizations
+    "-C", "target-cpu=apple-m1",
+    "-C", "target-feature=+aes,+sha2,+sha3,+crc",
 ]
 
+# macOS Intel (2013+ Macs with AVX2)
 [target.x86_64-apple-darwin]
 rustflags = [
-    "-C", "target-cpu=native",
+    "-C", "target-cpu=haswell",
+    "-C", "target-feature=+aes,+avx2,+sse4.2,+bmi1,+bmi2,+fma,+popcnt",
 ]
 
-# Per Docker/CI dove serve binary portabile, usa:
-# RUSTFLAGS="-C target-cpu=x86-64-v3" cargo build --release
-# x86-64-v3 = AVX2 (most modern servers)
-# x86-64-v2 = SSE4.2 (broader compatibility)
+# =============================================================================
+# WINDOWS
+# =============================================================================
+
+# Windows x86-64 MSVC
+[target.x86_64-pc-windows-msvc]
+rustflags = [
+    "-C", "target-cpu=x86-64-v3",
+    "-C", "target-feature=+aes,+avx2,+sse4.2,+bmi1,+bmi2,+fma,+popcnt",
+]
+
+# Windows x86-64 GNU (MinGW)
+[target.x86_64-pc-windows-gnu]
+rustflags = [
+    "-C", "target-cpu=x86-64-v3",
+    "-C", "target-feature=+aes,+avx2,+sse4.2,+bmi1,+bmi2,+fma,+popcnt",
+]
+
+# Windows ARM64
+[target.aarch64-pc-windows-msvc]
+rustflags = [
+    "-C", "target-cpu=generic",
+    "-C", "target-feature=+aes,+sha2,+crc",
+]
+
+# =============================================================================
+# BSD
+# =============================================================================
+
+# FreeBSD x86-64
+[target.x86_64-unknown-freebsd]
+rustflags = [
+    "-C", "target-cpu=x86-64-v3",
+    "-C", "target-feature=+aes,+avx2,+sse4.2,+bmi1,+bmi2,+fma",
+]
+
+# FreeBSD ARM64
+[target.aarch64-unknown-freebsd]
+rustflags = [
+    "-C", "target-cpu=generic",
+    "-C", "target-feature=+aes,+sha2,+crc",
+]
+
+# NetBSD x86-64
+[target.x86_64-unknown-netbsd]
+rustflags = [
+    "-C", "target-cpu=x86-64-v3",
+    "-C", "target-feature=+aes,+avx2,+sse4.2",
+]
+
+# =============================================================================
+# BUILD SETTINGS
+# =============================================================================
+
+[build]
+# Parallel compilation (default: num_cpus)
+
+[net]
+# Faster dependency fetching
+git-fetch-with-cli = true
+
+[registries.crates-io]
+# Sparse protocol for faster index updates
+protocol = "sparse"
+
+# =============================================================================
+# ALIASES
+# =============================================================================
+
+[alias]
+# Quick release build
+br = "build --release"
+
+# Build for current machine with native optimizations
+native = "build --release"
+
+# Build portable binary (x86-64-v2 for max compatibility)
+portable = "build --release --config 'build.rustflags=[\"-C\", \"target-cpu=x86-64-v2\"]'"

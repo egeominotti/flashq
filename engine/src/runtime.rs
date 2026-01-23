@@ -34,47 +34,40 @@ pub fn is_linux() -> bool {
 
 /// Print runtime information at startup
 pub fn print_runtime_info() {
-    // Print OS info
-    #[cfg(target_os = "linux")]
-    {
-        info!(os = "Linux", "Operating system detected");
-    }
-    #[cfg(target_os = "macos")]
-    {
-        info!(os = "macOS", "Operating system detected");
-    }
-    #[cfg(target_os = "windows")]
-    {
-        info!(os = "Windows", "Operating system detected");
-    }
-
-    // Print runtime/IO backend info
     #[cfg(all(target_os = "linux", feature = "io-uring"))]
-    {
-        info!(
-            runtime = "tokio + io_uring",
-            "IO backend: io_uring (kernel-level async)"
-        );
-        info!("  Benefits: zero-copy I/O, batched syscalls, reduced context switches");
-    }
+    info!(
+        os = "linux",
+        runtime = "tokio",
+        io = "io_uring",
+        "Runtime initialized"
+    );
 
     #[cfg(all(target_os = "linux", not(feature = "io-uring")))]
-    {
-        info!(runtime = "tokio", io_backend = "epoll", "IO backend");
-        info!("  Tip: Enable io_uring with: cargo build --features io-uring");
-    }
+    info!(
+        os = "linux",
+        runtime = "tokio",
+        io = "epoll",
+        "Runtime initialized"
+    );
 
     #[cfg(target_os = "macos")]
-    {
-        info!(runtime = "tokio", io_backend = "kqueue", "IO backend");
-        info!("  Note: io_uring is Linux-only, kqueue is optimal for macOS");
-    }
+    info!(
+        os = "macos",
+        runtime = "tokio",
+        io = "kqueue",
+        "Runtime initialized"
+    );
 
     #[cfg(target_os = "windows")]
-    {
-        info!(runtime = "tokio", io_backend = "IOCP", "IO backend");
-        info!("  Note: io_uring is Linux-only, IOCP is optimal for Windows");
-    }
+    info!(
+        os = "windows",
+        runtime = "tokio",
+        io = "iocp",
+        "Runtime initialized"
+    );
+
+    #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
+    info!(runtime = "tokio", "Runtime initialized");
 }
 
 /// Get runtime description string

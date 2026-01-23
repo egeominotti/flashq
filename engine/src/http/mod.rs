@@ -43,12 +43,7 @@ fn create_cors_layer() -> CorsLayer {
                 .allow_headers([header::CONTENT_TYPE, header::AUTHORIZATION, header::ACCEPT])
         }
         _ => {
-            // Development: allow all (with warning)
-            if std::env::var("CORS_ALLOW_ORIGIN").is_err() {
-                tracing::warn!(
-                    "CORS_ALLOW_ORIGIN not set - allowing all origins. Set this in production!"
-                );
-            }
+            // Development: allow all origins
             CorsLayer::permissive()
         }
     };

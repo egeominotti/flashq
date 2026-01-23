@@ -143,7 +143,6 @@ impl QueueManager {
 
                 // Start async writer background task
                 async_writer.start();
-                info!("SQLite async writer started for maximum throughput");
 
                 // Recover from SQLite
                 manager.recover_from_sqlite(&storage);
@@ -257,11 +256,8 @@ impl QueueManager {
             mgr.background_tasks().await;
         });
 
-        if has_storage {
-            info!("SQLite persistence enabled");
-        }
         if sync_persistence {
-            info!("Sync persistence enabled (DURABLE MODE)");
+            info!("Sync persistence mode (durable)");
         }
 
         manager

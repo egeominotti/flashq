@@ -418,8 +418,6 @@ pub async fn run_grpc_server(
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let service = QueueServiceImpl::new(queue_manager);
 
-    println!("gRPC server listening on {}", addr);
-
     tonic::transport::Server::builder()
         .add_service(service.into_server())
         .serve(addr)

@@ -124,7 +124,7 @@ impl SqliteStorage {
             config.cache_size,
         ))?;
 
-        info!(path = ?config.path, "SQLite storage initialized");
+        info!(path = %config.path.display(), "SQLite initialized");
 
         Ok(Self {
             conn: Mutex::new(conn),
@@ -160,7 +160,7 @@ impl SqliteStorage {
     pub fn enable_async_writer(&mut self, config: AsyncWriterConfig) -> Arc<AsyncWriter> {
         let writer = AsyncWriter::new(self.path.clone(), config);
         self.async_writer = Some(Arc::clone(&writer));
-        info!("Async writer enabled for SQLite persistence");
+        info!("Async writer enabled");
         writer
     }
 

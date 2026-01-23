@@ -14,7 +14,6 @@ mod timeout;
 use std::sync::Arc;
 
 use tokio::time::{interval, Duration};
-use tracing::info;
 
 use super::manager::QueueManager;
 
@@ -29,13 +28,9 @@ impl QueueManager {
         let mut metrics_ticker = interval(Duration::from_secs(5));
         let mut snapshot_ticker = interval(Duration::from_secs(1));
 
-        info!("Background tasks started");
-
         loop {
             if self.is_shutdown() {
-                info!("Background tasks received shutdown signal, stopping...");
                 self.maybe_snapshot().await;
-                info!("Background tasks stopped");
                 return;
             }
 

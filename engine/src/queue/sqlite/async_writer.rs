@@ -221,15 +221,12 @@ impl AsyncWriter {
     /// Shutdown the writer gracefully.
     #[allow(dead_code)]
     pub async fn shutdown(&self) {
-        info!("Async writer shutting down...");
         self.running.store(false, Ordering::SeqCst);
         self.notify.notify_one();
 
         // Wait for shutdown with timeout
         tokio::select! {
-            _ = self.shutdown_complete.notified() => {
-                info!("Async writer shutdown complete");
-            }
+            _ = self.shutdown_complete.notified() => {}
             _ = tokio::time::sleep(Duration::from_secs(5)) => {
                 warn!("Async writer shutdown timeout");
             }
@@ -246,13 +243,7 @@ impl AsyncWriter {
 
     /// Main writer loop.
     async fn run_writer_loop(&self) {
-        let initial_interval = self.batch_interval_ms.load(Ordering::Relaxed);
         let initial_batch_size = self.max_batch_size.load(Ordering::Relaxed);
-        info!(
-            batch_interval_ms = initial_interval,
-            max_batch_size = initial_batch_size,
-            "Async writer started"
-        );
 
         // Open dedicated connection for writing
         let conn = match Connection::open(&self.db_path) {

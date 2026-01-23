@@ -70,7 +70,7 @@ async fn shutdown_signal(shutdown_tx: broadcast::Sender<()>) {
         _ = terminate => {},
     }
 
-    info!("Shutdown signal received, starting graceful shutdown...");
+    info!("Shutting down...");
     SHUTDOWN_FLAG.store(true, Ordering::Relaxed);
     let _ = shutdown_tx.send(());
 }
@@ -159,12 +159,8 @@ fn create_queue_manager(auth_tokens: &[String]) -> Arc<QueueManager> {
         .ok();
 
     match (sqlite_path, auth_tokens.is_empty()) {
-        (Some(path), true) => {
-            info!(path = %path, "Using SQLite persistence");
-            QueueManager::with_sqlite_from_env()
-        }
-        (Some(path), false) => {
-            info!(path = %path, token_count = auth_tokens.len(), "Using SQLite with authentication");
+        (Some(_), true) => QueueManager::with_sqlite_from_env(),
+        (Some(_), false) => {
             let mut qm = QueueManager::with_sqlite_from_env();
             if let Some(q) = Arc::get_mut(&mut qm) {
                 q.set_auth_tokens(auth_tokens.to_vec());
@@ -172,7 +168,7 @@ fn create_queue_manager(auth_tokens: &[String]) -> Arc<QueueManager> {
             qm
         }
         (None, true) => {
-            info!("Running in-memory mode (no persistence)");
+            info!("In-memory mode");
             QueueManager::new(false)
         }
         (None, false) => {
@@ -428,33 +424,22 @@ async fn start_s3_backup_task(queue_manager: &Arc<QueueManager>) {
 async fn graceful_shutdown(queue_manager: &Arc<QueueManager>) {
     queue_manager.shutdown();
 
-    info!("Stopping new connections, waiting for active jobs to complete...");
     let start = std::time::Instant::now();
     let timeout = std::time::Duration::from_secs(SHUTDOWN_TIMEOUT_SECS);
 
     loop {
         let processing = queue_manager.processing_count();
         if processing == 0 {
-            info!("All active jobs completed");
             break;
         }
 
         if start.elapsed() >= timeout {
-            warn!(
-                remaining_jobs = processing,
-                timeout_secs = SHUTDOWN_TIMEOUT_SECS,
-                "Shutdown timeout reached, forcing exit"
-            );
+            warn!(remaining = processing, "Timeout, forcing exit");
             break;
         }
 
-        info!(
-            processing_jobs = processing,
-            elapsed_secs = start.elapsed().as_secs(),
-            "Waiting for active jobs to complete..."
-        );
         tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
     }
 
-    info!("Shutdown complete");
+    info!("Goodbye");
 }
