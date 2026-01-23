@@ -1,61 +1,46 @@
 /**
  * Connection management for FlashQ client.
+ *
+ * This module provides the core connection layer that handles:
+ * - TCP socket connections with auto-reconnect
+ * - HTTP fallback for environments without raw socket support
+ * - Binary (MessagePack) and JSON protocol support
+ * - Request queueing during disconnection
+ * - Compression for large payloads
+ *
+ * @module client/connection
  */
 import * as net from 'net';
 import * as zlib from 'zlib';
 import { promisify } from 'util';
 import { EventEmitter } from 'events';
-import { encode, decode } from '@msgpack/msgpack';
 import type { ClientOptions, ApiResponse, RetryConfig } from '../types';
 import { buildHeaders, buildHttpRequest } from './http/request';
 import { parseHttpResponse } from './http/response';
-import {
-  ConnectionError,
-  AuthenticationError,
-  TimeoutError,
-  ValidationError,
-  parseServerError,
-} from '../errors';
+import { ConnectionError, AuthenticationError, TimeoutError, parseServerError } from '../errors';
 import { withRetry } from '../utils/retry';
 import { Logger, type LogLevel } from '../utils/logger';
 import { callHook, createHookContext, type ConnectionHookContext } from '../hooks';
+import { encode } from '@msgpack/msgpack';
+import {
+  type PendingRequest,
+  generateRequestId,
+  JsonBufferHandler,
+  BinaryBufferHandler,
+} from './tcp';
+import type { ConnectionState } from './reconnect';
+
+// Re-export validation utilities for backward compatibility
+export {
+  MAX_JOB_DATA_SIZE,
+  MAX_BATCH_SIZE,
+  validateQueueName,
+  validateJobDataSize,
+} from './validation';
 
 const gzip = promisify(zlib.gzip);
 
-export const MAX_JOB_DATA_SIZE = 1024 * 1024;
-export const MAX_BATCH_SIZE = 1000;
-const QUEUE_NAME_REGEX = /^[a-zA-Z0-9_.-]{1,256}$/;
-let requestIdCounter = 0;
-const generateReqId = (): string => `r${++requestIdCounter}`;
-
-export function validateQueueName(queue: string): void {
-  if (!queue || typeof queue !== 'string') {
-    throw new ValidationError('Queue name is required', 'queue');
-  }
-  if (!QUEUE_NAME_REGEX.test(queue)) {
-    throw new ValidationError(
-      `Invalid queue name: "${queue}". Must be alphanumeric, _, -, . (1-256 chars)`,
-      'queue'
-    );
-  }
-}
-
-export function validateJobDataSize(data: unknown): void {
-  const size = JSON.stringify(data).length;
-  if (size > MAX_JOB_DATA_SIZE) {
-    throw new ValidationError(
-      `Job data size (${size} bytes) exceeds max (${MAX_JOB_DATA_SIZE} bytes)`,
-      'data'
-    );
-  }
-}
-
-interface PendingRequest {
-  resolve: (value: unknown) => void;
-  reject: (error: Error) => void;
-  timer: ReturnType<typeof setTimeout>;
-}
-
+/** Request queued during disconnection */
 interface QueuedRequest {
   command: Record<string, unknown>;
   customTimeout?: number;
@@ -63,8 +48,7 @@ interface QueuedRequest {
   reject: (error: Error) => void;
 }
 
-type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'reconnecting' | 'closed';
-
+/** Default retry configuration */
 const DEFAULT_RETRY_CONFIG: Required<Omit<RetryConfig, 'onRetry'>> = {
   enabled: false,
   maxRetries: 3,
@@ -84,9 +68,8 @@ export class FlashQConnection extends EventEmitter {
   private connectionState: ConnectionState = 'disconnected';
   private authenticated = false;
   private pendingRequests: Map<string, PendingRequest> = new Map();
-  private bufferChunks: string[] = [];
-  private bufferRemainder = '';
-  private binaryBuffer: Buffer = Buffer.alloc(0);
+  private jsonBuffer = new JsonBufferHandler();
+  private binaryBuffer = new BinaryBufferHandler();
   private reconnectAttempts = 0;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private manualClose = false;
@@ -164,7 +147,17 @@ export class FlashQConnection extends EventEmitter {
     this.logger.debug(message, data);
   }
 
-  /** Call connection hook */
+  /**
+   * Invokes the connection hook if configured.
+   *
+   * Creates a ConnectionHookContext and calls the onConnection hook
+   * with the appropriate event type. Hook errors are caught and logged
+   * to prevent breaking the main flow.
+   *
+   * @param event - The connection event type
+   * @param error - Error object for error events
+   * @param attempt - Reconnection attempt number
+   */
   private callConnectionHook(
     event: 'connect' | 'disconnect' | 'reconnecting' | 'reconnected' | 'error',
     error?: Error,
@@ -253,6 +246,15 @@ export class FlashQConnection extends EventEmitter {
     });
   }
 
+  /**
+   * Schedules a reconnection attempt with exponential backoff.
+   *
+   * Calculates delay using: min(initialDelay * 2^attempt, maxDelay) + jitter
+   * Jitter is 0-30% of base delay to prevent thundering herd.
+   *
+   * Emits 'reconnecting' before attempt and 'reconnected' on success.
+   * On failure, recursively schedules next attempt until max reached.
+   */
   private scheduleReconnect(): void {
     if (this.manualClose || !this._options.autoReconnect) return;
     if (
@@ -290,14 +292,22 @@ export class FlashQConnection extends EventEmitter {
     }, delay);
   }
 
+  /**
+   * Sets up event handlers on the TCP socket.
+   *
+   * Handlers:
+   * - 'data': Routes to JSON or binary buffer processor based on protocol
+   * - 'close': Triggers disconnect event and schedules reconnection
+   * - 'error': Emits error event and calls connection hook
+   */
   private setupSocketHandlers(): void {
     if (!this.socket) return;
     this.socket.on('data', (data) => {
       if (this._options.useBinary) {
-        this.binaryBuffer = Buffer.concat([this.binaryBuffer, data]);
+        this.binaryBuffer.append(data);
         this.processBinaryBuffer();
       } else {
-        this.bufferChunks.push(data.toString());
+        this.jsonBuffer.append(data);
         this.processBuffer();
       }
     });
@@ -317,14 +327,15 @@ export class FlashQConnection extends EventEmitter {
     });
   }
 
+  /**
+   * Processes the JSON text buffer to extract complete responses.
+   *
+   * Delegates to JsonBufferHandler for line extraction, then parses
+   * each complete line as JSON and passes to handleResponse.
+   */
   private processBuffer(): void {
-    // Join chunks only when processing (more efficient than += on each chunk)
-    const fullBuffer = this.bufferRemainder + this.bufferChunks.join('');
-    this.bufferChunks.length = 0; // Clear array without reallocating
-    const lines = fullBuffer.split('\n');
-    this.bufferRemainder = lines.pop() ?? '';
+    const lines = this.jsonBuffer.extractLines();
     for (const line of lines) {
-      if (!line.trim()) continue;
       try {
         this.handleResponse(JSON.parse(line));
       } catch (err) {
@@ -337,23 +348,35 @@ export class FlashQConnection extends EventEmitter {
     }
   }
 
+  /**
+   * Processes the binary buffer to extract MessagePack frames.
+   *
+   * Delegates to BinaryBufferHandler for frame extraction and decoding,
+   * then passes each decoded object to handleResponse.
+   */
   private processBinaryBuffer(): void {
-    while (this.binaryBuffer.length >= 4) {
-      const len = this.binaryBuffer.readUInt32BE(0);
-      if (this.binaryBuffer.length < 4 + len) break;
-      const frameData = this.binaryBuffer.subarray(4, 4 + len);
-      this.binaryBuffer = this.binaryBuffer.subarray(4 + len);
-      try {
-        this.handleResponse(decode(frameData) as Record<string, unknown>);
-      } catch (err) {
-        this.debug('Failed to decode binary response', {
-          error: err instanceof Error ? err.message : err,
-        });
-        this.emit('parse_error', err, frameData);
+    try {
+      const frames = this.binaryBuffer.extractFrames();
+      for (const frame of frames) {
+        this.handleResponse(frame);
       }
+    } catch (err) {
+      this.debug('Failed to decode binary response', {
+        error: err instanceof Error ? err.message : err,
+      });
+      this.emit('parse_error', err);
     }
   }
 
+  /**
+   * Handles a parsed response from the server.
+   *
+   * Matches response.reqId to pending request, clears timeout,
+   * and resolves/rejects the promise. Server errors are parsed
+   * into typed FlashQError subclasses.
+   *
+   * @param response - Parsed response object with reqId
+   */
   private handleResponse(response: Record<string, unknown>): void {
     if (!response.reqId) {
       this.logger.warn('Received response without reqId', response);
@@ -395,6 +418,9 @@ export class FlashQConnection extends EventEmitter {
       req.reject(new ConnectionError('Connection closed', 'CONNECTION_CLOSED'));
     }
     this.requestQueue = [];
+    // Reset buffers
+    this.jsonBuffer.reset();
+    this.binaryBuffer.reset();
     if (this.socket) {
       this.socket.destroy();
       this.socket = null;
@@ -450,6 +476,17 @@ export class FlashQConnection extends EventEmitter {
     return this.doSend<T>(command, customTimeout);
   }
 
+  /**
+   * Internal send implementation without retry wrapper.
+   *
+   * Routes to queueRequest if disconnecting with queue enabled,
+   * waits for reconnection if in progress, then delegates to
+   * sendTcp or sendHttp based on protocol configuration.
+   *
+   * @param command - Command object to send
+   * @param customTimeout - Optional timeout override
+   * @returns Promise resolving to response
+   */
   private async doSend<T>(command: Record<string, unknown>, customTimeout?: number): Promise<T> {
     // Queue request if disconnected and queueOnDisconnect is enabled
     if (this.queueOnDisconnect && this.connectionState === 'reconnecting') {
@@ -465,6 +502,15 @@ export class FlashQConnection extends EventEmitter {
       : this.sendTcp<T>(command, customTimeout);
   }
 
+  /**
+   * Waits for an in-progress reconnection to complete.
+   *
+   * Listens for 'reconnected' or 'reconnect_failed' events.
+   * Times out after options.timeout milliseconds.
+   *
+   * @returns Promise that resolves when reconnected
+   * @throws ConnectionError on timeout or reconnection failure
+   */
   private async waitForReconnection(): Promise<void> {
     return new Promise<void>((resolve, reject) => {
       const timeout = setTimeout(() => {
@@ -487,6 +533,17 @@ export class FlashQConnection extends EventEmitter {
     });
   }
 
+  /**
+   * Queues a request for later execution after reconnection.
+   *
+   * Used when queueOnDisconnect is enabled and connection is lost.
+   * Requests are stored and replayed in order when reconnected.
+   *
+   * @param command - Command to queue
+   * @param customTimeout - Optional timeout for when request is eventually sent
+   * @returns Promise that resolves when request completes after reconnection
+   * @throws ConnectionError if queue is full
+   */
   private queueRequest<T>(command: Record<string, unknown>, customTimeout?: number): Promise<T> {
     if (this.requestQueue.length >= this.maxQueuedRequests) {
       return Promise.reject(
@@ -504,6 +561,13 @@ export class FlashQConnection extends EventEmitter {
     });
   }
 
+  /**
+   * Processes all queued requests after successful reconnection.
+   *
+   * Sends each queued request in order, resolving or rejecting
+   * the original promises. Clears the queue before processing
+   * to handle any new requests that may be queued during replay.
+   */
   private async processRequestQueue(): Promise<void> {
     if (this.requestQueue.length === 0) return;
     this.debug('Processing queued requests', { count: this.requestQueue.length });
@@ -519,12 +583,24 @@ export class FlashQConnection extends EventEmitter {
     }
   }
 
+  /**
+   * Sends a command over the TCP socket.
+   *
+   * Handles request ID generation, optional compression,
+   * timeout management, and protocol serialization (JSON or MessagePack).
+   *
+   * @param command - Command object to send
+   * @param customTimeout - Optional timeout override in milliseconds
+   * @returns Promise resolving to typed response
+   * @throws ConnectionError if not connected
+   * @throws TimeoutError if request times out
+   */
   private async sendTcp<T>(command: Record<string, unknown>, customTimeout?: number): Promise<T> {
     if (!this.socket || this.connectionState !== 'connected') {
       throw new ConnectionError('Not connected', 'NOT_CONNECTED');
     }
 
-    const reqId = generateReqId();
+    const reqId = generateRequestId();
     const timeoutMs = customTimeout ?? this._options.timeout;
 
     // Set request ID for logger correlation if tracking is enabled
@@ -596,6 +672,17 @@ export class FlashQConnection extends EventEmitter {
     });
   }
 
+  /**
+   * Sends a command via HTTP REST API.
+   *
+   * Converts the command to appropriate HTTP method and URL,
+   * handles authentication headers, and parses the JSON response.
+   *
+   * @param command - Command object to convert to HTTP request
+   * @param customTimeout - Optional timeout override in milliseconds
+   * @returns Promise resolving to typed response
+   * @throws TimeoutError if request times out
+   */
   private async sendHttp<T>(command: Record<string, unknown>, customTimeout?: number): Promise<T> {
     const { cmd, ...params } = command;
     const baseUrl = `http://${this._options.host}:${this._options.httpPort}`;
