@@ -200,7 +200,6 @@ export function Overview() {
               index="date"
               categories={['Jobs/sec']}
               colors={['cyan']}
-              showAnimation
               showLegend={false}
               curveType="monotone"
               valueFormatter={(v) => `${v.toFixed(1)}/s`}
@@ -233,7 +232,6 @@ export function Overview() {
               category="value"
               index="name"
               colors={['cyan', 'blue', 'indigo', 'violet', 'purple']}
-              showAnimation
               valueFormatter={formatNumber}
               showLabel
             />

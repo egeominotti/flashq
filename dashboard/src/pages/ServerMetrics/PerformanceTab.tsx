@@ -74,7 +74,6 @@ export function PerformanceTab({
             index="date"
             categories={['Latency (ms)', 'Throughput']}
             colors={['cyan', 'emerald']}
-            showAnimation
             showLegend
             curveType="monotone"
             showGridLines={false}
@@ -106,7 +105,6 @@ export function PerformanceTab({
             index="date"
             categories={['Queued', 'Processing']}
             colors={['blue', 'violet']}
-            showAnimation
             showLegend
             curveType="monotone"
             showGridLines={false}

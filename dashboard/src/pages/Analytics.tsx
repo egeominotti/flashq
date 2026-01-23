@@ -188,7 +188,6 @@ export function Analytics() {
               index="timestamp"
               categories={['Jobs/sec']}
               colors={['cyan']}
-              showAnimation
               showLegend={false}
               curveType="monotone"
               valueFormatter={(v) => `${v.toFixed(1)}/s`}
@@ -221,7 +220,6 @@ export function Analytics() {
               index="timestamp"
               categories={['Avg Latency']}
               colors={['blue']}
-              showAnimation
               curveType="monotone"
               valueFormatter={(v) => `${v.toFixed(2)}ms`}
               showGridLines={false}
@@ -256,7 +254,6 @@ export function Analytics() {
               index="name"
               categories={['Waiting', 'Active', 'DLQ']}
               colors={['cyan', 'blue', 'rose']}
-              showAnimation
               stack
               valueFormatter={formatNumber}
               showGridLines={false}
@@ -288,7 +285,6 @@ export function Analytics() {
               index="timestamp"
               categories={['Queued', 'Processing']}
               colors={['cyan', 'blue']}
-              showAnimation
               curveType="monotone"
               valueFormatter={formatNumber}
               showGridLines={false}

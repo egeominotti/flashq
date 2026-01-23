@@ -23,48 +23,6 @@
     inset 0 0 60px rgba(0, 212, 255, 0.02);
 }
 
-/* Particle System */
-.particle-container {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  overflow: hidden;
-}
-
-.particle {
-  position: absolute;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  animation: particle-float 1s ease-out forwards;
-}
-
-.particle-cyan {
-  background: #00d4ff;
-  box-shadow: 0 0 10px #00d4ff;
-}
-
-.particle-emerald {
-  background: #10b981;
-  box-shadow: 0 0 10px #10b981;
-}
-
-.particle-rose {
-  background: #f43f5e;
-  box-shadow: 0 0 10px #f43f5e;
-}
-
-@keyframes particle-float {
-  0% {
-    opacity: 1;
-    transform: scale(1) translateY(0);
-  }
-  100% {
-    opacity: 0;
-    transform: scale(0) translateY(-50px);
-  }
-}
-
 /* Header Row */
 .feed-header-row {
   display: flex;

@@ -5,7 +5,6 @@ import { cn, formatNumber } from '../../../utils';
 import { useSoundNotification } from './useSoundNotification';
 import { ThroughputChart } from './ThroughputChart';
 import { QueueHealth } from './QueueHealth';
-import { ParticleEffect } from './ParticleEffect';
 import { AnimatedEvent } from './AnimatedEvent';
 import { LatencyMetric } from './LatencyMetric';
 import { EventDetailModal } from './EventDetailModal';
@@ -23,10 +22,6 @@ export function LiveEventFeed({ isConnected, recentEvents, eventCounts }: LiveEv
   const [soundEnabled, setSoundEnabled] = useState(false);
   const [filterQueue, setFilterQueue] = useState<string>('all');
   const [filterType, setFilterType] = useState<string>('all');
-  const [particleTrigger, setParticleTrigger] = useState<{
-    active: boolean;
-    type: 'pushed' | 'completed' | 'failed';
-  }>({ active: false, type: 'pushed' });
   const [timeTick, setTimeTick] = useState(0);
 
   const lastCountRef = useRef(0);
@@ -45,11 +40,6 @@ export function LiveEventFeed({ isConnected, recentEvents, eventCounts }: LiveEv
       setThroughput(diff);
       setThroughputHistory((prev) => [...prev.slice(1), diff]);
       maxThroughputRef.current = Math.max(maxThroughputRef.current, diff);
-
-      if (diff > 5) {
-        setParticleTrigger({ active: true, type: 'pushed' });
-        setTimeout(() => setParticleTrigger((p) => ({ ...p, active: false })), 100);
-      }
 
       if (soundEnabled && diff > 10) {
         playSound('burst');
@@ -103,8 +93,6 @@ export function LiveEventFeed({ isConnected, recentEvents, eventCounts }: LiveEv
 
         if (event.event_type === 'failed' && soundEnabled) {
           playSound('error');
-          setParticleTrigger({ active: true, type: 'failed' });
-          setTimeout(() => setParticleTrigger((p) => ({ ...p, active: false })), 100);
         }
       }
     }
@@ -175,8 +163,6 @@ export function LiveEventFeed({ isConnected, recentEvents, eventCounts }: LiveEv
   return (
     <div className="live-feed-wrapper">
       <div className={cn('live-feed-advanced', isConnected && throughput > 0 && 'feed-active')}>
-        <ParticleEffect active={particleTrigger.active} type={particleTrigger.type} />
-
         <div className="feed-header-row">
           <div className="feed-title-section">
             <Radio className={cn('h-5 w-5', isConnected && 'icon-pulse')} />
