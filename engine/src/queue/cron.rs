@@ -34,7 +34,7 @@ impl QueueManager {
             limit: None,
         };
 
-        // Persist to SQLite
+        // Persist to storage
         self.persist_cron(&cron);
 
         self.cron_jobs.write().insert(name, cron);
@@ -88,7 +88,7 @@ impl QueueManager {
             limit,
         };
 
-        // Persist to SQLite
+        // Persist to storage
         self.persist_cron(&cron);
 
         self.cron_jobs.write().insert(name, cron);
@@ -99,7 +99,7 @@ impl QueueManager {
     pub async fn delete_cron(&self, name: &str) -> bool {
         let removed = self.cron_jobs.write().remove(name).is_some();
         if removed {
-            // Persist deletion to SQLite
+            // Persist deletion to storage
             self.persist_cron_delete(name);
         }
         removed

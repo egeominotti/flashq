@@ -83,7 +83,7 @@ async function main() {
     { docId: 'doc1', text: 'FlashQ is a high-performance job queue built in Rust.' },
     { docId: 'doc2', text: 'It supports priorities, delays, and rate limiting.' },
     { docId: 'doc3', text: 'Workers can process jobs concurrently with configurable limits.' },
-    { docId: 'doc4', text: 'The queue persists to PostgreSQL for durability.' },
+    { docId: 'doc4', text: 'The queue persists to NATS JetStream for durability.' },
     { docId: 'doc5', text: 'It is compatible with BullMQ APIs for easy migration.' },
   ];
 

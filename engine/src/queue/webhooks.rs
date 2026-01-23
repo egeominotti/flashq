@@ -8,6 +8,7 @@ use serde_json::Value;
 use tracing::{error, warn};
 
 use super::manager::QueueManager;
+use super::storage::Storage;
 use super::types::{now_ms, CircuitState, Webhook};
 use crate::protocol::WebhookConfig;
 
@@ -41,8 +42,28 @@ impl QueueManager {
         validate_webhook_url(&url)?;
 
         let id = format!("wh_{}", crate::protocol::next_id());
-        let webhook = Webhook::new(id.clone(), url, events, queue, secret);
+        let webhook = Webhook::new(
+            id.clone(),
+            url.clone(),
+            events.clone(),
+            queue.clone(),
+            secret.clone(),
+        );
         self.webhooks.write().insert(id.clone(), webhook);
+
+        // Persist to storage
+        if let Some(ref storage) = self.storage {
+            let config = WebhookConfig {
+                id: id.clone(),
+                url,
+                events,
+                queue,
+                secret,
+                created_at: now_ms(),
+            };
+            let _ = storage.save_webhook(&config);
+        }
+
         Ok(id)
     }
 
@@ -57,6 +78,13 @@ impl QueueManager {
         // Clean up circuit breaker entry for this webhook
         if let Some(url) = url {
             self.webhook_circuits.write().remove(&url);
+        }
+
+        // Delete from storage
+        if removed {
+            if let Some(ref storage) = self.storage {
+                let _ = storage.delete_webhook(id);
+            }
         }
 
         removed

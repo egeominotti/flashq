@@ -161,29 +161,9 @@ async fn test_auth_token_count() {
 }
 
 #[tokio::test]
-async fn test_is_sqlite_connected() {
-    let qm = setup();
-    assert!(!qm.is_sqlite_connected());
-}
-
-#[tokio::test]
 async fn test_is_sync_persistence() {
     let qm = setup();
     assert!(!qm.is_sync_persistence());
-}
-
-#[tokio::test]
-async fn test_is_snapshot_mode() {
-    let qm = setup();
-    assert!(!qm.is_snapshot_mode());
-}
-
-#[tokio::test]
-async fn test_snapshot_change_count() {
-    let qm = setup();
-    // Without persistence, should be 0
-    let count = qm.snapshot_change_count();
-    assert_eq!(count, 0);
 }
 
 // ==================== PROCESSING COUNT ====================

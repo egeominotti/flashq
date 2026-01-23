@@ -7,7 +7,7 @@ export {
   useCrons,
   useMetricsHistory,
   useSystemMetrics,
-  useSqliteStats,
+  useStorageStats,
   useTimestamp,
   useReconnect,
   useDashboardData,

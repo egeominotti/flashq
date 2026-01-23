@@ -132,16 +132,16 @@ export function Settings() {
   const [metricsHistorySize, setMetricsHistorySize] = useState<number>(1000);
   const [cleanupSaving, setCleanupSaving] = useState(false);
 
-  // SQLite Settings
-  const [sqliteEnabled, setSqliteEnabled] = useState(false);
-  const [sqlitePath, setSqlitePath] = useState('flashq.db');
-  const [sqliteSynchronous, setSqliteSynchronous] = useState(true);
-  const [sqliteCacheSize, setSqliteCacheSize] = useState(64);
-  const [sqliteStatus, setSqliteStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
-  const [sqliteError, setSqliteError] = useState('');
+  // Storage Settings (NATS JetStream)
+  const [storageEnabled, setStorageEnabled] = useState(false);
+  const [natsUrl, setNatsUrl] = useState('flashq.db');
+  const [streamReplicas, setStreamReplicas] = useState(true);
+  const [kvReplicas, setKvReplicas] = useState(64);
+  const [storageStatus, setStorageStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
+  const [storageError, setStorageError] = useState('');
 
-  // SQLite Stats
-  const [sqliteStats, setSqliteStats] = useState<{
+  // Storage Stats
+  const [storageStats, setStorageStats] = useState<{
     enabled: boolean;
     path?: string;
     file_size_bytes: number;
@@ -175,13 +175,13 @@ export function Settings() {
     setAuthTokenInput(config.token);
   }, []);
 
-  // Load S3 and SQLite settings from server
+  // Load S3 and storage settings from server
   useEffect(() => {
     if (settings) {
-      // SQLite settings
-      setSqliteEnabled(settings.sqlite?.enabled || false);
-      setSqlitePath(settings.sqlite?.path || 'flashq.db');
-      setSqliteSynchronous(settings.sqlite?.synchronous ?? true);
+      // Storage settings
+      setStorageEnabled(settings.storage?.enabled || false);
+      setNatsUrl(settings.storage?.path || 'flashq.db');
+      setStreamReplicas(settings.storage?.synchronous ?? true);
 
       // S3 settings
       setS3Enabled(settings.s3_backup?.enabled || false);
@@ -194,12 +194,12 @@ export function Settings() {
     }
   }, [settings]);
 
-  // Fetch SQLite stats when enabled
+  // Fetch storage stats when enabled
   useEffect(() => {
-    if (settings?.sqlite?.enabled) {
-      api.getSqliteStats().then((stats) => {
+    if (settings?.storage?.enabled) {
+      api.getStorageStats().then((stats) => {
         if (stats) {
-          setSqliteStats(stats);
+          setStorageStats(stats);
           // Initialize async writer config from current values
           if (stats.async_writer_enabled) {
             setAsyncBatchInterval(stats.async_writer_batch_interval_ms);
@@ -208,7 +208,7 @@ export function Settings() {
         }
       });
     }
-  }, [settings?.sqlite?.enabled]);
+  }, [settings?.storage?.enabled]);
 
   // Confirm modal handler
   const handleConfirm = async () => {
@@ -221,31 +221,31 @@ export function Settings() {
     }
   };
 
-  // Export SQLite database
-  const handleExportSqlite = async () => {
+  // Export storage data
+  const handleExportStorage = async () => {
     setIsExporting(true);
     try {
       // Open download in new tab
       const apiUrl = api.getApiUrl();
-      window.open(`${apiUrl}/sqlite/download`, '_blank');
+      window.open(`${apiUrl}/storage/download`, '_blank');
     } finally {
       setIsExporting(false);
     }
   };
 
-  // Restore SQLite database from file
-  const [isSqliteRestoring, setIsSqliteRestoring] = useState(false);
-  const [sqliteRestoreError, setSqliteRestoreError] = useState('');
-  const [sqliteRestoreSuccess, setSqliteRestoreSuccess] = useState(false);
-  const sqliteFileInputRef = useRef<HTMLInputElement>(null);
+  // Restore storage data from file
+  const [isStorageRestoring, setIsStorageRestoring] = useState(false);
+  const [storageRestoreError, setStorageRestoreError] = useState('');
+  const [storageRestoreSuccess, setStorageRestoreSuccess] = useState(false);
+  const storageFileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleRestoreSqlite = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleRestoreStorage = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    setIsSqliteRestoring(true);
-    setSqliteRestoreError('');
-    setSqliteRestoreSuccess(false);
+    setIsStorageRestoring(true);
+    setStorageRestoreError('');
+    setStorageRestoreSuccess(false);
 
     try {
       const formData = new FormData();
@@ -258,7 +258,7 @@ export function Settings() {
         headers['Authorization'] = `Bearer ${authToken}`;
       }
 
-      const response = await fetch(`${apiUrl}/sqlite/restore`, {
+      const response = await fetch(`${apiUrl}/storage/restore`, {
         method: 'POST',
         headers,
         body: formData,
@@ -266,20 +266,20 @@ export function Settings() {
 
       const result = await response.json();
       if (result.ok) {
-        setSqliteRestoreSuccess(true);
+        setStorageRestoreSuccess(true);
         showToast('Database restored successfully', 'success');
       } else {
-        setSqliteRestoreError(result.error || 'Restore failed');
+        setStorageRestoreError(result.error || 'Restore failed');
         showToast('Restore failed', 'error');
       }
     } catch (err) {
-      setSqliteRestoreError(String(err));
+      setStorageRestoreError(String(err));
       showToast('Restore failed', 'error');
     } finally {
-      setIsSqliteRestoring(false);
+      setIsStorageRestoring(false);
       // Reset file input using ref for cross-browser compatibility
-      if (sqliteFileInputRef.current) {
-        sqliteFileInputRef.current.value = '';
+      if (storageFileInputRef.current) {
+        storageFileInputRef.current.value = '';
       }
     }
   };
@@ -455,35 +455,35 @@ export function Settings() {
       setAsyncWriterStatus('success');
       showToast('Async writer config updated', 'success');
       // Refresh stats
-      const stats = await api.getSqliteStats();
-      if (stats) setSqliteStats(stats);
+      const stats = await api.getStorageStats();
+      if (stats) setStorageStats(stats);
     } else {
       setAsyncWriterStatus('error');
       showToast('Failed to update async writer config', 'error');
     }
   };
 
-  // SQLite handlers
-  const handleSaveSqlite = async () => {
-    setSqliteStatus('saving');
-    setSqliteError('');
+  // Storage handlers
+  const handleSaveStorage = async () => {
+    setStorageStatus('saving');
+    setStorageError('');
     const payload = {
-      enabled: sqliteEnabled,
-      path: sqlitePath,
-      synchronous: sqliteSynchronous,
-      cache_size_mb: sqliteCacheSize,
+      enabled: storageEnabled,
+      path: natsUrl,
+      synchronous: streamReplicas,
+      cache_size_mb: kvReplicas,
     };
-    const result = await api.saveSqliteSettings(payload);
+    const result = await api.saveStorageSettings(payload);
     if (result.ok) {
-      setSqliteStatus('success');
-      showToast('SQLite settings saved. Restart server to apply.', 'success');
+      setStorageStatus('success');
+      showToast('Storage settings saved. Restart server to apply.', 'success');
       setTimeout(async () => {
         await refetch();
       }, 500);
     } else {
-      setSqliteStatus('error');
-      setSqliteError(result.error || 'Failed to save');
-      showToast('Failed to save SQLite settings', 'error');
+      setStorageStatus('error');
+      setStorageError(result.error || 'Failed to save');
+      showToast('Failed to save storage settings', 'error');
     }
   };
 
@@ -724,8 +724,8 @@ export function Settings() {
                   </div>
                   <div className="setting-item">
                     <span className="setting-label">Mode</span>
-                    <Badge color={settings?.sqlite?.enabled ? 'emerald' : 'amber'}>
-                      {settings?.sqlite?.enabled ? 'Persistent' : 'Memory'}
+                    <Badge color={settings?.storage?.enabled ? 'emerald' : 'amber'}>
+                      {settings?.storage?.enabled ? 'Persistent' : 'Memory'}
                     </Badge>
                   </div>
                 </div>
@@ -881,29 +881,29 @@ export function Settings() {
                     <Database className="h-5 w-5" />
                   </div>
                   <div className="ml-3">
-                    <Title className="text-base">SQLite Persistence</Title>
+                    <Title className="text-base">NATS JetStream Storage</Title>
                     <Text className="text-xs">Local database for data persistence</Text>
                   </div>
                 </Flex>
-                <Switch checked={sqliteEnabled} onChange={setSqliteEnabled} />
+                <Switch checked={storageEnabled} onChange={setStorageEnabled} />
               </Flex>
 
-              {sqliteEnabled ? (
+              {storageEnabled ? (
                 <>
                   <Grid numItemsSm={2} numItemsLg={4} className="mb-4 gap-4">
                     <div className="form-group">
                       <label className="form-label">Database Path</label>
                       <TextInput
                         placeholder="flashq.db"
-                        value={sqlitePath}
-                        onChange={(e) => setSqlitePath(e.target.value)}
+                        value={natsUrl}
+                        onChange={(e) => setNatsUrl(e.target.value)}
                       />
                     </div>
                     <div className="form-group">
                       <label className="form-label">Cache Size (MB)</label>
                       <NumberInput
-                        value={sqliteCacheSize}
-                        onValueChange={setSqliteCacheSize}
+                        value={kvReplicas}
+                        onValueChange={setKvReplicas}
                         min={16}
                         max={1024}
                         step={16}
@@ -912,22 +912,22 @@ export function Settings() {
                     <div className="form-group">
                       <label className="form-label">Synchronous Mode</label>
                       <Flex className="mt-2 items-center gap-2">
-                        <Switch checked={sqliteSynchronous} onChange={setSqliteSynchronous} />
+                        <Switch checked={streamReplicas} onChange={setStreamReplicas} />
                         <Text className="text-sm text-zinc-400">
-                          {sqliteSynchronous ? 'NORMAL' : 'OFF'}
+                          {streamReplicas ? 'NORMAL' : 'OFF'}
                         </Text>
                       </Flex>
                     </div>
                   </Grid>
 
-                  {sqliteStatus === 'error' && sqliteError && (
+                  {storageStatus === 'error' && storageError && (
                     <div className="info-box warning mb-4">
                       <X className="h-4 w-4" />
-                      <Text>{sqliteError}</Text>
+                      <Text>{storageError}</Text>
                     </div>
                   )}
 
-                  {sqliteStatus === 'success' && (
+                  {storageStatus === 'success' && (
                     <div className="info-box success mb-4">
                       <Check className="h-4 w-4" />
                       <Text>Configuration saved. Restart server to apply changes.</Text>
@@ -937,13 +937,13 @@ export function Settings() {
                   <Button
                     size="xs"
                     icon={Save}
-                    onClick={handleSaveSqlite}
-                    loading={sqliteStatus === 'saving'}
+                    onClick={handleSaveStorage}
+                    loading={storageStatus === 'saving'}
                   >
                     Save Configuration
                   </Button>
 
-                  {settings?.sqlite?.enabled && (
+                  {settings?.storage?.enabled && (
                     <>
                       <Divider className="my-4" />
                       <Flex alignItems="center" justifyContent="between" className="mb-3">
@@ -955,25 +955,25 @@ export function Settings() {
                             size="xs"
                             variant="secondary"
                             icon={Download}
-                            onClick={handleExportSqlite}
+                            onClick={handleExportStorage}
                             loading={isExporting}
                           >
                             Export
                           </Button>
                           <label className="inline-flex">
                             <input
-                              ref={sqliteFileInputRef}
+                              ref={storageFileInputRef}
                               type="file"
-                              accept=".db,.sqlite,.sqlite3"
-                              onChange={handleRestoreSqlite}
+                              accept=".json,.jsonl"
+                              onChange={handleRestoreStorage}
                               className="hidden"
-                              disabled={isSqliteRestoring}
+                              disabled={isStorageRestoring}
                             />
                             <Button
                               size="xs"
                               variant="secondary"
                               icon={Upload}
-                              loading={isSqliteRestoring}
+                              loading={isStorageRestoring}
                               onClick={(e) => {
                                 const input = (e.target as HTMLElement)
                                   .closest('label')
@@ -986,13 +986,13 @@ export function Settings() {
                           </label>
                         </Flex>
                       </Flex>
-                      {sqliteRestoreError && (
+                      {storageRestoreError && (
                         <div className="info-box warning mb-4">
                           <X className="h-4 w-4" />
-                          <Text>{sqliteRestoreError}</Text>
+                          <Text>{storageRestoreError}</Text>
                         </div>
                       )}
-                      {sqliteRestoreSuccess && (
+                      {storageRestoreSuccess && (
                         <div className="info-box success mb-4">
                           <Check className="h-4 w-4" />
                           <Text>Database restored. Restart server to apply changes.</Text>
@@ -1006,43 +1006,43 @@ export function Settings() {
                         <div className="setting-item">
                           <span className="setting-label">Path</span>
                           <span className="setting-value mono text-sm">
-                            {settings.sqlite.path || 'flashq.db'}
+                            {settings.storage.path || 'flashq.db'}
                           </span>
                         </div>
                         <div className="setting-item">
                           <span className="setting-label">File Size</span>
                           <span className="setting-value mono text-sm">
-                            {sqliteStats ? `${sqliteStats.file_size_mb.toFixed(2)} MB` : '-'}
+                            {storageStats ? `${storageStats.file_size_mb.toFixed(2)} MB` : '-'}
                           </span>
                         </div>
                         <div className="setting-item">
                           <span className="setting-label">Total Jobs</span>
                           <span className="setting-value mono text-sm">
-                            {sqliteStats ? sqliteStats.total_jobs.toLocaleString() : '-'}
+                            {storageStats ? storageStats.total_jobs.toLocaleString() : '-'}
                           </span>
                         </div>
                         <div className="setting-item">
                           <span className="setting-label">Queued</span>
                           <Badge color="cyan">
-                            {sqliteStats?.queued_jobs?.toLocaleString() || '0'}
+                            {storageStats?.queued_jobs?.toLocaleString() || '0'}
                           </Badge>
                         </div>
                         <div className="setting-item">
                           <span className="setting-label">Processing</span>
                           <Badge color="blue">
-                            {sqliteStats?.processing_jobs?.toLocaleString() || '0'}
+                            {storageStats?.processing_jobs?.toLocaleString() || '0'}
                           </Badge>
                         </div>
                         <div className="setting-item">
                           <span className="setting-label">Delayed</span>
                           <Badge color="amber">
-                            {sqliteStats?.delayed_jobs?.toLocaleString() || '0'}
+                            {storageStats?.delayed_jobs?.toLocaleString() || '0'}
                           </Badge>
                         </div>
                         <div className="setting-item">
                           <span className="setting-label">Failed (DLQ)</span>
                           <Badge color="rose">
-                            {sqliteStats?.failed_jobs?.toLocaleString() || '0'}
+                            {storageStats?.failed_jobs?.toLocaleString() || '0'}
                           </Badge>
                         </div>
                         <div className="setting-item">
@@ -1051,13 +1051,13 @@ export function Settings() {
                         </div>
                         <div className="setting-item">
                           <span className="setting-label">Synchronous</span>
-                          <Badge color={settings.sqlite.synchronous ? 'emerald' : 'amber'}>
-                            {settings.sqlite.synchronous ? 'NORMAL' : 'OFF'}
+                          <Badge color={settings.storage.synchronous ? 'emerald' : 'amber'}>
+                            {settings.storage.synchronous ? 'NORMAL' : 'OFF'}
                           </Badge>
                         </div>
                       </div>
 
-                      {sqliteStats?.async_writer_enabled && (
+                      {storageStats?.async_writer_enabled && (
                         <>
                           <Divider className="my-4" />
                           <Flex alignItems="center" justifyContent="between" className="mb-3">
@@ -1070,25 +1070,25 @@ export function Settings() {
                             <div className="setting-item">
                               <span className="setting-label">Queue Length</span>
                               <span className="setting-value mono text-sm">
-                                {sqliteStats.async_writer_queue_len.toLocaleString()}
+                                {storageStats.async_writer_queue_len.toLocaleString()}
                               </span>
                             </div>
                             <div className="setting-item">
                               <span className="setting-label">Ops Queued</span>
                               <span className="setting-value mono text-sm">
-                                {sqliteStats.async_writer_ops_queued.toLocaleString()}
+                                {storageStats.async_writer_ops_queued.toLocaleString()}
                               </span>
                             </div>
                             <div className="setting-item">
                               <span className="setting-label">Ops Written</span>
                               <span className="setting-value mono text-sm">
-                                {sqliteStats.async_writer_ops_written.toLocaleString()}
+                                {storageStats.async_writer_ops_written.toLocaleString()}
                               </span>
                             </div>
                             <div className="setting-item">
                               <span className="setting-label">Batches Written</span>
                               <span className="setting-value mono text-sm">
-                                {sqliteStats.async_writer_batches_written.toLocaleString()}
+                                {storageStats.async_writer_batches_written.toLocaleString()}
                               </span>
                             </div>
                           </div>
@@ -1143,7 +1143,7 @@ export function Settings() {
                   <div>
                     <Text className="font-medium">Persistence Disabled</Text>
                     <Text className="mt-1 text-sm">
-                      Enable the toggle above to configure SQLite persistence. Without persistence,
+                      Enable the toggle above to configure NATS JetStream storage. Without persistence,
                       data will be lost on restart.
                     </Text>
                   </div>

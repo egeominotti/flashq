@@ -42,9 +42,10 @@ RUN case "${TARGETARCH}" in \
 # Stage 2: Runtime (minimal, matches builder's glibc)
 FROM debian:bookworm-slim
 
-# Install CA certificates for HTTPS and runtime dependencies
+# Install runtime dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy binary

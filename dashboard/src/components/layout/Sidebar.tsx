@@ -161,7 +161,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
               <div className="status-item">
                 <span className="status-label">Mode</span>
                 <span className="status-value">
-                  {settings?.sqlite?.enabled ? 'Persistent' : 'Memory'}
+                  {settings?.storage?.enabled ? 'Persistent' : 'Memory'}
                 </span>
               </div>
             </div>

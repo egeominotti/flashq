@@ -9,7 +9,7 @@ export {
   useCrons,
   useMetricsHistory,
   useSystemMetrics,
-  useSqliteStats,
+  useStorageStats,
   useReconnect,
   useDashboardData,
   type DashboardUpdate,

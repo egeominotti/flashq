@@ -9,7 +9,7 @@
  */
 
 import { useSyncExternalStore } from 'react';
-import { getDashboardWebSocketUrl, type SystemMetrics, type SqliteStats } from '../api/client';
+import { getDashboardWebSocketUrl, type SystemMetrics, type StorageStats } from '../api/client';
 import type { Stats, Metrics, Queue, Worker, MetricsHistory, CronJob } from '../api/types';
 
 export interface DashboardData {
@@ -20,7 +20,7 @@ export interface DashboardData {
   crons: CronJob[];
   metricsHistory: MetricsHistory[];
   systemMetrics: SystemMetrics | null;
-  sqliteStats: SqliteStats | null;
+  storageStats: StorageStats | null;
   timestamp: number | null;
 }
 
@@ -34,7 +34,7 @@ let workers: Worker[] = [];
 let crons: CronJob[] = [];
 let metricsHistory: MetricsHistory[] = [];
 let systemMetrics: SystemMetrics | null = null;
-let sqliteStats: SqliteStats | null = null;
+let storageStats: StorageStats | null = null;
 let timestamp: number | null = null;
 
 let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -264,8 +264,8 @@ function connect() {
           hasChanges = true;
         }
 
-        if (update.sqlite_stats && !shallowEqual(sqliteStats as unknown as Record<string, unknown>, update.sqlite_stats as unknown as Record<string, unknown>)) {
-          sqliteStats = update.sqlite_stats;
+        if (update.storage_stats && !shallowEqual(storageStats as unknown as Record<string, unknown>, update.storage_stats as unknown as Record<string, unknown>)) {
+          storageStats = update.storage_stats;
           hasChanges = true;
         }
 
@@ -346,7 +346,7 @@ const getWorkers = () => workers;
 const getCrons = () => crons;
 const getMetricsHistory = () => metricsHistory;
 const getSystemMetrics = () => systemMetrics;
-const getSqliteStats = () => sqliteStats;
+const getStorageStats = () => storageStats;
 const getTimestamp = () => timestamp;
 
 // Server snapshots (for SSR)
@@ -390,8 +390,8 @@ export function useSystemMetrics(): SystemMetrics | null {
   return useSyncExternalStore(subscribe, getSystemMetrics, getServerNull);
 }
 
-export function useSqliteStats(): SqliteStats | null {
-  return useSyncExternalStore(subscribe, getSqliteStats, getServerNull);
+export function useStorageStats(): StorageStats | null {
+  return useSyncExternalStore(subscribe, getStorageStats, getServerNull);
 }
 
 export function useTimestamp(): number | null {
@@ -417,7 +417,7 @@ export function useDashboardData() {
     crons: useCrons(),
     metricsHistory: useMetricsHistory(),
     systemMetrics: useSystemMetrics(),
-    sqliteStats: useSqliteStats(),
+    storageStats: useStorageStats(),
     timestamp: useTimestamp(),
     reconnect,
   };

@@ -1,6 +1,6 @@
 //! Core QueueManager struct and constructors.
 //!
-//! Simplified single-node implementation with SQLite persistence.
+//! Uses NATS JetStream for distributed persistence.
 
 use std::collections::VecDeque;
 use std::hash::{BuildHasherDefault, Hash, Hasher};
@@ -11,7 +11,7 @@ use gxhash::GxHasher;
 use parking_lot::RwLock;
 use serde_json::Value;
 
-use super::sqlite::{S3BackupManager, SqliteConfig, SqliteStorage};
+use super::storage::{Storage, StorageBackend};
 use super::types::{
     init_coarse_time, intern, now_ms, CircuitBreakerConfig, CircuitBreakerEntry, GlobalMetrics,
     GxHashMap, GxHashSet, JobLocation, Shard, Subscriber, Webhook, Worker,
@@ -45,7 +45,7 @@ fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
 pub struct QueueManager {
     pub(crate) shards: Vec<RwLock<Shard>>,
     pub(crate) processing_shards: Vec<ProcessingShard>,
-    pub(crate) storage: Option<Arc<SqliteStorage>>,
+    pub(crate) storage: Option<Arc<StorageBackend>>,
     pub(crate) cron_jobs: RwLock<GxHashMap<String, CronJob>>,
     pub(crate) completed_jobs: RwLock<GxHashSet<u64>>,
     /// Stores completed job data for browsing (job_id -> (Job, completed_at, result))
@@ -61,8 +61,6 @@ pub struct QueueManager {
     pub(crate) circuit_breaker_config: CircuitBreakerConfig,
     pub(crate) event_tx: broadcast::Sender<JobEvent>,
     pub(crate) metrics_history: RwLock<VecDeque<MetricsHistoryPoint>>,
-    pub(crate) snapshot_changes: std::sync::atomic::AtomicU64,
-    pub(crate) last_snapshot: std::sync::atomic::AtomicU64,
     pub(crate) job_logs: RwLock<GxHashMap<u64, VecDeque<JobLogEntry>>>,
     pub(crate) stalled_count: RwLock<GxHashMap<u64, u32>>,
     pub(crate) sync_persistence: bool,
@@ -80,17 +78,10 @@ pub struct QueueManager {
     pub(crate) http_client: reqwest::Client,
     pub(crate) shutdown_flag: std::sync::atomic::AtomicBool,
     pub(crate) kv_store: DashMap<String, super::kv::KvValue, BuildHasherDefault<GxHasher>>,
-    #[allow(dead_code)]
-    pub(crate) s3_backup: Option<Arc<S3BackupManager>>,
-    #[allow(dead_code)]
-    pub(crate) snapshot_config: Option<SnapshotConfig>,
-}
-
-/// Configuration for SQLite snapshots.
-#[derive(Debug, Clone)]
-pub struct SnapshotConfig {
-    pub interval_secs: u64,
-    pub min_changes: u64,
+    /// Whether cluster mode is enabled (distributed pull via NATS)
+    pub(crate) cluster_mode: bool,
+    /// NATS ack tokens for pulled jobs (job_id -> AckToken)
+    pub(crate) nats_ack_tokens: RwLock<GxHashMap<u64, super::nats::pull::AckToken>>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -122,85 +113,49 @@ impl Default for CleanupSettings {
 
 impl QueueManager {
     /// Create a new QueueManager without persistence (in-memory only).
+    #[allow(dead_code)]
     pub fn new(_persistence: bool) -> Arc<Self> {
-        Self::create(None, None)
+        Self::create(None)
     }
 
-    /// Create a new QueueManager with SQLite persistence.
-    pub fn with_sqlite(config: SqliteConfig) -> Arc<Self> {
-        match SqliteStorage::new(config) {
-            Ok(mut storage) => {
-                if let Err(e) = storage.migrate() {
-                    error!(error = %e, "Failed to run SQLite migrations");
-                }
-
-                // Enable async writer for non-blocking persistence
-                let async_writer_config = super::sqlite::AsyncWriterConfig::default();
-                let async_writer = storage.enable_async_writer(async_writer_config);
-
-                let storage = Arc::new(storage);
-                let manager = Self::create(Some(storage.clone()), None);
-
-                // Start async writer background task
-                async_writer.start();
-                info!("SQLite async writer started for maximum throughput");
-
-                // Recover from SQLite
-                manager.recover_from_sqlite(&storage);
-
-                manager
-            }
-            Err(e) => {
-                error!(error = %e, "Failed to open SQLite, running without persistence");
-                Self::create(None, None)
-            }
-        }
+    /// Create with NATS JetStream storage backend from environment variables.
+    pub fn from_env() -> Arc<Self> {
+        info!("Using NATS JetStream storage backend");
+        Self::with_nats_from_env()
     }
 
-    /// Create with SQLite from environment variables.
-    pub fn with_sqlite_from_env() -> Arc<Self> {
-        let data_path = std::env::var("DATA_PATH").ok();
+    /// Create with NATS JetStream from environment variables.
+    pub fn with_nats_from_env() -> Arc<Self> {
+        use super::nats::{NatsConfig, NatsStorage};
 
-        if let Some(path) = data_path {
-            let config = SqliteConfig {
-                path: std::path::PathBuf::from(path),
-                ..SqliteConfig::default()
-            };
-            Self::with_sqlite(config)
-        } else {
-            info!("No DATA_PATH set, running in-memory only");
-            Self::new(false)
-        }
+        let config = NatsConfig::from_env();
+        let nats_storage = Arc::new(NatsStorage::new(config));
+        let storage = Arc::new(StorageBackend::nats(nats_storage));
+
+        let manager = Self::create(Some(storage));
+
+        // Note: NATS connection is async, will be established on first use
+        // or call manager.connect_storage().await
+        info!(url = %std::env::var("NATS_URL").unwrap_or_else(|_| "nats://localhost:4222".to_string()),
+              "NATS storage configured");
+
+        manager
     }
 
     /// Internal constructor.
-    fn create(
-        storage: Option<Arc<SqliteStorage>>,
-        s3_backup: Option<Arc<S3BackupManager>>,
-    ) -> Arc<Self> {
-        use std::sync::atomic::AtomicU64;
-
+    fn create(storage: Option<Arc<StorageBackend>>) -> Arc<Self> {
         init_coarse_time();
 
         let shards = (0..NUM_SHARDS).map(|_| RwLock::new(Shard::new())).collect();
         let (event_tx, _) = broadcast::channel(1024);
         let has_storage = storage.is_some();
-        let snapshot_config = if has_storage {
-            Some(SnapshotConfig {
-                interval_secs: std::env::var("SNAPSHOT_INTERVAL")
-                    .ok()
-                    .and_then(|v| v.parse().ok())
-                    .unwrap_or(60),
-                min_changes: std::env::var("SNAPSHOT_MIN_CHANGES")
-                    .ok()
-                    .and_then(|v| v.parse().ok())
-                    .unwrap_or(100),
-            })
-        } else {
-            None
-        };
 
         let sync_persistence = std::env::var("SYNC_PERSISTENCE")
+            .map(|v| v == "1" || v.to_lowercase() == "true")
+            .unwrap_or(false);
+
+        // Cluster mode: enable distributed pull via NATS streams
+        let cluster_mode = std::env::var("CLUSTER_MODE")
             .map(|v| v == "1" || v.to_lowercase() == "true")
             .unwrap_or(false);
 
@@ -226,8 +181,6 @@ impl QueueManager {
             circuit_breaker_config: CircuitBreakerConfig::default(),
             event_tx,
             metrics_history: RwLock::new(VecDeque::with_capacity(60)),
-            snapshot_changes: AtomicU64::new(0),
-            last_snapshot: AtomicU64::new(now_ms()),
             job_logs: RwLock::new(GxHashMap::default()),
             stalled_count: RwLock::new(GxHashMap::default()),
             sync_persistence,
@@ -248,8 +201,8 @@ impl QueueManager {
                 .unwrap_or_else(|_| reqwest::Client::new()),
             shutdown_flag: std::sync::atomic::AtomicBool::new(false),
             kv_store: DashMap::with_capacity_and_hasher(1024, Default::default()),
-            s3_backup,
-            snapshot_config,
+            cluster_mode,
+            nats_ack_tokens: RwLock::new(GxHashMap::default()),
         });
 
         let mgr = Arc::clone(&manager);
@@ -258,10 +211,15 @@ impl QueueManager {
         });
 
         if has_storage {
-            info!("SQLite persistence enabled");
+            if let Some(ref s) = manager.storage {
+                info!(backend = %s.name(), "Persistence enabled");
+            }
         }
         if sync_persistence {
             info!("Sync persistence enabled (DURABLE MODE)");
+        }
+        if cluster_mode {
+            info!("Cluster mode enabled (distributed pull via NATS streams)");
         }
 
         manager
@@ -272,6 +230,7 @@ impl QueueManager {
         self.sync_persistence
     }
 
+    #[allow(dead_code)]
     pub fn with_auth_tokens(_persistence: bool, tokens: Vec<String>) -> Arc<Self> {
         let manager = Self::new(false);
         {
@@ -298,84 +257,14 @@ impl QueueManager {
     }
 
     #[inline]
-    #[allow(dead_code)]
-    pub fn is_sqlite_connected(&self) -> bool {
-        self.storage.is_some()
-    }
-
-    #[inline]
     pub fn has_storage(&self) -> bool {
         self.storage.is_some()
     }
 
-    /// Get async writer stats if enabled.
-    /// Returns: (queue_len, ops_queued, ops_written, batches_written, batch_interval_ms, max_batch_size)
-    pub fn get_async_writer_stats(&self) -> Option<(usize, u64, u64, u64, u64, usize)> {
-        self.storage.as_ref().and_then(|s| {
-            s.async_writer().map(|w| {
-                let stats = w.stats();
-                (
-                    w.queue_len(),
-                    stats.ops_queued.load(std::sync::atomic::Ordering::Relaxed),
-                    stats.ops_written.load(std::sync::atomic::Ordering::Relaxed),
-                    stats
-                        .batches_written
-                        .load(std::sync::atomic::Ordering::Relaxed),
-                    w.get_batch_interval_ms(),
-                    w.get_max_batch_size(),
-                )
-            })
-        })
-    }
-
-    /// Check if async writer is enabled.
+    /// Get storage backend name.
     #[allow(dead_code)]
-    pub fn has_async_writer(&self) -> bool {
-        self.storage
-            .as_ref()
-            .map(|s| s.has_async_writer())
-            .unwrap_or(false)
-    }
-
-    /// Update async writer configuration at runtime.
-    /// Returns true if the configuration was updated, false if async writer is not enabled.
-    pub fn update_async_writer_config(
-        &self,
-        batch_interval_ms: Option<u64>,
-        max_batch_size: Option<usize>,
-    ) -> bool {
-        if let Some(storage) = &self.storage {
-            if let Some(writer) = storage.async_writer() {
-                if let Some(interval) = batch_interval_ms {
-                    writer.set_batch_interval_ms(interval);
-                }
-                if let Some(size) = max_batch_size {
-                    writer.set_max_batch_size(size);
-                }
-                return true;
-            }
-        }
-        false
-    }
-
-    #[inline]
-    #[allow(dead_code)]
-    pub fn is_snapshot_mode(&self) -> bool {
-        false // Simplified: always use direct persistence
-    }
-
-    #[inline]
-    #[allow(dead_code)]
-    pub(crate) fn record_change(&self) {
-        self.snapshot_changes
-            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-    }
-
-    #[inline]
-    #[allow(dead_code)]
-    pub fn snapshot_change_count(&self) -> u64 {
-        self.snapshot_changes
-            .load(std::sync::atomic::Ordering::Relaxed)
+    pub fn storage_backend_name(&self) -> &'static str {
+        self.storage.as_ref().map(|s| s.name()).unwrap_or("none")
     }
 
     /// Get next job ID (simple atomic counter for single node).
@@ -400,25 +289,36 @@ impl QueueManager {
         true
     }
 
-    /// Cluster is never enabled in single-node mode.
+    /// Check if cluster mode is enabled.
     #[inline]
-    #[allow(dead_code)]
     pub fn is_cluster_enabled(&self) -> bool {
-        false
+        self.cluster_mode
     }
 
-    /// Distributed pull is never enabled in single-node mode.
+    /// Check if distributed pull via NATS is enabled.
     #[inline]
-    #[allow(dead_code)]
     pub fn is_distributed_pull(&self) -> bool {
-        false
+        self.cluster_mode && self.storage.is_some()
     }
 
-    /// No node ID in single-node mode.
+    /// Get node ID from NATS storage if available.
     #[inline]
-    #[allow(dead_code)]
     pub fn node_id(&self) -> Option<String> {
-        None
+        if self.cluster_mode {
+            self.storage.as_ref().map(|s| s.0.node_id().to_string())
+        } else {
+            None
+        }
+    }
+
+    /// Store a NATS ack token for later acknowledgment.
+    pub fn store_nats_ack_token(&self, job_id: u64, token: super::nats::pull::AckToken) {
+        self.nats_ack_tokens.write().insert(job_id, token);
+    }
+
+    /// Take a NATS ack token for acknowledgment.
+    pub fn take_nats_ack_token(&self, job_id: u64) -> Option<super::nats::pull::AckToken> {
+        self.nats_ack_tokens.write().remove(&job_id)
     }
 
     pub fn shutdown(&self) {
@@ -522,8 +422,15 @@ impl QueueManager {
         now_ms()
     }
 
-    /// Recover state from SQLite on startup.
-    fn recover_from_sqlite(&self, storage: &SqliteStorage) {
+    /// Recover state from storage on startup (sync version).
+    #[allow(dead_code)]
+    fn recover_from_storage(&self) {
+        let Some(ref storage) = self.storage else {
+            return;
+        };
+
+        let backend_name = storage.name();
+
         // Sync job ID counter
         match storage.get_max_job_id() {
             Ok(max_id) => {
@@ -625,7 +532,142 @@ impl QueueManager {
         }
 
         if job_count > 0 {
-            info!(count = job_count, "Recovered jobs from SQLite");
+            info!(count = job_count, backend = %backend_name, "Recovered jobs from storage");
         }
+    }
+
+    /// Connect to storage backend (async, required for NATS).
+    /// Also triggers async recovery for NATS backend.
+    pub async fn connect_storage(&self) -> Result<(), super::storage::StorageError> {
+        use super::storage::Storage;
+
+        if let Some(ref storage) = self.storage {
+            storage.connect().await?;
+
+            // For NATS, we need async recovery after connection
+            if storage.name() == "nats" {
+                self.recover_from_storage_async(storage).await?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Async recovery from storage (used for NATS backend).
+    async fn recover_from_storage_async(
+        &self,
+        storage: &super::storage::StorageBackend,
+    ) -> Result<(), super::storage::StorageError> {
+        use super::storage::Storage;
+        use super::types::{intern, JobLocation};
+        use crate::protocol::set_id_counter;
+
+        let backend_name = storage.name();
+        let mut job_count = 0;
+
+        // Sync job ID counter from max ID (use async version for NATS)
+        if let Ok(max_id) = storage.get_max_job_id_async().await {
+            if max_id > 0 {
+                set_id_counter(max_id + 1);
+                info!(next_id = max_id + 1, "Synced job ID counter from NATS KV");
+            }
+        }
+
+        // Load and restore pending jobs
+        let pending_jobs = storage.load_pending_jobs_async().await?;
+
+        for (job, state) in pending_jobs {
+            let job_id = job.id;
+            let idx = Self::shard_index(&job.queue);
+            let queue_name = intern(&job.queue);
+
+            // Register custom ID if present
+            if let Some(ref custom_id) = job.custom_id {
+                let mut custom_ids = self.custom_id_map.write();
+                custom_ids.insert(custom_id.clone(), job_id);
+            }
+
+            // Place job in appropriate location based on state
+            match state.as_str() {
+                "waiting" | "delayed" | "active" => {
+                    let mut shard = self.shards[idx].write();
+                    shard
+                        .queues
+                        .entry(queue_name.clone())
+                        .or_default()
+                        .push(job);
+                    self.index_job(
+                        job_id,
+                        JobLocation::Queue {
+                            shard_idx: idx,
+                            queue_name,
+                        },
+                    );
+                    job_count += 1;
+                }
+                "waiting_children" | "waiting_deps" => {
+                    self.shards[idx].write().waiting_deps.insert(job_id, job);
+                    self.index_job(job_id, JobLocation::WaitingDeps { shard_idx: idx });
+                    job_count += 1;
+                }
+                _ => {}
+            }
+        }
+
+        // Load DLQ jobs
+        if let Ok(dlq_jobs) = storage.load_dlq_jobs_async().await {
+            for job in dlq_jobs {
+                let job_id = job.id;
+                let idx = Self::shard_index(&job.queue);
+                let queue_name = intern(&job.queue);
+                self.shards[idx]
+                    .write()
+                    .dlq
+                    .entry(queue_name.clone())
+                    .or_default()
+                    .push_back(job);
+                self.index_job(
+                    job_id,
+                    JobLocation::Dlq {
+                        shard_idx: idx,
+                        queue_name,
+                    },
+                );
+            }
+        }
+
+        // Load cron jobs
+        if let Ok(crons) = storage.load_crons_async().await {
+            let mut cron_jobs = self.cron_jobs.write();
+            for cron in crons {
+                cron_jobs.insert(cron.name.clone(), cron);
+            }
+            if !cron_jobs.is_empty() {
+                info!(count = cron_jobs.len(), "Recovered cron jobs from NATS");
+            }
+        }
+
+        // Load webhooks
+        if let Ok(webhooks) = storage.load_webhooks_async().await {
+            let mut wh = self.webhooks.write();
+            for webhook in webhooks {
+                let w = Webhook::new(
+                    webhook.id.clone(),
+                    webhook.url,
+                    webhook.events,
+                    webhook.queue,
+                    webhook.secret,
+                );
+                wh.insert(webhook.id, w);
+            }
+            if !wh.is_empty() {
+                info!(count = wh.len(), "Recovered webhooks from NATS");
+            }
+        }
+
+        if job_count > 0 {
+            info!(count = job_count, backend = %backend_name, "Recovered jobs from storage (async)");
+        }
+
+        Ok(())
     }
 }

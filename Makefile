@@ -126,7 +126,7 @@ help:
 	@echo ""
 	@echo "Quick Start:"
 	@echo "  make build       Build release binary"
-	@echo "  make run         Build and run server (SQLite)"
+	@echo "  make run         Build and run server"
 	@echo "  make dev         Run in dev mode (slower)"
 	@echo "  make server      Run with HTTP + gRPC"
 	@echo ""

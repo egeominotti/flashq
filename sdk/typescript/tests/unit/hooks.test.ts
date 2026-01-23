@@ -4,7 +4,7 @@
  * Tests for the observability hooks system used for OpenTelemetry,
  * DataDog, and custom metrics integration.
  */
-import { describe, test, expect, mock, beforeEach } from 'bun:test';
+import { describe, test, expect, mock } from 'bun:test';
 import {
   callHook,
   callErrorHook,

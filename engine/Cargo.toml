@@ -19,6 +19,7 @@ io-uring = []  # Enable io_uring detection (Linux only)
 # Async Runtime
 tokio = { version = "1", features = ["full"] }
 tokio-stream = { version = "0.1", features = ["sync"] }
+async-trait = "0.1"              # Async traits for storage abstraction
 
 # Serialization - OPTIMIZED
 serde = { version = "1", features = ["derive"] }
@@ -46,14 +47,9 @@ ulid = "1.1"                    # Sortable IDs, faster than UUID v4
 croner = "2.0"                  # Full 6-field cron expression parsing
 chrono = { version = "0.4", default-features = false, features = ["std", "clock"] }
 
-# Database (SQLite embedded)
-rusqlite = { version = "0.32", features = ["bundled", "backup"] }
-
-# S3-compatible backup (AWS S3, Cloudflare R2, MinIO, etc.)
-aws-sdk-s3 = { version = "1.65", features = ["behavior-version-latest"] }
-aws-config = { version = "1.5", features = ["behavior-version-latest"] }
-aws-credential-types = "1.2"
-flate2 = "1.0"  # gzip compression for backups
+# NATS JetStream (distributed persistence)
+async-nats = "0.39"
+uuid = { version = "1", features = ["v7"] }  # Time-sortable distributed IDs
 
 # HTTP Client
 reqwest = { version = "0.13", default-features = false, features = ["json", "rustls"] }

@@ -29,7 +29,7 @@
 - **Native async** - Tokio runtime with work-stealing scheduler
 
 ### 2. Architecture
-- **In-memory first** - Jobs stored in memory, optional PostgreSQL persistence
+- **In-memory first** - Jobs stored in memory, NATS JetStream persistence
 - **No Redis dependency** - Direct TCP protocol, no intermediate broker
 - **32 sharded queues** - Parallel access with minimal lock contention
 
@@ -86,7 +86,7 @@ cd sdk/typescript && bun run examples/test-10k-jobs.ts
 
 | Queue System | Language | Throughput | Notes |
 |--------------|----------|------------|-------|
-| **flashQ** | Rust | **245,000+ jobs/sec** | In-memory + PostgreSQL |
+| **flashQ** | Rust | **245,000+ jobs/sec** | In-memory + NATS JetStream |
 | BullMQ | Node.js/Redis | ~15,000 jobs/sec | Redis bottleneck |
 | Sidekiq | Ruby/Redis | ~10,000 jobs/sec | Ruby GIL limits |
 | Celery | Python/Redis | ~5,000 jobs/sec | Python overhead |

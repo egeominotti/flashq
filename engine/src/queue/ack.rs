@@ -19,6 +19,17 @@ impl QueueManager {
     pub async fn ack(&self, job_id: u64, result: Option<Value>) -> Result<(), String> {
         let job = self.processing_remove(job_id);
         if let Some(job) = job {
+            // In cluster mode, ack the NATS message
+            if self.is_distributed_pull() {
+                if let Some(ack_token) = self.take_nats_ack_token(job_id) {
+                    // Ack the NATS message in background
+                    tokio::spawn(async move {
+                        if let Err(e) = super::nats::pull::PulledJob::ack_token(ack_token).await {
+                            tracing::warn!(job_id = job_id, error = %e, "Failed to ack NATS message");
+                        }
+                    });
+                }
+            }
             // Release concurrency, group, and unique key
             let idx = Self::shard_index(&job.queue);
             let queue_arc = intern(&job.queue);
@@ -38,7 +49,7 @@ impl QueueManager {
                 // Clean up logs for this job
                 self.job_logs.write().remove(&job_id);
                 self.stalled_count.write().remove(&job_id);
-                // Delete from SQLite (job was inserted at push, must be removed now)
+                // Delete from storage (job was inserted at push, must be removed now)
                 self.persist_delete(job_id);
             } else {
                 // Store result if provided
@@ -59,7 +70,7 @@ impl QueueManager {
                 }
             }
 
-            // Persist to SQLite - skip if remove_on_complete to save memory/disk
+            // Persist to storage - skip if remove_on_complete to save memory/disk
             if !job.remove_on_complete {
                 if self.is_sync_persistence() {
                     let _ = self.persist_ack_sync(job_id, result.clone()).await;
@@ -115,9 +126,20 @@ impl QueueManager {
         // This prevents acquiring shard lock 100 times per batch (was causing lock convoy)
         // Group by shard index for efficient batching
         let mut shard_resources: ShardResources = std::collections::HashMap::new();
+        // Collect NATS ack tokens for batch acknowledgment
+        let mut nats_tokens: Vec<super::nats::pull::AckToken> = Vec::new();
+
+        // In cluster mode, collect all NATS ack tokens first
+        let is_distributed = self.is_distributed_pull();
 
         // First pass: collect all jobs and their resource info WITHOUT acquiring shard locks
         for &id in ids {
+            // Collect NATS ack token if in cluster mode
+            if is_distributed {
+                if let Some(token) = self.take_nats_ack_token(id) {
+                    nats_tokens.push(token);
+                }
+            }
             if let Some(job) = self.processing_remove(id) {
                 let idx = Self::shard_index(&job.queue);
                 let queue_arc = intern(&job.queue);
@@ -195,7 +217,7 @@ impl QueueManager {
         if !ids_to_persist.is_empty() {
             self.persist_ack_batch(&ids_to_persist);
         }
-        // Delete jobs with remove_on_complete from SQLite
+        // Delete jobs with remove_on_complete from storage
         if !ids_to_delete.is_empty() {
             self.persist_delete_batch(&ids_to_delete);
         }
@@ -207,12 +229,36 @@ impl QueueManager {
         self.metrics
             .current_processing
             .fetch_sub(acked as u64, Ordering::Relaxed);
+
+        // Ack all NATS tokens in background
+        if !nats_tokens.is_empty() {
+            tokio::spawn(async move {
+                for token in nats_tokens {
+                    if let Err(e) = super::nats::pull::PulledJob::ack_token(token).await {
+                        tracing::warn!(error = %e, "Failed to ack NATS message in batch");
+                    }
+                }
+            });
+        }
+
         acked
     }
 
     pub async fn fail(&self, job_id: u64, error: Option<String>) -> Result<(), String> {
         let job = self.processing_remove(job_id);
         if let Some(mut job) = job {
+            // In cluster mode, handle NATS ack token
+            // We ack (not nak) because we manage retries ourselves via the queue
+            if self.is_distributed_pull() {
+                if let Some(ack_token) = self.take_nats_ack_token(job_id) {
+                    // Ack to remove from NATS - we'll re-queue ourselves
+                    tokio::spawn(async move {
+                        if let Err(e) = super::nats::pull::PulledJob::ack_token(ack_token).await {
+                            tracing::warn!(job_id = job_id, error = %e, "Failed to ack NATS message on fail");
+                        }
+                    });
+                }
+            }
             let idx = Self::shard_index(&job.queue);
             let queue_arc = intern(&job.queue);
 

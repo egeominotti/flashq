@@ -152,25 +152,6 @@ pub fn create_router(state: AppState) -> Router {
         .route("/server/reset-metrics", post(settings::reset_metrics))
         // System metrics
         .route("/system/metrics", get(settings::get_system_metrics))
-        // SQLite Configuration
-        .route("/sqlite/settings", get(settings::get_sqlite_settings))
-        .route("/sqlite/settings", post(settings::save_sqlite_settings))
-        .route("/sqlite/stats", get(settings::get_sqlite_stats))
-        .route("/sqlite/export", get(settings::export_sqlite_database))
-        .route("/sqlite/download", get(settings::download_sqlite_database))
-        .route("/sqlite/restore", post(settings::restore_sqlite_database))
-        .route(
-            "/sqlite/async-writer",
-            post(settings::update_async_writer_config),
-        )
-        // S3 Backup Configuration
-        .route("/s3/settings", get(settings::get_s3_settings))
-        .route("/s3/settings", post(settings::save_s3_settings))
-        .route("/s3/test", post(settings::test_s3_connection))
-        // S3 Backup Operations
-        .route("/s3/backup", post(settings::trigger_s3_backup))
-        .route("/s3/backups", get(settings::list_s3_backups))
-        .route("/s3/restore", post(settings::restore_s3_backup))
         // Health
         .route("/health", get(cluster::health_check))
         // Debug

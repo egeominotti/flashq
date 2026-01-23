@@ -118,7 +118,7 @@ export interface WorkersResponse {
   workers: Worker[];
 }
 
-export interface SqliteSettings {
+export interface StorageSettings {
   enabled: boolean;
   path?: string;
   synchronous: boolean;
@@ -140,7 +140,7 @@ export interface Settings {
   version: string;
   tcp_port: number;
   http_port: number;
-  sqlite: SqliteSettings;
+  storage: StorageSettings;
   s3_backup: S3BackupSettings;
   auth_enabled: boolean;
   auth_token_count: number;
@@ -153,4 +153,4 @@ export interface S3Backup {
   last_modified?: string;
 }
 
-// SystemMetrics and SqliteStats are defined in client.ts
+// SystemMetrics and StorageStats are defined in client.ts

@@ -4,7 +4,7 @@
 //!
 //! - `manager.rs` - Core QueueManager struct, constructors, shard helpers
 //! - `types/` - IndexedPriorityQueue, RateLimiter, Shard, GlobalMetrics, etc.
-//! - `sqlite/` - SQLite embedded persistence with S3 backup
+//! - `nats/` - NATS JetStream distributed persistence
 //! - `background/` - Background tasks (cleanup, cron, timeout, snapshots)
 //!
 //! ### Core operations
@@ -16,7 +16,7 @@
 //!
 //! ### Manager modules
 //!
-//! - `persistence.rs` - SQLite persistence methods (persist_*)
+//! - `persistence.rs` - NATS persistence methods (persist_*)
 //! - `query.rs` - Job query operations (get_job, get_state, wait_for_job)
 //! - `admin.rs` - Admin operations (workers, webhooks, settings, reset)
 //!
@@ -34,7 +34,8 @@
 
 mod background;
 mod manager;
-pub mod sqlite;
+pub mod nats;
+pub mod storage;
 pub mod types;
 
 // Core operations (split from core.rs)

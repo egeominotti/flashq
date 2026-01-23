@@ -19,7 +19,6 @@ use tokio::net::{TcpListener, UnixListener};
 use tokio::signal;
 use tokio::sync::broadcast;
 
-use queue::sqlite::{S3BackupConfig, S3BackupManager};
 use queue::QueueManager;
 use server::handle_connection;
 
@@ -106,11 +105,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .map(|s| s.to_string())
         .collect();
 
-    // Create QueueManager with optional SQLite persistence
+    // Create QueueManager with NATS JetStream persistence
     let queue_manager = create_queue_manager(&auth_tokens);
 
-    // Start S3 backup if configured
-    start_s3_backup_task(&queue_manager).await;
+    // Connect storage backend (required for NATS)
+    connect_storage(&queue_manager).await;
 
     // Start HTTP server if enabled
     if enable_http {
@@ -131,37 +130,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-/// Create QueueManager based on configuration
+/// Create QueueManager with NATS JetStream persistence.
+///
+/// Uses NATS_URL environment variable (default: nats://localhost:4222)
 fn create_queue_manager(auth_tokens: &[String]) -> Arc<QueueManager> {
-    // Check for SQLite configuration via environment (DATA_PATH or SQLITE_PATH)
-    let sqlite_path = std::env::var("DATA_PATH")
-        .or_else(|_| std::env::var("SQLITE_PATH"))
-        .ok();
+    let nats_url =
+        std::env::var("NATS_URL").unwrap_or_else(|_| "nats://localhost:4222".to_string());
+    info!(url = %nats_url, "Using NATS JetStream persistence");
 
-    match (sqlite_path, auth_tokens.is_empty()) {
-        (Some(path), true) => {
-            info!(path = %path, "Using SQLite persistence");
-            QueueManager::with_sqlite_from_env()
+    let mut qm = QueueManager::from_env();
+    if !auth_tokens.is_empty() {
+        if let Some(q) = Arc::get_mut(&mut qm) {
+            q.set_auth_tokens(auth_tokens.to_vec());
         }
-        (Some(path), false) => {
-            info!(path = %path, token_count = auth_tokens.len(), "Using SQLite with authentication");
-            let mut qm = QueueManager::with_sqlite_from_env();
-            if let Some(q) = Arc::get_mut(&mut qm) {
-                q.set_auth_tokens(auth_tokens.to_vec());
-            }
-            qm
-        }
-        (None, true) => {
-            info!("Running in-memory mode (no persistence)");
-            QueueManager::new(false)
-        }
-        (None, false) => {
-            info!(
-                token_count = auth_tokens.len(),
-                "Running in-memory mode with authentication"
-            );
-            QueueManager::with_auth_tokens(false, auth_tokens.to_vec())
-        }
+    }
+    qm
+}
+
+/// Connect storage backend (async, required for NATS)
+async fn connect_storage(queue_manager: &Arc<QueueManager>) {
+    if let Err(e) = queue_manager.connect_storage().await {
+        error!(error = %e, "Failed to connect storage backend");
+        std::process::exit(1);
     }
 }
 
@@ -190,7 +180,6 @@ async fn start_http_server(queue_manager: &Arc<QueueManager>, shutdown_tx: &broa
             }
         };
         info!(port = http_port, "HTTP API listening");
-        info!(url = %format!("http://localhost:{}", http_port), "Dashboard available");
         if let Err(e) = axum::serve(listener, router)
             .with_graceful_shutdown(async move {
                 let _ = shutdown_rx.recv().await;
@@ -313,79 +302,6 @@ async fn run_tcp_server(
     }
 
     Ok(())
-}
-
-/// Start S3 backup task if configured
-async fn start_s3_backup_task(queue_manager: &Arc<QueueManager>) {
-    // Check if S3 backup is enabled
-    let enabled = std::env::var("S3_BACKUP_ENABLED")
-        .map(|v| v == "1" || v.to_lowercase() == "true")
-        .unwrap_or(false);
-
-    if !enabled {
-        return;
-    }
-
-    // Get S3 configuration from environment
-    let config = match S3BackupConfig::from_env() {
-        Some(c) => c,
-        None => {
-            warn!("S3_BACKUP_ENABLED is set but missing required S3 configuration");
-            return;
-        }
-    };
-
-    // Get database path
-    let db_path = match std::env::var("DATA_PATH").or_else(|_| std::env::var("SQLITE_PATH")) {
-        Ok(p) => std::path::PathBuf::from(p),
-        Err(_) => {
-            warn!("S3 backup requires DATA_PATH to be set");
-            return;
-        }
-    };
-
-    // Create S3 backup manager
-    let backup_manager = match S3BackupManager::new(config.clone()).await {
-        Ok(m) => Arc::new(m),
-        Err(e) => {
-            error!(error = %e, "Failed to create S3 backup manager");
-            return;
-        }
-    };
-
-    info!(
-        bucket = %config.bucket,
-        interval_secs = config.interval_secs,
-        "S3 backup enabled"
-    );
-
-    // Clone for the background task
-    let qm = Arc::clone(queue_manager);
-
-    // Start background backup task
-    tokio::spawn(async move {
-        let mut interval =
-            tokio::time::interval(tokio::time::Duration::from_secs(config.interval_secs));
-
-        loop {
-            interval.tick().await;
-
-            if qm.is_shutdown() {
-                info!("S3 backup task stopping due to shutdown");
-                break;
-            }
-
-            // Check if backup is needed
-            if backup_manager.should_backup() {
-                match backup_manager.backup(&db_path).await {
-                    Ok(()) => {}
-                    Err(e) => {
-                        error!(error = %e, "S3 backup failed");
-                    }
-                }
-            }
-        }
-    });
 }
 
 /// Graceful shutdown: wait for active jobs to complete

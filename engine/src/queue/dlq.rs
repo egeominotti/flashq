@@ -5,6 +5,7 @@
 use tracing::error;
 
 use super::manager::QueueManager;
+use super::storage::Storage;
 use super::types::{intern, now_ms, JobLocation};
 use crate::protocol::Job;
 
@@ -85,7 +86,7 @@ impl QueueManager {
                 self.job_index.remove(id);
             }
 
-            // Persist to SQLite
+            // Persist to storage
             if let Some(ref storage) = self.storage {
                 if let Err(e) = storage.purge_dlq(queue_name) {
                     error!(queue = %queue_name, error = %e, "Failed to persist purge_dlq");

@@ -1,17 +1,18 @@
-//! SQLite persistence operations.
+//! Storage persistence operations.
 //!
-//! All persist_* methods for storing job state changes to SQLite.
+//! All persist_* methods for storing job state changes to the NATS JetStream storage backend.
 
 use serde_json::Value;
 use tracing::error;
 
 use super::manager::QueueManager;
+use super::storage::Storage;
 use crate::protocol::{CronJob, Job, WebhookConfig};
 
 impl QueueManager {
-    // ============== Persistence Methods (SQLite) ==============
+    // ============== Persistence Methods ==============
 
-    /// Persist a pushed job to SQLite (sync for durability).
+    /// Persist a pushed job to storage.
     #[inline]
     pub(crate) fn persist_push(&self, job: &Job, state: &str) {
         if let Some(ref storage) = self.storage {
@@ -21,7 +22,7 @@ impl QueueManager {
         }
     }
 
-    /// Persist a pushed job synchronously (same as persist_push for SQLite).
+    /// Persist a pushed job synchronously.
     #[inline]
     pub(crate) async fn persist_push_sync(&self, job: &Job, state: &str) -> Result<(), String> {
         if let Some(ref storage) = self.storage {
@@ -32,7 +33,7 @@ impl QueueManager {
         Ok(())
     }
 
-    /// Persist a batch of jobs to SQLite.
+    /// Persist a batch of jobs to storage.
     #[inline]
     pub(crate) fn persist_push_batch(&self, jobs: &[Job], state: &str) {
         if jobs.is_empty() {
@@ -45,7 +46,7 @@ impl QueueManager {
         }
     }
 
-    /// Persist job acknowledgment to SQLite.
+    /// Persist job acknowledgment to storage.
     /// Note: job_results storage is handled by ack.rs, not here.
     #[inline]
     pub(crate) fn persist_ack(&self, job_id: u64, result: Option<Value>) {
@@ -72,7 +73,7 @@ impl QueueManager {
         Ok(())
     }
 
-    /// Persist batch acknowledgments to SQLite.
+    /// Persist batch acknowledgments to storage.
     #[inline]
     pub(crate) fn persist_ack_batch(&self, ids: &[u64]) {
         if ids.is_empty() {
@@ -85,7 +86,7 @@ impl QueueManager {
         }
     }
 
-    /// Delete job from SQLite without storing result (for remove_on_complete).
+    /// Delete job from storage without storing result (for remove_on_complete).
     #[inline]
     pub(crate) fn persist_delete(&self, job_id: u64) {
         if let Some(ref storage) = self.storage {
@@ -95,7 +96,7 @@ impl QueueManager {
         }
     }
 
-    /// Delete multiple jobs from SQLite (for remove_on_complete batch).
+    /// Delete multiple jobs from storage (for remove_on_complete batch).
     #[inline]
     pub(crate) fn persist_delete_batch(&self, ids: &[u64]) {
         if ids.is_empty() {
@@ -108,7 +109,7 @@ impl QueueManager {
         }
     }
 
-    /// Persist job failure (retry) to SQLite.
+    /// Persist job failure (retry) to storage.
     #[inline]
     pub(crate) fn persist_fail(&self, job_id: u64, new_run_at: u64, attempts: u32) {
         if let Some(ref storage) = self.storage {

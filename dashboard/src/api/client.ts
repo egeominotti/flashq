@@ -380,53 +380,46 @@ export const testS3Connection = (settings: S3SettingsPayload) =>
   postApi<string>('/s3/test', settings);
 
 // ============================================================================
-// SQLite Settings
+// Storage Settings (NATS JetStream)
 // ============================================================================
 
-export interface SqliteSettingsPayload {
+export interface StorageSettingsPayload {
   enabled: boolean;
-  path?: string;
-  synchronous?: boolean;
-  cache_size_mb?: number;
+  nats_url?: string;
+  stream_replicas?: number;
+  kv_replicas?: number;
 }
 
-export interface SqliteSettingsResponse {
+export interface StorageSettingsResponse {
   enabled: boolean;
-  path?: string;
-  synchronous: boolean;
-  snapshot_interval: number;
-  snapshot_min_changes: number;
+  nats_url?: string;
+  stream_replicas: number;
+  kv_replicas: number;
 }
 
-export const getSqliteSettings = () => fetchApi<SqliteSettingsResponse>('/sqlite/settings');
-export const saveSqliteSettings = (settings: SqliteSettingsPayload) =>
-  postApi<string>('/sqlite/settings', settings);
+export const getStorageSettings = () => fetchApi<StorageSettingsResponse>('/storage/settings');
+export const saveStorageSettings = (settings: StorageSettingsPayload) =>
+  postApi<string>('/storage/settings', settings);
 
-// SQLite Stats
-export interface SqliteStats {
+// Storage Stats
+export interface StorageStats {
   enabled: boolean;
-  path?: string;
-  file_size_bytes: number;
-  file_size_mb: number;
+  nats_url?: string;
   total_jobs: number;
   queued_jobs: number;
   processing_jobs: number;
   completed_jobs: number;
   failed_jobs: number;
   delayed_jobs: number;
-  // Async writer stats
-  async_writer_enabled: boolean;
-  async_writer_queue_len: number;
-  async_writer_ops_queued: number;
-  async_writer_ops_written: number;
-  async_writer_batches_written: number;
-  async_writer_batch_interval_ms: number;
-  async_writer_max_batch_size: number;
+  // NATS JetStream stats
+  stream_messages: number;
+  stream_bytes: number;
+  kv_keys: number;
 }
 
-export const getSqliteStats = () => fetchApi<SqliteStats>('/sqlite/stats');
-export const exportSqliteDatabase = () => postApi<string>('/sqlite/export');
-export const restoreSqliteDatabase = async (file: File): Promise<ApiResponse<string>> => {
+export const getStorageStats = () => fetchApi<StorageStats>('/storage/stats');
+export const exportStorageData = () => postApi<string>('/storage/export');
+export const restoreStorageData = async (file: File): Promise<ApiResponse<string>> => {
   const apiUrl = getApiUrl();
   const authToken = getAuthToken();
 
@@ -440,7 +433,7 @@ export const restoreSqliteDatabase = async (file: File): Promise<ApiResponse<str
     }
     // Don't set Content-Type - browser will set it with boundary for multipart
 
-    const res = await fetch(`${apiUrl}/sqlite/restore`, {
+    const res = await fetch(`${apiUrl}/storage/restore`, {
       method: 'POST',
       headers,
       body: formData,
@@ -448,19 +441,10 @@ export const restoreSqliteDatabase = async (file: File): Promise<ApiResponse<str
 
     return await res.json();
   } catch (error) {
-    console.error('API Error [/sqlite/restore]:', error);
+    console.error('API Error [/storage/restore]:', error);
     return { ok: false, error: String(error) };
   }
 };
-
-// Async Writer Config
-export interface AsyncWriterConfigPayload {
-  batch_interval_ms?: number;
-  max_batch_size?: number;
-}
-
-export const updateAsyncWriterConfig = (config: AsyncWriterConfigPayload) =>
-  postApi<string>('/sqlite/async-writer', config);
 
 // ============================================================================
 // Server Management
@@ -607,11 +591,10 @@ export const api = {
   saveS3Settings,
   testS3Connection,
 
-  // SQLite Settings
-  getSqliteSettings,
-  saveSqliteSettings,
-  getSqliteStats,
-  updateAsyncWriterConfig,
+  // Storage Settings (NATS JetStream)
+  getStorageSettings,
+  saveStorageSettings,
+  getStorageStats,
 
   // Server Management
   clearAllQueues,

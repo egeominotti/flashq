@@ -139,9 +139,6 @@ cargo run
 # Production (optimized)
 cargo run --release
 
-# With PostgreSQL persistence
-DATABASE_URL=postgres://user:pass@localhost/flashq cargo run --release
-
 # With HTTP API & Dashboard
 HTTP=1 cargo run --release
 
@@ -151,8 +148,8 @@ GRPC=1 cargo run --release
 # With Unix socket
 UNIX_SOCKET=1 cargo run --release
 
-# With Clustering (HA mode)
-CLUSTER_MODE=1 NODE_ID=node-1 DATABASE_URL=postgres://user:pass@localhost/flashq HTTP=1 cargo run --release
+# With custom NATS URL
+NATS_URL=nats://localhost:4222 cargo run --release
 
 # Run tests
 cargo test
@@ -173,7 +170,7 @@ bun run examples/benchmark-full.ts
 ### Docker Compose (Recommended)
 
 ```bash
-# Start PostgreSQL + flashQ
+# Start NATS + flashQ
 docker-compose up -d
 
 # View logs
@@ -203,12 +200,23 @@ engine/src/
     ├── mod.rs        # Module exports
     ├── types.rs      # IndexedPriorityQueue, RateLimiter, Shard, GlobalMetrics, JobLocation
     ├── manager.rs    # QueueManager struct, DashMap job_index, sharded processing
-    ├── postgres.rs   # PostgreSQL storage layer
-    ├── cluster.rs    # Clustering and leader election
+    ├── storage.rs    # Storage trait abstraction for NATS backend
+    ├── nats/         # NATS JetStream distributed storage
+    │   ├── mod.rs    # Module exports
+    │   ├── config.rs # NATS configuration
+    │   ├── connection.rs # Client management
+    │   ├── streams.rs # Stream/subject setup
+    │   ├── kv.rs     # KV store wrapper
+    │   ├── push.rs   # Push operations
+    │   ├── pull.rs   # Pull with priority
+    │   ├── ack.rs    # Ack/fail operations
+    │   ├── scheduler.rs # Delayed job promotion
+    │   ├── leader.rs # Leader election
+    │   └── storage.rs # NatsStorage implementation
     ├── core.rs       # Core ops: push, pull, ack, fail
     ├── features.rs   # Advanced: cancel, progress, DLQ, cron, metrics, BullMQ-like ops
     ├── background.rs # Background tasks: cleanup, cron runner
-    └── tests.rs      # Unit tests (104 tests)
+    └── tests/        # Unit tests
 ```
 
 ### Key Design Decisions
@@ -371,7 +379,7 @@ PUSH --> [WAITING/DELAYED/WAITING_CHILDREN]
 - Job priorities (BinaryHeap)
 - Delayed jobs (run_at timestamp)
 - Job state tracking (GETJOB/GETSTATE)
-- PostgreSQL persistence
+- NATS JetStream persistence - distributed, horizontally scalable
 
 ### Advanced
 
@@ -412,16 +420,17 @@ PUSH --> [WAITING/DELAYED/WAITING_CHILDREN]
 
 ## Clustering (High Availability)
 
-flashQ supports clustering for high availability using PostgreSQL as the coordination layer.
+flashQ supports clustering for high availability using NATS JetStream as the coordination and persistence layer.
 
 ### Environment Variables
 
 | Variable              | Description                                        |
 | --------------------- | -------------------------------------------------- |
-| `CLUSTER_MODE=1`      | Enable cluster mode                                |
+| `NATS_URL`            | NATS server URL (default: nats://localhost:4222)   |
 | `NODE_ID=node-1`      | Unique node identifier (auto-generated if not set) |
 | `NODE_HOST=localhost` | Host address for node registration                 |
-| `DATABASE_URL`        | PostgreSQL connection (required for clustering)    |
+| `NATS_STREAM_REPLICAS`| Stream replicas for HA (default: 1, use 3 for prod)|
+| `NATS_KV_REPLICAS`    | KV store replicas (default: 1, use 3 for prod)     |
 
 ### Architecture
 
@@ -433,15 +442,15 @@ flashQ supports clustering for high availability using PostgreSQL as the coordin
      │               │               │
      └───────────────┼───────────────┘
                      │
-              ┌──────▼──────┐
-              │  PostgreSQL │
-              │  (Shared)   │
-              └─────────────┘
+         ┌───────────▼───────────┐
+         │  NATS JetStream       │
+         │  (Distributed)        │
+         └───────────────────────┘
 ```
 
 ### Leader Election
 
-- Uses PostgreSQL advisory locks (`pg_try_advisory_lock`)
+- Uses NATS JetStream KV store for distributed leader election
 - Only the leader runs background tasks (cron, cleanup, timeout checks)
 - All nodes handle client requests (push/pull/ack)
 - Automatic failover when leader crashes (within 5 seconds)
@@ -457,14 +466,98 @@ flashQ supports clustering for high availability using PostgreSQL as the coordin
 ### Example: Multi-Node Setup
 
 ```bash
+# Start NATS with JetStream
+docker run -d --name nats -p 4222:4222 nats:latest -js
+
 # Start Node 1 (becomes leader)
-CLUSTER_MODE=1 NODE_ID=node-1 DATABASE_URL=postgres://... HTTP=1 HTTP_PORT=6790 PORT=6789 ./flashq-server
+NODE_ID=node-1 NATS_URL=nats://localhost:4222 HTTP=1 HTTP_PORT=6790 PORT=6789 ./flashq-server
 
 # Start Node 2 (becomes follower)
-CLUSTER_MODE=1 NODE_ID=node-2 DATABASE_URL=postgres://... HTTP=1 HTTP_PORT=6792 PORT=6793 ./flashq-server
+NODE_ID=node-2 NATS_URL=nats://localhost:4222 HTTP=1 HTTP_PORT=6792 PORT=6793 ./flashq-server
 
 # Check cluster status
 curl http://localhost:6790/cluster/nodes
+```
+
+## NATS JetStream Persistence
+
+flashQ uses NATS JetStream as the distributed persistence backend, enabling horizontal scaling and high availability.
+
+### Environment Variables
+
+| Variable              | Description                                        |
+| --------------------- | -------------------------------------------------- |
+| `NATS_URL`            | NATS server URL (default: nats://localhost:4222)   |
+| `NATS_STREAM_REPLICAS`| Stream replicas for HA (default: 1, use 3 for prod)|
+| `NATS_KV_REPLICAS`    | KV store replicas (default: 1, use 3 for prod)     |
+
+### Running with NATS
+
+```bash
+# Start NATS with JetStream
+docker run -d --name nats -p 4222:4222 nats:latest -js
+
+# Run flashQ
+NATS_URL=nats://localhost:4222 cargo run --release
+
+### Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    NATS JetStream Cluster                   │
+├─────────────────────────────────────────────────────────────┤
+│  STREAMS (per queue):                                       │
+│  - flashq.{queue}.priority.high/normal/low                  │
+│  - flashq.{queue}.delayed                                   │
+│  - flashq.{queue}.dlq                                       │
+│                                                             │
+│  KV STORES:                                                 │
+│  - flashq-jobs (job metadata)                               │
+│  - flashq-results (job results)                             │
+│  - flashq-state (queue state, limits)                       │
+│  - flashq-custom-ids (idempotency)                          │
+│  - flashq-progress (job progress)                           │
+│  - flashq-crons (cron job definitions)                      │
+│  - flashq-webhooks (webhook configurations)                 │
+└─────────────────────────────────────────────────────────────┘
+                            │
+         ┌──────────────────┼──────────────────┐
+         ▼                  ▼                  ▼
+   ┌───────────┐      ┌───────────┐      ┌───────────┐
+   │ flashQ #1 │      │ flashQ #2 │      │ flashQ #N │
+   │(stateless)│      │(stateless)│      │(stateless)│
+   └───────────┘      └───────────┘      └───────────┘
+```
+
+### Recovery on Restart
+
+NATS persistence includes full recovery of all data types:
+
+| Data Type        | Recovery Method                                    |
+| ---------------- | -------------------------------------------------- |
+| Waiting jobs     | Loaded from KV, placed in memory queues            |
+| Delayed jobs     | Loaded from KV, placed in queues (run_at > now)    |
+| Jobs with deps   | Loaded from KV, placed in waiting_deps             |
+| DLQ jobs         | Identified by attempts >= max_attempts             |
+| Cron jobs        | Loaded from flashq-crons KV store                  |
+| Webhooks         | Loaded from flashq-webhooks KV store               |
+| Job ID counter   | Synced from max job ID in KV                       |
+
+### Leader Election
+
+- Uses NATS KV for distributed leader election
+- Only the leader runs background tasks (cron, delayed job promotion)
+- All nodes handle client requests
+- Automatic failover when leader disconnects
+
+### Quick Start with Docker
+
+```bash
+# Start NATS with JetStream
+docker run -d --name nats -p 4222:4222 nats:latest -js
+
+# Start flashQ with NATS
+FLASHQ_STORAGE=nats NATS_URL=nats://localhost:4222 cargo run --release --bin flashq-server --features nats
 ```
 
 ## Common Tasks
@@ -816,7 +909,7 @@ The following patterns were analyzed and confirmed to be correctly implemented:
 - **Async safety**: All persistence operations have sync/async modes
 - **Error handling**: Result types throughout, proper rollback on failure
 - **Memory bounds**: All caches have configurable thresholds
-- **Test coverage**: 100+ unit tests in `queue/tests/`
+- **Test coverage**: 456 unit tests in `queue/tests/`
 
 ### False Positives Debunked
 

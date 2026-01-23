@@ -25,7 +25,7 @@ import {
   useMetrics,
   useMetricsHistory,
   useSystemMetrics,
-  useSqliteStats,
+  useStorageStats,
 } from '../../stores';
 import { useSettings, useSparklineData } from '../../hooks';
 import { formatCompact } from '../../utils';
@@ -43,7 +43,7 @@ export function ServerMetrics() {
   const metrics = useMetrics();
   const metricsHistory = useMetricsHistory();
   const systemMetrics = useSystemMetrics();
-  const sqliteStats = useSqliteStats();
+  const storageStats = useStorageStats();
 
   // DRY: Use custom hook for sparkline data extraction
   const latencySparkline = useSparklineData(metricsHistory, 'latency_ms');
@@ -161,7 +161,7 @@ export function ServerMetrics() {
           </TabPanel>
 
           <TabPanel>
-            <StorageTab sqliteStats={sqliteStats} />
+            <StorageTab storageStats={storageStats} />
           </TabPanel>
         </TabPanels>
       </TabGroup>

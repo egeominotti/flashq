@@ -1,29 +1,250 @@
-# flashQ Build Configuration
-# These flags optimize for maximum performance on the target CPU
+# =============================================================================
+# flashQ Cargo Build Configuration
+# =============================================================================
+#
+# Automatic platform-specific optimizations for maximum performance.
+# Detects OS and CPU architecture at compile time.
+#
+# Usage:
+#   cargo build --release              # Auto-optimized for your machine
+#   cargo br                           # Alias for build --release
+#
+# Cross-compile for servers:
+#   cargo build --release --target x86_64-unknown-linux-gnu
+#   cargo build --release --target aarch64-unknown-linux-gnu
+#
+# =============================================================================
 
-[build]
-rustflags = [
-    "-C", "target-cpu=native",      # Use all CPU features (AVX2, AVX-512, etc.)
-    "-C", "link-arg=-fuse-ld=lld",  # Faster linker (if lld installed)
-]
+# -----------------------------------------------------------------------------
+# x86_64 Linux (Intel/AMD - Servers, Cloud, Docker)
+# -----------------------------------------------------------------------------
+# Targets: AWS EC2, GCP, Azure, DigitalOcean, bare metal
+# CPU baseline: x86-64-v2 (SSE4.2, POPCNT) for 99% server compatibility
 
 [target.x86_64-unknown-linux-gnu]
 rustflags = [
+    # Native CPU: enables AVX2, AVX-512, AES-NI based on your CPU
     "-C", "target-cpu=native",
+
+    # Linker: mold is 10x faster than default (fallback: lld, then gold)
+    # Install: apt install mold | dnf install mold | pacman -S mold
+    "-C", "link-arg=-fuse-ld=mold",
+
+    # Maximum optimization level
+    "-C", "opt-level=3",
+
+    # Better inlining for hot paths
+    "-C", "inline-threshold=275",
+
+    # Security hardening (negligible overhead)
+    "-C", "relro-level=full",
+]
+
+# x86_64 Linux musl - Static binaries (Alpine, scratch containers)
+[target.x86_64-unknown-linux-musl]
+rustflags = [
+    "-C", "target-cpu=native",
+    "-C", "opt-level=3",
+    "-C", "target-feature=+crt-static",
+    "-C", "link-self-contained=yes",
+]
+linker = "x86_64-linux-musl-gcc"
+
+# -----------------------------------------------------------------------------
+# aarch64 Linux (ARM64 - AWS Graviton, Ampere, Raspberry Pi)
+# -----------------------------------------------------------------------------
+# Targets: AWS Graviton2/3, Azure ARM, Oracle ARM, Raspberry Pi 4/5
+# 40% better price-performance than x86 on cloud
+
+[target.aarch64-unknown-linux-gnu]
+rustflags = [
+    # Native ARM: enables NEON, crypto extensions
+    "-C", "target-cpu=native",
+
+    # ARM crypto acceleration (AES, SHA in hardware)
+    "-C", "target-feature=+neon,+aes,+sha2,+crc",
+
+    # Maximum optimization
+    "-C", "opt-level=3",
+
+    # Use lld linker (faster than default)
     "-C", "link-arg=-fuse-ld=lld",
 ]
 
+# aarch64 Linux musl - Static ARM binaries
+[target.aarch64-unknown-linux-musl]
+rustflags = [
+    "-C", "target-cpu=native",
+    "-C", "target-feature=+neon,+aes,+sha2,+crc",
+    "-C", "opt-level=3",
+    "-C", "link-self-contained=yes",
+]
+linker = "aarch64-linux-musl-gcc"
+
+# -----------------------------------------------------------------------------
+# macOS Apple Silicon (M1/M2/M3/M4 - Development, local servers)
+# -----------------------------------------------------------------------------
+# Best single-thread performance, excellent for development
+
 [target.aarch64-apple-darwin]
 rustflags = [
-    "-C", "target-cpu=native",      # Apple Silicon optimizations
+    # Apple Silicon: world-class NEON and crypto units
+    "-C", "target-cpu=native",
+
+    # Hardware crypto (AES 2 cycles/byte, SHA 0.5 cycles/byte)
+    "-C", "target-feature=+neon,+aes,+sha2,+sha3,+crc",
+
+    # Maximum optimization
+    "-C", "opt-level=3",
+
+    # macOS: embed bitcode for further optimization
+    "-C", "embed-bitcode=yes",
+
+    # Dead code stripping (smaller binary)
+    "-C", "link-arg=-Wl,-dead_strip",
 ]
+
+# -----------------------------------------------------------------------------
+# macOS Intel (x86_64 - Older Macs)
+# -----------------------------------------------------------------------------
 
 [target.x86_64-apple-darwin]
 rustflags = [
     "-C", "target-cpu=native",
+    "-C", "opt-level=3",
+    "-C", "embed-bitcode=yes",
+    "-C", "link-arg=-Wl,-dead_strip",
 ]
 
-# Per Docker/CI dove serve binary portabile, usa:
-# RUSTFLAGS="-C target-cpu=x86-64-v3" cargo build --release
-# x86-64-v3 = AVX2 (most modern servers)
-# x86-64-v2 = SSE4.2 (broader compatibility)
+# -----------------------------------------------------------------------------
+# Windows x86_64 (MSVC - Native Windows)
+# -----------------------------------------------------------------------------
+
+[target.x86_64-pc-windows-msvc]
+rustflags = [
+    "-C", "target-cpu=native",
+    "-C", "opt-level=3",
+]
+
+# Windows GNU toolchain (MinGW)
+[target.x86_64-pc-windows-gnu]
+rustflags = [
+    "-C", "target-cpu=native",
+    "-C", "opt-level=3",
+    "-C", "link-arg=-s",
+]
+
+# -----------------------------------------------------------------------------
+# FreeBSD x86_64 (Server OS)
+# -----------------------------------------------------------------------------
+
+[target.x86_64-unknown-freebsd]
+rustflags = [
+    "-C", "target-cpu=native",
+    "-C", "opt-level=3",
+]
+
+# -----------------------------------------------------------------------------
+# Build Configuration
+# -----------------------------------------------------------------------------
+
+[build]
+# Parallel compilation (comment out to use all cores automatically)
+
+# Default target (uncomment for your platform)
+# target = "x86_64-unknown-linux-gnu"
+# target = "aarch64-unknown-linux-gnu"
+# target = "aarch64-apple-darwin"
+
+[term]
+# Show build progress
+verbose = false
+
+# Colored output
+color = "auto"
+
+# -----------------------------------------------------------------------------
+# Network Configuration
+# -----------------------------------------------------------------------------
+
+[net]
+# Retry failed downloads
+retry = 3
+
+# Use git CLI (more reliable for private repos)
+git-fetch-with-cli = true
+
+# -----------------------------------------------------------------------------
+# Registry Configuration
+# -----------------------------------------------------------------------------
+
+[registries.crates-io]
+# Sparse protocol (faster dependency resolution)
+protocol = "sparse"
+
+# -----------------------------------------------------------------------------
+# Cargo Aliases
+# -----------------------------------------------------------------------------
+
+[alias]
+# Build release (optimized)
+br = "build --release"
+
+# Build release with timing report
+release = "build --release --timings"
+
+# Run with release optimizations
+rr = "run --release"
+
+# Full lint check
+lint = "clippy --all-targets --all-features -- -D warnings"
+
+# Run all tests
+test-all = "test --all-features"
+
+# Benchmark
+bench-all = "bench --all-features"
+
+# Check compilation without building
+check-all = "check --all-targets --all-features"
+
+# Format check (CI)
+fmt-check = "fmt --all -- --check"
+
+# Full CI pipeline
+ci = ["fmt-check", "lint", "test-all"]
+
+# Clean and rebuild
+rebuild = ["clean", "br"]
+
+# Show binary size
+size = "size --release"
+
+# -----------------------------------------------------------------------------
+# Environment Variables Reference
+# -----------------------------------------------------------------------------
+#
+# Override target-cpu for portable binaries:
+#   RUSTFLAGS="-C target-cpu=x86-64-v2" cargo build --release  # SSE4.2 (99% compat)
+#   RUSTFLAGS="-C target-cpu=x86-64-v3" cargo build --release  # AVX2 (modern servers)
+#   RUSTFLAGS="-C target-cpu=x86-64-v4" cargo build --release  # AVX-512 (newest only)
+#
+# For AWS Graviton:
+#   RUSTFLAGS="-C target-cpu=neoverse-n1" cargo build --release  # Graviton2
+#   RUSTFLAGS="-C target-cpu=neoverse-v1" cargo build --release  # Graviton3
+#
+# Profile-Guided Optimization (PGO) - Extra 10-15% performance:
+#   # Step 1: Build with profiling
+#   RUSTFLAGS="-Cprofile-generate=/tmp/pgo" cargo build --release
+#
+#   # Step 2: Run typical workload
+#   ./target/release/flashq-server &
+#   # ... run benchmarks ...
+#
+#   # Step 3: Merge profiles
+#   llvm-profdata merge -o /tmp/pgo/merged.profdata /tmp/pgo
+#
+#   # Step 4: Rebuild with profile
+#   RUSTFLAGS="-Cprofile-use=/tmp/pgo/merged.profdata" cargo build --release
+#
+# =============================================================================

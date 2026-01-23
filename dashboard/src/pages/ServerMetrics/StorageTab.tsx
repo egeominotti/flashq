@@ -1,78 +1,75 @@
-import { Card, Title, Text, Badge, ProgressBar, Grid } from '@tremor/react';
+import { Card, Title, Text, Badge, Grid } from '@tremor/react';
 import { HardDrive, Database, Activity, Zap } from 'lucide-react';
 import { formatNumber } from '../../utils';
 import { EmptyState, StorageItem, JobDistItem } from '../../components/common';
-import type { SqliteStats } from '../../api/client';
+import type { StorageStats } from '../../api/client';
 
 interface StorageTabProps {
-  sqliteStats: SqliteStats | null;
+  storageStats: StorageStats | null;
 }
 
-export function StorageTab({ sqliteStats }: StorageTabProps) {
+export function StorageTab({ storageStats }: StorageTabProps) {
   // Ensure no negative values
-  const totalJobs = Math.max(0, sqliteStats?.total_jobs ?? 0);
-  const queuedJobs = Math.max(0, sqliteStats?.queued_jobs ?? 0);
-  const processingJobs = Math.max(0, sqliteStats?.processing_jobs ?? 0);
-  const completedJobs = Math.max(0, sqliteStats?.completed_jobs ?? 0);
-  const delayedJobs = Math.max(0, sqliteStats?.delayed_jobs ?? 0);
-  const failedJobs = Math.max(0, sqliteStats?.failed_jobs ?? 0);
-  const fileSizeMb = Math.max(0, sqliteStats?.file_size_mb ?? 0);
-  const queueLen = Math.max(0, sqliteStats?.async_writer_queue_len ?? 0);
-  const maxBatchSize = Math.max(1, sqliteStats?.async_writer_max_batch_size ?? 100);
-  const opsQueued = Math.max(0, sqliteStats?.async_writer_ops_queued ?? 0);
-  const opsWritten = Math.max(0, sqliteStats?.async_writer_ops_written ?? 0);
-  const batchesWritten = Math.max(0, sqliteStats?.async_writer_batches_written ?? 0);
+  const totalJobs = Math.max(0, storageStats?.total_jobs ?? 0);
+  const queuedJobs = Math.max(0, storageStats?.queued_jobs ?? 0);
+  const processingJobs = Math.max(0, storageStats?.processing_jobs ?? 0);
+  const completedJobs = Math.max(0, storageStats?.completed_jobs ?? 0);
+  const delayedJobs = Math.max(0, storageStats?.delayed_jobs ?? 0);
+  const failedJobs = Math.max(0, storageStats?.failed_jobs ?? 0);
+  const streamMessages = Math.max(0, storageStats?.stream_messages ?? 0);
+  const streamBytes = Math.max(0, storageStats?.stream_bytes ?? 0);
+  const kvKeys = Math.max(0, storageStats?.kv_keys ?? 0);
 
   return (
     <Grid numItemsSm={1} numItemsLg={2} className="mt-6 gap-4">
       <Card className="info-card">
         <div className="info-card-header">
           <div>
-            <Title className="info-card-title">SQLite Database</Title>
-            <Text className="info-card-subtitle">Persistent storage metrics</Text>
+            <Title className="info-card-title">NATS JetStream Storage</Title>
+            <Text className="info-card-subtitle">Distributed persistence metrics</Text>
           </div>
-          <Badge color={sqliteStats?.enabled ? 'emerald' : 'zinc'} size="xs">
-            {sqliteStats?.enabled ? 'Enabled' : 'Disabled'}
+          <Badge color={storageStats?.enabled ? 'emerald' : 'zinc'} size="xs">
+            {storageStats?.enabled ? 'Connected' : 'Disconnected'}
           </Badge>
         </div>
-        {sqliteStats?.enabled ? (
+        {storageStats?.enabled ? (
           <div className="storage-list">
             <StorageItem
               icon={<HardDrive className="h-4 w-4" />}
               iconColor="cyan"
-              label="Database Size"
-              value={`${fileSizeMb.toFixed(2)} MB`}
+              label="Stream Messages"
+              value={formatNumber(streamMessages)}
             />
             <StorageItem
               icon={<Database className="h-4 w-4" />}
               iconColor="blue"
-              label="Total Jobs"
-              value={formatNumber(totalJobs)}
+              label="Stream Size"
+              value={`${(streamBytes / 1024 / 1024).toFixed(2)} MB`}
             />
             <StorageItem
               icon={<Activity className="h-4 w-4" />}
               iconColor="emerald"
-              label="Queued Jobs"
-              value={formatNumber(queuedJobs)}
+              label="KV Store Keys"
+              value={formatNumber(kvKeys)}
             />
             <StorageItem
               icon={<Zap className="h-4 w-4" />}
               iconColor="violet"
-              label="Processing"
-              value={formatNumber(processingJobs)}
+              label="Total Jobs"
+              value={formatNumber(totalJobs)}
             />
-            {sqliteStats.path && (
+            {storageStats.nats_url && (
               <div className="storage-path">
-                <span className="storage-path-label">Path:</span>
-                <code className="storage-path-value">{sqliteStats.path}</code>
+                <span className="storage-path-label">NATS URL:</span>
+                <code className="storage-path-value">{storageStats.nats_url}</code>
               </div>
             )}
           </div>
         ) : (
           <EmptyState
             icon={<Database className="h-8 w-8" />}
-            title="SQLite not enabled"
-            description="Enable SQLite persistence in Settings to see storage metrics"
+            title="Storage not connected"
+            description="Connect to NATS JetStream to see storage metrics"
           />
         )}
       </Card>
@@ -80,59 +77,52 @@ export function StorageTab({ sqliteStats }: StorageTabProps) {
       <Card className="info-card">
         <div className="info-card-header">
           <div>
-            <Title className="info-card-title">Async Writer</Title>
-            <Text className="info-card-subtitle">Background write operations</Text>
+            <Title className="info-card-title">Job Statistics</Title>
+            <Text className="info-card-subtitle">Current job state distribution</Text>
           </div>
-          <Badge color={sqliteStats?.async_writer_enabled ? 'emerald' : 'zinc'} size="xs">
-            {sqliteStats?.async_writer_enabled ? 'Active' : 'Inactive'}
-          </Badge>
         </div>
-        {sqliteStats?.async_writer_enabled ? (
-          <div className="writer-stats">
-            <div className="writer-stat-main">
-              <div className="writer-stat-header">
-                <Text>Queue Length</Text>
-                <Text className="writer-stat-value">{queueLen}</Text>
-              </div>
-              <ProgressBar
-                value={Math.min((queueLen / maxBatchSize) * 100, 100)}
-                color="cyan"
-              />
-            </div>
-            <div className="writer-info-grid">
-              <div className="writer-info-item">
-                <span className="writer-info-label">Ops Queued</span>
-                <span className="writer-info-value">{formatNumber(opsQueued)}</span>
-              </div>
-              <div className="writer-info-item">
-                <span className="writer-info-label">Ops Written</span>
-                <span className="writer-info-value">{formatNumber(opsWritten)}</span>
-              </div>
-              <div className="writer-info-item">
-                <span className="writer-info-label">Batches</span>
-                <span className="writer-info-value">{formatNumber(batchesWritten)}</span>
-              </div>
-              <div className="writer-info-item">
-                <span className="writer-info-label">Batch Size</span>
-                <span className="writer-info-value">{maxBatchSize}</span>
-              </div>
-            </div>
+        {storageStats?.enabled ? (
+          <div className="storage-list">
+            <StorageItem
+              icon={<Activity className="h-4 w-4" />}
+              iconColor="cyan"
+              label="Queued"
+              value={formatNumber(queuedJobs)}
+            />
+            <StorageItem
+              icon={<Zap className="h-4 w-4" />}
+              iconColor="blue"
+              label="Processing"
+              value={formatNumber(processingJobs)}
+            />
+            <StorageItem
+              icon={<Database className="h-4 w-4" />}
+              iconColor="emerald"
+              label="Completed"
+              value={formatNumber(completedJobs)}
+            />
+            <StorageItem
+              icon={<HardDrive className="h-4 w-4" />}
+              iconColor="amber"
+              label="Delayed"
+              value={formatNumber(delayedJobs)}
+            />
           </div>
         ) : (
           <EmptyState
             icon={<Zap className="h-8 w-8" />}
-            title="Async writer not active"
-            description="Enable SQLite with async writer for background writes"
+            title="No data available"
+            description="Connect to NATS JetStream to see job statistics"
           />
         )}
       </Card>
 
-      {sqliteStats?.enabled && (
+      {storageStats?.enabled && (
         <Card className="info-card col-span-full">
           <div className="info-card-header">
             <div>
               <Title className="info-card-title">Job Distribution</Title>
-              <Text className="info-card-subtitle">Jobs by state in database</Text>
+              <Text className="info-card-subtitle">Jobs by state in storage</Text>
             </div>
           </div>
           <div className="job-dist-grid">

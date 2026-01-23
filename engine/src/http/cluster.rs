@@ -11,7 +11,7 @@ use super::types::{ApiResponse, AppState};
 pub struct HealthResponse {
     pub status: &'static str,
     pub uptime_ms: u64,
-    pub sqlite_enabled: bool,
+    pub storage_enabled: bool,
 }
 
 /// Health check endpoint.
@@ -23,7 +23,7 @@ pub async fn health_check(State(qm): State<AppState>) -> Json<ApiResponse<Health
     let health = HealthResponse {
         status: "healthy",
         uptime_ms: uptime,
-        sqlite_enabled: qm.has_storage(),
+        storage_enabled: qm.has_storage(),
     };
     ApiResponse::success(health)
 }

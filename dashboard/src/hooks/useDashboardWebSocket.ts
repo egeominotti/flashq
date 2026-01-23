@@ -10,7 +10,7 @@
  * - useCrons()
  * - useMetricsHistory()
  * - useSystemMetrics()
- * - useSqliteStats()
+ * - useStorageStats()
  */
 
 import {
@@ -22,11 +22,11 @@ import {
   useCrons,
   useMetricsHistory,
   useSystemMetrics,
-  useSqliteStats,
+  useStorageStats,
   useReconnect,
 } from '../stores';
 import type { Stats, Metrics, Queue, Worker, MetricsHistory, CronJob } from '../api/types';
-import type { SystemMetrics, SqliteStats } from '../api/client';
+import type { SystemMetrics, StorageStats } from '../api/client';
 
 export interface DashboardUpdate {
   stats: Stats;
@@ -36,7 +36,7 @@ export interface DashboardUpdate {
   crons: CronJob[];
   metrics_history: MetricsHistory[];
   system_metrics: SystemMetrics;
-  sqlite_stats: SqliteStats | null;
+  storage_stats: StorageStats | null;
   timestamp: number;
 }
 
@@ -50,7 +50,7 @@ export interface UseDashboardWebSocketReturn {
   crons: CronJob[];
   metricsHistory: MetricsHistory[];
   systemMetrics: SystemMetrics | null;
-  sqliteStats: SqliteStats | null;
+  storageStats: StorageStats | null;
   lastUpdate: number | null;
   reconnect: () => void;
 }
@@ -64,7 +64,7 @@ export function useDashboardWebSocket(): UseDashboardWebSocketReturn {
   const crons = useCrons();
   const metricsHistory = useMetricsHistory();
   const systemMetrics = useSystemMetrics();
-  const sqliteStats = useSqliteStats();
+  const storageStats = useStorageStats();
   const reconnect = useReconnect();
 
   return {
@@ -76,7 +76,7 @@ export function useDashboardWebSocket(): UseDashboardWebSocketReturn {
     crons,
     metricsHistory,
     systemMetrics,
-    sqliteStats,
+    storageStats,
     lastUpdate: null,
     reconnect,
     data: stats
@@ -88,7 +88,7 @@ export function useDashboardWebSocket(): UseDashboardWebSocketReturn {
           crons,
           metrics_history: metricsHistory,
           system_metrics: systemMetrics!,
-          sqlite_stats: sqliteStats,
+          storage_stats: storageStats,
           timestamp: Date.now(),
         }
       : null,

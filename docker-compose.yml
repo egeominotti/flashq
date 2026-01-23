@@ -1,0 +1,176 @@
+# =============================================================================
+# flashQ Cluster Test Environment
+# =============================================================================
+#
+# 3 flashQ nodes + NATS JetStream for distributed job queue testing
+#
+# Usage:
+#   docker-compose up -d              # Start all services
+#   docker-compose logs -f            # View logs
+#   docker-compose down -v            # Stop and clean up
+#
+# Endpoints:
+#   - flashQ Node 1: localhost:6789 (TCP), localhost:6790 (HTTP)
+#   - flashQ Node 2: localhost:6792 (TCP), localhost:6793 (HTTP)
+#   - flashQ Node 3: localhost:6794 (TCP), localhost:6795 (HTTP)
+#   - NATS:          localhost:4222 (client), localhost:8222 (monitoring)
+#
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # NATS JetStream - Distributed persistence backend
+  # ---------------------------------------------------------------------------
+  nats:
+    image: nats:2.10-alpine
+    container_name: flashq-nats
+    command: ["-c", "/etc/nats/nats.conf"]
+    ports:
+      - "4222:4222"   # Client connections
+      - "8222:8222"   # HTTP monitoring
+    volumes:
+      - nats-data:/data
+      - ./nats.conf:/etc/nats/nats.conf:ro
+    healthcheck:
+      test: ["CMD", "sh", "-c", "wget -q --spider http://localhost:8222/healthz || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    networks:
+      - flashq-net
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # flashQ Node 1 (Primary)
+  # ---------------------------------------------------------------------------
+  flashq-1:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: flashq-node-1
+    environment:
+      # Node identification
+      - NODE_ID=flashq-node-1
+      - CLUSTER_MODE=1
+
+      # NATS connection
+      - NATS_URL=nats://nats:4222
+      - NATS_PREFIX=flashq
+
+      # Ports (internal)
+      - PORT=6789
+      - HTTP_PORT=6790
+      - GRPC_PORT=6791
+
+      # Logging (info only, no debug spam)
+      - RUST_LOG=info
+      - ENV=production
+
+      # Optional: Auth tokens (comma-separated)
+      # - AUTH_TOKENS=secret1,secret2
+    ports:
+      - "6789:6789"   # TCP
+      - "6790:6790"   # HTTP + WebSocket
+      - "6791:6791"   # gRPC
+    depends_on:
+      nats:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6790/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - flashq-net
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # flashQ Node 2
+  # ---------------------------------------------------------------------------
+  flashq-2:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: flashq-node-2
+    environment:
+      - NODE_ID=flashq-node-2
+      - CLUSTER_MODE=1
+      - NATS_URL=nats://nats:4222
+      - NATS_PREFIX=flashq
+      - PORT=6789
+      - HTTP_PORT=6790
+      - GRPC_PORT=6791
+      - RUST_LOG=info
+      - ENV=production
+    ports:
+      - "6792:6789"   # TCP
+      - "6793:6790"   # HTTP + WebSocket
+    depends_on:
+      nats:
+        condition: service_healthy
+      flashq-1:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6790/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - flashq-net
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # flashQ Node 3
+  # ---------------------------------------------------------------------------
+  flashq-3:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: flashq-node-3
+    environment:
+      - NODE_ID=flashq-node-3
+      - CLUSTER_MODE=1
+      - NATS_URL=nats://nats:4222
+      - NATS_PREFIX=flashq
+      - PORT=6789
+      - HTTP_PORT=6790
+      - GRPC_PORT=6791
+      - RUST_LOG=info,flashq_server::queue::nats::pull=debug,flashq_server::queue::nats::streams=debug,flashq_server::queue::pull=debug
+      - ENV=production
+    ports:
+      - "6794:6789"   # TCP
+      - "6795:6790"   # HTTP + WebSocket
+    depends_on:
+      nats:
+        condition: service_healthy
+      flashq-1:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6790/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - flashq-net
+    restart: unless-stopped
+
+# =============================================================================
+# Networks
+# =============================================================================
+networks:
+  flashq-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
+
+# =============================================================================
+# Volumes
+# =============================================================================
+volumes:
+  nats-data:
+    driver: local

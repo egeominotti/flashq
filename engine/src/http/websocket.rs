@@ -19,7 +19,7 @@ use tokio::time::interval;
 use crate::protocol::{CronJob, MetricsData, MetricsHistoryPoint, QueueInfo, WorkerInfo};
 use crate::queue::QueueManager;
 
-use super::settings::{get_total_memory_mb, refresh_process_metrics, SqliteStats, SystemMetrics};
+use super::settings::{get_total_memory_mb, refresh_process_metrics, SystemMetrics};
 use super::types::{AppState, StatsResponse, WsQuery};
 
 /// Maximum concurrent WebSocket connections
@@ -179,7 +179,6 @@ struct DashboardUpdate {
     crons: Vec<CronJob>,
     metrics_history: Vec<MetricsHistoryPoint>,
     system_metrics: SystemMetrics,
-    sqlite_stats: Option<SqliteStats>,
     timestamp: u64,
 }
 
@@ -260,13 +259,6 @@ async fn handle_dashboard_websocket(mut socket: WebSocket, qm: Arc<QueueManager>
                 // Collect system metrics using sysinfo (no shell spawning)
                 let system_metrics = collect_system_metrics(&qm);
 
-                // Collect SQLite stats if enabled
-                let sqlite_stats = if qm.has_storage() {
-                    Some(collect_sqlite_stats(&qm, queued, processing, delayed, dlq, completed).await)
-                } else {
-                    None
-                };
-
                 let update = DashboardUpdate {
                     stats: StatsResponse { queued, processing, delayed, dlq, completed },
                     metrics,
@@ -275,7 +267,6 @@ async fn handle_dashboard_websocket(mut socket: WebSocket, qm: Arc<QueueManager>
                     crons,
                     metrics_history,
                     system_metrics,
-                    sqlite_stats,
                     timestamp: crate::queue::QueueManager::now_ms(),
                 };
 
@@ -354,69 +345,5 @@ fn collect_system_metrics(qm: &Arc<QueueManager>) -> SystemMetrics {
         process_status: pm.status,
         tcp_connections,
         uptime_seconds: uptime,
-    }
-}
-
-/// Collect SQLite stats for dashboard WebSocket.
-async fn collect_sqlite_stats(
-    qm: &Arc<QueueManager>,
-    queued: usize,
-    processing: usize,
-    delayed: usize,
-    dlq: usize,
-    completed: usize,
-) -> SqliteStats {
-    let path = std::env::var("DATA_PATH")
-        .or_else(|_| std::env::var("SQLITE_PATH"))
-        .ok();
-
-    // Get file size if path exists
-    let (file_size_bytes, file_size_mb) = if let Some(ref p) = path {
-        match std::fs::metadata(p) {
-            Ok(meta) => {
-                let bytes = meta.len();
-                (bytes, bytes as f64 / 1024.0 / 1024.0)
-            }
-            Err(_) => (0, 0.0),
-        }
-    } else {
-        (0, 0.0)
-    };
-
-    // Get async writer stats if enabled
-    let (
-        async_writer_enabled,
-        queue_len,
-        ops_queued,
-        ops_written,
-        batches_written,
-        batch_interval_ms,
-        max_batch_size,
-    ) = if let Some((q_len, ops_q, ops_w, batches, interval, batch_sz)) =
-        qm.get_async_writer_stats()
-    {
-        (true, q_len, ops_q, ops_w, batches, interval, batch_sz)
-    } else {
-        (false, 0, 0, 0, 0, 50, 1000)
-    };
-
-    SqliteStats {
-        enabled: true,
-        path,
-        file_size_bytes,
-        file_size_mb,
-        total_jobs: (queued + processing + delayed + dlq + completed) as u64,
-        queued_jobs: queued as u64,
-        processing_jobs: processing as u64,
-        completed_jobs: completed as u64,
-        failed_jobs: dlq as u64,
-        delayed_jobs: delayed as u64,
-        async_writer_enabled,
-        async_writer_queue_len: queue_len,
-        async_writer_ops_queued: ops_queued,
-        async_writer_ops_written: ops_written,
-        async_writer_batches_written: batches_written,
-        async_writer_batch_interval_ms: batch_interval_ms,
-        async_writer_max_batch_size: max_batch_size,
     }
 }

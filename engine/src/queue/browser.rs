@@ -5,6 +5,7 @@
 use tracing::warn;
 
 use super::manager::QueueManager;
+use super::storage::Storage;
 use super::types::{intern, now_ms};
 use crate::protocol::{JobBrowserItem, JobState};
 
@@ -238,7 +239,7 @@ impl QueueManager {
                 _ => "unknown",
             };
             if let Err(e) = storage.clean_jobs(queue_name, cutoff, state_str) {
-                warn!(queue = queue_name, error = %e, "Failed to persist clean_jobs to SQLite");
+                warn!(queue = queue_name, error = %e, "Failed to persist clean_jobs to storage");
             }
         }
 
@@ -269,10 +270,10 @@ impl QueueManager {
             }
         }
 
-        // Persist to SQLite
+        // Persist to storage
         if let Some(ref storage) = self.storage {
             if let Err(e) = storage.drain_queue(queue_name) {
-                warn!(queue = queue_name, error = %e, "Failed to persist drain_queue to SQLite");
+                warn!(queue = queue_name, error = %e, "Failed to persist drain_queue to storage");
             }
         }
 
@@ -367,7 +368,7 @@ impl QueueManager {
         // 4. Persist
         if let Some(ref storage) = self.storage {
             if let Err(e) = storage.obliterate_queue(queue_name) {
-                warn!(queue = queue_name, error = %e, "Failed to persist obliterate_queue to SQLite");
+                warn!(queue = queue_name, error = %e, "Failed to persist obliterate_queue to storage");
             }
         }
 

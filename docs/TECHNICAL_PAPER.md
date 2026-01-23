@@ -6,7 +6,7 @@
 
 ## Abstract
 
-flashQ is a high-performance job queue system implemented in Rust, designed to achieve throughput exceeding 1.9 million operations per second while maintaining sub-millisecond latency. This paper presents the architectural decisions, data structures, concurrency model, and algorithmic optimizations that enable flashQ to outperform existing solutions by 3-5x in latency and up to 57x in batch throughput. We detail the sharded architecture, lock-free patterns, memory management strategies, and the hybrid persistence model that combines in-memory speed with SQLite durability.
+flashQ is a high-performance job queue system implemented in Rust, designed to achieve throughput exceeding 1.9 million operations per second while maintaining sub-millisecond latency. This paper presents the architectural decisions, data structures, concurrency model, and algorithmic optimizations that enable flashQ to outperform existing solutions by 3-5x in latency and up to 57x in batch throughput. We detail the sharded architecture, lock-free patterns, memory management strategies, and the hybrid persistence model that combines in-memory speed with NATS JetStream durability.
 
 ---
 
@@ -31,7 +31,7 @@ flashQ addresses this gap with:
 3. **IndexedPriorityQueue** - O(log n) operations with generation-based lazy removal
 4. **Coarse timestamps** - Cached millisecond timestamps eliminate syscall overhead
 5. **CompactString queue names** - Zero heap allocation for names ≤24 characters
-6. **Hybrid persistence** - In-memory speed with SQLite durability and S3 backup
+6. **Hybrid persistence** - In-memory speed with NATS JetStream durability
 
 ---
 
@@ -75,8 +75,8 @@ flashQ addresses this gap with:
                             │
               ┌─────────────▼─────────────┐
               │    PERSISTENCE LAYER      │
-              │   (SQLite + Async Writer) │
-              │   (Optional S3 Backup)    │
+              │   (NATS JetStream)        │
+              │   (Distributed Storage)   │
               └───────────────────────────┘
 ```
 
@@ -382,7 +382,7 @@ PUSH(queue, data, options) → Result<Job, String>
 11.  Else → queues[queue].push(job)
 12. UNLOCK shard
 13. Update job_index (lock-free DashMap)
-14. Async: persist_push(job) to SQLite
+14. Async: persist_push(job) to storage
 15. Notify waiting workers (Notify::notify_waiters)
 16. Broadcast event if listeners exist
 17. Return job
@@ -439,7 +439,7 @@ ACK(job_id, result?) → Result<(), String>
 14.   Add to completed_jobs set
 15.   Update job_index → Completed
 16.   Store in completed_jobs_data (with size limit)
-17. Persist to SQLite (sync or async based on config)
+17. Persist to storage (sync or async based on config)
 18. Update metrics (atomic)
 19. Notify event subscribers
 20. Notify job_waiters (finished() promise)
@@ -600,17 +600,10 @@ pub struct QueueState {
                   │ Async Write (batched)
                   ▼
 ┌─────────────────────────────────────────────┐
-│              SQLITE (Durability)            │
-│  - Write-ahead logging (WAL mode)           │
+│         NATS JETSTREAM (Durability)         │
+│  - Distributed streams with replication     │
 │  - Crash recovery                           │
-│  - Async writer with batching               │
-└─────────────────┬───────────────────────────┘
-                  │ Periodic backup
-                  ▼
-┌─────────────────────────────────────────────┐
-│              S3 BACKUP (Optional)           │
-│  - Configurable interval                    │
-│  - Disaster recovery                        │
+│  - KV stores for state                      │
 └─────────────────────────────────────────────┘
 ```
 
@@ -652,7 +645,7 @@ enum WriteOp {
 ```
 STARTUP_RECOVERY() → void
 
-1. Connect to SQLite database
+1. Connect to NATS JetStream
 2. Get max job_id → set ID counter to max_id + 1
 3. Load pending jobs (state IN ('waiting', 'delayed', 'active')):
 4.   For each job:
@@ -1070,7 +1063,7 @@ flashQ achieves its performance goals through:
 6. **GxHash** - 20-30% faster hashing with AES-NI
 7. **Arc<Value>** - Cheap cloning of large payloads
 8. **Atomic metrics** - O(1) stats without shard iteration
-9. **Batched persistence** - Async writer maximizes SQLite throughput
+9. **Batched persistence** - Async writer maximizes storage throughput
 10. **mimalloc** - 2-3x faster allocations
 
 The result is a job queue system that processes 1.9M+ jobs/second while maintaining sub-millisecond latency and providing enterprise-grade features.
@@ -1086,7 +1079,7 @@ The result is a job queue system that processes 1.9M+ jobs/second while maintain
 5. mimalloc allocator - https://github.com/microsoft/mimalloc
 6. gxhash crate - https://docs.rs/gxhash/
 7. compact_str crate - https://docs.rs/compact_str/
-8. SQLite - https://www.sqlite.org/
+8. NATS JetStream - https://docs.nats.io/nats-concepts/jetstream
 9. Token Bucket Algorithm - https://en.wikipedia.org/wiki/Token_bucket
 
 ---

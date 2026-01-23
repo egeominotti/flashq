@@ -1,14 +1,12 @@
-//! Background tasks for flashQ (cleanup, cron, timeouts, snapshots).
+//! Background tasks for flashQ (cleanup, cron, timeouts).
 //!
 //! Module organization:
 //! - `cleanup.rs` - Job and memory cleanup tasks
 //! - `cron.rs` - Cron job execution
 //! - `timeout.rs` - Timeout and dependency checking
-//! - `snapshot.rs` - Snapshot persistence
 
 mod cleanup;
 mod cron;
-mod snapshot;
 mod timeout;
 
 use std::sync::Arc;
@@ -19,7 +17,7 @@ use tracing::info;
 use super::manager::QueueManager;
 
 impl QueueManager {
-    /// Run background tasks (cleanup, cron, metrics, snapshots).
+    /// Run background tasks (cleanup, cron, metrics).
     pub async fn background_tasks(self: Arc<Self>) {
         let mut wakeup_ticker = interval(Duration::from_millis(500));
         let mut cron_ticker = interval(Duration::from_secs(1));
@@ -27,14 +25,12 @@ impl QueueManager {
         let mut timeout_ticker = interval(Duration::from_millis(500));
         let mut stalled_ticker = interval(Duration::from_secs(10));
         let mut metrics_ticker = interval(Duration::from_secs(5));
-        let mut snapshot_ticker = interval(Duration::from_secs(1));
 
         info!("Background tasks started");
 
         loop {
             if self.is_shutdown() {
                 info!("Background tasks received shutdown signal, stopping...");
-                self.maybe_snapshot().await;
                 info!("Background tasks stopped");
                 return;
             }
@@ -58,9 +54,6 @@ impl QueueManager {
                 }
                 _ = metrics_ticker.tick() => {
                     self.collect_metrics_history();
-                }
-                _ = snapshot_ticker.tick() => {
-                    self.maybe_snapshot().await;
                 }
             }
         }

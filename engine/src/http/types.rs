@@ -169,6 +169,7 @@ impl<T> ApiResponse<T> {
         })
     }
 
+    #[allow(dead_code)]
     pub fn error_string(msg: String) -> Json<Self> {
         Json(Self {
             ok: false,

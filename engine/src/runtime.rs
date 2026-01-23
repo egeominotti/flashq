@@ -18,6 +18,24 @@
 
 use tracing::info;
 
+/// flashQ version
+const VERSION: &str = env!("CARGO_PKG_VERSION");
+
+/// Print ASCII banner at startup
+fn print_banner() {
+    let banner = r#"
+   __ _           _      ___
+  / _| | __ _ ___| |__  / _ \
+ | |_| |/ _` / __| '_ \| | | |
+ |  _| | (_| \__ \ | | | |_| |
+ |_| |_|\__,_|___/_| |_|\__\_\
+"#;
+    println!("{}", banner);
+    println!("  High-Performance Job Queue Server");
+    println!("  Version: {}  |  github.com/flashq/flashq", VERSION);
+    println!();
+}
+
 /// Check if io_uring is available and enabled at compile time
 #[inline]
 #[allow(dead_code)]
@@ -34,6 +52,8 @@ pub fn is_linux() -> bool {
 
 /// Print runtime information at startup
 pub fn print_runtime_info() {
+    // Print ASCII banner first
+    print_banner();
     // Print OS info
     #[cfg(target_os = "linux")]
     {
