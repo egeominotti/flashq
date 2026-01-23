@@ -75,10 +75,30 @@ async fn shutdown_signal(shutdown_tx: broadcast::Sender<()>) {
     let _ = shutdown_tx.send(());
 }
 
+/// Print ASCII banner at startup
+fn print_banner() {
+    let version = env!("CARGO_PKG_VERSION");
+    println!(
+        r#"
+    __ _           _      ___
+   / _| | __ _ ___| |__  / _ \
+  | |_| |/ _` / __| '_ \| | | |
+  |  _| | (_| \__ \ | | | |_| |
+  |_| |_|\__,_|___/_| |_|\__\_\
+
+  High-Performance Job Queue v{}
+"#,
+        version
+    );
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize telemetry (structured logging)
     telemetry::init();
+
+    // Print ASCII banner
+    print_banner();
 
     // Print runtime information
     runtime::print_runtime_info();
