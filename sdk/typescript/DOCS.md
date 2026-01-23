@@ -20,12 +20,13 @@ This document provides comprehensive documentation for the flashQ TypeScript SDK
    - [Metrics and Monitoring](#metrics-and-monitoring)
 5. [Queue Class](#queue-class)
 6. [Worker Class](#worker-class)
-7. [Error Handling](#error-handling)
-8. [Retry Logic](#retry-logic)
-9. [Observability Hooks](#observability-hooks)
-10. [Logger](#logger)
-11. [Types Reference](#types-reference)
-12. [Best Practices](#best-practices)
+7. [Real-Time Events](#real-time-events)
+8. [Error Handling](#error-handling)
+9. [Retry Logic](#retry-logic)
+10. [Observability Hooks](#observability-hooks)
+11. [Logger](#logger)
+12. [Types Reference](#types-reference)
+13. [Best Practices](#best-practices)
 
 ---
 
@@ -208,6 +209,17 @@ Close the connection gracefully.
 await client.close();
 ```
 
+#### `auth(token: string): Promise<void>`
+
+Authenticate with a token (for late authentication).
+
+```typescript
+// Token can be provided in constructor or later
+const client = new FlashQ({ host: 'localhost' });
+await client.connect();
+await client.auth('my-secret-token');
+```
+
 #### `push<T>(queue: string, data: T, options?: PushOptions): Promise<Job>`
 
 Push a job to a queue.
@@ -359,12 +371,28 @@ Lookup job by custom ID (for idempotency).
 const result = await client.getJobByCustomId('order-12345');
 ```
 
-#### `getJobs(queue: string, state?: JobState, limit?: number, offset?: number): Promise<Job[]>`
+#### `getJobs(options): Promise<{jobs: JobWithState[], total: number}>`
 
 List jobs with filtering and pagination.
 
 ```typescript
-const failedJobs = await client.getJobs('emails', 'failed', 100, 0);
+const { jobs, total } = await client.getJobs({
+  queue: 'emails',
+  state: 'failed',
+  limit: 100,
+  offset: 0,
+});
+```
+
+#### `getJobsBatch(jobIds: number[]): Promise<JobWithState[]>`
+
+Get multiple jobs by their IDs in a single request.
+
+```typescript
+const jobs = await client.getJobsBatch([1, 2, 3, 4, 5]);
+for (const { job, state } of jobs) {
+  console.log(`Job ${job.id}: ${state}`);
+}
 ```
 
 #### `getJobCounts(queue: string): Promise<Record<JobState, number>>`
@@ -376,12 +404,12 @@ const counts = await client.getJobCounts('emails');
 // { waiting: 10, delayed: 5, active: 2, completed: 100, failed: 3 }
 ```
 
-#### `cancel(jobId: number): Promise<boolean>`
+#### `cancel(jobId: number): Promise<void>`
 
 Cancel a pending job.
 
 ```typescript
-const cancelled = await client.cancel(123);
+await client.cancel(123);
 ```
 
 #### `progress(jobId: number, progress: number, message?: string): Promise<void>`
@@ -481,12 +509,16 @@ for (const entry of logs) {
 }
 ```
 
-#### `getChildren(jobId: number): Promise<Job[]>`
+#### `getChildren(jobId: number): Promise<number[]>`
 
-Get child jobs (for flows).
+Get child job IDs for a parent job (for flows).
 
 ```typescript
-const children = await client.getChildren(parentJobId);
+const childIds = await client.getChildren(parentJobId);
+// Returns array of child job IDs: [2, 3, 4]
+
+// Get full job details if needed
+const childJobs = await client.getJobsBatch(childIds);
 ```
 
 ### Queue Management Methods
@@ -680,23 +712,43 @@ for (const cron of crons) {
 
 ### Flows (Job Dependencies)
 
-#### `pushFlow(queue: string, options): Promise<FlowResult>`
+#### `pushFlow<T>(queue: string, parentData: T, children: FlowChild[], options?: FlowOptions): Promise<FlowResult>`
 
-Create a workflow with parent and children.
+Create a workflow with parent and children jobs.
 
 ```typescript
-const flow = await client.pushFlow('processing', {
-  parent_data: { type: 'aggregate' },
-  children: [
+const flow = await client.pushFlow(
+  'processing',
+  { type: 'aggregate' },  // Parent job data
+  [
     { queue: 'step1', data: { task: 'fetch' } },
     { queue: 'step2', data: { task: 'transform' } },
     { queue: 'step3', data: { task: 'load' } },
   ],
-  priority: 10,
-});
+  { priority: 10 }  // FlowOptions
+);
 
 // Wait for parent (completes when all children complete)
 const result = await client.finished(flow.parent_id);
+```
+
+**FlowChild:**
+
+```typescript
+interface FlowChild {
+  queue: string;
+  data: unknown;
+  priority?: number;
+  delay?: number;
+}
+```
+
+**FlowOptions:**
+
+```typescript
+interface FlowOptions {
+  priority?: number;
+}
 ```
 
 ### Metrics and Monitoring
@@ -735,6 +787,46 @@ const queue = new Queue('emails', {
 });
 ```
 
+### QueueOptions
+
+```typescript
+interface QueueOptions extends ClientOptions {
+  /** Default job options for all jobs in this queue */
+  defaultJobOptions?: JobOptions;
+}
+```
+
+### JobOptions (BullMQ-compatible)
+
+```typescript
+interface JobOptions {
+  /** Job priority (higher = first) */
+  priority?: number;
+  /** Delay in ms */
+  delay?: number;
+  /** Number of retry attempts (BullMQ-compatible alias for max_attempts) */
+  attempts?: number;
+  /** Backoff configuration */
+  backoff?: number | { type: 'exponential' | 'fixed'; delay: number };
+  /** Job timeout in ms */
+  timeout?: number;
+  /** Time-to-live in ms */
+  ttl?: number;
+  /** Unique key for deduplication (jobId) */
+  jobId?: string;
+  /** Remove job on completion */
+  removeOnComplete?: boolean | number;
+  /** Remove job on failure */
+  removeOnFail?: boolean | number;
+  /** Job IDs that must complete before this job runs */
+  depends_on?: number[];
+  /** Tags for filtering */
+  tags?: string[];
+  /** Group ID for FIFO processing within group */
+  group_id?: string;
+}
+```
+
 ### Methods
 
 #### `add(name: string, data: T, opts?: JobOptions): Promise<Job<T>>`
@@ -764,9 +856,20 @@ const jobs = await queue.addBulk([
 ]);
 ```
 
-#### `finished(jobId: number, timeout?: number): Promise<unknown>`
+#### `getJob(jobId: number): Promise<Job<T> | null>`
 
-Wait for job completion.
+Get a job by ID.
+
+```typescript
+const job = await queue.getJob(123);
+if (job) {
+  console.log('Job data:', job.data);
+}
+```
+
+#### `finished<R>(jobId: number, timeout?: number): Promise<R | null>`
+
+Wait for job completion and return its result.
 
 ```typescript
 const job = await queue.add('process', data);
@@ -781,6 +884,25 @@ Pause the queue.
 
 Resume the queue.
 
+#### `isPaused(): Promise<boolean>`
+
+Check if the queue is paused.
+
+```typescript
+if (await queue.isPaused()) {
+  console.log('Queue is paused');
+}
+```
+
+#### `getJobCounts(): Promise<JobCounts>`
+
+Get job counts by state.
+
+```typescript
+const counts = await queue.getJobCounts();
+// { waiting: 10, active: 2, completed: 100, failed: 5, delayed: 3 }
+```
+
 #### `drain(): Promise<void>`
 
 Remove all waiting jobs.
@@ -788,6 +910,15 @@ Remove all waiting jobs.
 #### `obliterate(): Promise<void>`
 
 Remove all queue data.
+
+#### `clean(grace: number, limit: number, type: JobState): Promise<number[]>`
+
+Clean jobs by state and age.
+
+```typescript
+// Remove completed jobs older than 1 hour (limit 1000)
+const cleaned = await queue.clean(3600000, 1000, 'completed');
+```
 
 #### `close(): Promise<void>`
 
@@ -808,33 +939,70 @@ const worker = new Worker('emails', async (job) => {
   return { sent: true };
 }, {
   concurrency: 10,
-  autostart: true,
+  autorun: true,  // or autostart: true (BullMQ-compatible)
 });
 ```
 
 ### Options
 
 ```typescript
-interface BullMQWorkerOptions {
+interface BullMQWorkerOptions extends ClientOptions {
+  /** Worker ID (auto-generated if not provided) */
+  id?: string;
+
   /** Server host */
   host?: string;
 
   /** Server port */
   port?: number;
 
-  /** Parallel job processing (default: 1) */
+  /** HTTP port (for progress updates) */
+  httpPort?: number;
+
+  /** Auth token */
+  token?: string;
+
+  /** Connection timeout in ms */
+  timeout?: number;
+
+  /** Parallel job processing (default: 10) */
   concurrency?: number;
 
-  /** Auto-start on creation (default: true) */
-  autostart?: boolean;
+  /** Jobs to pull per batch (default: 100) */
+  batchSize?: number;
 
-  /** Graceful shutdown timeout in ms (default: 30000) */
+  /** Auto-acknowledge jobs on success (default: true) */
+  autoAck?: boolean;
+
+  /** Auto-start on creation (default: true) - BullMQ-compatible alias */
+  autorun?: boolean;
+
+  /** Enable debug logging (default: false) */
+  debug?: boolean;
+
+  /** Graceful shutdown timeout in ms (default: 30000, 0 = infinite) */
   closeTimeout?: number;
 
   /** Worker hooks for observability */
   workerHooks?: WorkerHooks;
 }
 ```
+
+### Worker State
+
+The worker has an internal state machine:
+
+```typescript
+type WorkerState = 'idle' | 'starting' | 'running' | 'stopping' | 'stopped';
+```
+
+| State | Description |
+|-------|-------------|
+| `idle` | Worker created but not started |
+| `starting` | Worker is connecting to server |
+| `running` | Worker is processing jobs |
+| `stopping` | Worker is shutting down gracefully |
+| `stopped` | Worker is stopped and cannot be restarted |
 
 ### Methods
 
@@ -843,21 +1011,22 @@ interface BullMQWorkerOptions {
 Start the worker (if not autostarted).
 
 ```typescript
-const worker = new Worker('queue', processor, { autostart: false });
+const worker = new Worker('queue', processor, { autorun: false });
 await worker.start();
 ```
 
-#### `stop(): Promise<void>`
+#### `stop(force?: boolean): Promise<void>`
 
 Stop the worker gracefully (waits for current jobs).
 
 ```typescript
-await worker.stop();
+await worker.stop();        // Graceful shutdown
+await worker.stop(true);    // Force stop immediately
 ```
 
 #### `close(force?: boolean): Promise<void>`
 
-Close the worker.
+Close the worker (alias for stop, BullMQ-compatible).
 
 ```typescript
 await worker.close();       // Graceful (waits for jobs)
@@ -870,6 +1039,9 @@ Wait for all current jobs to complete.
 
 ```typescript
 const completed = await worker.waitForJobs(30000);
+if (!completed) {
+  console.log('Timeout waiting for jobs');
+}
 ```
 
 #### `updateProgress(jobId: number, progress: number, message?: string): Promise<void>`
@@ -891,13 +1063,36 @@ const worker = new Worker('queue', async (job) => {
 
 Check if worker is running.
 
+```typescript
+if (worker.isRunning()) {
+  console.log('Worker is active');
+}
+```
+
+#### `getState(): WorkerState`
+
+Get the current worker state.
+
+```typescript
+const state = worker.getState();
+// 'idle' | 'starting' | 'running' | 'stopping' | 'stopped'
+```
+
 #### `getProcessingCount(): number`
 
 Get number of jobs currently being processed.
 
+```typescript
+console.log(`Processing ${worker.getProcessingCount()} jobs`);
+```
+
 #### `getJobsProcessed(): number`
 
 Get total jobs processed since start.
+
+```typescript
+console.log(`Total processed: ${worker.getJobsProcessed()}`);
+```
 
 ### Events
 
@@ -910,11 +1105,11 @@ worker.on('active', (job, workerId) => {
   console.log(`Job ${job.id} started by worker ${workerId}`);
 });
 
-worker.on('completed', (job, result) => {
+worker.on('completed', (job, result, workerId) => {
   console.log(`Job ${job.id} completed:`, result);
 });
 
-worker.on('failed', (job, error) => {
+worker.on('failed', (job, error, workerId) => {
   console.log(`Job ${job.id} failed:`, error.message);
 });
 
@@ -930,8 +1125,216 @@ worker.on('stopped', () => {
   console.log('Worker stopped');
 });
 
+worker.on('drained', () => {
+  console.log('Worker drained (all jobs completed before shutdown)');
+});
+
 worker.on('error', (error) => {
   console.error('Worker error:', error);
+});
+```
+
+---
+
+## Real-Time Events
+
+flashQ supports real-time event subscriptions via SSE (Server-Sent Events) or WebSocket.
+
+### Using Client Methods
+
+```typescript
+import { FlashQ } from 'flashq';
+
+const client = new FlashQ({ host: 'localhost', port: 6789 });
+await client.connect();
+
+// Subscribe via SSE (Server-Sent Events)
+const sseSubscriber = client.subscribe('emails');
+
+// Subscribe via WebSocket
+const wsSubscriber = client.subscribeWs('emails');
+
+// Or subscribe to all queues
+const allEventsSubscriber = client.subscribe();
+```
+
+### EventSubscriber Class
+
+```typescript
+import { EventSubscriber } from 'flashq';
+
+const subscriber = new EventSubscriber({
+  host: 'localhost',
+  httpPort: 6790,
+  token: 'auth-token',        // Optional auth token
+  queue: 'emails',            // Optional: specific queue (omit for all)
+  type: 'sse',                // 'sse' or 'websocket'
+  autoReconnect: true,        // Auto-reconnect on disconnect
+  reconnectDelay: 1000,       // Initial reconnect delay (ms)
+  maxReconnectAttempts: 10,   // Max attempts (0 = infinite)
+  debug: false,               // Enable debug logging
+});
+
+await subscriber.connect();
+```
+
+### EventSubscriberOptions
+
+```typescript
+interface EventSubscriberOptions {
+  /** Server host (default: 'localhost') */
+  host?: string;
+  /** HTTP port (default: 6790) */
+  httpPort?: number;
+  /** Auth token for protected servers */
+  token?: string;
+  /** Queue to subscribe to (omit for all queues) */
+  queue?: string;
+  /** Connection type: 'sse' or 'websocket' (default: 'sse') */
+  type?: 'sse' | 'websocket';
+  /** Enable auto-reconnect (default: true) */
+  autoReconnect?: boolean;
+  /** Initial reconnect delay in ms (default: 1000) */
+  reconnectDelay?: number;
+  /** Max reconnect attempts, 0 = infinite (default: 10) */
+  maxReconnectAttempts?: number;
+  /** Enable debug logging (default: false) */
+  debug?: boolean;
+}
+```
+
+### Event Types
+
+```typescript
+type EventType = 'pushed' | 'completed' | 'failed' | 'progress' | 'timeout';
+```
+
+| Event | Description |
+|-------|-------------|
+| `pushed` | Job was added to queue |
+| `completed` | Job completed successfully |
+| `failed` | Job failed (moved to DLQ or retry) |
+| `progress` | Job progress was updated |
+| `timeout` | Job timed out |
+
+### JobEvent Interface
+
+```typescript
+interface JobEvent {
+  eventType: EventType;
+  queue: string;
+  jobId: number;
+  timestamp: number;
+  data?: unknown;      // Job data (for pushed)
+  error?: string;      // Error message (for failed)
+  progress?: number;   // Progress value (for progress)
+}
+```
+
+### Subscriber Events
+
+```typescript
+// Connection events
+subscriber.on('connected', () => {
+  console.log('Connected to event stream');
+});
+
+subscriber.on('disconnected', () => {
+  console.log('Disconnected from event stream');
+});
+
+subscriber.on('reconnecting', (attempt) => {
+  console.log(`Reconnecting (attempt ${attempt})...`);
+});
+
+subscriber.on('error', (error) => {
+  console.error('Subscriber error:', error);
+});
+
+// Job events
+subscriber.on('event', (event) => {
+  console.log(`${event.eventType}: Job ${event.jobId}`);
+});
+
+subscriber.on('pushed', (event) => {
+  console.log(`Job ${event.jobId} pushed to ${event.queue}`);
+});
+
+subscriber.on('completed', (event) => {
+  console.log(`Job ${event.jobId} completed`);
+});
+
+subscriber.on('failed', (event) => {
+  console.log(`Job ${event.jobId} failed: ${event.error}`);
+});
+
+subscriber.on('progress', (event) => {
+  console.log(`Job ${event.jobId}: ${event.progress}%`);
+});
+
+subscriber.on('timeout', (event) => {
+  console.log(`Job ${event.jobId} timed out`);
+});
+```
+
+### Subscriber Methods
+
+#### `connect(): Promise<void>`
+
+Connect to the event stream.
+
+```typescript
+await subscriber.connect();
+```
+
+#### `close(): void`
+
+Close the connection.
+
+```typescript
+subscriber.close();
+```
+
+#### `isConnected(): boolean`
+
+Check if connected.
+
+```typescript
+if (subscriber.isConnected()) {
+  console.log('Connected');
+}
+```
+
+### Usage Example
+
+```typescript
+import { FlashQ, EventSubscriber } from 'flashq';
+
+// Setup client and subscriber
+const client = new FlashQ({ host: 'localhost' });
+await client.connect();
+
+const subscriber = client.subscribe('processing');
+await subscriber.connect();
+
+// Monitor events
+subscriber.on('completed', async (event) => {
+  const result = await client.getResult(event.jobId);
+  console.log(`Job ${event.jobId} result:`, result);
+});
+
+subscriber.on('failed', (event) => {
+  console.error(`Job ${event.jobId} failed: ${event.error}`);
+});
+
+// Push a job and watch for events
+const job = await client.push('processing', { task: 'analyze' });
+console.log(`Pushed job ${job.id}, waiting for completion...`);
+
+// Cleanup
+process.on('SIGTERM', () => {
+  subscriber.close();
+  client.close();
 });
 ```
 
@@ -1260,6 +1663,16 @@ Specific contexts:
 | `BatchPullHookContext` | `queue`, `count`, `timeout`, `jobs` |
 | `ConnectionHookContext` | `host`, `port`, `event`, `error`, `attempt` |
 
+**ConnectionHookContext events:**
+
+| Event | Description |
+|-------|-------------|
+| `connect` | Initial connection established |
+| `disconnect` | Connection lost |
+| `reconnecting` | Attempting to reconnect |
+| `reconnected` | Successfully reconnected |
+| `error` | Connection error occurred |
+
 ---
 
 ## Logger
@@ -1388,6 +1801,21 @@ interface Job<T = unknown> {
 type JobState = 'waiting' | 'delayed' | 'active' | 'completed' | 'failed';
 ```
 
+### JobWithState
+
+```typescript
+interface JobWithState<T = unknown> {
+  job: Job<T>;
+  state: JobState;
+}
+```
+
+### JobProcessor
+
+```typescript
+type JobProcessor<T = unknown, R = unknown> = (job: Job<T>) => R | Promise<R>;
+```
+
 ### QueueInfo
 
 ```typescript
@@ -1397,6 +1825,17 @@ interface QueueInfo {
   processing: number;
   dlq: number;
   paused: boolean;
+}
+```
+
+### QueueStats
+
+```typescript
+interface QueueStats {
+  queued: number;
+  processing: number;
+  delayed: number;
+  dlq: number;
 }
 ```
 
@@ -1410,6 +1849,17 @@ interface Metrics {
   jobs_per_second: number;
   avg_latency_ms: number;
   queues: QueueMetrics[];
+}
+```
+
+### QueueMetrics
+
+```typescript
+interface QueueMetrics {
+  name: string;
+  pending: number;
+  processing: number;
+  dlq: number;
 }
 ```
 
@@ -1427,6 +1877,170 @@ interface CronJob {
   executions: number;
   limit?: number;
 }
+```
+
+### CronOptions
+
+```typescript
+interface CronOptions {
+  queue: string;
+  data: unknown;
+  /** Cron expression: "sec min hour day month weekday" */
+  schedule?: string;
+  /** Or repeat every N ms */
+  repeat_every?: number;
+  priority?: number;
+  limit?: number;
+}
+```
+
+### FlowChild
+
+```typescript
+interface FlowChild {
+  queue: string;
+  data: unknown;
+  priority?: number;
+  delay?: number;
+}
+```
+
+### FlowResult
+
+```typescript
+interface FlowResult {
+  parent_id: number;
+  children_ids: number[];
+}
+```
+
+### FlowOptions
+
+```typescript
+interface FlowOptions {
+  /** Job priority (higher = processed first) */
+  priority?: number;
+}
+```
+
+### JobLogEntry
+
+```typescript
+interface JobLogEntry {
+  timestamp: number;
+  message: string;
+  level: 'info' | 'warn' | 'error';
+}
+```
+
+### WorkerOptions
+
+```typescript
+interface WorkerOptions {
+  /** Worker ID */
+  id?: string;
+  /** Parallel job processing (default: 10) */
+  concurrency?: number;
+  /** Jobs per batch (default: 100) */
+  batchSize?: number;
+  /** Auto-ack on success (default: true) */
+  autoAck?: boolean;
+}
+```
+
+### RetryConfig
+
+```typescript
+interface RetryConfig {
+  /** Enable automatic retry on retryable errors (default: false) */
+  enabled?: boolean;
+  /** Max retry attempts (default: 3) */
+  maxRetries?: number;
+  /** Initial delay in ms (default: 100) */
+  initialDelay?: number;
+  /** Max delay in ms (default: 5000) */
+  maxDelay?: number;
+  /** Callback on each retry */
+  onRetry?: (error: Error, attempt: number, delay: number) => void;
+}
+```
+
+### BatchPushResult
+
+```typescript
+interface BatchPushResult {
+  /** Successfully created job IDs */
+  ids: number[];
+  /** Failed jobs with their errors */
+  failed: Array<{ index: number; error: string }>;
+  /** Whether all jobs were created */
+  allSucceeded: boolean;
+}
+```
+
+### BatchResult
+
+```typescript
+interface BatchResult<T> {
+  /** Successfully processed items */
+  succeeded: T[];
+  /** Failed items with their errors */
+  failed: Array<{ index: number; error: string }>;
+  /** Whether all items succeeded */
+  allSucceeded: boolean;
+}
+```
+
+### Hook Types
+
+```typescript
+/** Standard hook type */
+type Hook<T extends HookContext> = (ctx: T) => void | Promise<void>;
+
+/** Error hook type */
+type ErrorHook<T extends HookContext> = (ctx: T, error: Error) => void | Promise<void>;
+```
+
+### Hook Utilities
+
+```typescript
+import { callHook, callErrorHook, createHookContext, getDuration } from 'flashq';
+
+// Create a context with start time
+const ctx = createHookContext<PushHookContext>({ queue: 'test', data: {} });
+
+// Call hooks safely (won't throw)
+await callHook(hooks?.onPush, ctx);
+await callErrorHook(hooks?.onPushError, ctx, error);
+
+// Get operation duration
+const duration = getDuration(ctx);  // ms since startTime
+```
+
+---
+
+## Constants and Validation
+
+### Constants
+
+```typescript
+import { MAX_BATCH_SIZE, MAX_JOB_DATA_SIZE } from 'flashq';
+
+MAX_BATCH_SIZE     // 1000 - Maximum jobs per batch operation
+MAX_JOB_DATA_SIZE  // 10MB - Maximum job data size in bytes
+```
+
+### Validation Utilities
+
+```typescript
+import { validateQueueName, validateJobDataSize } from 'flashq';
+
+// Validate queue name (alphanumeric, underscore, hyphen, dot)
+validateQueueName('my-queue');  // OK
+validateQueueName('invalid/name');  // throws ValidationError
+
+// Validate job data size
+validateJobDataSize(data);  // throws ValidationError if > 10MB
 ```
 
 ---
