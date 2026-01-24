@@ -184,13 +184,18 @@ use crate::queue::monitoring::MemoryStats;
 )]
 pub struct ApiDoc;
 
-/// Debug endpoint for memory statistics (for OpenAPI path registration)
+/// Debug endpoint for memory statistics.
+///
+/// Returns internal memory usage breakdown for debugging and optimization.
+/// Shows job counts, index sizes, and cache utilization.
 #[utoipa::path(
     get,
     path = "/debug/memory",
     tag = "Debug",
+    summary = "Get internal memory statistics",
+    description = "Returns detailed memory breakdown: job counts by location (queues, processing, DLQ), job_index size, completed_jobs set size, custom_id_map size, job_results cache size, string interning stats. Use for: debugging memory issues, optimizing cleanup thresholds, capacity planning.",
     responses(
-        (status = 200, description = "Memory statistics", body = MemoryStats)
+        (status = 200, description = "Internal memory usage breakdown", body = MemoryStats)
     )
 )]
 pub async fn debug_memory_stats(

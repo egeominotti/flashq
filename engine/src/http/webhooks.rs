@@ -11,12 +11,17 @@ use crate::protocol::{Job, WebhookConfig};
 use super::types::{ApiResponse, AppState, CreateWebhookRequest};
 
 /// List all webhooks.
+///
+/// Returns all registered webhook configurations including URLs, subscribed events,
+/// and target queues. Useful for debugging webhook setups.
 #[utoipa::path(
     get,
     path = "/webhooks",
     tag = "Webhooks",
+    summary = "List all webhook configurations",
+    description = "Returns all registered webhooks. Each includes: unique ID, target URL, subscribed event types (completed, failed, progress), queue filter (optional), and secret for signature verification. Use for auditing and managing webhook integrations.",
     responses(
-        (status = 200, description = "List of webhooks", body = Vec<WebhookConfig>)
+        (status = 200, description = "All registered webhook configurations", body = Vec<WebhookConfig>)
     )
 )]
 pub async fn list_webhooks(State(qm): State<AppState>) -> Json<ApiResponse<Vec<WebhookConfig>>> {
@@ -25,13 +30,18 @@ pub async fn list_webhooks(State(qm): State<AppState>) -> Json<ApiResponse<Vec<W
 }
 
 /// Create a webhook.
+///
+/// Registers a webhook to receive HTTP callbacks on job events. Webhooks are called
+/// with job data and signed with HMAC-SHA256 if a secret is provided.
 #[utoipa::path(
     post,
     path = "/webhooks",
     tag = "Webhooks",
+    summary = "Register webhook for job events",
+    description = "Creates a webhook that POSTs to URL when specified events occur. Events: 'completed', 'failed', 'progress'. Optional queue filter limits to specific queue. Secret enables HMAC-SHA256 signature in X-FlashQ-Signature header for verification. Returns unique webhook ID.",
     request_body = CreateWebhookRequest,
     responses(
-        (status = 200, description = "Webhook created", body = String)
+        (status = 200, description = "Webhook ID for management", body = String)
     )
 )]
 pub async fn create_webhook(
@@ -48,13 +58,18 @@ pub async fn create_webhook(
 }
 
 /// Delete a webhook.
+///
+/// Removes a webhook registration. No further callbacks will be sent.
+/// Returns true if found and deleted.
 #[utoipa::path(
     delete,
     path = "/webhooks/{id}",
     tag = "Webhooks",
-    params(("id" = String, Path, description = "Webhook ID")),
+    summary = "Remove webhook registration",
+    description = "Deletes a webhook by ID. Stops all future callbacks to that URL. Returns true if webhook existed and was deleted, false if ID not found.",
+    params(("id" = String, Path, description = "Webhook ID returned from create")),
     responses(
-        (status = 200, description = "Webhook deleted", body = bool)
+        (status = 200, description = "True if deleted, false if not found", body = bool)
     )
 )]
 pub async fn delete_webhook(
@@ -66,13 +81,18 @@ pub async fn delete_webhook(
 }
 
 /// Incoming webhook - push job to queue.
+///
+/// Accepts external webhook calls and creates jobs. Use this endpoint to receive
+/// webhooks from external services (GitHub, Stripe, etc.) and queue them for processing.
 #[utoipa::path(
     post,
     path = "/webhooks/incoming/{queue}",
     tag = "Webhooks",
-    params(("queue" = String, Path, description = "Queue name")),
+    summary = "Receive external webhook as job",
+    description = "Creates a job from incoming webhook payload. The entire request body becomes the job data. Use for: GitHub webhooks, Stripe events, external service integrations. Jobs are queued with default options. For advanced options, use POST /queues/{queue}/jobs instead.",
+    params(("queue" = String, Path, description = "Target queue for the webhook job")),
     responses(
-        (status = 200, description = "Job created from webhook", body = Job)
+        (status = 200, description = "Job created from webhook payload", body = Job)
     )
 )]
 pub async fn incoming_webhook(

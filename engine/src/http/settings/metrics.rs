@@ -130,15 +130,16 @@ pub fn get_total_memory_mb() -> f64 {
 
 /// Get system metrics using sysinfo crate.
 ///
-/// Returns detailed system and process metrics including CPU usage, memory
-/// consumption (RSS and virtual), disk I/O statistics, TCP connection count,
-/// and server uptime. Uses the sysinfo crate for cross-platform compatibility.
+/// Returns detailed system and process metrics for monitoring server resource usage.
+/// Cross-platform using sysinfo crate.
 #[utoipa::path(
     get,
     path = "/system/metrics",
     tag = "System",
+    summary = "Get system resource metrics",
+    description = "Returns process and system metrics: memory (RSS, virtual, percent of total), CPU usage percent, disk I/O (bytes read/written since start), process info (PID, start time, uptime, status), active TCP connections. Use for: resource monitoring, capacity planning, alerting on resource limits.",
     responses(
-        (status = 200, description = "System and process metrics", body = SystemMetrics)
+        (status = 200, description = "System and process resource metrics", body = SystemMetrics)
     )
 )]
 pub async fn get_system_metrics(State(qm): State<AppState>) -> Json<ApiResponse<SystemMetrics>> {

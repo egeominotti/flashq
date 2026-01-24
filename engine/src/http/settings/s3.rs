@@ -84,13 +84,18 @@ pub struct RestoreRequest {
 // ============================================================================
 
 /// Save S3 settings (runtime configuration).
+///
+/// Configures S3-compatible storage for backups. Supports AWS S3, Cloudflare R2,
+/// MinIO, and other S3-compatible services. Changes apply immediately.
 #[utoipa::path(
     post,
     path = "/s3/settings",
     tag = "S3",
+    summary = "Configure S3 backup storage",
+    description = "Sets up S3-compatible storage: endpoint URL, bucket name, region, access/secret keys, backup interval (seconds), retention count, prefix path, compression. Supports AWS S3, Cloudflare R2, MinIO, etc. Set enabled=false to disable. Changes apply immediately without restart.",
     request_body = SaveS3SettingsRequest,
     responses(
-        (status = 200, description = "S3 configuration saved")
+        (status = 200, description = "S3 configuration saved and active")
     )
 )]
 pub async fn save_s3_settings(
@@ -126,13 +131,18 @@ pub async fn save_s3_settings(
 }
 
 /// Test S3 connection.
+///
+/// Validates S3 credentials by attempting to list objects in the bucket.
+/// Use before saving configuration to verify settings are correct.
 #[utoipa::path(
     post,
     path = "/s3/test",
     tag = "S3",
+    summary = "Test S3 connection",
+    description = "Validates S3 configuration by: initializing client with provided credentials, attempting ListObjects on bucket. Returns success or detailed error message. Use to verify settings before saving. Does not modify any configuration.",
     request_body = SaveS3SettingsRequest,
     responses(
-        (status = 200, description = "Connection successful")
+        (status = 200, description = "Connection successful, credentials valid")
     )
 )]
 pub async fn test_s3_connection(
@@ -159,16 +169,16 @@ pub async fn test_s3_connection(
 
 /// Get current S3 configuration (without secrets).
 ///
-/// Returns the current S3 backup configuration. For security, access keys
-/// and secret keys are not included in the response. The configuration
-/// shows endpoint, bucket, region, backup interval, retention count, and
-/// compression settings.
+/// Returns backup configuration excluding sensitive credentials.
+/// Shows endpoint, bucket, region, interval, retention, and compression.
 #[utoipa::path(
     get,
     path = "/s3/settings",
     tag = "S3",
+    summary = "Get S3 configuration (no secrets)",
+    description = "Returns S3 backup config: enabled status, endpoint URL, bucket name, region, backup interval (seconds), retention count, compression setting. Access keys and secrets are NOT returned for security. Checks runtime config first, falls back to environment variables.",
     responses(
-        (status = 200, description = "Current S3 backup configuration (secrets excluded)", body = S3BackupSettings)
+        (status = 200, description = "S3 configuration (secrets excluded)", body = S3BackupSettings)
     )
 )]
 pub async fn get_s3_settings() -> Json<ApiResponse<S3BackupSettings>> {
@@ -204,16 +214,17 @@ pub async fn get_s3_settings() -> Json<ApiResponse<S3BackupSettings>> {
 
 /// Trigger manual S3 backup.
 ///
-/// Initiates an immediate backup of the SQLite database to S3.
-/// The backup is compressed (if enabled) and uploaded to the configured
-/// S3 bucket. Requires both DATA_PATH and S3 configuration to be set.
+/// Creates immediate backup regardless of interval schedule. Compresses
+/// database (if enabled) and uploads to S3 with timestamped filename.
 #[utoipa::path(
     post,
     path = "/s3/backup",
     tag = "S3",
+    summary = "Trigger immediate S3 backup",
+    description = "Creates backup now, ignoring scheduled interval. Process: copies SQLite file, compresses with gzip (if enabled), uploads to S3 bucket with timestamp in filename. Requires both DATA_PATH and S3 to be configured. Old backups are pruned based on keep_count after successful upload.",
     responses(
-        (status = 200, description = "Backup completed successfully"),
-        (status = 400, description = "S3 backup not configured or DATA_PATH missing")
+        (status = 200, description = "Backup uploaded to S3 successfully"),
+        (status = 400, description = "S3 not configured or DATA_PATH missing")
     )
 )]
 pub async fn trigger_s3_backup() -> Json<ApiResponse<&'static str>> {
@@ -242,16 +253,17 @@ pub async fn trigger_s3_backup() -> Json<ApiResponse<&'static str>> {
 
 /// List available S3 backups.
 ///
-/// Returns a list of all backup files stored in the S3 bucket, including
-/// file size and last modified timestamp. Backups are sorted by date with
-/// most recent first.
+/// Returns all backup files in the S3 bucket with size and timestamp.
+/// Sorted by date with most recent first.
 #[utoipa::path(
     get,
     path = "/s3/backups",
     tag = "S3",
+    summary = "List available S3 backups",
+    description = "Lists all backup files in configured S3 bucket/prefix. Each entry includes: object key (filename), size in bytes, last modified timestamp (ISO 8601). Results sorted newest-first. Use key value with restore endpoint to restore a specific backup.",
     responses(
-        (status = 200, description = "List of available backups", body = Vec<S3BackupInfo>),
-        (status = 400, description = "S3 backup not configured")
+        (status = 200, description = "List of backups with size and timestamp", body = Vec<S3BackupInfo>),
+        (status = 400, description = "S3 not configured")
     )
 )]
 pub async fn list_s3_backups() -> Json<ApiResponse<Vec<S3BackupInfo>>> {
@@ -284,17 +296,18 @@ pub async fn list_s3_backups() -> Json<ApiResponse<Vec<S3BackupInfo>>> {
 
 /// Restore from S3 backup.
 ///
-/// Downloads a backup file from S3 and restores it as the active database.
-/// The current database is backed up before replacement. A server restart
-/// is required after restoration to load the new data.
+/// Downloads and restores a backup from S3. Current database is backed up
+/// before replacement. Server restart required to load restored data.
 #[utoipa::path(
     post,
     path = "/s3/restore",
     tag = "S3",
+    summary = "Restore database from S3 backup",
+    description = "Downloads backup by key, decompresses if needed, replaces current database. Process: download to temp file, decompress gzip, backup current db as .bak, swap files. On failure, original is restored from .bak. Restart required after restore to load new data. Key is from list_backups response.",
     request_body = RestoreRequest,
     responses(
-        (status = 200, description = "Restore completed, restart required"),
-        (status = 400, description = "S3 backup not configured or DATA_PATH missing")
+        (status = 200, description = "Restore complete, restart server to apply"),
+        (status = 400, description = "S3 not configured or DATA_PATH missing")
     )
 )]
 pub async fn restore_s3_backup(Json(req): Json<RestoreRequest>) -> Json<ApiResponse<&'static str>> {

@@ -73,13 +73,18 @@ pub struct AsyncWriterConfigRequest {
 // ============================================================================
 
 /// Save SQLite settings (writes to .env file, requires restart).
+///
+/// Configures SQLite persistence. Changes are saved to .env.flashq file
+/// and require server restart to take effect.
 #[utoipa::path(
     post,
     path = "/sqlite/settings",
     tag = "SQLite",
+    summary = "Configure SQLite persistence",
+    description = "Saves SQLite configuration: enabled (toggle persistence), path (database file location), synchronous (FULL for durability, OFF for speed), cache_size_mb (in-memory cache). Writes to .env.flashq file. Requires restart to apply. Use for: enabling persistence or tuning performance.",
     request_body = SqliteConfigRequest,
     responses(
-        (status = 200, description = "SQLite configuration saved")
+        (status = 200, description = "Configuration saved, restart required")
     )
 )]
 pub async fn save_sqlite_settings(
@@ -138,12 +143,17 @@ pub async fn save_sqlite_settings(
 }
 
 /// Get current SQLite configuration status.
+///
+/// Returns active SQLite configuration including path, sync mode,
+/// and snapshot settings. Also indicates if pending config exists.
 #[utoipa::path(
     get,
     path = "/sqlite/settings",
     tag = "SQLite",
+    summary = "Get SQLite configuration",
+    description = "Returns current SQLite config: enabled status, database path, synchronous mode (affects durability vs speed), snapshot interval (seconds between checkpoints), snapshot_min_changes (minimum changes before snapshot). If pending config exists (from save), indicates restart is needed.",
     responses(
-        (status = 200, description = "SQLite settings", body = SqliteSettings)
+        (status = 200, description = "Current SQLite configuration", body = SqliteSettings)
     )
 )]
 pub async fn get_sqlite_settings(State(qm): State<AppState>) -> Json<ApiResponse<SqliteSettings>> {
@@ -174,12 +184,17 @@ pub async fn get_sqlite_settings(State(qm): State<AppState>) -> Json<ApiResponse
 // ============================================================================
 
 /// Get SQLite storage statistics.
+///
+/// Returns storage metrics: file size, job counts by state, and async writer
+/// statistics for performance monitoring.
 #[utoipa::path(
     get,
     path = "/sqlite/stats",
     tag = "SQLite",
+    summary = "Get SQLite storage statistics",
+    description = "Returns: database file size (bytes/MB), job counts by state (queued, processing, completed, failed, delayed), async writer stats (queue length, ops queued/written, batch count, interval, batch size). Use for monitoring storage growth and write performance.",
     responses(
-        (status = 200, description = "SQLite statistics", body = SqliteStats)
+        (status = 200, description = "Storage stats and async writer metrics", body = SqliteStats)
     )
 )]
 pub async fn get_sqlite_stats(State(qm): State<AppState>) -> Json<ApiResponse<SqliteStats>> {
@@ -250,13 +265,18 @@ pub async fn get_sqlite_stats(State(qm): State<AppState>) -> Json<ApiResponse<Sq
 // ============================================================================
 
 /// Update async writer configuration at runtime.
+///
+/// Tunes async writer performance. Changes apply immediately without restart.
+/// Balance between write latency and throughput.
 #[utoipa::path(
     post,
     path = "/sqlite/async-writer",
     tag = "SQLite",
+    summary = "Tune async writer performance",
+    description = "Adjusts async writer: batch_interval_ms (10-5000, time between batch writes), max_batch_size (10-10000, ops per batch). Lower interval = lower latency, higher CPU. Larger batches = higher throughput, more memory. Changes apply immediately. Requires SQLite + async writer enabled.",
     request_body = AsyncWriterConfigRequest,
     responses(
-        (status = 200, description = "Async writer configuration updated")
+        (status = 200, description = "Async writer config updated immediately")
     )
 )]
 pub async fn update_async_writer_config(
@@ -293,12 +313,17 @@ pub async fn update_async_writer_config(
 // ============================================================================
 
 /// Export SQLite database - returns download URL info.
+///
+/// Returns the database file path for export. Use /sqlite/download
+/// for actual file download.
 #[utoipa::path(
     get,
     path = "/sqlite/export",
     tag = "SQLite",
+    summary = "Get database path for export",
+    description = "Returns the SQLite database file path. For downloading the actual file, use /sqlite/download endpoint instead. This endpoint is useful for scripted backup workflows where you need the path. Requires SQLite to be configured (DATA_PATH set).",
     responses(
-        (status = 200, description = "Database path for export", body = String)
+        (status = 200, description = "Database file path", body = String)
     )
 )]
 pub async fn export_sqlite_database() -> Json<ApiResponse<String>> {
@@ -320,14 +345,15 @@ pub async fn export_sqlite_database() -> Json<ApiResponse<String>> {
 ///
 /// Returns the raw SQLite database file as a binary download.
 /// Useful for backup purposes or migrating data to another server.
-/// The file is returned with content-type `application/octet-stream`.
 #[utoipa::path(
     get,
     path = "/sqlite/download",
     tag = "SQLite",
+    summary = "Download database file",
+    description = "Downloads the SQLite database as binary file. Content-Type is application/octet-stream. Use for: manual backups, data migration, offline analysis. File may be large depending on data volume. Consider S3 backup for automated backups. Requires SQLite to be configured.",
     responses(
-        (status = 200, description = "SQLite database file download", content_type = "application/octet-stream"),
-        (status = 400, description = "SQLite not configured"),
+        (status = 200, description = "SQLite database binary file", content_type = "application/octet-stream"),
+        (status = 400, description = "SQLite not configured (DATA_PATH not set)"),
         (status = 500, description = "Failed to read database file")
     )
 )]
@@ -360,13 +386,18 @@ pub async fn download_sqlite_database() -> impl axum::response::IntoResponse {
 }
 
 /// Restore SQLite database from uploaded file.
+///
+/// Replaces current database with uploaded file. Current database is backed up
+/// before replacement. Requires server restart to load restored data.
 #[utoipa::path(
     post,
     path = "/sqlite/restore",
     tag = "SQLite",
+    summary = "Upload and restore database",
+    description = "Uploads a SQLite database file to replace current data. Validates SQLite magic header, backs up current database as .bak, then writes uploaded file. Restart required to load new data. On failure, original database is restored from backup. Multipart form with 'file' field.",
     request_body(content = inline(String), content_type = "multipart/form-data"),
     responses(
-        (status = 200, description = "Database restored successfully")
+        (status = 200, description = "Database restored, restart required to apply")
     )
 )]
 pub async fn restore_sqlite_database(

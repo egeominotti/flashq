@@ -16,12 +16,17 @@ pub struct HealthResponse {
 }
 
 /// Health check endpoint.
+///
+/// Returns server health status, uptime, and configuration. Use for load balancer
+/// health checks and monitoring. Always returns 200 if server is running.
 #[utoipa::path(
     get,
     path = "/health",
     tag = "Health",
+    summary = "Server health check",
+    description = "Returns: status ('healthy'), uptime in milliseconds, SQLite persistence enabled flag. Always returns 200 if HTTP server is responsive. Use for: Kubernetes probes, load balancer health checks, uptime monitoring. Lightweight endpoint with no heavy computation.",
     responses(
-        (status = 200, description = "Health status", body = HealthResponse)
+        (status = 200, description = "Health status with uptime and config", body = HealthResponse)
     )
 )]
 pub async fn health_check(State(qm): State<AppState>) -> Json<ApiResponse<HealthResponse>> {
