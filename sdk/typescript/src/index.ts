@@ -24,7 +24,7 @@ export { Queue } from './queue';
 export type { QueueOptions, JobOptions, JobReference } from './queue';
 
 export { Worker } from './worker';
-export type { BullMQWorkerOptions } from './worker';
+export type { BullMQWorkerOptions, WorkerEvents, TypedWorkerEmitter } from './worker';
 
 // Low-level API
 export { FlashQ, FlashQ as default } from './client';

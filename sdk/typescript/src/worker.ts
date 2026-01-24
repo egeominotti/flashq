@@ -18,6 +18,57 @@ import {
   WORKER_JOB_CHECK_INTERVAL,
 } from './constants';
 
+/**
+ * Typed event map for Worker events.
+ * Use with worker.on() for type-safe event handling.
+ */
+export interface WorkerEvents<T = unknown, R = unknown> {
+  /** Emitted when worker is ready to process jobs */
+  ready: [];
+  /** Emitted when a job starts processing */
+  active: [job: Job & { data: T }, workerId: number];
+  /** Emitted when a job completes successfully */
+  completed: [job: Job & { data: T }, result: R, workerId: number];
+  /** Emitted when a job fails */
+  failed: [job: Job & { data: T }, error: Error, workerId: number];
+  /** Emitted when worker starts stopping */
+  stopping: [];
+  /** Emitted when worker has fully stopped */
+  stopped: [];
+  /** Emitted when all jobs are drained */
+  drained: [];
+  /** Emitted on worker errors (connection, timeout, etc.) */
+  error: [error: unknown];
+  /** Emitted during reconnection attempts */
+  reconnecting: [info: { attempt: number; delay: number }];
+  /** Emitted after successful reconnection */
+  reconnected: [];
+}
+
+/**
+ * Typed EventEmitter for Worker with proper event signatures.
+ */
+export interface TypedWorkerEmitter<T = unknown, R = unknown> {
+  on<K extends keyof WorkerEvents<T, R>>(
+    event: K,
+    listener: (...args: WorkerEvents<T, R>[K]) => void
+  ): this;
+  once<K extends keyof WorkerEvents<T, R>>(
+    event: K,
+    listener: (...args: WorkerEvents<T, R>[K]) => void
+  ): this;
+  emit<K extends keyof WorkerEvents<T, R>>(event: K, ...args: WorkerEvents<T, R>[K]): boolean;
+  off<K extends keyof WorkerEvents<T, R>>(
+    event: K,
+    listener: (...args: WorkerEvents<T, R>[K]) => void
+  ): this;
+  removeListener<K extends keyof WorkerEvents<T, R>>(
+    event: K,
+    listener: (...args: WorkerEvents<T, R>[K]) => void
+  ): this;
+  removeAllListeners<K extends keyof WorkerEvents<T, R>>(event?: K): this;
+}
+
 export interface BullMQWorkerOptions extends Omit<ClientOptions, 'hooks'>, WorkerOptions {
   /** Auto-start worker (BullMQ-compatible, default: true) */
   autorun?: boolean;
@@ -49,11 +100,19 @@ type WorkerState = 'idle' | 'starting' | 'running' | 'stopping' | 'stopped';
  * });
  * await worker.start();
  *
+ * // Type-safe event handling
+ * worker.on('completed', (job, result, workerId) => {
+ *   console.log(`Job ${job.id} completed by worker ${workerId}:`, result);
+ * });
+ *
  * // Graceful shutdown
  * process.on('SIGTERM', () => worker.close());
  * ```
  */
-export class Worker<T = unknown, R = unknown> extends EventEmitter {
+export class Worker<T = unknown, R = unknown>
+  extends EventEmitter
+  implements TypedWorkerEmitter<T, R>
+{
   private clients: FlashQ[] = [];
   private clientOptions: ClientOptions;
   private queues: string[];
@@ -145,7 +204,10 @@ export class Worker<T = unknown, R = unknown> extends EventEmitter {
   }
 
   private async doStart(): Promise<void> {
-    this.logger.info('Starting worker', { queues: this.queues, concurrency: this.options.concurrency });
+    this.logger.info('Starting worker', {
+      queues: this.queues,
+      concurrency: this.options.concurrency,
+    });
     // Create a separate client for each worker (TCP pull is blocking)
     for (let i = 0; i < this.options.concurrency; i++) {
       const client = new FlashQ({ ...this.clientOptions, debug: this.options.debug });
@@ -225,7 +287,10 @@ export class Worker<T = unknown, R = unknown> extends EventEmitter {
         ]);
 
         if (result === 'timeout') {
-          this.logger.warn('Graceful shutdown timeout reached', { timeout, processing: this.processing });
+          this.logger.warn('Graceful shutdown timeout reached', {
+            timeout,
+            processing: this.processing,
+          });
           this.emit(
             'error',
             new Error(

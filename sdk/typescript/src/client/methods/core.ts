@@ -345,11 +345,12 @@ export async function ackBatch(client: IFlashQClient, jobIds: number[]): Promise
     );
   }
 
-  const response = await client.send<{ ok: boolean; ids: number[] }>({
+  const response = await client.send<{ ok: boolean; count: number; ids?: number[] }>({
     cmd: 'ACKB',
     ids: jobIds,
   });
-  return response.ids?.[0] ?? 0;
+  // Server returns count of acknowledged jobs, fallback to ids array length for compatibility
+  return response.count ?? response.ids?.length ?? 0;
 }
 
 /**

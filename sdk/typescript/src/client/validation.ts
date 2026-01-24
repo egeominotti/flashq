@@ -122,10 +122,7 @@ export function validateJobId(jobId: number): void {
  */
 export function validateTimeout(timeout: number, min = 0, max = 600000): void {
   if (timeout < min || timeout > max) {
-    throw new ValidationError(
-      `Timeout ${timeout}ms out of bounds (${min}-${max}ms)`,
-      'timeout'
-    );
+    throw new ValidationError(`Timeout ${timeout}ms out of bounds (${min}-${max}ms)`, 'timeout');
   }
 }
 

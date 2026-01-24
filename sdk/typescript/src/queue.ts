@@ -119,7 +119,9 @@ export class Queue<T = unknown> {
    * @returns Array of job references with id, queue, and data.
    *          Use getJob() if you need full job details.
    */
-  async addBulk(jobs: Array<{ name: string; data: T; opts?: JobOptions }>): Promise<JobReference<T>[]> {
+  async addBulk(
+    jobs: Array<{ name: string; data: T; opts?: JobOptions }>
+  ): Promise<JobReference<T>[]> {
     const flashqJobs = jobs.map((job) => {
       const opts = { ...this.defaultJobOptions, ...job.opts };
       return {

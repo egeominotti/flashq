@@ -73,18 +73,49 @@ export class JsonBufferHandler {
  *
  * Each message is framed with a 4-byte big-endian length prefix
  * followed by the MessagePack-encoded payload.
+ *
+ * Uses chunked accumulation for O(n) performance instead of
+ * O(n²) from Buffer.concat on every append.
  */
 export class BinaryBufferHandler {
-  /** Accumulated binary data */
+  /** Accumulated binary chunks waiting to be joined */
+  private chunks: Buffer[] = [];
+  /** Total length of all chunks */
+  private totalLength = 0;
+  /** Consolidated buffer for frame extraction */
   private buffer: Buffer = Buffer.alloc(0);
 
   /**
    * Appends new data to the buffer.
    *
+   * Chunks are accumulated and only consolidated when extracting frames,
+   * avoiding O(n²) performance from repeated Buffer.concat calls.
+   *
    * @param data - Raw data from socket
    */
   append(data: Buffer): void {
-    this.buffer = Buffer.concat([this.buffer, data]);
+    this.chunks.push(data);
+    this.totalLength += data.length;
+  }
+
+  /**
+   * Consolidates accumulated chunks into a single buffer.
+   * Only called when extracting frames.
+   */
+  private consolidate(): void {
+    if (this.chunks.length === 0) return;
+
+    // Concat all chunks at once (single allocation)
+    const newData = Buffer.concat(this.chunks, this.totalLength);
+    this.chunks.length = 0;
+    this.totalLength = 0;
+
+    // Append to existing buffer if any remainder exists
+    if (this.buffer.length > 0) {
+      this.buffer = Buffer.concat([this.buffer, newData]);
+    } else {
+      this.buffer = newData;
+    }
   }
 
   /**
@@ -95,6 +126,8 @@ export class BinaryBufferHandler {
    * @returns Array of decoded message objects
    */
   extractFrames(): Record<string, unknown>[] {
+    this.consolidate();
+
     const frames: Record<string, unknown>[] = [];
 
     while (this.buffer.length >= 4) {
@@ -114,6 +147,8 @@ export class BinaryBufferHandler {
    * Resets the buffer state.
    */
   reset(): void {
+    this.chunks.length = 0;
+    this.totalLength = 0;
     this.buffer = Buffer.alloc(0);
   }
 }
@@ -158,24 +193,60 @@ export function parseJsonResponse(line: string): Record<string, unknown> | null 
   }
 }
 
-/** Counter for generating unique request IDs */
-let requestIdCounter = 0;
+/**
+ * Generates unique request IDs for a client instance.
+ *
+ * Each instance has its own counter to avoid conflicts in multi-client scenarios.
+ * Includes a unique prefix based on timestamp and random value for global uniqueness.
+ */
+export class RequestIdGenerator {
+  private counter = 0;
+  private readonly prefix: string;
+
+  constructor() {
+    // Create unique prefix: timestamp + random to ensure uniqueness across instances
+    this.prefix = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+  }
+
+  /**
+   * Generates a unique request ID.
+   *
+   * Format: "{prefix}-{incrementing number}"
+   *
+   * @returns Unique request ID string
+   */
+  generate(): string {
+    return `${this.prefix}-${++this.counter}`;
+  }
+
+  /**
+   * Resets the counter.
+   * Primarily used for testing.
+   */
+  reset(): void {
+    this.counter = 0;
+  }
+}
+
+/** Default generator for backward compatibility */
+const defaultGenerator = new RequestIdGenerator();
 
 /**
- * Generates a unique request ID.
+ * Generates a unique request ID using the default generator.
  *
- * Format: "r{incrementing number}"
- *
+ * @deprecated Use RequestIdGenerator instance for multi-client scenarios
  * @returns Unique request ID string
  */
 export function generateRequestId(): string {
-  return `r${++requestIdCounter}`;
+  return defaultGenerator.generate();
 }
 
 /**
- * Resets the request ID counter.
+ * Resets the default request ID counter.
  * Primarily used for testing.
+ *
+ * @deprecated Use RequestIdGenerator instance for multi-client scenarios
  */
 export function resetRequestIdCounter(): void {
-  requestIdCounter = 0;
+  defaultGenerator.reset();
 }

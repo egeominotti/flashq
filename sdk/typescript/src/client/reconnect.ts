@@ -114,7 +114,10 @@ export class ReconnectManager {
     this.attempts++;
     const delay = this.calculateDelay(this.attempts);
 
-    this.logger.info('Scheduling reconnection', { attempt: this.attempts, delay: Math.round(delay) });
+    this.logger.info('Scheduling reconnection', {
+      attempt: this.attempts,
+      delay: Math.round(delay),
+    });
     this.emitter.emit('reconnecting', { attempt: this.attempts, delay } as ReconnectEventData);
 
     this.timer = setTimeout(async () => {

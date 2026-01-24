@@ -5,6 +5,7 @@ import { describe, test, expect, beforeEach } from 'bun:test';
 import {
   JsonBufferHandler,
   BinaryBufferHandler,
+  RequestIdGenerator,
   encodeCommand,
   parseJsonResponse,
   generateRequestId,
@@ -278,34 +279,73 @@ describe('parseJsonResponse', () => {
   });
 });
 
-describe('generateRequestId', () => {
+describe('RequestIdGenerator', () => {
+  test('generates unique incrementing IDs', () => {
+    const generator = new RequestIdGenerator();
+    const id1 = generator.generate();
+    const id2 = generator.generate();
+    const id3 = generator.generate();
+
+    // IDs should be unique
+    expect(id1).not.toBe(id2);
+    expect(id2).not.toBe(id3);
+
+    // IDs should end with incrementing numbers
+    expect(id1).toMatch(/-1$/);
+    expect(id2).toMatch(/-2$/);
+    expect(id3).toMatch(/-3$/);
+  });
+
+  test('different instances have different prefixes', () => {
+    const gen1 = new RequestIdGenerator();
+    const gen2 = new RequestIdGenerator();
+
+    const id1 = gen1.generate();
+    const id2 = gen2.generate();
+
+    // Prefixes should be different (contains unique timestamp/random)
+    const prefix1 = id1.split('-').slice(0, 2).join('-');
+    const prefix2 = id2.split('-').slice(0, 2).join('-');
+    expect(prefix1).not.toBe(prefix2);
+  });
+
+  test('reset() resets counter but keeps prefix', () => {
+    const generator = new RequestIdGenerator();
+    generator.generate();
+    generator.generate();
+
+    generator.reset();
+
+    const id = generator.generate();
+    expect(id).toMatch(/-1$/);
+  });
+});
+
+describe('generateRequestId (legacy)', () => {
   beforeEach(() => {
     resetRequestIdCounter();
   });
 
-  test('generates incrementing IDs', () => {
+  test('generates unique IDs', () => {
     const id1 = generateRequestId();
     const id2 = generateRequestId();
     const id3 = generateRequestId();
 
-    expect(id1).toBe('r1');
-    expect(id2).toBe('r2');
-    expect(id3).toBe('r3');
+    expect(id1).not.toBe(id2);
+    expect(id2).not.toBe(id3);
   });
 
-  test('IDs are prefixed with r', () => {
-    const id = generateRequestId();
-    expect(id).toMatch(/^r\d+$/);
-  });
-
-  test('resetRequestIdCounter resets counter', () => {
-    generateRequestId();
-    generateRequestId();
-
+  test('IDs have incrementing suffix after reset', () => {
     resetRequestIdCounter();
 
-    const id = generateRequestId();
-    expect(id).toBe('r1');
+    const id1 = generateRequestId();
+    const id2 = generateRequestId();
+
+    // Extract counter part (last segment after -)
+    const counter1 = parseInt(id1.split('-').pop()!);
+    const counter2 = parseInt(id2.split('-').pop()!);
+
+    expect(counter2).toBe(counter1 + 1);
   });
 });
 

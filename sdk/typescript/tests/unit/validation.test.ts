@@ -283,10 +283,7 @@ describe('mapJobToPayload', () => {
   });
 
   test('maps partial options with correct defaults', () => {
-    const payload = mapJobToPayload(
-      { data: 'value' },
-      { priority: 5, delay: 1000 }
-    );
+    const payload = mapJobToPayload({ data: 'value' }, { priority: 5, delay: 1000 });
 
     expect(payload.data).toEqual({ data: 'value' });
     expect(payload.priority).toBe(5);

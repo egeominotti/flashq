@@ -39,7 +39,7 @@ import {
 } from '../constants';
 import {
   type PendingRequest,
-  generateRequestId,
+  RequestIdGenerator,
   JsonBufferHandler,
   BinaryBufferHandler,
 } from './tcp';
@@ -99,6 +99,7 @@ export class FlashQConnection extends EventEmitter {
   private trackRequestIds: boolean;
   private compression: boolean;
   private compressionThreshold: number;
+  private requestIdGenerator = new RequestIdGenerator();
 
   constructor(options: ClientOptions = {}) {
     super();
@@ -617,7 +618,7 @@ export class FlashQConnection extends EventEmitter {
       throw new ConnectionError('Not connected', 'NOT_CONNECTED');
     }
 
-    const reqId = generateRequestId();
+    const reqId = this.requestIdGenerator.generate();
     const timeoutMs = customTimeout ?? this._options.timeout;
 
     // Set request ID for logger correlation if tracking is enabled

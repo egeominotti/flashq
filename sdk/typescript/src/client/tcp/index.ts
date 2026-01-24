@@ -5,6 +5,7 @@ export {
   type PendingRequest,
   JsonBufferHandler,
   BinaryBufferHandler,
+  RequestIdGenerator,
   encodeCommand,
   parseJsonResponse,
   generateRequestId,
