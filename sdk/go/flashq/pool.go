@@ -3,12 +3,16 @@ package flashq
 import (
 	"bufio"
 	"context"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/vmihailenco/msgpack/v5"
 )
 
 var (
@@ -308,6 +312,14 @@ func (p *ConnectionPool) sendOnConn(pc *PooledConnection, cmd map[string]interfa
 		defer pc.conn.SetDeadline(time.Time{})
 	}
 
+	if p.opts.UseBinary {
+		return p.sendBinaryOnConn(pc, cmd)
+	}
+	return p.sendJSONOnConn(pc, cmd)
+}
+
+// sendJSONOnConn sends command using JSON newline-delimited protocol.
+func (p *ConnectionPool) sendJSONOnConn(pc *PooledConnection, cmd map[string]interface{}) (map[string]interface{}, error) {
 	data, err := json.Marshal(cmd)
 	if err != nil {
 		return nil, NewValidationError(fmt.Sprintf("marshal error: %v", err))
@@ -338,6 +350,65 @@ func (p *ConnectionPool) sendOnConn(pc *PooledConnection, cmd map[string]interfa
 	if err := json.Unmarshal(line, &resp); err != nil {
 		mapPool.Put(resp)
 		return nil, NewServerError(fmt.Sprintf("parse error: %v", err), 0)
+	}
+	if errMsg, ok := resp["error"].(string); ok && errMsg != "" {
+		mapPool.Put(resp)
+		return nil, NewServerError(errMsg, 0)
+	}
+
+	pc.lastUse.Store(time.Now().UnixNano())
+	return resp, nil
+}
+
+// sendBinaryOnConn sends command using MessagePack binary protocol.
+// Protocol: 4-byte big-endian length prefix + msgpack data
+func (p *ConnectionPool) sendBinaryOnConn(pc *PooledConnection, cmd map[string]interface{}) (map[string]interface{}, error) {
+	// Encode command with msgpack
+	data, err := msgpack.Marshal(cmd)
+	if err != nil {
+		return nil, NewValidationError(fmt.Sprintf("msgpack marshal error: %v", err))
+	}
+
+	// Write 4-byte length prefix (big-endian) + data
+	lenBuf := make([]byte, 4)
+	binary.BigEndian.PutUint32(lenBuf, uint32(len(data)))
+
+	if _, err := pc.writer.Write(lenBuf); err != nil {
+		return nil, NewConnectionError("write length error", err)
+	}
+	if _, err := pc.writer.Write(data); err != nil {
+		return nil, NewConnectionError("write data error", err)
+	}
+	if err := pc.writer.Flush(); err != nil {
+		return nil, NewConnectionError("flush error", err)
+	}
+
+	// Read 4-byte length prefix
+	respLenBuf := make([]byte, 4)
+	if _, err := io.ReadFull(pc.reader, respLenBuf); err != nil {
+		return nil, NewConnectionError("read length error", err)
+	}
+	respLen := binary.BigEndian.Uint32(respLenBuf)
+
+	// Sanity check: max 100MB response
+	if respLen > 100*1024*1024 {
+		return nil, NewServerError(fmt.Sprintf("response too large: %d bytes", respLen), 0)
+	}
+
+	// Read msgpack data
+	respData := make([]byte, respLen)
+	if _, err := io.ReadFull(pc.reader, respData); err != nil {
+		return nil, NewConnectionError("read data error", err)
+	}
+
+	// Decode response
+	resp := mapPool.Get().(map[string]interface{})
+	for k := range resp {
+		delete(resp, k)
+	}
+	if err := msgpack.Unmarshal(respData, &resp); err != nil {
+		mapPool.Put(resp)
+		return nil, NewServerError(fmt.Sprintf("msgpack parse error: %v", err), 0)
 	}
 	if errMsg, ok := resp["error"].(string); ok && errMsg != "" {
 		mapPool.Put(resp)

@@ -27,7 +27,7 @@ func main() {
 	client.Obliterate("sections")
 	client.Obliterate("report")
 
-	fmt.Println("=== Job Flow Example ===\n")
+	fmt.Println("=== Job Flow Example ===")
 
 	// Create workers for child and parent queues
 	childProcessor := func(job *flashq.Job) (interface{}, error) {
@@ -67,7 +67,7 @@ func main() {
 	parentWorker.Start(ctx)
 
 	// Push flow: parent waits for children
-	fmt.Println("Pushing flow with parent and 3 children...\n")
+	fmt.Println("Pushing flow with parent and 3 children...")
 	flow, err := client.PushFlow(
 		"report",
 		map[string]interface{}{"type": "monthly"},

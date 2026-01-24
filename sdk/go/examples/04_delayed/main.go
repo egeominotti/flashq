@@ -26,7 +26,7 @@ func main() {
 	// Clean up first
 	client.Obliterate("delayed-demo")
 
-	fmt.Println("=== Delayed Jobs Example ===\n")
+	fmt.Println("=== Delayed Jobs Example ===")
 
 	// Push a delayed job (2 seconds delay)
 	opts := &flashq.PushOptions{

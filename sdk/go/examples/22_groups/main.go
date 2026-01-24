@@ -25,7 +25,7 @@ func main() {
 	}
 	defer client.Close()
 
-	fmt.Println("=== Group Support Example ===\n")
+	fmt.Println("=== Group Support Example ===")
 
 	// Clean up
 	client.Drain("orders")
@@ -63,7 +63,7 @@ func main() {
 		customerA1, customerA2, customerA3, customerB1, customerB2)
 
 	// Simulate a worker pulling and processing jobs
-	fmt.Println("\n--- Simulating Worker Processing ---\n")
+	fmt.Println("\n--- Simulating Worker Processing ---")
 
 	// First pull - should get one job from each group
 	job1, _ := client.Pull("orders", 1*time.Second)

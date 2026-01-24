@@ -45,7 +45,7 @@ func main() {
 	// Clean up
 	client.Obliterate("batch-inference")
 
-	fmt.Println("=== Batch Inference Example ===\n")
+	fmt.Println("=== Batch Inference Example ===")
 	fmt.Printf("Batch size: %d documents\n", batchSizeConst)
 	fmt.Printf("Concurrency: %d parallel jobs\n\n", concurrencyLimit)
 

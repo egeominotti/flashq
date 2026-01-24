@@ -27,7 +27,7 @@ func main() {
 	// Clean up first
 	client.Obliterate("options-demo")
 
-	fmt.Println("=== All Job Options Example ===\n")
+	fmt.Println("=== All Job Options Example ===")
 
 	// 1. Priority
 	fmt.Println("1. Priority (higher = processed first)")

@@ -92,7 +92,7 @@ func main() {
 	client.Obliterate(searchQueue)
 	client.Obliterate(generateQueue)
 
-	fmt.Println("=== RAG Pipeline Example ===\n")
+	fmt.Println("=== RAG Pipeline Example ===")
 
 	// Step 1: Document Embedding Worker
 	embedProcessor := func(job *flashq.Job) (interface{}, error) {

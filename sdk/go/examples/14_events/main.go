@@ -24,7 +24,7 @@ func main() {
 	setup.Obliterate("events-demo")
 	setup.Close()
 
-	fmt.Println("=== Worker Events Example ===\n")
+	fmt.Println("=== Worker Events Example ===")
 
 	// Push test jobs
 	client := flashq.New()

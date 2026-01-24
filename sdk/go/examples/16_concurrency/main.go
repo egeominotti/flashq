@@ -29,7 +29,7 @@ func main() {
 	client.Obliterate("parallel")
 	client.Close()
 
-	fmt.Println("=== Concurrency Example ===\n")
+	fmt.Println("=== Concurrency Example ===")
 
 	// Push 10 jobs
 	pushClient := flashq.New()
@@ -76,7 +76,7 @@ func main() {
 	worker := flashq.NewWorkerSingle("parallel", processor, nil, &workerOpts)
 
 	// Start worker
-	fmt.Println("\nStarting worker with concurrency=3\n")
+	fmt.Println("\nStarting worker with concurrency=3")
 	worker.Start(ctx)
 
 	// Wait for completion
@@ -89,7 +89,7 @@ func main() {
 	fmt.Printf("Processed: %d\n", worker.Processed())
 
 	// Now test server-side concurrency limit
-	fmt.Println("\n=== Server-Side Concurrency Limit ===\n")
+	fmt.Println("\n=== Server-Side Concurrency Limit ===")
 
 	atomic.StoreInt64(&active, 0)
 	atomic.StoreInt64(&maxActive, 0)
@@ -116,7 +116,7 @@ func main() {
 
 	worker2 := flashq.NewWorkerSingle("parallel", processor, nil, &workerOpts2)
 
-	fmt.Println("Starting worker with concurrency=5 (server limit=2)\n")
+	fmt.Println("Starting worker with concurrency=5 (server limit=2)")
 	worker2.Start(ctx)
 
 	time.Sleep(6 * time.Second)

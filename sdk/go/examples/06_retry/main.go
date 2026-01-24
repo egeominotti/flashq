@@ -27,7 +27,7 @@ func main() {
 	// Clean up first
 	client.Obliterate("retry-demo")
 
-	fmt.Println("=== Retry and DLQ Example ===\n")
+	fmt.Println("=== Retry and DLQ Example ===")
 
 	// Push a job with max 3 attempts and short backoff
 	opts := &flashq.PushOptions{

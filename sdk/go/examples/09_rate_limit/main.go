@@ -27,7 +27,7 @@ func main() {
 	// Clean up first
 	client.Obliterate("rate-limit-demo")
 
-	fmt.Println("=== Rate Limiting Example ===\n")
+	fmt.Println("=== Rate Limiting Example ===")
 
 	// Push 20 jobs
 	numJobs := 20

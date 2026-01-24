@@ -24,7 +24,7 @@ func main() {
 	setupClient.Obliterate("finished-demo")
 	setupClient.Close()
 
-	fmt.Println("=== Finished (Wait for Completion) Example ===\n")
+	fmt.Println("=== Finished (Wait for Completion) Example ===")
 
 	var wg sync.WaitGroup
 

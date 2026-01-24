@@ -30,7 +30,7 @@ func main() {
 	client.DeleteCron("daily-cleanup")
 	client.DeleteCron("every-minute")
 
-	fmt.Println("=== Cron Jobs Example ===\n")
+	fmt.Println("=== Cron Jobs Example ===")
 
 	// Add cron jobs with different schedules
 	// Format: sec min hour day month weekday

@@ -32,7 +32,7 @@ func main() {
 	// Clean up
 	client.Obliterate("benchmark")
 
-	fmt.Println("=== Benchmark Example ===\n")
+	fmt.Println("=== Benchmark Example ===")
 	fmt.Printf("Jobs: %d, Batch size: %d, Concurrency: %d\n\n", numJobs, batchSize, concurrency)
 
 	// Push in batches

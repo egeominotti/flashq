@@ -27,7 +27,7 @@ func main() {
 	// Clean up first
 	queue.Obliterate(false)
 
-	fmt.Println("=== Queue Control Example ===\n")
+	fmt.Println("=== Queue Control Example ===")
 
 	// Add jobs
 	fmt.Println("Adding 5 jobs...")
@@ -52,7 +52,7 @@ func main() {
 	fmt.Println("Trying to pull while paused...")
 	job, _ := queue.Client().Pull("controlled", 1*time.Second)
 	if job == nil {
-		fmt.Println("No job received (expected - queue is paused)\n")
+		fmt.Println("No job received (expected - queue is paused)")
 	}
 
 	// Resume queue

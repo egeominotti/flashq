@@ -28,7 +28,7 @@ func main() {
 	// Clean up first
 	queue.Obliterate(false)
 
-	fmt.Println("=== Queue API (BullMQ-Compatible) Example ===\n")
+	fmt.Println("=== Queue API (BullMQ-Compatible) Example ===")
 
 	// Add a single job
 	job, err := queue.Add("send-welcome", map[string]interface{}{

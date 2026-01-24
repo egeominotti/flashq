@@ -25,7 +25,7 @@ func main() {
 	client.Obliterate("progress-demo")
 	client.Close()
 
-	fmt.Println("=== Progress Tracking Example ===\n")
+	fmt.Println("=== Progress Tracking Example ===")
 
 	var wg sync.WaitGroup
 	var jobID int64

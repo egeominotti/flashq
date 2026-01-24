@@ -53,11 +53,11 @@ func main() {
 	// Clean up
 	client.Obliterate(queueName)
 
-	fmt.Println("=== AI Agent Workflow Example ===\n")
+	fmt.Println("=== AI Agent Workflow Example ===")
 
 	// Set rate limit for API cost control
 	client.SetRateLimit(queueName, 10)
-	fmt.Println("Set rate limit: 10 jobs/sec (API cost control)\n")
+	fmt.Println("Set rate limit: 10 jobs/sec (API cost control)")
 
 	// Create worker
 	processor := func(job *flashq.Job) (interface{}, error) {

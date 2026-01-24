@@ -26,7 +26,7 @@ func main() {
 	// Clean up first
 	client.Obliterate("unique-demo")
 
-	fmt.Println("=== Unique Jobs Example ===\n")
+	fmt.Println("=== Unique Jobs Example ===")
 
 	// Push a job with unique key
 	orderID := "ORDER-12345"

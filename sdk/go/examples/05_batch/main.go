@@ -27,7 +27,7 @@ func main() {
 	// Clean up first
 	client.Obliterate("batch-demo")
 
-	fmt.Println("=== Batch Operations Example ===\n")
+	fmt.Println("=== Batch Operations Example ===")
 
 	// Batch push
 	numJobs := 100
