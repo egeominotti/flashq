@@ -27,10 +27,10 @@ Example:
     ```
 """
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
 from .client import FlashQ
-from .worker import Worker, create_worker, WorkerState
+from .worker import Worker, create_worker, WorkerState, WorkerEvents
 from .queue import Queue
 from .types import (
     Job,
@@ -71,6 +71,7 @@ __all__ = [
     "Worker",
     "create_worker",
     "WorkerState",
+    "WorkerEvents",
     # Queue
     "Queue",
     # Types

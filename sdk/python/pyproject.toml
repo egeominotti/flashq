@@ -1,6 +1,6 @@
 [project]
 name = "flashq"
-version = "0.1.0"
+version = "0.1.1"
 description = "High-performance Python client for flashQ job queue"
 readme = "README.md"
 license = { text = "MIT" }
@@ -26,6 +26,7 @@ classifiers = [
 
 dependencies = [
     "msgpack>=1.0.0",
+    "aiohttp>=3.9.0",
 ]
 
 [project.optional-dependencies]

@@ -367,12 +367,21 @@ class FlashQ:
         response = await self._send(cmd)
         return response.get("success", False)
 
-    async def ack_batch(self, job_ids: list[int]) -> bool:
-        """Acknowledge multiple jobs."""
+    async def ack_batch(self, job_ids: list[int]) -> int:
+        """
+        Acknowledge multiple jobs.
+
+        Args:
+            job_ids: List of job IDs to acknowledge
+
+        Returns:
+            Number of jobs acknowledged
+        """
         validate_batch_size(len(job_ids), "ack")
 
         response = await self._send({"cmd": "ACKB", "ids": job_ids})
-        return response.get("success", False)
+        # Return count of acknowledged jobs (fallback to ids length for compatibility)
+        return response.get("count", response.get("ids", job_ids).__len__())
 
     async def fail(
         self,

@@ -35,17 +35,23 @@ class WorkerState(str, Enum):
     STOPPED = "stopped"
 
 
-class WorkerEvents:
-    """Worker event callbacks."""
+class WorkerEvents(Generic[T, R]):
+    """
+    Worker event callbacks with typed signatures.
+
+    Type Parameters:
+        T: Job data type
+        R: Job result type
+    """
 
     def __init__(self) -> None:
-        self.on_ready: Callable[[], Any] | None = None
-        self.on_active: Callable[[Job[Any]], Any] | None = None
-        self.on_completed: Callable[[Job[Any], Any], Any] | None = None
-        self.on_failed: Callable[[Job[Any], Exception], Any] | None = None
-        self.on_error: Callable[[Exception], Any] | None = None
-        self.on_stopping: Callable[[], Any] | None = None
-        self.on_stopped: Callable[[], Any] | None = None
+        self.on_ready: Callable[[], None | Awaitable[None]] | None = None
+        self.on_active: Callable[[Job[T], int], None | Awaitable[None]] | None = None
+        self.on_completed: Callable[[Job[T], R, int], None | Awaitable[None]] | None = None
+        self.on_failed: Callable[[Job[T], Exception, int], None | Awaitable[None]] | None = None
+        self.on_error: Callable[[Exception], None | Awaitable[None]] | None = None
+        self.on_stopping: Callable[[], None | Awaitable[None]] | None = None
+        self.on_stopped: Callable[[], None | Awaitable[None]] | None = None
 
 
 class Worker(Generic[T, R]):
@@ -101,7 +107,7 @@ class Worker(Generic[T, R]):
         self._shutdown_event = asyncio.Event()
 
         # Events
-        self.events = WorkerEvents()
+        self.events: WorkerEvents[T, R] = WorkerEvents()
 
         # Logger
         self._logger = Logger(
@@ -233,7 +239,7 @@ class Worker(Generic[T, R]):
                     continue
 
                 # Process jobs concurrently
-                tasks = [self._process_job(client, job) for job in jobs]
+                tasks = [self._process_job(client, job, worker_id) for job in jobs]
                 await asyncio.gather(*tasks, return_exceptions=True)
 
             except asyncio.CancelledError:
@@ -246,12 +252,12 @@ class Worker(Generic[T, R]):
 
                 await asyncio.sleep(WORKER_ERROR_RETRY_DELAY / 1000)
 
-    async def _process_job(self, client: FlashQ, job: Job[T]) -> None:
+    async def _process_job(self, client: FlashQ, job: Job[T], worker_id: int) -> None:
         """Process a single job."""
         self._processing += 1
 
         if self.events.on_active:
-            self._emit(self.events.on_active, job)
+            self._emit(self.events.on_active, job, worker_id)
 
         try:
             # Call processor
@@ -265,7 +271,7 @@ class Worker(Generic[T, R]):
             self._processed += 1
 
             if self.events.on_completed:
-                self._emit(self.events.on_completed, job, result)
+                self._emit(self.events.on_completed, job, result, worker_id)
 
         except Exception as e:
             self._failed_count += 1
@@ -281,7 +287,7 @@ class Worker(Generic[T, R]):
                 )
 
             if self.events.on_failed:
-                self._emit(self.events.on_failed, job, e)
+                self._emit(self.events.on_failed, job, e, worker_id)
 
         finally:
             self._processing -= 1
