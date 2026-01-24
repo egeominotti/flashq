@@ -90,6 +90,7 @@ def map_job_to_payload(data: T, options: PushOptions | None = None) -> JobPayloa
         job_id=opts.job_id,
         keep_completed_age=opts.keep_completed_age,
         keep_completed_count=opts.keep_completed_count,
+        group_id=opts.group_id,
     )
 
 
@@ -195,6 +196,64 @@ class FlashQ(FlashQConnection):
             job_ids=response.get("ids", []),
             failed=response.get("failed", []),
         )
+
+    async def push_flow(
+        self,
+        parent_queue: str,
+        parent_data: T,
+        children: list[dict[str, Any]],
+        parent_options: PushOptions | None = None,
+    ) -> dict[str, Any]:
+        """
+        Push a parent job with child dependencies.
+
+        The parent job will only be processed after all children complete.
+
+        Args:
+            parent_queue: Queue for parent job
+            parent_data: Data for parent job
+            children: List of child jobs with queue, data, and optional options
+            parent_options: Options for parent job
+
+        Returns:
+            Dict with parent_id and children_ids
+
+        Example:
+            ```python
+            flow = await client.push_flow(
+                "report",
+                {"type": "monthly"},
+                [
+                    {"queue": "sections", "data": {"section": "sales"}},
+                    {"queue": "sections", "data": {"section": "marketing"}},
+                ],
+            )
+            ```
+        """
+        validate_queue_name(parent_queue)
+
+        # Push children first
+        children_ids = []
+        for child in children:
+            child_queue = child.get("queue", parent_queue)
+            child_data = child.get("data", {})
+            child_opts = child.get("options")
+            if isinstance(child_opts, dict):
+                child_opts = PushOptions(**child_opts)
+
+            child_id = await self.push(child_queue, child_data, child_opts)
+            children_ids.append(child_id)
+
+        # Push parent with dependency on children
+        opts = parent_options or PushOptions()
+        opts.depends_on = children_ids
+
+        parent_id = await self.push(parent_queue, parent_data, opts)
+
+        return {
+            "parent_id": parent_id,
+            "children_ids": children_ids,
+        }
 
     async def pull(
         self,

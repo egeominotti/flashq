@@ -219,10 +219,10 @@ class FlashQConnection:
                 return await self._queue_request(command)
             raise ConnectionError("Not connected")
 
-        # Generate request ID
+        # Generate request ID (must be string for server)
         self._request_id += 1
         req_id = self._request_id
-        command["reqId"] = req_id
+        command["reqId"] = str(req_id)
 
         # Create pending request
         loop = asyncio.get_event_loop()
@@ -346,6 +346,12 @@ class FlashQConnection:
         """Handle incoming response."""
         req_id = response.get("reqId")
         if req_id is None:
+            return
+
+        # Convert string reqId back to int for lookup
+        try:
+            req_id = int(req_id)
+        except (ValueError, TypeError):
             return
 
         pending = self._pending_requests.pop(req_id, None)

@@ -35,6 +35,7 @@ from .queue import Queue
 from .types import (
     Job,
     JobState,
+    JobPayload,
     PushOptions,
     ClientOptions,
     WorkerOptions,
@@ -75,6 +76,7 @@ __all__ = [
     # Types
     "Job",
     "JobState",
+    "JobPayload",
     "PushOptions",
     "ClientOptions",
     "WorkerOptions",

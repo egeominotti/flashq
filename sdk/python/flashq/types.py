@@ -87,6 +87,7 @@ class PushOptions:
     job_id: str | None = None
     keep_completed_age: int | None = None
     keep_completed_count: int | None = None
+    group_id: str | None = None
 
 
 @dataclass
@@ -158,6 +159,7 @@ class JobPayload(Generic[T]):
     job_id: str | None = None
     keep_completed_age: int | None = None
     keep_completed_count: int | None = None
+    group_id: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for serialization."""
@@ -194,6 +196,8 @@ class JobPayload(Generic[T]):
             result["keepCompletedAge"] = self.keep_completed_age
         if self.keep_completed_count is not None:
             result["keepCompletedCount"] = self.keep_completed_count
+        if self.group_id is not None:
+            result["group_id"] = self.group_id
         return result
 
 

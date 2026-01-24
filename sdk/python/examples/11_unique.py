@@ -10,6 +10,9 @@ from flashq import FlashQ, PushOptions, DuplicateJobError
 
 async def main():
     async with FlashQ() as client:
+        # Clean up from previous runs
+        await client.drain("payments")
+
         # Push a job with unique key
         job_id = await client.push(
             "payments",
