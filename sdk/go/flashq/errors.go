@@ -6,8 +6,9 @@ import (
 
 // FlashQError is the base error type for all flashQ errors.
 type FlashQError struct {
-	Message string
-	Cause   error
+	Message   string
+	Cause     error
+	Retryable bool
 }
 
 func (e *FlashQError) Error() string {
@@ -21,14 +22,42 @@ func (e *FlashQError) Unwrap() error {
 	return e.Cause
 }
 
-// ConnectionError indicates a connection failure.
+// IsRetryable returns whether the error is retryable.
+func (e *FlashQError) IsRetryable() bool {
+	return e.Retryable
+}
+
+// IsRetryable checks if an error is retryable.
+func IsRetryable(err error) bool {
+	if e, ok := err.(*FlashQError); ok {
+		return e.Retryable
+	}
+	if e, ok := err.(*ConnectionError); ok {
+		return e.Retryable
+	}
+	if e, ok := err.(*TimeoutError); ok {
+		return e.Retryable
+	}
+	if e, ok := err.(*QueuePausedError); ok {
+		return e.Retryable
+	}
+	if e, ok := err.(*RateLimitError); ok {
+		return e.Retryable
+	}
+	if e, ok := err.(*ConcurrencyLimitError); ok {
+		return e.Retryable
+	}
+	return false
+}
+
+// ConnectionError indicates a connection failure (retryable).
 type ConnectionError struct {
 	FlashQError
 }
 
 // NewConnectionError creates a new connection error.
 func NewConnectionError(message string, cause error) *ConnectionError {
-	return &ConnectionError{FlashQError{Message: message, Cause: cause}}
+	return &ConnectionError{FlashQError{Message: message, Cause: cause, Retryable: true}}
 }
 
 // AuthenticationError indicates authentication failure.
@@ -41,14 +70,14 @@ func NewAuthenticationError(message string) *AuthenticationError {
 	return &AuthenticationError{FlashQError{Message: message}}
 }
 
-// TimeoutError indicates a timeout occurred.
+// TimeoutError indicates a timeout occurred (retryable).
 type TimeoutError struct {
 	FlashQError
 }
 
 // NewTimeoutError creates a new timeout error.
 func NewTimeoutError(message string) *TimeoutError {
-	return &TimeoutError{FlashQError{Message: message}}
+	return &TimeoutError{FlashQError{Message: message, Retryable: true}}
 }
 
 // ValidationError indicates invalid input.
@@ -114,7 +143,7 @@ func NewDuplicateJobError(uniqueKey string) *DuplicateJobError {
 	}
 }
 
-// QueuePausedError indicates the queue is paused.
+// QueuePausedError indicates the queue is paused (retryable).
 type QueuePausedError struct {
 	FlashQError
 	Queue string
@@ -123,12 +152,12 @@ type QueuePausedError struct {
 // NewQueuePausedError creates a new queue paused error.
 func NewQueuePausedError(queue string) *QueuePausedError {
 	return &QueuePausedError{
-		FlashQError: FlashQError{Message: fmt.Sprintf("queue is paused: %s", queue)},
+		FlashQError: FlashQError{Message: fmt.Sprintf("queue is paused: %s", queue), Retryable: true},
 		Queue:       queue,
 	}
 }
 
-// RateLimitError indicates rate limit was exceeded.
+// RateLimitError indicates rate limit was exceeded (retryable).
 type RateLimitError struct {
 	FlashQError
 	Queue string
@@ -137,12 +166,12 @@ type RateLimitError struct {
 // NewRateLimitError creates a new rate limit error.
 func NewRateLimitError(queue string) *RateLimitError {
 	return &RateLimitError{
-		FlashQError: FlashQError{Message: fmt.Sprintf("rate limit exceeded for queue: %s", queue)},
+		FlashQError: FlashQError{Message: fmt.Sprintf("rate limit exceeded for queue: %s", queue), Retryable: true},
 		Queue:       queue,
 	}
 }
 
-// ConcurrencyLimitError indicates concurrency limit was reached.
+// ConcurrencyLimitError indicates concurrency limit was reached (retryable).
 type ConcurrencyLimitError struct {
 	FlashQError
 	Queue string
@@ -151,7 +180,7 @@ type ConcurrencyLimitError struct {
 // NewConcurrencyLimitError creates a new concurrency limit error.
 func NewConcurrencyLimitError(queue string) *ConcurrencyLimitError {
 	return &ConcurrencyLimitError{
-		FlashQError: FlashQError{Message: fmt.Sprintf("concurrency limit reached for queue: %s", queue)},
+		FlashQError: FlashQError{Message: fmt.Sprintf("concurrency limit reached for queue: %s", queue), Retryable: true},
 		Queue:       queue,
 	}
 }

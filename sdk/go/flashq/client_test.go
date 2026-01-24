@@ -143,12 +143,12 @@ func TestPullBatch(t *testing.T) {
 	for i, j := range jobs {
 		ids[i] = j.ID
 	}
-	success, err := client.AckBatch(ids)
+	count, err := client.AckBatch(ids)
 	if err != nil {
 		t.Fatalf("AckBatch failed: %v", err)
 	}
-	if !success {
-		t.Error("AckBatch should return success=true")
+	if count != len(ids) {
+		t.Errorf("AckBatch should return count %d, got %d", len(ids), count)
 	}
 
 	client.Obliterate(queue)

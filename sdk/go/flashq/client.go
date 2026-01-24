@@ -218,15 +218,20 @@ func (c *Client) Ack(jobID int64, result interface{}) (bool, error) {
 }
 
 // AckBatch acknowledges multiple jobs.
-func (c *Client) AckBatch(jobIDs []int64) (bool, error) {
+// Returns the number of jobs acknowledged.
+func (c *Client) AckBatch(jobIDs []int64) (int, error) {
 	if len(jobIDs) > maxBatchSize {
-		return false, NewValidationError(fmt.Sprintf("batch size (%d) exceeds max (%d)", len(jobIDs), maxBatchSize))
+		return 0, NewValidationError(fmt.Sprintf("batch size (%d) exceeds max (%d)", len(jobIDs), maxBatchSize))
 	}
-	_, err := c.send(map[string]interface{}{"cmd": "ACKB", "ids": jobIDs})
+	resp, err := c.send(map[string]interface{}{"cmd": "ACKB", "ids": jobIDs})
 	if err != nil {
-		return false, err
+		return 0, err
 	}
-	return true, nil // No error = success
+	// Return count of acknowledged jobs (fallback to ids length for compatibility)
+	if count, ok := resp["count"].(float64); ok {
+		return int(count), nil
+	}
+	return len(jobIDs), nil
 }
 
 // Fail fails a job (will retry or go to DLQ).

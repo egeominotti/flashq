@@ -13,11 +13,12 @@ import (
 type JobProcessor func(job *Job) (interface{}, error)
 
 // WorkerEventHandler handles worker events.
+// Events that involve jobs include the workerID (processor goroutine index).
 type WorkerEventHandler struct {
 	OnReady     func()
-	OnActive    func(job *Job)
-	OnCompleted func(job *Job, result interface{})
-	OnFailed    func(job *Job, err error)
+	OnActive    func(job *Job, workerID int)
+	OnCompleted func(job *Job, result interface{}, workerID int)
+	OnFailed    func(job *Job, err error, workerID int)
 	OnError     func(err error)
 	OnStopping  func()
 	OnStopped   func()
@@ -82,16 +83,17 @@ func (w *Worker) Processed() int64 { return w.processed.Load() }
 func (w *Worker) Failed() int64 { return w.failed.Load() }
 
 // On registers event handlers.
+// For active/completed/failed events, handler signature includes workerID.
 func (w *Worker) On(event string, handler interface{}) *Worker {
 	switch event {
 	case "ready":
 		if h, ok := handler.(func()); ok { w.events.OnReady = h }
 	case "active":
-		if h, ok := handler.(func(job *Job)); ok { w.events.OnActive = h }
+		if h, ok := handler.(func(job *Job, workerID int)); ok { w.events.OnActive = h }
 	case "completed":
-		if h, ok := handler.(func(job *Job, result interface{})); ok { w.events.OnCompleted = h }
+		if h, ok := handler.(func(job *Job, result interface{}, workerID int)); ok { w.events.OnCompleted = h }
 	case "failed":
-		if h, ok := handler.(func(job *Job, err error)); ok { w.events.OnFailed = h }
+		if h, ok := handler.(func(job *Job, err error, workerID int)); ok { w.events.OnFailed = h }
 	case "error":
 		if h, ok := handler.(func(err error)); ok { w.events.OnError = h }
 	case "stopping":
@@ -132,7 +134,7 @@ func (w *Worker) Start(ctx context.Context) error {
 	// Start processor goroutines
 	for i := 0; i < concurrency; i++ {
 		w.wg.Add(1)
-		go w.processorLoop()
+		go w.processorLoop(i)
 	}
 
 	w.state.Store(int32(WorkerStateRunning))
@@ -177,7 +179,7 @@ func (w *Worker) pullerLoop(id int) {
 }
 
 // processorLoop processes jobs from channel.
-func (w *Worker) processorLoop() {
+func (w *Worker) processorLoop(workerID int) {
 	defer w.wg.Done()
 	for {
 		select {
@@ -185,29 +187,29 @@ func (w *Worker) processorLoop() {
 			return
 		case job := <-w.jobChan:
 			if job == nil { return }
-			w.processJob(job)
+			w.processJob(job, workerID)
 		}
 	}
 }
 
-func (w *Worker) processJob(job *Job) {
+func (w *Worker) processJob(job *Job, workerID int) {
 	w.processing.Add(1)
 	defer w.processing.Add(-1)
 
-	if w.events.OnActive != nil { w.events.OnActive(job) }
+	if w.events.OnActive != nil { w.events.OnActive(job, workerID) }
 
 	result, err := w.processor(job)
 
 	if err != nil {
 		w.failed.Add(1)
 		w.client.Fail(job.ID, err.Error())
-		if w.events.OnFailed != nil { w.events.OnFailed(job, err) }
+		if w.events.OnFailed != nil { w.events.OnFailed(job, err, workerID) }
 		return
 	}
 
 	w.client.Ack(job.ID, result)
 	w.processed.Add(1)
-	if w.events.OnCompleted != nil { w.events.OnCompleted(job, result) }
+	if w.events.OnCompleted != nil { w.events.OnCompleted(job, result, workerID) }
 }
 
 // Stop stops the worker gracefully.
