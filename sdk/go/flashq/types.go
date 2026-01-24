@@ -5,6 +5,9 @@ import (
 	"time"
 )
 
+// Version is the SDK version.
+const Version = "0.3.6"
+
 // JobState represents the state of a job.
 type JobState string
 

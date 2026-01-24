@@ -27,7 +27,7 @@ Example:
     ```
 """
 
-__version__ = "0.1.1"
+__version__ = "0.3.6"
 
 from .client import FlashQ
 from .worker import Worker, create_worker, WorkerState, WorkerEvents
