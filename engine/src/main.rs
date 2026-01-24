@@ -4,6 +4,7 @@ mod protocol;
 mod queue;
 mod runtime;
 mod server;
+mod startup;
 mod telemetry;
 
 use mimalloc::MiMalloc;
@@ -75,33 +76,41 @@ async fn shutdown_signal(shutdown_tx: broadcast::Sender<()>) {
     let _ = shutdown_tx.send(());
 }
 
-/// Print ASCII banner at startup
-fn print_banner() {
-    let version = env!("CARGO_PKG_VERSION");
-    println!(
-        r#"
-    __ _           _      ___
-   / _| | __ _ ___| |__  / _ \
-  | |_| |/ _` / __| '_ \| | | |
-  |  _| | (_| \__ \ | | | |_| |
-  |_| |_|\__,_|___/_| |_|\__\_\
+/// Build startup configuration from environment
+fn build_startup_config(
+    auth_tokens: &[String],
+    tcp_port: u16,
+    http_port: Option<u16>,
+    grpc_port: Option<u16>,
+    unix_socket: Option<String>,
+    has_persistence: bool,
+    s3_backup: bool,
+) -> startup::StartupConfig {
+    let mut config = startup::StartupConfig::new();
 
-  High-Performance Job Queue v{}
-"#,
-        version
-    );
+    config.auth_enabled = !auth_tokens.is_empty();
+    config.token_count = auth_tokens.len();
+    config.tcp_port = tcp_port;
+    config.http_port = http_port;
+    config.grpc_port = grpc_port;
+    config.unix_socket = unix_socket;
+    config.s3_backup = s3_backup;
+
+    if has_persistence {
+        config.mode = "SQLite persistence".to_string();
+    }
+
+    if let Some(port) = http_port {
+        config.docs_url = Some(format!("http://localhost:{}/docs", port));
+    }
+
+    config
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize telemetry (structured logging)
     telemetry::init();
-
-    // Print ASCII banner
-    print_banner();
-
-    // Print runtime information
-    runtime::print_runtime_info();
 
     // Create shutdown channel for graceful shutdown
     let (shutdown_tx, _) = broadcast::channel::<()>(1);
@@ -118,6 +127,40 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // gRPC is enabled by default, can be disabled with NO_GRPC=1
     let enable_grpc = std::env::var("NO_GRPC").is_err();
 
+    // Parse ports from environment
+    let tcp_port = std::env::var("TCP_PORT")
+        .ok()
+        .and_then(|p| p.parse().ok())
+        .unwrap_or(DEFAULT_TCP_PORT);
+
+    let http_port = if enable_http {
+        Some(
+            std::env::var("HTTP_PORT")
+                .ok()
+                .and_then(|p| p.parse().ok())
+                .unwrap_or(DEFAULT_HTTP_PORT),
+        )
+    } else {
+        None
+    };
+
+    let grpc_port = if enable_grpc {
+        Some(
+            std::env::var("GRPC_PORT")
+                .ok()
+                .and_then(|p| p.parse().ok())
+                .unwrap_or(DEFAULT_GRPC_PORT),
+        )
+    } else {
+        None
+    };
+
+    let unix_socket = if use_unix {
+        Some(UNIX_SOCKET_PATH.to_string())
+    } else {
+        None
+    };
+
     // Parse auth tokens from environment
     let auth_tokens: Vec<String> = std::env::var("AUTH_TOKENS")
         .unwrap_or_default()
@@ -126,6 +169,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .map(|s| s.to_string())
         .collect();
 
+    // Check persistence mode
+    let has_persistence = std::env::var("DATA_PATH")
+        .or_else(|_| std::env::var("SQLITE_PATH"))
+        .is_ok();
+
+    // Check S3 backup
+    let s3_backup = std::env::var("S3_BUCKET").is_ok();
+
+    // Print startup summary
+    let startup_config = build_startup_config(
+        &auth_tokens,
+        tcp_port,
+        http_port,
+        grpc_port,
+        unix_socket.clone(),
+        has_persistence,
+        s3_backup,
+    );
+    startup::print_startup_summary(&startup_config);
+
     // Create QueueManager with optional SQLite persistence
     let queue_manager = create_queue_manager(&auth_tokens);
 
@@ -133,17 +196,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     start_s3_backup_task(&queue_manager).await;
 
     // Start HTTP server if enabled
-    if enable_http {
-        start_http_server(&queue_manager, &shutdown_tx).await;
+    if let Some(port) = http_port {
+        start_http_server_on_port(&queue_manager, &shutdown_tx, port).await;
     }
 
     // Start gRPC server if enabled
-    if enable_grpc {
-        start_grpc_server(&queue_manager).await;
+    if let Some(port) = grpc_port {
+        start_grpc_server_on_port(&queue_manager, port).await;
     }
 
     // Run main TCP server loop
-    run_tcp_server(use_unix, &queue_manager, &shutdown_tx).await?;
+    run_tcp_server(use_unix, &queue_manager, &shutdown_tx, tcp_port).await?;
 
     // Graceful shutdown
     graceful_shutdown(&queue_manager).await;
@@ -167,27 +230,17 @@ fn create_queue_manager(auth_tokens: &[String]) -> Arc<QueueManager> {
             }
             qm
         }
-        (None, true) => {
-            info!("In-memory mode");
-            QueueManager::new(false)
-        }
-        (None, false) => {
-            info!(
-                token_count = auth_tokens.len(),
-                "Running in-memory mode with authentication"
-            );
-            QueueManager::with_auth_tokens(false, auth_tokens.to_vec())
-        }
+        (None, true) => QueueManager::new(false),
+        (None, false) => QueueManager::with_auth_tokens(false, auth_tokens.to_vec()),
     }
 }
 
-/// Start HTTP server in background
-async fn start_http_server(queue_manager: &Arc<QueueManager>, shutdown_tx: &broadcast::Sender<()>) {
-    let http_port = std::env::var("HTTP_PORT")
-        .ok()
-        .and_then(|p| p.parse().ok())
-        .unwrap_or(DEFAULT_HTTP_PORT);
-
+/// Start HTTP server in background on specified port
+async fn start_http_server_on_port(
+    queue_manager: &Arc<QueueManager>,
+    shutdown_tx: &broadcast::Sender<()>,
+    http_port: u16,
+) {
     if http_port == 0 {
         error!(port = http_port, "Invalid HTTP port, must be 1-65535");
         std::process::exit(1);
@@ -205,13 +258,6 @@ async fn start_http_server(queue_manager: &Arc<QueueManager>, shutdown_tx: &broa
                 return;
             }
         };
-        info!(
-            version = env!("CARGO_PKG_VERSION"),
-            port = http_port,
-            endpoint = %format!("http://0.0.0.0:{}", http_port),
-            docs = %format!("http://localhost:{}/docs", http_port),
-            "HTTP API ready"
-        );
         if let Err(e) = axum::serve(listener, router)
             .with_graceful_shutdown(async move {
                 let _ = shutdown_rx.recv().await;
@@ -223,13 +269,8 @@ async fn start_http_server(queue_manager: &Arc<QueueManager>, shutdown_tx: &broa
     });
 }
 
-/// Start gRPC server in background
-async fn start_grpc_server(queue_manager: &Arc<QueueManager>) {
-    let grpc_port = std::env::var("GRPC_PORT")
-        .ok()
-        .and_then(|p| p.parse().ok())
-        .unwrap_or(DEFAULT_GRPC_PORT);
-
+/// Start gRPC server in background on specified port
+async fn start_grpc_server_on_port(queue_manager: &Arc<QueueManager>, grpc_port: u16) {
     if grpc_port == 0 {
         error!(port = grpc_port, "Invalid gRPC port, must be 1-65535");
         std::process::exit(1);
@@ -246,12 +287,6 @@ async fn start_grpc_server(queue_manager: &Arc<QueueManager>) {
                 return;
             }
         };
-        info!(
-            version = env!("CARGO_PKG_VERSION"),
-            port = grpc_port,
-            endpoint = %format!("grpc://0.0.0.0:{}", grpc_port),
-            "gRPC API ready"
-        );
         if let Err(e) = grpc::run_grpc_server(addr, qm_grpc).await {
             error!(error = %e, "gRPC server error");
         }
@@ -263,18 +298,13 @@ async fn run_tcp_server(
     use_unix: bool,
     queue_manager: &Arc<QueueManager>,
     shutdown_tx: &broadcast::Sender<()>,
+    tcp_port: u16,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut shutdown_rx = shutdown_tx.subscribe();
 
     if use_unix {
         let _ = std::fs::remove_file(UNIX_SOCKET_PATH);
         let listener = UnixListener::bind(UNIX_SOCKET_PATH)?;
-        info!(
-            version = env!("CARGO_PKG_VERSION"),
-            socket = UNIX_SOCKET_PATH,
-            endpoint = %format!("unix://{}", UNIX_SOCKET_PATH),
-            "flashQ server ready"
-        );
 
         loop {
             tokio::select! {
@@ -303,18 +333,7 @@ async fn run_tcp_server(
             }
         }
     } else {
-        let port = std::env::var("PORT")
-            .ok()
-            .and_then(|p| p.parse().ok())
-            .unwrap_or(DEFAULT_TCP_PORT);
-
-        let listener = TcpListener::bind(format!("0.0.0.0:{}", port)).await?;
-        info!(
-            version = env!("CARGO_PKG_VERSION"),
-            port = port,
-            endpoint = %format!("tcp://0.0.0.0:{}", port),
-            "flashQ server ready"
-        );
+        let listener = TcpListener::bind(format!("0.0.0.0:{}", tcp_port)).await?;
 
         loop {
             tokio::select! {

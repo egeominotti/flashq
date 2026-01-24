@@ -74,6 +74,7 @@ prost = "0.13"
 once_cell = "1.19"
 futures = "0.3"
 url = "2"                           # URL parsing for webhook validation
+atty = "0.2"                        # Terminal detection for colored output
 
 # Observability
 tracing = "0.1"

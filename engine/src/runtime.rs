@@ -32,7 +32,8 @@ pub fn is_linux() -> bool {
     cfg!(target_os = "linux")
 }
 
-/// Print runtime information at startup
+/// Print runtime information at startup (legacy, use runtime_description() instead)
+#[allow(dead_code)]
 pub fn print_runtime_info() {
     #[cfg(all(target_os = "linux", feature = "io-uring"))]
     info!(
