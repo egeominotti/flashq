@@ -255,6 +255,11 @@ export class FlashQ extends FlashQConnection {
     return jobs.heartbeat(this, jobId);
   }
 
+  /** Send partial result for streaming jobs (LLM tokens, chunks, etc.) */
+  partial(jobId: number, data: unknown, index?: number): Promise<void> {
+    return jobs.partial(this, jobId, data, index);
+  }
+
   // === QUEUE CONTROL ===
 
   /** Pause a queue */

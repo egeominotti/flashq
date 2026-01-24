@@ -214,6 +214,27 @@ func (c *Client) Heartbeat(jobID int64) (bool, error) {
 	return true, nil // No error = success
 }
 
+// Partial sends partial result for streaming jobs.
+// Emits a "partial" event that can be subscribed via SSE/WebSocket.
+// Useful for LLM token streaming, chunked responses, etc.
+//
+// Example:
+//
+//	for token := range llm.Generate(prompt) {
+//	    client.Partial(job.ID, map[string]any{"token": token}, nil)
+//	}
+func (c *Client) Partial(jobID int64, data interface{}, index *int) (bool, error) {
+	cmd := map[string]interface{}{"cmd": "PARTIAL", "id": jobID, "data": data}
+	if index != nil {
+		cmd["index"] = *index
+	}
+	_, err := c.send(cmd)
+	if err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
 // Log adds log entry to job.
 func (c *Client) Log(jobID int64, message, level string) (bool, error) {
 	if level == "" {

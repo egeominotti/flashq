@@ -321,3 +321,34 @@ export async function heartbeat(client: IFlashQClient, jobId: number): Promise<v
     job_id: jobId,
   });
 }
+
+/**
+ * Send a partial result for streaming jobs.
+ * Emits a "partial" event that can be subscribed via SSE/WebSocket.
+ *
+ * @param client - FlashQ client instance
+ * @param jobId - Job ID (must be in processing)
+ * @param data - Partial result data
+ * @param index - Optional chunk index for ordering
+ *
+ * @example
+ * ```typescript
+ * // LLM token streaming
+ * for await (const token of llm.generate(prompt)) {
+ *   await client.partial(job.id, { token });
+ * }
+ * ```
+ */
+export async function partial(
+  client: IFlashQClient,
+  jobId: number,
+  data: unknown,
+  index?: number
+): Promise<void> {
+  await client.send<{ ok: boolean }>({
+    cmd: 'PARTIAL',
+    id: jobId,
+    data,
+    index,
+  });
+}

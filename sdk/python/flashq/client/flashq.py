@@ -550,6 +550,40 @@ class FlashQ:
         response = await self._send({"cmd": "HEARTBEAT", "id": job_id})
         return response.get("success", False)
 
+    async def partial(
+        self,
+        job_id: int,
+        data: Any,
+        index: int | None = None,
+    ) -> bool:
+        """
+        Send partial result for streaming jobs.
+
+        Emits a "partial" event that can be subscribed via SSE/WebSocket.
+        Useful for LLM token streaming, chunked responses, etc.
+
+        Args:
+            job_id: Job ID (must be in processing)
+            data: Partial result data
+            index: Optional chunk index for ordering
+
+        Returns:
+            True if sent successfully
+
+        Example:
+            ```python
+            # LLM token streaming
+            async for token in llm.generate(prompt):
+                await client.partial(job.id, {"token": token})
+            ```
+        """
+        cmd: dict[str, Any] = {"cmd": "PARTIAL", "id": job_id, "data": data}
+        if index is not None:
+            cmd["index"] = index
+
+        response = await self._send(cmd)
+        return response.get("success", False)
+
     async def log(
         self,
         job_id: int,
