@@ -2,12 +2,13 @@
 
 use axum::{extract::State, response::Json};
 use serde::Serialize;
+use utoipa::ToSchema;
 
 use super::settings::get_start_time;
 use super::types::{ApiResponse, AppState};
 
 /// Health check response.
-#[derive(Serialize)]
+#[derive(Serialize, ToSchema)]
 pub struct HealthResponse {
     pub status: &'static str,
     pub uptime_ms: u64,
@@ -15,6 +16,14 @@ pub struct HealthResponse {
 }
 
 /// Health check endpoint.
+#[utoipa::path(
+    get,
+    path = "/health",
+    tag = "Health",
+    responses(
+        (status = 200, description = "Health status", body = HealthResponse)
+    )
+)]
 pub async fn health_check(State(qm): State<AppState>) -> Json<ApiResponse<HealthResponse>> {
     let uptime = get_start_time()
         .map(|t| t.elapsed().as_millis() as u64)

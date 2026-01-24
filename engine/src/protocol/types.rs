@@ -6,9 +6,10 @@ use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use utoipa::ToSchema;
 
 /// Job state enum - similar to BullMQ states
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum JobState {
     Waiting,         // In queue, ready to be processed
@@ -43,7 +44,7 @@ impl JobState {
 }
 
 /// Job log entry for debugging
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct JobLogEntry {
     pub timestamp: u64,
     pub message: String,
@@ -51,7 +52,7 @@ pub struct JobLogEntry {
 }
 
 /// Flow child definition
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct FlowChild {
     pub queue: String,
     pub data: Value,
@@ -62,18 +63,19 @@ pub struct FlowChild {
 }
 
 /// Flow result
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, ToSchema)]
 #[allow(dead_code)]
 pub struct FlowResult {
     pub parent_id: u64,
     pub children_ids: Vec<u64>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct Job {
     pub id: u64,
     pub queue: String,
     /// Job payload data. Wrapped in Arc for cheap cloning (avoids copying large JSON).
+    #[schema(value_type = Value)]
     pub data: Arc<Value>,
     pub priority: i32,
     pub created_at: u64,
@@ -208,7 +210,7 @@ impl PartialOrd for Job {
 }
 
 /// Job with its current state (for browser/API)
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct JobBrowserItem {
     #[serde(flatten)]
     pub job: Job,
@@ -216,7 +218,7 @@ pub struct JobBrowserItem {
 }
 
 /// Historical metrics point for charts
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct MetricsHistoryPoint {
     pub timestamp: u64,
     pub queued: usize,
@@ -227,7 +229,7 @@ pub struct MetricsHistoryPoint {
     pub latency_ms: f64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct CronJob {
     pub name: String,
     pub queue: String,
@@ -244,7 +246,7 @@ pub struct CronJob {
     pub limit: Option<u64>, // Max executions (None = infinite)
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct MetricsData {
     pub total_pushed: u64,
     pub total_completed: u64,
@@ -254,7 +256,7 @@ pub struct MetricsData {
     pub queues: Vec<QueueMetrics>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct QueueMetrics {
     pub name: String,
     pub pending: usize,
@@ -263,14 +265,14 @@ pub struct QueueMetrics {
     pub rate_limit: Option<u32>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct ProgressInfo {
     pub id: u64,
     pub progress: u8,
     pub message: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct QueueInfo {
     pub name: String,
     pub pending: usize,
@@ -285,7 +287,7 @@ pub struct QueueInfo {
 
 // === Worker Registration ===
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct WorkerInfo {
     pub id: String,
     pub queues: Vec<String>,
@@ -296,7 +298,7 @@ pub struct WorkerInfo {
 
 // === Webhooks ===
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct WebhookConfig {
     pub id: String,
     pub url: String,
@@ -308,7 +310,7 @@ pub struct WebhookConfig {
 
 // === Events (for SSE/WebSocket) ===
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct JobEvent {
     pub event_type: String, // "completed", "failed", "progress", "pushed"
     pub queue: String,

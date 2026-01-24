@@ -5,6 +5,7 @@
 
 use axum::response::Json;
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 
 use crate::http::types::ApiResponse;
 use crate::queue::sqlite::{
@@ -19,7 +20,7 @@ use super::{get_db_path, parse_env, parse_env_bool, S3BackupSettings};
 // ============================================================================
 
 /// S3 settings request.
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
 pub struct SaveS3SettingsRequest {
     pub enabled: bool,
     pub endpoint: Option<String>,
@@ -65,7 +66,7 @@ impl SaveS3SettingsRequest {
 }
 
 /// S3 backup info response.
-#[derive(Serialize)]
+#[derive(Serialize, ToSchema)]
 pub struct S3BackupInfo {
     pub key: String,
     pub size: i64,
@@ -73,7 +74,7 @@ pub struct S3BackupInfo {
 }
 
 /// Restore request.
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
 pub struct RestoreRequest {
     pub key: String,
 }
@@ -83,6 +84,15 @@ pub struct RestoreRequest {
 // ============================================================================
 
 /// Save S3 settings (runtime configuration).
+#[utoipa::path(
+    post,
+    path = "/s3/settings",
+    tag = "S3",
+    request_body = SaveS3SettingsRequest,
+    responses(
+        (status = 200, description = "S3 configuration saved")
+    )
+)]
 pub async fn save_s3_settings(
     Json(req): Json<SaveS3SettingsRequest>,
 ) -> Json<ApiResponse<&'static str>> {
@@ -116,6 +126,15 @@ pub async fn save_s3_settings(
 }
 
 /// Test S3 connection.
+#[utoipa::path(
+    post,
+    path = "/s3/test",
+    tag = "S3",
+    request_body = SaveS3SettingsRequest,
+    responses(
+        (status = 200, description = "Connection successful")
+    )
+)]
 pub async fn test_s3_connection(
     Json(req): Json<SaveS3SettingsRequest>,
 ) -> Json<ApiResponse<&'static str>> {
@@ -139,6 +158,19 @@ pub async fn test_s3_connection(
 }
 
 /// Get current S3 configuration (without secrets).
+///
+/// Returns the current S3 backup configuration. For security, access keys
+/// and secret keys are not included in the response. The configuration
+/// shows endpoint, bucket, region, backup interval, retention count, and
+/// compression settings.
+#[utoipa::path(
+    get,
+    path = "/s3/settings",
+    tag = "S3",
+    responses(
+        (status = 200, description = "Current S3 backup configuration (secrets excluded)", body = S3BackupSettings)
+    )
+)]
 pub async fn get_s3_settings() -> Json<ApiResponse<S3BackupSettings>> {
     // Check runtime config first
     if let Some(config) = get_runtime_s3_config() {
@@ -171,6 +203,19 @@ pub async fn get_s3_settings() -> Json<ApiResponse<S3BackupSettings>> {
 // ============================================================================
 
 /// Trigger manual S3 backup.
+///
+/// Initiates an immediate backup of the SQLite database to S3.
+/// The backup is compressed (if enabled) and uploaded to the configured
+/// S3 bucket. Requires both DATA_PATH and S3 configuration to be set.
+#[utoipa::path(
+    post,
+    path = "/s3/backup",
+    tag = "S3",
+    responses(
+        (status = 200, description = "Backup completed successfully"),
+        (status = 400, description = "S3 backup not configured or DATA_PATH missing")
+    )
+)]
 pub async fn trigger_s3_backup() -> Json<ApiResponse<&'static str>> {
     let config = match S3BackupConfig::from_env() {
         Some(c) => c,
@@ -196,6 +241,19 @@ pub async fn trigger_s3_backup() -> Json<ApiResponse<&'static str>> {
 }
 
 /// List available S3 backups.
+///
+/// Returns a list of all backup files stored in the S3 bucket, including
+/// file size and last modified timestamp. Backups are sorted by date with
+/// most recent first.
+#[utoipa::path(
+    get,
+    path = "/s3/backups",
+    tag = "S3",
+    responses(
+        (status = 200, description = "List of available backups", body = Vec<S3BackupInfo>),
+        (status = 400, description = "S3 backup not configured")
+    )
+)]
 pub async fn list_s3_backups() -> Json<ApiResponse<Vec<S3BackupInfo>>> {
     let config = match S3BackupConfig::from_env() {
         Some(c) => c,
@@ -225,6 +283,20 @@ pub async fn list_s3_backups() -> Json<ApiResponse<Vec<S3BackupInfo>>> {
 }
 
 /// Restore from S3 backup.
+///
+/// Downloads a backup file from S3 and restores it as the active database.
+/// The current database is backed up before replacement. A server restart
+/// is required after restoration to load the new data.
+#[utoipa::path(
+    post,
+    path = "/s3/restore",
+    tag = "S3",
+    request_body = RestoreRequest,
+    responses(
+        (status = 200, description = "Restore completed, restart required"),
+        (status = 400, description = "S3 backup not configured or DATA_PATH missing")
+    )
+)]
 pub async fn restore_s3_backup(Json(req): Json<RestoreRequest>) -> Json<ApiResponse<&'static str>> {
     let config = match S3BackupConfig::from_env() {
         Some(c) => c,

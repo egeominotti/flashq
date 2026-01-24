@@ -209,6 +209,7 @@ async fn start_http_server(queue_manager: &Arc<QueueManager>, shutdown_tx: &broa
             version = env!("CARGO_PKG_VERSION"),
             port = http_port,
             endpoint = %format!("http://0.0.0.0:{}", http_port),
+            docs = %format!("http://localhost:{}/docs", http_port),
             "HTTP API ready"
         );
         if let Err(e) = axum::serve(listener, router)

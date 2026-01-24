@@ -8,6 +8,7 @@ use axum::{extract::State, response::Json};
 use parking_lot::Mutex;
 use serde::Serialize;
 use sysinfo::{Pid, ProcessRefreshKind, ProcessesToUpdate, System};
+use utoipa::ToSchema;
 
 use crate::http::types::{ApiResponse, AppState};
 
@@ -29,7 +30,7 @@ pub fn get_system() -> &'static Mutex<System> {
 // ============================================================================
 
 /// Disk I/O metrics for the process.
-#[derive(Serialize, Clone, Default)]
+#[derive(Serialize, Clone, Default, ToSchema)]
 pub struct DiskIoMetrics {
     pub read_bytes: u64,
     pub written_bytes: u64,
@@ -38,7 +39,7 @@ pub struct DiskIoMetrics {
 }
 
 /// Detailed process metrics from sysinfo.
-#[derive(Serialize, Clone, Default)]
+#[derive(Serialize, Clone, Default, ToSchema)]
 pub struct ProcessMetrics {
     pub memory_rss_mb: f64,
     pub memory_virtual_mb: f64,
@@ -50,7 +51,7 @@ pub struct ProcessMetrics {
 }
 
 /// System metrics response (full telemetry).
-#[derive(Serialize)]
+#[derive(Serialize, ToSchema)]
 pub struct SystemMetrics {
     // Process memory
     pub memory_used_mb: f64,
@@ -128,6 +129,18 @@ pub fn get_total_memory_mb() -> f64 {
 }
 
 /// Get system metrics using sysinfo crate.
+///
+/// Returns detailed system and process metrics including CPU usage, memory
+/// consumption (RSS and virtual), disk I/O statistics, TCP connection count,
+/// and server uptime. Uses the sysinfo crate for cross-platform compatibility.
+#[utoipa::path(
+    get,
+    path = "/system/metrics",
+    tag = "System",
+    responses(
+        (status = 200, description = "System and process metrics", body = SystemMetrics)
+    )
+)]
 pub async fn get_system_metrics(State(qm): State<AppState>) -> Json<ApiResponse<SystemMetrics>> {
     let uptime = get_uptime_seconds();
     let tcp_connections = qm.connection_count();

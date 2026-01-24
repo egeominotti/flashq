@@ -378,6 +378,7 @@ PUSH --> [WAITING/DELAYED/WAITING_CHILDREN]
 - **SSE**: Server-Sent Events for job lifecycle
 - **Webhooks**: HTTP callbacks on job events
 - **Prometheus Metrics**: `/metrics/prometheus` endpoint
+- **OpenAPI Documentation**: Interactive API docs at `/docs` (Scalar UI)
 
 ### BullMQ-like Features (NEW)
 

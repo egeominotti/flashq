@@ -5,6 +5,7 @@
 
 use axum::{extract::State, response::Json};
 use serde::Deserialize;
+use utoipa::ToSchema;
 
 use crate::http::types::{ApiResponse, AppState};
 use crate::queue::sqlite::get_runtime_s3_config;
@@ -19,6 +20,14 @@ use super::{
 // ============================================================================
 
 /// Get server settings.
+#[utoipa::path(
+    get,
+    path = "/settings",
+    tag = "Settings",
+    responses(
+        (status = 200, description = "Server settings", body = ServerSettings)
+    )
+)]
 pub async fn get_settings(State(qm): State<AppState>) -> Json<ApiResponse<ServerSettings>> {
     let uptime = get_uptime_seconds();
 
@@ -103,6 +112,14 @@ pub async fn get_settings(State(qm): State<AppState>) -> Json<ApiResponse<Server
 // ============================================================================
 
 /// Shutdown server.
+#[utoipa::path(
+    post,
+    path = "/server/shutdown",
+    tag = "Settings",
+    responses(
+        (status = 200, description = "Server shutting down")
+    )
+)]
 pub async fn shutdown_server() -> Json<ApiResponse<&'static str>> {
     tokio::spawn(async {
         tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
@@ -112,6 +129,14 @@ pub async fn shutdown_server() -> Json<ApiResponse<&'static str>> {
 }
 
 /// Restart server.
+#[utoipa::path(
+    post,
+    path = "/server/restart",
+    tag = "Settings",
+    responses(
+        (status = 200, description = "Server restarting")
+    )
+)]
 pub async fn restart_server() -> Json<ApiResponse<&'static str>> {
     tokio::spawn(async {
         tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
@@ -121,6 +146,14 @@ pub async fn restart_server() -> Json<ApiResponse<&'static str>> {
 }
 
 /// Reset server memory.
+#[utoipa::path(
+    post,
+    path = "/server/reset",
+    tag = "Settings",
+    responses(
+        (status = 200, description = "Server memory cleared")
+    )
+)]
 pub async fn reset_server(State(qm): State<AppState>) -> Json<ApiResponse<&'static str>> {
     qm.reset().await;
     ApiResponse::success("Server memory cleared")
@@ -131,24 +164,56 @@ pub async fn reset_server(State(qm): State<AppState>) -> Json<ApiResponse<&'stat
 // ============================================================================
 
 /// Clear all queues.
+#[utoipa::path(
+    post,
+    path = "/server/clear-queues",
+    tag = "Settings",
+    responses(
+        (status = 200, description = "Number of jobs cleared", body = u64)
+    )
+)]
 pub async fn clear_all_queues(State(qm): State<AppState>) -> Json<ApiResponse<u64>> {
     let count = qm.clear_all_queues().await;
     ApiResponse::success(count)
 }
 
 /// Clear all DLQ.
+#[utoipa::path(
+    post,
+    path = "/server/clear-dlq",
+    tag = "Settings",
+    responses(
+        (status = 200, description = "Number of DLQ jobs cleared", body = u64)
+    )
+)]
 pub async fn clear_all_dlq(State(qm): State<AppState>) -> Json<ApiResponse<u64>> {
     let count = qm.clear_all_dlq().await;
     ApiResponse::success(count)
 }
 
 /// Clear completed jobs.
+#[utoipa::path(
+    post,
+    path = "/server/clear-completed",
+    tag = "Settings",
+    responses(
+        (status = 200, description = "Number of completed jobs cleared", body = u64)
+    )
+)]
 pub async fn clear_completed_jobs(State(qm): State<AppState>) -> Json<ApiResponse<u64>> {
     let count = qm.clear_completed_jobs().await;
     ApiResponse::success(count)
 }
 
 /// Reset metrics.
+#[utoipa::path(
+    post,
+    path = "/server/reset-metrics",
+    tag = "Settings",
+    responses(
+        (status = 200, description = "Metrics reset")
+    )
+)]
 pub async fn reset_metrics(State(qm): State<AppState>) -> Json<ApiResponse<&'static str>> {
     qm.reset_metrics().await;
     ApiResponse::success("Metrics reset")
@@ -159,12 +224,21 @@ pub async fn reset_metrics(State(qm): State<AppState>) -> Json<ApiResponse<&'sta
 // ============================================================================
 
 /// Save auth settings request.
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
 pub struct SaveAuthRequest {
     pub tokens: String,
 }
 
 /// Save auth settings.
+#[utoipa::path(
+    post,
+    path = "/settings/auth",
+    tag = "Settings",
+    request_body = SaveAuthRequest,
+    responses(
+        (status = 200, description = "Auth tokens updated")
+    )
+)]
 pub async fn save_auth_settings(
     State(qm): State<AppState>,
     Json(req): Json<SaveAuthRequest>,
@@ -184,7 +258,7 @@ pub async fn save_auth_settings(
 // ============================================================================
 
 /// Queue defaults request.
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
 pub struct QueueDefaultsRequest {
     pub default_timeout: Option<u64>,
     pub default_max_attempts: Option<u32>,
@@ -193,6 +267,15 @@ pub struct QueueDefaultsRequest {
 }
 
 /// Save queue defaults.
+#[utoipa::path(
+    post,
+    path = "/settings/queue-defaults",
+    tag = "Settings",
+    request_body = QueueDefaultsRequest,
+    responses(
+        (status = 200, description = "Queue defaults updated")
+    )
+)]
 pub async fn save_queue_defaults(
     State(qm): State<AppState>,
     Json(req): Json<QueueDefaultsRequest>,
@@ -211,7 +294,7 @@ pub async fn save_queue_defaults(
 // ============================================================================
 
 /// Cleanup settings request.
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
 pub struct CleanupSettingsRequest {
     pub max_completed_jobs: Option<usize>,
     pub max_job_results: Option<usize>,
@@ -220,6 +303,15 @@ pub struct CleanupSettingsRequest {
 }
 
 /// Save cleanup settings.
+#[utoipa::path(
+    post,
+    path = "/settings/cleanup",
+    tag = "Settings",
+    request_body = CleanupSettingsRequest,
+    responses(
+        (status = 200, description = "Cleanup settings updated")
+    )
+)]
 pub async fn save_cleanup_settings(
     State(qm): State<AppState>,
     Json(req): Json<CleanupSettingsRequest>,
@@ -234,6 +326,14 @@ pub async fn save_cleanup_settings(
 }
 
 /// Run cleanup now.
+#[utoipa::path(
+    post,
+    path = "/settings/cleanup/run",
+    tag = "Settings",
+    responses(
+        (status = 200, description = "Cleanup triggered")
+    )
+)]
 pub async fn run_cleanup_now(State(qm): State<AppState>) -> Json<ApiResponse<&'static str>> {
     qm.run_cleanup();
     ApiResponse::success("Cleanup triggered")

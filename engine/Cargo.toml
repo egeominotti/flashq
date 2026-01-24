@@ -36,6 +36,10 @@ compact_str = "0.8"             # Inline strings up to 24 chars (zero heap alloc
 axum = { version = "0.8", features = ["ws", "multipart"] }
 tower-http = { version = "0.6", features = ["cors"] }
 
+# OpenAPI Documentation
+utoipa = { version = "5", features = ["axum_extras"] }
+utoipa-scalar = { version = "0.3", features = ["axum"] }
+
 # Hashing - OPTIMIZED
 gxhash = "3"                    # Fastest hasher (AES-NI, 20-30% faster than FxHash)
 

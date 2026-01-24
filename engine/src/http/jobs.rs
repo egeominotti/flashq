@@ -14,6 +14,15 @@ use super::types::{
 };
 
 /// List jobs with filtering and pagination.
+#[utoipa::path(
+    get,
+    path = "/jobs",
+    tag = "Jobs",
+    params(JobsQuery),
+    responses(
+        (status = 200, description = "List of jobs", body = Vec<JobBrowserItem>)
+    )
+)]
 pub async fn list_jobs(
     State(qm): State<AppState>,
     Query(params): Query<JobsQuery>,
@@ -30,6 +39,15 @@ pub async fn list_jobs(
 }
 
 /// Get job details with state and result.
+#[utoipa::path(
+    get,
+    path = "/jobs/{id}",
+    tag = "Jobs",
+    params(("id" = u64, Path, description = "Job ID")),
+    responses(
+        (status = 200, description = "Job details", body = JobDetailResponse)
+    )
+)]
 pub async fn get_job(
     State(qm): State<AppState>,
     Path(id): Path<u64>,
@@ -40,6 +58,16 @@ pub async fn get_job(
 }
 
 /// Acknowledge job completion.
+#[utoipa::path(
+    post,
+    path = "/jobs/{id}/ack",
+    tag = "Jobs",
+    params(("id" = u64, Path, description = "Job ID")),
+    request_body = AckRequest,
+    responses(
+        (status = 200, description = "Job acknowledged")
+    )
+)]
 pub async fn ack_job(
     State(qm): State<AppState>,
     Path(id): Path<u64>,
@@ -52,6 +80,16 @@ pub async fn ack_job(
 }
 
 /// Fail a job.
+#[utoipa::path(
+    post,
+    path = "/jobs/{id}/fail",
+    tag = "Jobs",
+    params(("id" = u64, Path, description = "Job ID")),
+    request_body = FailRequest,
+    responses(
+        (status = 200, description = "Job failed")
+    )
+)]
 pub async fn fail_job(
     State(qm): State<AppState>,
     Path(id): Path<u64>,
@@ -64,6 +102,15 @@ pub async fn fail_job(
 }
 
 /// Cancel a pending job.
+#[utoipa::path(
+    post,
+    path = "/jobs/{id}/cancel",
+    tag = "Jobs",
+    params(("id" = u64, Path, description = "Job ID")),
+    responses(
+        (status = 200, description = "Job cancelled")
+    )
+)]
 pub async fn cancel_job(State(qm): State<AppState>, Path(id): Path<u64>) -> Json<ApiResponse<()>> {
     match qm.cancel(id).await {
         Ok(()) => ApiResponse::success(()),
@@ -72,6 +119,16 @@ pub async fn cancel_job(State(qm): State<AppState>, Path(id): Path<u64>) -> Json
 }
 
 /// Update job progress.
+#[utoipa::path(
+    post,
+    path = "/jobs/{id}/progress",
+    tag = "Jobs",
+    params(("id" = u64, Path, description = "Job ID")),
+    request_body = ProgressRequest,
+    responses(
+        (status = 200, description = "Progress updated")
+    )
+)]
 pub async fn update_progress(
     State(qm): State<AppState>,
     Path(id): Path<u64>,
@@ -84,6 +141,15 @@ pub async fn update_progress(
 }
 
 /// Get job progress.
+#[utoipa::path(
+    get,
+    path = "/jobs/{id}/progress",
+    tag = "Jobs",
+    params(("id" = u64, Path, description = "Job ID")),
+    responses(
+        (status = 200, description = "Job progress", body = (u8, Option<String>))
+    )
+)]
 pub async fn get_progress(
     State(qm): State<AppState>,
     Path(id): Path<u64>,
@@ -95,6 +161,15 @@ pub async fn get_progress(
 }
 
 /// Get job result.
+#[utoipa::path(
+    get,
+    path = "/jobs/{id}/result",
+    tag = "Jobs",
+    params(("id" = u64, Path, description = "Job ID")),
+    responses(
+        (status = 200, description = "Job result")
+    )
+)]
 pub async fn get_result(
     State(qm): State<AppState>,
     Path(id): Path<u64>,
@@ -104,6 +179,16 @@ pub async fn get_result(
 }
 
 /// Change job priority.
+#[utoipa::path(
+    post,
+    path = "/jobs/{id}/priority",
+    tag = "Jobs",
+    params(("id" = u64, Path, description = "Job ID")),
+    request_body = ChangePriorityRequest,
+    responses(
+        (status = 200, description = "Priority changed")
+    )
+)]
 pub async fn change_priority(
     State(qm): State<AppState>,
     Path(id): Path<u64>,
@@ -116,6 +201,16 @@ pub async fn change_priority(
 }
 
 /// Move active job back to delayed.
+#[utoipa::path(
+    post,
+    path = "/jobs/{id}/move-to-delayed",
+    tag = "Jobs",
+    params(("id" = u64, Path, description = "Job ID")),
+    request_body = MoveToDelayedRequest,
+    responses(
+        (status = 200, description = "Job moved to delayed")
+    )
+)]
 pub async fn move_to_delayed(
     State(qm): State<AppState>,
     Path(id): Path<u64>,
@@ -128,6 +223,15 @@ pub async fn move_to_delayed(
 }
 
 /// Promote delayed job to waiting.
+#[utoipa::path(
+    post,
+    path = "/jobs/{id}/promote",
+    tag = "Jobs",
+    params(("id" = u64, Path, description = "Job ID")),
+    responses(
+        (status = 200, description = "Job promoted to waiting")
+    )
+)]
 pub async fn promote_job(State(qm): State<AppState>, Path(id): Path<u64>) -> Json<ApiResponse<()>> {
     match qm.promote(id).await {
         Ok(()) => ApiResponse::success(()),
@@ -136,6 +240,15 @@ pub async fn promote_job(State(qm): State<AppState>, Path(id): Path<u64>) -> Jso
 }
 
 /// Discard job to DLQ.
+#[utoipa::path(
+    post,
+    path = "/jobs/{id}/discard",
+    tag = "Jobs",
+    params(("id" = u64, Path, description = "Job ID")),
+    responses(
+        (status = 200, description = "Job discarded to DLQ")
+    )
+)]
 pub async fn discard_job(State(qm): State<AppState>, Path(id): Path<u64>) -> Json<ApiResponse<()>> {
     match qm.discard(id).await {
         Ok(()) => ApiResponse::success(()),

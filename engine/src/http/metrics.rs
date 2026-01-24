@@ -10,6 +10,14 @@ use crate::protocol::{MetricsData, MetricsHistoryPoint};
 use super::types::{ApiResponse, AppState, StatsResponse};
 
 /// Get queue statistics.
+#[utoipa::path(
+    get,
+    path = "/stats",
+    tag = "Metrics",
+    responses(
+        (status = 200, description = "Queue statistics", body = StatsResponse)
+    )
+)]
 pub async fn get_stats(State(qm): State<AppState>) -> Json<ApiResponse<StatsResponse>> {
     let (queued, processing, delayed, dlq, completed) = qm.stats().await;
     ApiResponse::success(StatsResponse {
@@ -22,12 +30,28 @@ pub async fn get_stats(State(qm): State<AppState>) -> Json<ApiResponse<StatsResp
 }
 
 /// Get detailed metrics.
+#[utoipa::path(
+    get,
+    path = "/metrics",
+    tag = "Metrics",
+    responses(
+        (status = 200, description = "Detailed metrics", body = MetricsData)
+    )
+)]
 pub async fn get_metrics(State(qm): State<AppState>) -> Json<ApiResponse<MetricsData>> {
     let metrics = qm.get_metrics().await;
     ApiResponse::success(metrics)
 }
 
 /// Get metrics history.
+#[utoipa::path(
+    get,
+    path = "/metrics/history",
+    tag = "Metrics",
+    responses(
+        (status = 200, description = "Metrics history", body = Vec<MetricsHistoryPoint>)
+    )
+)]
 pub async fn get_metrics_history(
     State(qm): State<AppState>,
 ) -> Json<ApiResponse<Vec<MetricsHistoryPoint>>> {
@@ -36,6 +60,14 @@ pub async fn get_metrics_history(
 }
 
 /// Get Prometheus-formatted metrics.
+#[utoipa::path(
+    get,
+    path = "/metrics/prometheus",
+    tag = "Metrics",
+    responses(
+        (status = 200, description = "Prometheus metrics", content_type = "text/plain")
+    )
+)]
 pub async fn get_prometheus_metrics(State(qm): State<AppState>) -> impl IntoResponse {
     let metrics = qm.get_metrics().await;
     let (queued, processing, delayed, dlq, completed) = qm.stats().await;

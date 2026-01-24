@@ -4,6 +4,7 @@
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use utoipa::ToSchema;
 
 use super::types::FlowChild;
 
@@ -348,7 +349,7 @@ pub struct KvEntry {
     pub ttl: Option<u64>,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, ToSchema)]
 pub struct JobInput {
     #[serde(default)]
     pub data: Value,

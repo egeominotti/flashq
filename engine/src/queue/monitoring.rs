@@ -9,7 +9,7 @@ use super::types::{intern, now_ms, JobLocation, Subscriber};
 use crate::protocol::{MetricsData, QueueMetrics};
 
 /// Memory usage statistics for debugging
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, utoipa::ToSchema)]
 pub struct MemoryStats {
     pub completed_jobs_count: usize,
     pub completed_jobs_data_count: usize,

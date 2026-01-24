@@ -8,6 +8,7 @@ mod cron;
 mod events;
 mod jobs;
 mod metrics;
+mod openapi;
 mod queues;
 mod settings;
 mod types;
@@ -21,6 +22,8 @@ use axum::{
     Router,
 };
 use tower_http::cors::{AllowOrigin, CorsLayer};
+use utoipa::OpenApi;
+use utoipa_scalar::{Scalar, Servable};
 
 pub use types::AppState;
 
@@ -169,17 +172,13 @@ pub fn create_router(state: AppState) -> Router {
         // Health
         .route("/health", get(cluster::health_check))
         // Debug
-        .route("/debug/memory", get(debug_memory_stats))
+        .route("/debug/memory", get(openapi::debug_memory_stats))
         .with_state(state);
 
-    Router::new().merge(api_routes).layer(cors)
-}
-
-/// Debug endpoint for memory statistics
-async fn debug_memory_stats(
-    axum::extract::State(qm): axum::extract::State<AppState>,
-) -> axum::Json<crate::queue::monitoring::MemoryStats> {
-    axum::Json(qm.memory_stats())
+    Router::new()
+        .merge(api_routes)
+        .merge(Scalar::with_url("/docs", openapi::ApiDoc::openapi()))
+        .layer(cors)
 }
 
 #[cfg(test)]

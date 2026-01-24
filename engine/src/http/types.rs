@@ -4,6 +4,7 @@ use axum::Json;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::sync::Arc;
+use utoipa::{IntoParams, ToSchema};
 
 use crate::queue::QueueManager;
 
@@ -14,21 +15,21 @@ pub type AppState = Arc<QueueManager>;
 pub type PushRequest = crate::protocol::JobInput;
 
 /// Acknowledge job request.
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
 pub struct AckRequest {
     #[serde(default)]
     pub result: Option<Value>,
 }
 
 /// Fail job request.
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
 pub struct FailRequest {
     #[serde(default)]
     pub error: Option<String>,
 }
 
 /// Update progress request.
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
 pub struct ProgressRequest {
     pub progress: u8,
     #[serde(default)]
@@ -36,7 +37,7 @@ pub struct ProgressRequest {
 }
 
 /// Create cron job request.
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
 pub struct CronRequest {
     pub queue: String,
     pub data: Value,
@@ -46,19 +47,19 @@ pub struct CronRequest {
 }
 
 /// Set rate limit request.
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
 pub struct RateLimitRequest {
     pub limit: u32,
 }
 
 /// Set concurrency request.
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
 pub struct ConcurrencyRequest {
     pub limit: u32,
 }
 
 /// Pull jobs query parameters.
-#[derive(Deserialize)]
+#[derive(Deserialize, IntoParams)]
 pub struct PullQuery {
     #[serde(default = "default_count")]
     pub count: usize,
@@ -69,14 +70,14 @@ fn default_count() -> usize {
 }
 
 /// WebSocket query parameters.
-#[derive(Deserialize)]
+#[derive(Deserialize, IntoParams)]
 pub struct WsQuery {
     #[serde(default)]
     pub token: Option<String>,
 }
 
 /// Clean queue request.
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
 pub struct CleanRequest {
     pub grace: u64,
     pub state: String,
@@ -85,7 +86,7 @@ pub struct CleanRequest {
 }
 
 /// Jobs list query parameters.
-#[derive(Deserialize)]
+#[derive(Deserialize, IntoParams)]
 pub struct JobsQuery {
     #[serde(default)]
     pub queue: Option<String>,
@@ -102,19 +103,19 @@ fn default_job_limit() -> usize {
 }
 
 /// Change priority request.
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
 pub struct ChangePriorityRequest {
     pub priority: i32,
 }
 
 /// Move to delayed request.
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
 pub struct MoveToDelayedRequest {
     pub delay: u64,
 }
 
 /// Worker heartbeat request.
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
 pub struct WorkerHeartbeatRequest {
     pub queues: Vec<String>,
     #[serde(default)]
@@ -124,7 +125,7 @@ pub struct WorkerHeartbeatRequest {
 }
 
 /// Create webhook request.
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
 pub struct CreateWebhookRequest {
     pub url: String,
     pub events: Vec<String>,
@@ -135,7 +136,7 @@ pub struct CreateWebhookRequest {
 }
 
 /// Retry DLQ request.
-#[derive(Deserialize, Default)]
+#[derive(Deserialize, Default, ToSchema)]
 pub struct RetryDlqRequest {
     /// Optional job ID to retry. If not provided, retries all jobs in DLQ.
     #[serde(default)]
@@ -179,7 +180,7 @@ impl<T> ApiResponse<T> {
 }
 
 /// Job detail response with state and result.
-#[derive(Serialize)]
+#[derive(Serialize, ToSchema)]
 pub struct JobDetailResponse {
     #[serde(flatten)]
     pub job: Option<crate::protocol::Job>,
@@ -188,7 +189,7 @@ pub struct JobDetailResponse {
 }
 
 /// Stats response.
-#[derive(Serialize)]
+#[derive(Serialize, ToSchema)]
 pub struct StatsResponse {
     pub queued: usize,
     pub processing: usize,

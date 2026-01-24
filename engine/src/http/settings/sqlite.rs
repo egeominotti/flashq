@@ -7,6 +7,7 @@ use axum::{extract::State, response::Json};
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::io::Write;
+use utoipa::ToSchema;
 
 use crate::http::types::{ApiResponse, AppState};
 
@@ -29,7 +30,7 @@ pub fn get_pending_sqlite_config() -> Option<SqliteConfigRequest> {
 // ============================================================================
 
 /// SQLite settings request.
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, ToSchema)]
 pub struct SqliteConfigRequest {
     pub enabled: bool,
     pub path: Option<String>,
@@ -38,7 +39,7 @@ pub struct SqliteConfigRequest {
 }
 
 /// SQLite storage statistics.
-#[derive(Serialize)]
+#[derive(Serialize, ToSchema)]
 pub struct SqliteStats {
     pub enabled: bool,
     pub path: Option<String>,
@@ -61,7 +62,7 @@ pub struct SqliteStats {
 }
 
 /// Async writer configuration request.
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
 pub struct AsyncWriterConfigRequest {
     pub batch_interval_ms: Option<u64>,
     pub max_batch_size: Option<usize>,
@@ -72,6 +73,15 @@ pub struct AsyncWriterConfigRequest {
 // ============================================================================
 
 /// Save SQLite settings (writes to .env file, requires restart).
+#[utoipa::path(
+    post,
+    path = "/sqlite/settings",
+    tag = "SQLite",
+    request_body = SqliteConfigRequest,
+    responses(
+        (status = 200, description = "SQLite configuration saved")
+    )
+)]
 pub async fn save_sqlite_settings(
     Json(req): Json<SqliteConfigRequest>,
 ) -> Json<ApiResponse<&'static str>> {
@@ -128,6 +138,14 @@ pub async fn save_sqlite_settings(
 }
 
 /// Get current SQLite configuration status.
+#[utoipa::path(
+    get,
+    path = "/sqlite/settings",
+    tag = "SQLite",
+    responses(
+        (status = 200, description = "SQLite settings", body = SqliteSettings)
+    )
+)]
 pub async fn get_sqlite_settings(State(qm): State<AppState>) -> Json<ApiResponse<SqliteSettings>> {
     let pending = get_pending_sqlite_config();
 
@@ -156,6 +174,14 @@ pub async fn get_sqlite_settings(State(qm): State<AppState>) -> Json<ApiResponse
 // ============================================================================
 
 /// Get SQLite storage statistics.
+#[utoipa::path(
+    get,
+    path = "/sqlite/stats",
+    tag = "SQLite",
+    responses(
+        (status = 200, description = "SQLite statistics", body = SqliteStats)
+    )
+)]
 pub async fn get_sqlite_stats(State(qm): State<AppState>) -> Json<ApiResponse<SqliteStats>> {
     let enabled = qm.has_storage();
     let path = std::env::var("DATA_PATH")
@@ -224,6 +250,15 @@ pub async fn get_sqlite_stats(State(qm): State<AppState>) -> Json<ApiResponse<Sq
 // ============================================================================
 
 /// Update async writer configuration at runtime.
+#[utoipa::path(
+    post,
+    path = "/sqlite/async-writer",
+    tag = "SQLite",
+    request_body = AsyncWriterConfigRequest,
+    responses(
+        (status = 200, description = "Async writer configuration updated")
+    )
+)]
 pub async fn update_async_writer_config(
     State(qm): State<AppState>,
     Json(req): Json<AsyncWriterConfigRequest>,
@@ -258,6 +293,14 @@ pub async fn update_async_writer_config(
 // ============================================================================
 
 /// Export SQLite database - returns download URL info.
+#[utoipa::path(
+    get,
+    path = "/sqlite/export",
+    tag = "SQLite",
+    responses(
+        (status = 200, description = "Database path for export", body = String)
+    )
+)]
 pub async fn export_sqlite_database() -> Json<ApiResponse<String>> {
     let path = match get_db_path() {
         Some(p) => p,
@@ -274,6 +317,20 @@ pub async fn export_sqlite_database() -> Json<ApiResponse<String>> {
 }
 
 /// Download SQLite database file directly.
+///
+/// Returns the raw SQLite database file as a binary download.
+/// Useful for backup purposes or migrating data to another server.
+/// The file is returned with content-type `application/octet-stream`.
+#[utoipa::path(
+    get,
+    path = "/sqlite/download",
+    tag = "SQLite",
+    responses(
+        (status = 200, description = "SQLite database file download", content_type = "application/octet-stream"),
+        (status = 400, description = "SQLite not configured"),
+        (status = 500, description = "Failed to read database file")
+    )
+)]
 pub async fn download_sqlite_database() -> impl axum::response::IntoResponse {
     use axum::http::{header, StatusCode};
 
@@ -303,6 +360,15 @@ pub async fn download_sqlite_database() -> impl axum::response::IntoResponse {
 }
 
 /// Restore SQLite database from uploaded file.
+#[utoipa::path(
+    post,
+    path = "/sqlite/restore",
+    tag = "SQLite",
+    request_body(content = inline(String), content_type = "multipart/form-data"),
+    responses(
+        (status = 200, description = "Database restored successfully")
+    )
+)]
 pub async fn restore_sqlite_database(
     mut multipart: axum::extract::Multipart,
 ) -> Json<ApiResponse<&'static str>> {

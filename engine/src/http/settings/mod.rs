@@ -18,6 +18,7 @@ pub use server::*;
 pub use sqlite::*;
 
 use serde::Serialize;
+use utoipa::ToSchema;
 
 // ============================================================================
 // Common Macros
@@ -50,7 +51,7 @@ pub(crate) use parse_env_bool;
 // ============================================================================
 
 /// S3 Backup settings (read-only, for API responses).
-#[derive(Serialize)]
+#[derive(Serialize, ToSchema)]
 pub struct S3BackupSettings {
     pub enabled: bool,
     pub endpoint: Option<String>,
@@ -62,7 +63,7 @@ pub struct S3BackupSettings {
 }
 
 /// SQLite settings (read-only, for API responses).
-#[derive(Serialize)]
+#[derive(Serialize, ToSchema)]
 pub struct SqliteSettings {
     pub enabled: bool,
     pub path: Option<String>,
@@ -72,7 +73,7 @@ pub struct SqliteSettings {
 }
 
 /// Server settings response (combined view).
-#[derive(Serialize)]
+#[derive(Serialize, ToSchema)]
 pub struct ServerSettings {
     pub version: &'static str,
     pub tcp_port: u16,
