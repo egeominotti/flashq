@@ -236,6 +236,11 @@ pub async fn process_command(command: Command, queue_manager: &Arc<QueueManager>
         }
         Command::Heartbeat { id } => ok_or_error!(queue_manager.heartbeat(id)),
 
+        // === Live Job Streaming ===
+        Command::Partial { id, data, index } => {
+            ok_or_error!(queue_manager.partial(id, data, index).await)
+        }
+
         // === Flows ===
         Command::Flow {
             queue,

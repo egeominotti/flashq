@@ -65,6 +65,7 @@ class ClientOptions:
     queue_on_disconnect: bool = True
     max_queued_requests: int = 1000
     log_level: LogLevel = LogLevel.INFO
+    pool_size: int = 4  # Connection pool size
 
 
 @dataclass

@@ -9,6 +9,7 @@ import re
 from typing import Any, TypeVar
 
 from .connection import FlashQConnection
+from .pool import ConnectionPool, PoolStats
 from ..types import (
     ClientOptions,
     Job,
@@ -94,9 +95,15 @@ def map_job_to_payload(data: T, options: PushOptions | None = None) -> JobPayloa
     )
 
 
-class FlashQ(FlashQConnection):
+class FlashQ:
     """
-    flashQ client with all queue operations.
+    flashQ client with connection pooling.
+
+    Features:
+    - Connection pooling (default: 4 connections)
+    - Auto-reconnect with exponential backoff
+    - Health checks for connections
+    - Round-robin connection selection
 
     Example:
         ```python
@@ -110,7 +117,33 @@ class FlashQ(FlashQConnection):
     def __init__(self, options: ClientOptions | dict[str, Any] | None = None):
         if isinstance(options, dict):
             options = ClientOptions(**options)
-        super().__init__(options)
+        self._options = options or ClientOptions()
+        self._pool = ConnectionPool(self._options, self._options.pool_size)
+
+    @property
+    def connected(self) -> bool:
+        """Check if connected to server."""
+        return self._pool.connected
+
+    async def connect(self) -> None:
+        """Connect to flashQ server with connection pool."""
+        await self._pool.connect()
+
+    async def close(self) -> None:
+        """Close all connections in the pool."""
+        await self._pool.close()
+
+    def pool_stats(self) -> PoolStats:
+        """Get connection pool statistics."""
+        return self._pool.stats()
+
+    async def _send(
+        self,
+        command: dict[str, Any],
+        timeout: int | None = None,
+    ) -> dict[str, Any]:
+        """Send command via connection pool."""
+        return await self._pool.send(command, timeout)
 
     async def __aenter__(self) -> "FlashQ":
         await self.connect()

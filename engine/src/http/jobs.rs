@@ -10,7 +10,7 @@ use crate::protocol::{JobBrowserItem, JobState};
 
 use super::types::{
     AckRequest, ApiResponse, AppState, ChangePriorityRequest, FailRequest, JobDetailResponse,
-    JobsQuery, MoveToDelayedRequest, ProgressRequest,
+    JobsQuery, MoveToDelayedRequest, PartialRequest, ProgressRequest,
 };
 
 /// List jobs with filtering and pagination.
@@ -314,6 +314,34 @@ pub async fn promote_job(State(qm): State<AppState>, Path(id): Path<u64>) -> Jso
 )]
 pub async fn discard_job(State(qm): State<AppState>, Path(id): Path<u64>) -> Json<ApiResponse<()>> {
     match qm.discard(id).await {
+        Ok(()) => ApiResponse::success(()),
+        Err(e) => ApiResponse::error(e),
+    }
+}
+
+/// Send partial result for streaming jobs.
+///
+/// Emits a partial result event for real-time streaming. Workers can send incremental
+/// results while processing (e.g., LLM token streaming, progress data).
+/// Subscribers receive events via SSE at GET /events/job/{id}.
+#[utoipa::path(
+    post,
+    path = "/jobs/{id}/partial",
+    tag = "Jobs",
+    summary = "Stream partial result from active job",
+    description = "Sends a partial/incremental result for a job being processed. Use for: LLM token streaming, chunked file processing, real-time progress data. Events are broadcast via SSE to subscribers at GET /events/job/{id}. Optional index parameter helps ordering on client side.",
+    params(("id" = u64, Path, description = "Active job ID")),
+    request_body = PartialRequest,
+    responses(
+        (status = 200, description = "Partial result broadcast to subscribers")
+    )
+)]
+pub async fn send_partial(
+    State(qm): State<AppState>,
+    Path(id): Path<u64>,
+    Json(req): Json<PartialRequest>,
+) -> Json<ApiResponse<()>> {
+    match qm.partial(id, req.data, req.index).await {
         Ok(()) => ApiResponse::success(()),
         Err(e) => ApiResponse::error(e),
     }

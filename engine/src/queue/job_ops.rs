@@ -122,6 +122,40 @@ impl QueueManager {
         Err(format!("Job {} not found", job_id))
     }
 
+    /// Send partial result from a processing job (for streaming/chunked responses).
+    /// Emits a "partial" event that can be subscribed via SSE/WebSocket.
+    pub async fn partial(
+        &self,
+        job_id: u64,
+        data: Value,
+        index: Option<u32>,
+    ) -> Result<(), String> {
+        // Verify job is in processing and get queue name
+        let job = self
+            .processing_get(job_id)
+            .ok_or_else(|| format!("Job {} not found in processing", job_id))?;
+
+        // Emit partial event if there are listeners
+        if self.has_event_listeners() {
+            let mut event_data = serde_json::json!({ "chunk": data });
+            if let Some(idx) = index {
+                event_data["index"] = serde_json::json!(idx);
+            }
+
+            self.broadcast_event(crate::protocol::JobEvent {
+                event_type: "partial".to_string(),
+                queue: job.queue.clone(),
+                job_id,
+                timestamp: now_ms(),
+                data: Some(event_data),
+                error: None,
+                progress: None,
+            });
+        }
+
+        Ok(())
+    }
+
     /// Change priority of a job (waiting, delayed, or processing).
     pub async fn change_priority(&self, job_id: u64, new_priority: i32) -> Result<(), String> {
         let location = self.job_index.get(&job_id).map(|r| r.clone());

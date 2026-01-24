@@ -114,6 +114,16 @@ pub struct MoveToDelayedRequest {
     pub delay: u64,
 }
 
+/// Partial result request (for streaming/chunked responses).
+#[derive(Deserialize, ToSchema)]
+pub struct PartialRequest {
+    /// The partial result data to stream to subscribers.
+    pub data: Value,
+    /// Optional chunk index for ordering.
+    #[serde(default)]
+    pub index: Option<u32>,
+}
+
 /// Worker heartbeat request.
 #[derive(Deserialize, ToSchema)]
 pub struct WorkerHeartbeatRequest {

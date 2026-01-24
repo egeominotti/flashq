@@ -211,6 +211,15 @@ pub enum Command {
         id: u64,
     },
 
+    // === Live Job Streaming ===
+    /// Send partial result from a processing job (for streaming/chunked responses)
+    Partial {
+        id: u64,
+        data: Value,
+        #[serde(default)]
+        index: Option<u32>, // Optional chunk index for ordering
+    },
+
     // === Flows (Parent-Child) ===
     Flow {
         queue: String,

@@ -95,6 +95,7 @@ pub fn create_router(state: AppState) -> Router {
         .route("/jobs/{id}/cancel", post(jobs::cancel_job))
         .route("/jobs/{id}/progress", post(jobs::update_progress))
         .route("/jobs/{id}/progress", get(jobs::get_progress))
+        .route("/jobs/{id}/partial", post(jobs::send_partial))
         .route("/jobs/{id}/result", get(jobs::get_result))
         // BullMQ Advanced job operations
         .route("/jobs/{id}/priority", post(jobs::change_priority))
@@ -113,6 +114,7 @@ pub fn create_router(state: AppState) -> Router {
         // SSE Events
         .route("/events", get(events::sse_events))
         .route("/events/{queue}", get(events::sse_queue_events))
+        .route("/events/job/{id}", get(events::sse_job_events))
         // WebSocket Events
         .route("/ws", get(websocket::ws_handler))
         .route("/ws/{queue}", get(websocket::ws_queue_handler))
