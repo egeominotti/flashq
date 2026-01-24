@@ -25,6 +25,21 @@
 - **Dead letter queues** - automatic retry with exponential backoff
 - **Job dependencies** - workflow orchestration with parent/child jobs
 
+## Architecture
+
+```
+┌─────────────┐     ┌─────────────────┐     ┌──────────────┐
+│   Client    │────▶│  flashQ Server  │────▶│    SQLite    │
+│  (SDK/API)  │     │   (Rust/Axum)   │     │  (embedded)  │
+└─────────────┘     └─────────────────┘     └──────────────┘
+      TCP/HTTP              │                      │
+      Binary/JSON           ▼                      ▼
+                    ┌───────────────┐      ┌──────────────┐
+                    │   Dashboard   │      │  S3 Backup   │
+                    │  (WebSocket)  │      │  (optional)  │
+                    └───────────────┘      └──────────────┘
+```
+
 ## Quick Start
 
 ```bash
@@ -43,13 +58,22 @@ npm install flashq  # or: bun add flashq
 ```typescript
 import { Queue, Worker } from 'flashq';
 
+// Push jobs
 const queue = new Queue('emails');
 await queue.add('send', { to: 'user@example.com', subject: 'Welcome!' });
+await queue.addBulk([
+  { name: 'send', data: { to: 'a@test.com' } },
+  { name: 'send', data: { to: 'b@test.com' } },
+]);
 
+// Process jobs
 const worker = new Worker('emails', async (job) => {
   await sendEmail(job.data);
   return { sent: true };
 });
+
+worker.on('completed', (job, result) => console.log(`✅ Job ${job.id} done`));
+worker.on('failed', (job, err) => console.error(`❌ Job ${job.id}: ${err.message}`));
 ```
 
 ### Python
@@ -64,8 +88,12 @@ from flashq import FlashQ, Worker
 client = FlashQ()
 client.connect()
 
-# Push job
-job_id = client.push("emails", {"to": "user@example.com", "subject": "Welcome!"})
+# Push jobs
+client.push("emails", {"to": "user@example.com"})
+client.push_batch("emails", [
+    {"data": {"to": "a@test.com"}},
+    {"data": {"to": "b@test.com"}},
+])
 
 # Process jobs
 def process(job):
@@ -73,6 +101,8 @@ def process(job):
     return {"sent": True}
 
 worker = Worker(["emails"], process)
+worker.on("completed", lambda job, res: print(f"✅ Job {job.id} done"))
+worker.on("failed", lambda job, err: print(f"❌ Job {job.id}: {err}"))
 worker.start()
 ```
 
@@ -87,6 +117,7 @@ package main
 
 import (
     "context"
+    "fmt"
     "github.com/flashq/flashq-go/flashq"
 )
 
@@ -95,33 +126,27 @@ func main() {
     client.Connect(context.Background())
     defer client.Close()
 
-    // Push job
-    jobID, _ := client.Push("emails", map[string]interface{}{
-        "to": "user@example.com", "subject": "Welcome!",
-    }, nil)
+    // Push jobs
+    client.Push("emails", map[string]any{"to": "user@example.com"}, nil)
+    client.PushBatch("emails", []map[string]any{
+        {"data": map[string]any{"to": "a@test.com"}},
+        {"data": map[string]any{"to": "b@test.com"}},
+    })
 
-    // Process jobs
-    worker := flashq.NewWorkerSingle("emails", func(job *flashq.Job) (interface{}, error) {
-        // process job.Data
-        return map[string]interface{}{"sent": true}, nil
+    // Process jobs with events
+    worker := flashq.NewWorkerSingle("emails", func(job *flashq.Job) (any, error) {
+        return map[string]any{"sent": true}, nil
     }, nil, nil)
+
+    worker.On("completed", func(job *flashq.Job, result any) {
+        fmt.Printf("✅ Job %d done\n", job.ID)
+    })
+    worker.On("failed", func(job *flashq.Job, err error) {
+        fmt.Printf("❌ Job %d: %v\n", job.ID, err)
+    })
+
     worker.Start(context.Background())
 }
-```
-
-## Architecture
-
-```
-┌─────────────┐     ┌─────────────────┐     ┌──────────────┐
-│   Client    │────▶│  flashQ Server  │────▶│    SQLite    │
-│  (SDK/API)  │     │   (Rust/Axum)   │     │  (embedded)  │
-└─────────────┘     └─────────────────┘     └──────────────┘
-      TCP/HTTP              │                      │
-      Binary/JSON           ▼                      ▼
-                    ┌───────────────┐      ┌──────────────┐
-                    │   Dashboard   │      │  S3 Backup   │
-                    │  (WebSocket)  │      │  (optional)  │
-                    └───────────────┘      └──────────────┘
 ```
 
 ## Links
