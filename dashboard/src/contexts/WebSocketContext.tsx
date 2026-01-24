@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 /**
  * WebSocket Context - React 19 Best Practices
  * Re-exports hooks from the store for backward compatibility

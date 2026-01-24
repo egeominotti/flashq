@@ -54,7 +54,8 @@ export function Workers() {
   const workersData = useWorkers();
   const [currentPage, setCurrentPage] = useState(1);
 
-  const workers: Worker[] = workersData || [];
+  // Memoize workers array to prevent unnecessary recalculations
+  const workers = useMemo<Worker[]>(() => workersData || [], [workersData]);
 
   // Ensure no negative values
   const activeWorkers = Math.max(0, workers.filter((w) => getWorkerStatus(w) === 'active').length);
