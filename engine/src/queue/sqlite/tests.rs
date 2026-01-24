@@ -379,3 +379,288 @@ fn test_sqlite_purge_dlq() {
     assert_eq!(dlq.len(), 1);
     assert_eq!(dlq[0].queue, "other-queue");
 }
+
+// ==================== SNAPSHOT TESTS ====================
+
+use super::snapshot::{restore_from_snapshot, SnapshotConfig, SnapshotManager};
+use tempfile::TempDir;
+
+/// Helper to create a test SnapshotManager with temp directory.
+fn create_test_snapshot_manager() -> (SnapshotManager, TempDir) {
+    let temp_dir = TempDir::new().expect("Failed to create temp dir");
+    let config = SnapshotConfig {
+        interval_secs: 1,
+        min_changes: 1,
+        keep_count: 3,
+        snapshot_dir: temp_dir.path().to_path_buf(),
+    };
+    let manager = SnapshotManager::new(config);
+    (manager, temp_dir)
+}
+
+#[test]
+fn test_snapshot_config_default() {
+    let config = SnapshotConfig::default();
+    assert_eq!(config.interval_secs, 60);
+    assert_eq!(config.min_changes, 100);
+    assert_eq!(config.keep_count, 5);
+}
+
+#[test]
+fn test_snapshot_manager_creation() {
+    let (manager, _temp) = create_test_snapshot_manager();
+    // Initially should not need snapshot (no changes)
+    assert!(!manager.should_snapshot());
+}
+
+#[test]
+fn test_snapshot_manager_record_change() {
+    let (manager, _temp) = create_test_snapshot_manager();
+
+    // Record changes
+    manager.record_change();
+    manager.record_change();
+    manager.record_change();
+
+    // Should still not snapshot (time not elapsed)
+    assert!(!manager.should_snapshot());
+}
+
+#[test]
+fn test_snapshot_manager_should_snapshot_after_time_and_changes() {
+    let temp_dir = TempDir::new().expect("Failed to create temp dir");
+    let config = SnapshotConfig {
+        interval_secs: 0, // Immediate
+        min_changes: 1,
+        keep_count: 3,
+        snapshot_dir: temp_dir.path().to_path_buf(),
+    };
+    let manager = SnapshotManager::new(config);
+
+    // Record a change
+    manager.record_change();
+
+    // Now should need snapshot (time=0, changes>=1)
+    assert!(manager.should_snapshot());
+}
+
+#[test]
+fn test_snapshot_manager_mark_done_resets() {
+    let temp_dir = TempDir::new().expect("Failed to create temp dir");
+    let config = SnapshotConfig {
+        interval_secs: 0,
+        min_changes: 1,
+        keep_count: 3,
+        snapshot_dir: temp_dir.path().to_path_buf(),
+    };
+    let manager = SnapshotManager::new(config);
+
+    manager.record_change();
+    assert!(manager.should_snapshot());
+
+    // Mark done
+    manager.mark_snapshot_done();
+
+    // Should no longer need snapshot (changes reset to 0)
+    assert!(!manager.should_snapshot());
+}
+
+#[test]
+fn test_snapshot_filename_format() {
+    let (manager, _temp) = create_test_snapshot_manager();
+    let filename = manager.snapshot_filename();
+
+    // Should be in the snapshot directory
+    assert!(filename.starts_with(_temp.path()));
+
+    // Should have .db extension
+    assert!(filename.extension().map(|e| e == "db").unwrap_or(false));
+
+    // Should contain "flashq_"
+    let name = filename.file_name().unwrap().to_string_lossy();
+    assert!(name.starts_with("flashq_"));
+}
+
+#[test]
+fn test_snapshot_list_empty() {
+    let (manager, _temp) = create_test_snapshot_manager();
+    let snapshots = manager.list_snapshots();
+    assert!(snapshots.is_empty());
+}
+
+#[test]
+fn test_snapshot_create_backup_and_list() {
+    let (storage, _temp_db) = create_test_storage();
+    let (manager, temp_snap) = create_test_snapshot_manager();
+
+    // Insert some data
+    let job = create_test_job(1, "backup-test");
+    storage.insert_job(&job, "waiting").expect("Insert failed");
+
+    // Create backup
+    let backup_path = temp_snap.path().join("test_backup.db");
+    storage.create_backup(&backup_path).expect("Backup failed");
+
+    // Verify backup exists
+    assert!(backup_path.exists());
+
+    // List should find it
+    let snapshots = manager.list_snapshots();
+    assert_eq!(snapshots.len(), 1);
+}
+
+#[test]
+fn test_snapshot_cleanup_old() {
+    let temp_dir = TempDir::new().expect("Failed to create temp dir");
+    let config = SnapshotConfig {
+        interval_secs: 0,
+        min_changes: 0,
+        keep_count: 2, // Keep only 2
+        snapshot_dir: temp_dir.path().to_path_buf(),
+    };
+    let manager = SnapshotManager::new(config);
+
+    // Create 4 snapshot files
+    for i in 1..=4 {
+        let path = temp_dir
+            .path()
+            .join(format!("flashq_2024010{}_120000.db", i));
+        std::fs::write(&path, b"test").expect("Write failed");
+        // Add slight delay to ensure different modification times
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+
+    // Verify 4 files exist
+    let initial = manager.list_snapshots();
+    assert_eq!(initial.len(), 4);
+
+    // Cleanup
+    manager.cleanup_old_snapshots();
+
+    // Should only have 2 left (most recent)
+    let remaining = manager.list_snapshots();
+    assert_eq!(remaining.len(), 2);
+}
+
+#[test]
+fn test_snapshot_restore() {
+    let (storage1, _temp1) = create_test_storage();
+    let temp_backup = TempDir::new().expect("Failed to create temp dir");
+
+    // Insert data into first storage
+    let job1 = create_test_job(1, "restore-test");
+    let job2 = create_test_job(2, "restore-test");
+    storage1
+        .insert_job(&job1, "waiting")
+        .expect("Insert failed");
+    storage1.insert_job(&job2, "active").expect("Insert failed");
+
+    // Create backup
+    let backup_path = temp_backup.path().join("backup.db");
+    storage1.create_backup(&backup_path).expect("Backup failed");
+
+    // Create second storage and restore
+    let temp_file2 = NamedTempFile::new().expect("Failed to create temp file");
+    let mut conn2 = rusqlite::Connection::open(temp_file2.path()).expect("Open failed");
+
+    restore_from_snapshot(&mut conn2, &backup_path).expect("Restore failed");
+
+    // Verify data was restored
+    let count: i64 = conn2
+        .query_row("SELECT COUNT(*) FROM jobs", [], |row| row.get(0))
+        .expect("Query failed");
+    assert_eq!(count, 2);
+}
+
+#[test]
+fn test_snapshot_restore_nonexistent_file() {
+    let temp_file = NamedTempFile::new().expect("Failed to create temp file");
+    let mut conn = rusqlite::Connection::open(temp_file.path()).expect("Open failed");
+
+    let nonexistent = std::path::Path::new("/nonexistent/path/to/snapshot.db");
+    let result = restore_from_snapshot(&mut conn, nonexistent);
+
+    assert!(result.is_err());
+}
+
+#[test]
+fn test_snapshot_backup_preserves_all_data() {
+    let (storage, _temp_db) = create_test_storage();
+    let temp_backup = TempDir::new().expect("Failed to create temp dir");
+
+    // Insert various data types
+    let mut job = create_test_job(1, "full-test");
+    job.tags = vec!["tag1".to_string(), "tag2".to_string()];
+    job.depends_on = vec![100, 200];
+    job.custom_id = Some("custom-backup".to_string());
+    job.priority = 99;
+
+    storage.insert_job(&job, "waiting").expect("Insert failed");
+
+    // Add a cron job
+    let cron = crate::protocol::CronJob {
+        name: "backup-cron".to_string(),
+        schedule: Some("* * * * *".to_string()),
+        queue: "cron-q".to_string(),
+        data: json!({"test": true}),
+        next_run: 12345,
+        repeat_every: None,
+        priority: 5,
+        executions: 0,
+        limit: None,
+    };
+    storage.save_cron(&cron).expect("Save cron failed");
+
+    // Create backup
+    let backup_path = temp_backup.path().join("full_backup.db");
+    storage.create_backup(&backup_path).expect("Backup failed");
+
+    // Open backup and verify
+    let backup_conn = rusqlite::Connection::open(&backup_path).expect("Open backup failed");
+
+    // Check job data
+    let (id, queue, priority): (i64, String, i32) = backup_conn
+        .query_row(
+            "SELECT id, queue, priority FROM jobs WHERE id = 1",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        )
+        .expect("Query job failed");
+    assert_eq!(id, 1);
+    assert_eq!(queue, "full-test");
+    assert_eq!(priority, 99);
+
+    // Check cron data
+    let cron_count: i64 = backup_conn
+        .query_row("SELECT COUNT(*) FROM cron_jobs", [], |row| row.get(0))
+        .expect("Query cron failed");
+    assert_eq!(cron_count, 1);
+}
+
+#[test]
+fn test_snapshot_manager_latest_snapshot() {
+    let temp_dir = TempDir::new().expect("Failed to create temp dir");
+    let config = SnapshotConfig {
+        interval_secs: 0,
+        min_changes: 0,
+        keep_count: 10,
+        snapshot_dir: temp_dir.path().to_path_buf(),
+    };
+    let manager = SnapshotManager::new(config);
+
+    // No snapshots initially
+    assert!(manager.latest_snapshot().is_none());
+
+    // Create snapshots with delays
+    let path1 = temp_dir.path().join("flashq_20240101_120000.db");
+    std::fs::write(&path1, b"old").expect("Write failed");
+    std::thread::sleep(std::time::Duration::from_millis(20));
+
+    let path2 = temp_dir.path().join("flashq_20240102_120000.db");
+    std::fs::write(&path2, b"new").expect("Write failed");
+
+    // Latest should be the second one (by modification time)
+    let latest = manager.latest_snapshot();
+    assert!(latest.is_some());
+    assert!(latest.unwrap().to_string_lossy().contains("20240102"));
+}

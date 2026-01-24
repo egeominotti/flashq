@@ -118,6 +118,34 @@ Impact: [consequences]
 
 ---
 
+## DEVELOPMENT METHODOLOGY: RALPH LOOP
+
+For complex, multi-step tasks, ALWAYS use the Ralph Wiggum loop technique:
+
+```bash
+/ralph-wiggum:ralph-loop "<task description>" --completion-promise "<completion phrase>" --max-iterations <n>
+```
+
+Ralph creates an iterative development loop where:
+1. Claude works on the task
+2. Tests/verifies the work
+3. If not complete, loop continues with same prompt
+4. Previous work persists in files
+5. Loop ends when completion promise is TRUE
+
+**When to use Ralph:**
+- Adding multiple tests
+- Implementing features with verification steps
+- Refactoring with test validation
+- Any task requiring iteration until success
+
+**Example:**
+```bash
+/ralph-wiggum:ralph-loop "Add gRPC tests. Run cargo test. Write DONE when all pass." --completion-promise DONE --max-iterations 20
+```
+
+---
+
 Now read the architecture and help me build. If anything is unclear, ask before coding.
 
 This file provides guidance to Claude Code (claude.ai/code) when working with this codebase.

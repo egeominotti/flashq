@@ -602,4 +602,360 @@ mod tests {
         assert!(grpc_job.depends_on.is_empty());
         assert!(grpc_job.progress_msg.is_none());
     }
+
+    // ==================== GRPC SERVICE FUNCTIONAL TESTS ====================
+
+    #[tokio::test]
+    async fn test_grpc_push_operation() {
+        let qm = crate::queue::QueueManager::new(false);
+        let service = QueueServiceImpl::new(qm);
+
+        let request = Request::new(PushRequest {
+            queue: "grpc-test".to_string(),
+            data: serde_json::to_vec(&json!({"key": "value"})).unwrap(),
+            priority: 10,
+            delay_ms: 0,
+            ttl_ms: 0,
+            timeout_ms: 30000,
+            max_attempts: 3,
+            backoff_ms: 1000,
+            unique_key: None,
+            depends_on: vec![],
+            lifo: false,
+        });
+
+        let response = service.push(request).await.unwrap();
+        let resp = response.into_inner();
+        assert!(resp.ok);
+        assert!(resp.id > 0);
+    }
+
+    #[tokio::test]
+    async fn test_grpc_push_batch_operation() {
+        let qm = crate::queue::QueueManager::new(false);
+        let service = QueueServiceImpl::new(qm);
+
+        let jobs = vec![
+            JobInput {
+                data: serde_json::to_vec(&json!({"i": 1})).unwrap(),
+                priority: 0,
+                delay_ms: 0,
+                ttl_ms: 0,
+                timeout_ms: 0,
+                max_attempts: 0,
+                backoff_ms: 0,
+                unique_key: None,
+                depends_on: vec![],
+                lifo: false,
+            },
+            JobInput {
+                data: serde_json::to_vec(&json!({"i": 2})).unwrap(),
+                priority: 5,
+                delay_ms: 0,
+                ttl_ms: 0,
+                timeout_ms: 0,
+                max_attempts: 0,
+                backoff_ms: 0,
+                unique_key: None,
+                depends_on: vec![],
+                lifo: false,
+            },
+        ];
+
+        let request = Request::new(PushBatchRequest {
+            queue: "grpc-batch-test".to_string(),
+            jobs,
+        });
+
+        let response = service.push_batch(request).await.unwrap();
+        let resp = response.into_inner();
+        assert!(resp.ok);
+        assert_eq!(resp.ids.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn test_grpc_pull_operation() {
+        let qm = crate::queue::QueueManager::new(false);
+        let service = QueueServiceImpl::new(Arc::clone(&qm));
+
+        // First push a job
+        let _ = qm
+            .push(
+                "grpc-pull-test".to_string(),
+                crate::protocol::JobInput::new(json!({"test": true})),
+            )
+            .await
+            .unwrap();
+
+        // Now pull it via gRPC
+        let request = Request::new(PullRequest {
+            queue: "grpc-pull-test".to_string(),
+        });
+
+        let response = service.pull(request).await.unwrap();
+        let job = response.into_inner();
+        assert!(job.id > 0);
+        assert_eq!(job.queue, "grpc-pull-test");
+    }
+
+    #[tokio::test]
+    async fn test_grpc_pull_batch_operation() {
+        let qm = crate::queue::QueueManager::new(false);
+        let service = QueueServiceImpl::new(Arc::clone(&qm));
+
+        // Push multiple jobs
+        for i in 0..5 {
+            let _ = qm
+                .push(
+                    "grpc-pullb-test".to_string(),
+                    crate::protocol::JobInput::new(json!({"i": i})),
+                )
+                .await
+                .unwrap();
+        }
+
+        // Pull batch
+        let request = Request::new(PullBatchRequest {
+            queue: "grpc-pullb-test".to_string(),
+            count: 3,
+        });
+
+        let response = service.pull_batch(request).await.unwrap();
+        let resp = response.into_inner();
+        assert_eq!(resp.jobs.len(), 3);
+    }
+
+    #[tokio::test]
+    async fn test_grpc_ack_operation() {
+        let qm = crate::queue::QueueManager::new(false);
+        let service = QueueServiceImpl::new(Arc::clone(&qm));
+
+        // Push and pull a job
+        let job = qm
+            .push(
+                "grpc-ack-test".to_string(),
+                crate::protocol::JobInput::new(json!({})),
+            )
+            .await
+            .unwrap();
+        let _ = qm.pull("grpc-ack-test").await;
+
+        // Ack via gRPC
+        let request = Request::new(AckRequest {
+            id: job.id,
+            result: Some(serde_json::to_vec(&json!({"done": true})).unwrap()),
+        });
+
+        let response = service.ack(request).await.unwrap();
+        assert!(response.into_inner().ok);
+
+        // Verify job is completed
+        let state = qm.get_state(job.id);
+        assert_eq!(state, crate::protocol::JobState::Completed);
+    }
+
+    #[tokio::test]
+    async fn test_grpc_ack_batch_operation() {
+        let qm = crate::queue::QueueManager::new(false);
+        let service = QueueServiceImpl::new(Arc::clone(&qm));
+
+        // Push and pull multiple jobs
+        let mut ids = vec![];
+        for _ in 0..3 {
+            let job = qm
+                .push(
+                    "grpc-ackb-test".to_string(),
+                    crate::protocol::JobInput::new(json!({})),
+                )
+                .await
+                .unwrap();
+            ids.push(job.id);
+        }
+        let _ = qm.pull_batch("grpc-ackb-test", 3).await;
+
+        // Ack batch via gRPC
+        let request = Request::new(AckBatchRequest { ids: ids.clone() });
+
+        let response = service.ack_batch(request).await.unwrap();
+        let resp = response.into_inner();
+        assert!(resp.ok);
+        assert_eq!(resp.acked, 3);
+    }
+
+    #[tokio::test]
+    async fn test_grpc_fail_operation() {
+        let qm = crate::queue::QueueManager::new(false);
+        let service = QueueServiceImpl::new(Arc::clone(&qm));
+
+        // Push and pull a job with max_attempts=1
+        let job = qm
+            .push(
+                "grpc-fail-test".to_string(),
+                crate::protocol::JobInput {
+                    data: json!({}),
+                    max_attempts: Some(1),
+                    ..Default::default()
+                },
+            )
+            .await
+            .unwrap();
+        let _ = qm.pull("grpc-fail-test").await;
+
+        // Fail via gRPC
+        let request = Request::new(FailRequest {
+            id: job.id,
+            error: Some("test error".to_string()),
+        });
+
+        let response = service.fail(request).await.unwrap();
+        assert!(response.into_inner().ok);
+
+        // Verify job is in DLQ
+        let state = qm.get_state(job.id);
+        assert_eq!(state, crate::protocol::JobState::Failed);
+    }
+
+    #[tokio::test]
+    async fn test_grpc_get_state_operation() {
+        let qm = crate::queue::QueueManager::new(false);
+        let service = QueueServiceImpl::new(Arc::clone(&qm));
+
+        // Push a job
+        let job = qm
+            .push(
+                "grpc-state-test".to_string(),
+                crate::protocol::JobInput::new(json!({})),
+            )
+            .await
+            .unwrap();
+
+        // Get state via gRPC
+        let request = Request::new(GetStateRequest { id: job.id });
+
+        let response = service.get_state(request).await.unwrap();
+        let resp = response.into_inner();
+        assert_eq!(resp.id, job.id);
+        assert_eq!(resp.state, JobState::Waiting as i32);
+    }
+
+    #[tokio::test]
+    async fn test_grpc_stats_operation() {
+        let qm = crate::queue::QueueManager::new(false);
+        let service = QueueServiceImpl::new(Arc::clone(&qm));
+
+        // Push some jobs
+        for _ in 0..5 {
+            let _ = qm
+                .push(
+                    "grpc-stats-test".to_string(),
+                    crate::protocol::JobInput::new(json!({})),
+                )
+                .await
+                .unwrap();
+        }
+
+        // Get stats via gRPC
+        let request = Request::new(StatsRequest {});
+
+        let response = service.stats(request).await.unwrap();
+        let resp = response.into_inner();
+        assert!(resp.queued >= 5);
+    }
+
+    #[tokio::test]
+    async fn test_grpc_push_invalid_json_error() {
+        let qm = crate::queue::QueueManager::new(false);
+        let service = QueueServiceImpl::new(qm);
+
+        // Send invalid JSON bytes
+        let request = Request::new(PushRequest {
+            queue: "grpc-error-test".to_string(),
+            data: vec![0xFF, 0xFE], // Invalid JSON
+            priority: 0,
+            delay_ms: 0,
+            ttl_ms: 0,
+            timeout_ms: 0,
+            max_attempts: 0,
+            backoff_ms: 0,
+            unique_key: None,
+            depends_on: vec![],
+            lifo: false,
+        });
+
+        let result = service.push(request).await;
+        assert!(result.is_err());
+        let status = result.unwrap_err();
+        assert_eq!(status.code(), tonic::Code::InvalidArgument);
+    }
+
+    #[tokio::test]
+    async fn test_grpc_ack_not_found_error() {
+        let qm = crate::queue::QueueManager::new(false);
+        let service = QueueServiceImpl::new(qm);
+
+        // Try to ack a non-existent job
+        let request = Request::new(AckRequest {
+            id: 999999,
+            result: None,
+        });
+
+        let result = service.ack(request).await;
+        assert!(result.is_err());
+        let status = result.unwrap_err();
+        assert_eq!(status.code(), tonic::Code::NotFound);
+    }
+
+    #[tokio::test]
+    async fn test_grpc_fail_not_found_error() {
+        let qm = crate::queue::QueueManager::new(false);
+        let service = QueueServiceImpl::new(qm);
+
+        // Try to fail a non-existent job
+        let request = Request::new(FailRequest {
+            id: 999999,
+            error: Some("error".to_string()),
+        });
+
+        let result = service.fail(request).await;
+        assert!(result.is_err());
+        let status = result.unwrap_err();
+        assert_eq!(status.code(), tonic::Code::NotFound);
+    }
+
+    #[tokio::test]
+    async fn test_grpc_push_with_all_options() {
+        let qm = crate::queue::QueueManager::new(false);
+        let service = QueueServiceImpl::new(qm);
+
+        let request = Request::new(PushRequest {
+            queue: "grpc-options-test".to_string(),
+            data: serde_json::to_vec(&json!({"full": "options"})).unwrap(),
+            priority: 100,
+            delay_ms: 5000,
+            ttl_ms: 60000,
+            timeout_ms: 30000,
+            max_attempts: 5,
+            backoff_ms: 2000,
+            unique_key: Some("unique-key-123".to_string()),
+            depends_on: vec![],
+            lifo: true,
+        });
+
+        let response = service.push(request).await.unwrap();
+        let resp = response.into_inner();
+        assert!(resp.ok);
+        assert!(resp.id > 0);
+    }
+
+    #[tokio::test]
+    async fn test_grpc_state_unknown_job() {
+        let qm = crate::queue::QueueManager::new(false);
+        let service = QueueServiceImpl::new(qm);
+
+        let request = Request::new(GetStateRequest { id: 999999 });
+
+        let response = service.get_state(request).await.unwrap();
+        let resp = response.into_inner();
+        assert_eq!(resp.state, JobState::Unknown as i32);
+    }
 }
