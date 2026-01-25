@@ -20,9 +20,13 @@ use tracing::{debug, error, info, warn};
 use crate::protocol::Job;
 
 /// Serialize data to MessagePack bytes for storage.
+/// Logs a warning if serialization fails (rare but possible with special values).
 #[inline]
 fn serialize_data(data: &Value) -> Vec<u8> {
-    rmp_serde::to_vec(data).unwrap_or_default()
+    rmp_serde::to_vec(data).unwrap_or_else(|e| {
+        warn!(error = %e, "Failed to serialize job data to MessagePack, using empty");
+        Vec::new()
+    })
 }
 
 /// Serialize a vector to JSON string if not empty, otherwise return None.

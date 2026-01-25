@@ -194,15 +194,19 @@ pub fn promote_job(conn: &Connection, job_id: u64, run_at: u64) -> Result<(), ru
 }
 
 /// Update job data.
+/// Data is serialized as MessagePack for consistency with other operations.
 pub fn update_job_data(
     conn: &Connection,
     job_id: u64,
     data: &serde_json::Value,
 ) -> Result<(), rusqlite::Error> {
-    let data_str = serde_json::to_string(data).unwrap_or_default();
+    let data_bytes = rmp_serde::to_vec(data).unwrap_or_else(|e| {
+        tracing::warn!(job_id = job_id, error = %e, "Failed to serialize job data, using empty");
+        Vec::new()
+    });
     conn.execute(
         "UPDATE jobs SET data = ?2 WHERE id = ?1",
-        params![job_id as i64, data_str],
+        params![job_id as i64, data_bytes],
     )?;
     Ok(())
 }
@@ -222,12 +226,13 @@ pub fn clean_jobs(
 }
 
 /// Discard a job by moving it to DLQ.
+/// Reads data as BLOB (Vec<u8>) to preserve MessagePack encoding.
 pub fn discard_job(conn: &Connection, job_id: u64) -> Result<(), rusqlite::Error> {
     let now = crate::queue::types::now_ms();
     let tx = conn.unchecked_transaction()?;
 
-    // Get job data before deleting
-    let job_data: Option<(String, String, u32)> = tx
+    // Get job data before deleting (data is BLOB, not String)
+    let job_data: Option<(String, Vec<u8>, u32)> = tx
         .query_row(
             "SELECT queue, data, attempts FROM jobs WHERE id = ?1",
             params![job_id as i64],
@@ -239,7 +244,7 @@ pub fn discard_job(conn: &Connection, job_id: u64) -> Result<(), rusqlite::Error
         // Delete from jobs
         tx.execute("DELETE FROM jobs WHERE id = ?1", params![job_id as i64])?;
 
-        // Insert into DLQ
+        // Insert into DLQ (preserving MessagePack data as-is)
         tx.execute(
             "INSERT INTO dlq_jobs (job_id, queue, data, error, failed_at, attempts) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
             params![job_id as i64, queue, data, "Discarded by user", now as i64, attempts],

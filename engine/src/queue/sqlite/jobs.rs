@@ -13,9 +13,13 @@ use crate::protocol::Job;
 
 /// Serialize job data to MessagePack bytes.
 /// Returns bytes that can be stored as BLOB in SQLite.
+/// Logs a warning if serialization fails (rare but possible with special values).
 #[inline]
 fn serialize_data(data: &Value) -> Vec<u8> {
-    rmp_serde::to_vec(data).unwrap_or_default()
+    rmp_serde::to_vec(data).unwrap_or_else(|e| {
+        warn!(error = %e, "Failed to serialize job data to MessagePack, using empty");
+        Vec::new()
+    })
 }
 
 /// Deserialize job data from bytes (MessagePack or legacy JSON).

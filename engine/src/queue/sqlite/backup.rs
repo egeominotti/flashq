@@ -393,9 +393,13 @@ impl S3BackupManager {
         Ok(detailed)
     }
 
-    /// Download and restore from S3 backup
+    /// Download and restore from S3 backup.
+    /// Uses streaming to avoid loading entire file into memory (prevents OOM on large DBs).
     pub async fn restore(&self, key: &str, target_path: &Path) -> Result<(), String> {
+        use flate2::read::GzDecoder;
         use rusqlite::Connection;
+        use std::io::{BufReader, BufWriter, Read, Write};
+        use tokio::io::AsyncReadExt;
 
         let response = self
             .client
@@ -406,31 +410,71 @@ impl S3BackupManager {
             .await
             .map_err(|e| format!("Failed to download backup: {}", e))?;
 
-        let data = response
-            .body
-            .collect()
-            .await
-            .map_err(|e| format!("Failed to read response: {}", e))?
-            .into_bytes();
-
-        // Decompress if needed
-        let db_data = if key.ends_with(".gz") {
-            use flate2::read::GzDecoder;
-            use std::io::Read;
-            let mut decoder = GzDecoder::new(&data[..]);
-            let mut decompressed = Vec::new();
-            decoder
-                .read_to_end(&mut decompressed)
-                .map_err(|e| format!("Decompression failed: {}", e))?;
-            decompressed
-        } else {
-            data.to_vec()
-        };
-
-        // Write to a temporary file first for validation
+        // Stream download to temp compressed file (avoids loading into memory)
+        let compressed_temp = target_path.with_extension("db.download.tmp");
         let temp_path = target_path.with_extension("db.tmp");
-        std::fs::write(&temp_path, &db_data)
-            .map_err(|e| format!("Failed to write temp database: {}", e))?;
+
+        // Stream body to file in chunks
+        {
+            let file = std::fs::File::create(&compressed_temp)
+                .map_err(|e| format!("Failed to create temp file: {}", e))?;
+            let mut writer = BufWriter::with_capacity(64 * 1024, file);
+
+            let mut stream = response.body.into_async_read();
+            let mut buffer = [0u8; 64 * 1024]; // 64KB chunks
+
+            loop {
+                let bytes_read = stream
+                    .read(&mut buffer)
+                    .await
+                    .map_err(|e| format!("Failed to read from S3: {}", e))?;
+                if bytes_read == 0 {
+                    break;
+                }
+                writer
+                    .write_all(&buffer[..bytes_read])
+                    .map_err(|e| format!("Failed to write temp file: {}", e))?;
+            }
+            writer
+                .flush()
+                .map_err(|e| format!("Failed to flush temp file: {}", e))?;
+        }
+
+        // Decompress if needed (streaming from file to file)
+        if key.ends_with(".gz") {
+            let source = std::fs::File::open(&compressed_temp)
+                .map_err(|e| format!("Failed to open compressed file: {}", e))?;
+            let reader = BufReader::with_capacity(64 * 1024, source);
+            let mut decoder = GzDecoder::new(reader);
+
+            let dest = std::fs::File::create(&temp_path)
+                .map_err(|e| format!("Failed to create decompressed file: {}", e))?;
+            let mut writer = BufWriter::with_capacity(64 * 1024, dest);
+
+            // Stream decompress in chunks
+            let mut buffer = [0u8; 64 * 1024];
+            loop {
+                let bytes_read = decoder
+                    .read(&mut buffer)
+                    .map_err(|e| format!("Decompression failed: {}", e))?;
+                if bytes_read == 0 {
+                    break;
+                }
+                writer
+                    .write_all(&buffer[..bytes_read])
+                    .map_err(|e| format!("Failed to write decompressed: {}", e))?;
+            }
+            writer
+                .flush()
+                .map_err(|e| format!("Failed to flush decompressed: {}", e))?;
+
+            // Remove compressed temp
+            std::fs::remove_file(&compressed_temp).ok();
+        } else {
+            // Not compressed - just rename
+            std::fs::rename(&compressed_temp, &temp_path)
+                .map_err(|e| format!("Failed to rename temp file: {}", e))?;
+        }
 
         // Validate the downloaded file is a valid SQLite database
         let validation_result = (|| -> Result<(), String> {
@@ -462,9 +506,10 @@ impl S3BackupManager {
             Ok(())
         })();
 
-        // If validation fails, remove temp file and return error
+        // If validation fails, remove temp files and return error
         if let Err(e) = validation_result {
             std::fs::remove_file(&temp_path).ok();
+            std::fs::remove_file(&compressed_temp).ok();
             return Err(e);
         }
 
@@ -472,7 +517,7 @@ impl S3BackupManager {
         std::fs::rename(&temp_path, target_path)
             .map_err(|e| format!("Failed to replace database: {}", e))?;
 
-        info!(key = %key, path = ?target_path, "Restored from S3 backup (validated)");
+        info!(key = %key, path = ?target_path, "Restored from S3 backup (validated, streamed)");
         Ok(())
     }
 }
