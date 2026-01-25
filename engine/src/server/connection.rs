@@ -113,13 +113,17 @@ where
         let len = u32::from_be_bytes(len_buf) as usize;
 
         // Sanity check: max 16MB per message
+        // SECURITY: Must close connection on oversized message to prevent protocol desync.
+        // If we just `continue`, the oversized data remains in the stream and gets
+        // interpreted as the next frame's length prefix, causing undefined behavior.
         if len > 16 * 1024 * 1024 {
             let err_response = ResponseWithId::new(Response::error("Message too large"), None);
             let err_bytes = serialize_msgpack(&err_response)?;
             let frame = create_binary_frame(&err_bytes);
             writer.write_all(&frame).await?;
             writer.flush().await?;
-            continue;
+            // Close connection - cannot safely continue after oversized frame
+            return Err("Message too large, closing connection".into());
         }
 
         // Read message data
