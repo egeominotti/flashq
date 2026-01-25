@@ -31,7 +31,7 @@ use crate::queue::monitoring::MemoryStats;
 #[openapi(
     info(
         title = "flashQ API",
-        version = "0.2.0",
+        version = "0.4.0",
         description = "High-performance job queue server",
         license(name = "MIT")
     ),

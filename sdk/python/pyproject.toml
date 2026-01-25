@@ -1,6 +1,6 @@
 [project]
 name = "flashq"
-version = "0.3.6"
+version = "0.4.0"
 description = "High-performance Python client for flashQ job queue"
 readme = "README.md"
 license = { text = "MIT" }
