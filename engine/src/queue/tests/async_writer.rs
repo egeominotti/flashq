@@ -47,8 +47,8 @@ fn create_test_job(id: u64, queue: &str) -> Job {
 fn test_async_writer_config_default() {
     let config = AsyncWriterConfig::default();
     assert_eq!(config.batch_interval_ms, 50);
-    assert_eq!(config.max_batch_size, 1000);
-    assert_eq!(config.queue_capacity, 10_000);
+    assert_eq!(config.max_batch_size, 5_000);
+    assert_eq!(config.queue_capacity, 100_000);
 }
 
 #[test]
