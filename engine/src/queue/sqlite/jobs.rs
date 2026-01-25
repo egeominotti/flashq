@@ -4,6 +4,7 @@ use rusqlite::{params, Connection, OptionalExtension};
 use serde::Serialize;
 use serde_json::Value;
 use std::sync::Arc;
+use tracing::warn;
 
 use crate::protocol::Job;
 
@@ -195,7 +196,10 @@ pub fn load_dlq_jobs(conn: &Connection) -> Result<Vec<Job>, rusqlite::Error> {
         let queue: String = row.get(1)?;
         let data_str: String = row.get(2)?;
         let attempts: u32 = row.get(3)?;
-        let data: Value = serde_json::from_str(&data_str).unwrap_or(Value::Null);
+        let data: Value = serde_json::from_str(&data_str).unwrap_or_else(|e| {
+            warn!(job_id = id, error = %e, "Corrupted DLQ job data JSON, using null");
+            Value::Null
+        });
 
         Ok(Job {
             id: id as u64,
@@ -244,6 +248,53 @@ pub fn get_max_job_id(conn: &Connection) -> Result<u64, rusqlite::Error> {
     Ok(max.unwrap_or(0) as u64)
 }
 
+/// Load custom_id mappings for recovery (job_id -> custom_id).
+pub fn load_custom_id_map(conn: &Connection) -> Result<Vec<(u64, String)>, rusqlite::Error> {
+    let mut stmt = conn.prepare("SELECT id, custom_id FROM jobs WHERE custom_id IS NOT NULL")?;
+    let rows = stmt.query_map([], |row| {
+        let id: i64 = row.get(0)?;
+        let custom_id: String = row.get(1)?;
+        Ok((id as u64, custom_id))
+    })?;
+    rows.collect()
+}
+
+/// Load job results for recovery (limited to prevent OOM).
+/// Only loads the most recent results up to the specified limit.
+pub fn load_job_results(
+    conn: &Connection,
+    limit: usize,
+) -> Result<Vec<(u64, Value)>, rusqlite::Error> {
+    // Order by completed_at DESC to get most recent, limit to prevent OOM
+    let mut stmt =
+        conn.prepare("SELECT job_id, result FROM job_results ORDER BY completed_at DESC LIMIT ?1")?;
+    let rows = stmt.query_map([limit as i64], |row| {
+        let job_id: i64 = row.get(0)?;
+        let result_str: String = row.get(1)?;
+        let result: Value = serde_json::from_str(&result_str).unwrap_or_else(|e| {
+            warn!(job_id = job_id, error = %e, "Corrupted job result JSON, using null");
+            Value::Null
+        });
+        Ok((job_id as u64, result))
+    })?;
+    rows.collect()
+}
+
+/// Load completed job IDs for dependency tracking recovery (limited to prevent OOM).
+/// Only loads the most recent IDs up to the specified limit.
+pub fn load_completed_job_ids(
+    conn: &Connection,
+    limit: usize,
+) -> Result<Vec<u64>, rusqlite::Error> {
+    let mut stmt =
+        conn.prepare("SELECT job_id FROM job_results ORDER BY completed_at DESC LIMIT ?1")?;
+    let rows = stmt.query_map([limit as i64], |row| {
+        let job_id: i64 = row.get(0)?;
+        Ok(job_id as u64)
+    })?;
+    rows.collect()
+}
+
 /// Convert a database row to a Job struct.
 fn row_to_job(row: &rusqlite::Row) -> Result<Job, rusqlite::Error> {
     let id: i64 = row.get(0)?;
@@ -272,15 +323,39 @@ fn row_to_job(row: &rusqlite::Row) -> Result<Job, rusqlite::Error> {
     let keep_completed_age: i64 = row.get(24)?;
     let keep_completed_count: i32 = row.get(25)?;
 
-    let data: Value = serde_json::from_str(&data_str).unwrap_or(Value::Null);
+    let data: Value = serde_json::from_str(&data_str).unwrap_or_else(|e| {
+        warn!(job_id = id, error = %e, "Corrupted job data JSON, using null");
+        Value::Null
+    });
     let depends_on: Vec<u64> = depends_on_str
-        .and_then(|s| serde_json::from_str(&s).ok())
+        .and_then(|s| {
+            serde_json::from_str(&s)
+                .map_err(|e| {
+                    warn!(job_id = id, error = %e, "Corrupted depends_on JSON, using empty");
+                    e
+                })
+                .ok()
+        })
         .unwrap_or_default();
     let tags: Vec<String> = tags_str
-        .and_then(|s| serde_json::from_str(&s).ok())
+        .and_then(|s| {
+            serde_json::from_str(&s)
+                .map_err(|e| {
+                    warn!(job_id = id, error = %e, "Corrupted tags JSON, using empty");
+                    e
+                })
+                .ok()
+        })
         .unwrap_or_default();
     let children_ids: Vec<u64> = children_ids_str
-        .and_then(|s| serde_json::from_str(&s).ok())
+        .and_then(|s| {
+            serde_json::from_str(&s)
+                .map_err(|e| {
+                    warn!(job_id = id, error = %e, "Corrupted children_ids JSON, using empty");
+                    e
+                })
+                .ok()
+        })
         .unwrap_or_default();
 
     Ok(Job {

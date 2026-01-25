@@ -9,23 +9,31 @@ use crate::protocol::QueueInfo;
 impl QueueManager {
     /// Pause a queue (workers will block until resumed).
     pub async fn pause(&self, queue: &str) {
-        let idx = Self::shard_index(queue);
-        let queue_arc = intern(queue);
-        let mut shard = self.shards[idx].write();
-        let state = shard.get_state(&queue_arc);
-        state.paused = true;
+        {
+            let idx = Self::shard_index(queue);
+            let queue_arc = intern(queue);
+            let mut shard = self.shards[idx].write();
+            let state = shard.get_state(&queue_arc);
+            state.paused = true;
+        }
+
+        // Persist queue state (after lock released)
+        self.persist_queue_state(queue).await;
     }
 
     /// Resume a paused queue.
     pub async fn resume(&self, queue: &str) {
         let idx = Self::shard_index(queue);
-        let queue_arc = intern(queue);
         {
+            let queue_arc = intern(queue);
             let mut shard = self.shards[idx].write();
             let state = shard.get_state(&queue_arc);
             state.paused = false;
         }
         self.notify_shard(idx);
+
+        // Persist queue state (after lock released)
+        self.persist_queue_state(queue).await;
     }
 
     /// List all queues with their current stats.

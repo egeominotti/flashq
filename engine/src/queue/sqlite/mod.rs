@@ -30,6 +30,7 @@ pub use backup::{
     clear_runtime_s3_config, get_runtime_s3_config, set_runtime_s3_config, S3BackupConfig,
     S3BackupManager,
 };
+pub use jobs_advanced::PersistedQueueState;
 pub use snapshot::SnapshotManager;
 
 /// SQLite storage configuration
@@ -184,47 +185,55 @@ impl SqliteStorage {
     // ============== Job Operations ==============
     // These methods use async writer when enabled for non-blocking writes.
 
-    /// Insert or update a job (async if writer enabled)
+    /// Insert or update a job (async if writer enabled, falls back to sync if queue full)
     pub fn insert_job(&self, job: &Job, state: &str) -> Result<(), rusqlite::Error> {
         if let Some(ref writer) = self.async_writer {
-            writer.queue_op(WriteOp::InsertJob {
+            if writer.queue_op(WriteOp::InsertJob {
                 job: Box::new(job.clone()),
                 state: state.to_string(),
-            });
-            return Ok(());
+            }) {
+                return Ok(());
+            }
+            // Fallback to sync if queue full
         }
         let conn = self.conn.lock();
         jobs::insert_job(&conn, job, state)
     }
 
-    /// Insert multiple jobs in a batch (async if writer enabled)
+    /// Insert multiple jobs in a batch (async if writer enabled, falls back to sync if queue full)
     pub fn insert_jobs_batch(&self, jobs: &[Job], state: &str) -> Result<(), rusqlite::Error> {
         if let Some(ref writer) = self.async_writer {
-            writer.queue_op(WriteOp::InsertJobsBatch {
+            if writer.queue_op(WriteOp::InsertJobsBatch {
                 jobs: jobs.to_vec(),
                 state: state.to_string(),
-            });
-            return Ok(());
+            }) {
+                return Ok(());
+            }
         }
         let conn = self.conn.lock();
         jobs::insert_jobs_batch(&conn, jobs, state)
     }
 
-    /// Acknowledge a job as completed (async if writer enabled)
+    /// Acknowledge a job as completed (async if writer enabled, falls back to sync if queue full)
     pub fn ack_job(&self, job_id: u64, result: Option<Value>) -> Result<(), rusqlite::Error> {
         if let Some(ref writer) = self.async_writer {
-            writer.queue_op(WriteOp::AckJob { job_id, result });
-            return Ok(());
+            if writer.queue_op(WriteOp::AckJob {
+                job_id,
+                result: result.clone(),
+            }) {
+                return Ok(());
+            }
         }
         let conn = self.conn.lock();
         jobs::ack_job(&conn, job_id, result)
     }
 
-    /// Acknowledge multiple jobs in a batch (async if writer enabled)
+    /// Acknowledge multiple jobs in a batch (async if writer enabled, falls back to sync if queue full)
     pub fn ack_jobs_batch(&self, ids: &[u64]) -> Result<(), rusqlite::Error> {
         if let Some(ref writer) = self.async_writer {
-            writer.queue_op(WriteOp::AckJobsBatch { ids: ids.to_vec() });
-            return Ok(());
+            if writer.queue_op(WriteOp::AckJobsBatch { ids: ids.to_vec() }) {
+                return Ok(());
+            }
         }
         let conn = self.conn.lock();
         jobs::ack_jobs_batch(&conn, ids)
@@ -234,8 +243,9 @@ impl SqliteStorage {
     pub fn delete_job(&self, job_id: u64) -> Result<(), rusqlite::Error> {
         // Use cancel operation which just deletes the job
         if let Some(ref writer) = self.async_writer {
-            writer.queue_op(WriteOp::CancelJob { job_id });
-            return Ok(());
+            if writer.queue_op(WriteOp::CancelJob { job_id }) {
+                return Ok(());
+            }
         }
         let conn = self.conn.lock();
         jobs::delete_job(&conn, job_id)
@@ -248,14 +258,15 @@ impl SqliteStorage {
         }
         // Use AckJobsBatch which just deletes without storing results
         if let Some(ref writer) = self.async_writer {
-            writer.queue_op(WriteOp::AckJobsBatch { ids: ids.to_vec() });
-            return Ok(());
+            if writer.queue_op(WriteOp::AckJobsBatch { ids: ids.to_vec() }) {
+                return Ok(());
+            }
         }
         let conn = self.conn.lock();
         jobs::delete_jobs_batch(&conn, ids)
     }
 
-    /// Mark job as failed and update for retry (async if writer enabled)
+    /// Mark job as failed and update for retry (async if writer enabled, falls back to sync if queue full)
     pub fn fail_job(
         &self,
         job_id: u64,
@@ -263,35 +274,38 @@ impl SqliteStorage {
         attempts: u32,
     ) -> Result<(), rusqlite::Error> {
         if let Some(ref writer) = self.async_writer {
-            writer.queue_op(WriteOp::FailJob {
+            if writer.queue_op(WriteOp::FailJob {
                 job_id,
                 new_run_at,
                 attempts,
-            });
-            return Ok(());
+            }) {
+                return Ok(());
+            }
         }
         let conn = self.conn.lock();
         jobs::fail_job(&conn, job_id, new_run_at, attempts)
     }
 
-    /// Move job to DLQ (async if writer enabled)
+    /// Move job to DLQ (async if writer enabled, falls back to sync if queue full)
     pub fn move_to_dlq(&self, job: &Job, error: Option<&str>) -> Result<(), rusqlite::Error> {
         if let Some(ref writer) = self.async_writer {
-            writer.queue_op(WriteOp::MoveToDlq {
+            if writer.queue_op(WriteOp::MoveToDlq {
                 job: Box::new(job.clone()),
                 error: error.map(String::from),
-            });
-            return Ok(());
+            }) {
+                return Ok(());
+            }
         }
         let conn = self.conn.lock();
         jobs::move_to_dlq(&conn, job, error)
     }
 
-    /// Cancel a job (async if writer enabled)
+    /// Cancel a job (async if writer enabled, falls back to sync if queue full)
     pub fn cancel_job(&self, job_id: u64) -> Result<(), rusqlite::Error> {
         if let Some(ref writer) = self.async_writer {
-            writer.queue_op(WriteOp::CancelJob { job_id });
-            return Ok(());
+            if writer.queue_op(WriteOp::CancelJob { job_id }) {
+                return Ok(());
+            }
         }
         let conn = self.conn.lock();
         jobs::cancel_job(&conn, job_id)
@@ -313,6 +327,27 @@ impl SqliteStorage {
     pub fn get_max_job_id(&self) -> Result<u64, rusqlite::Error> {
         let conn = self.conn.lock();
         jobs::get_max_job_id(&conn)
+    }
+
+    /// Load custom_id mappings for recovery
+    pub fn load_custom_id_map(&self) -> Result<Vec<(u64, String)>, rusqlite::Error> {
+        let conn = self.conn.lock();
+        jobs::load_custom_id_map(&conn)
+    }
+
+    /// Load job results for recovery (limited to prevent OOM)
+    pub fn load_job_results(
+        &self,
+        limit: usize,
+    ) -> Result<Vec<(u64, serde_json::Value)>, rusqlite::Error> {
+        let conn = self.conn.lock();
+        jobs::load_job_results(&conn, limit)
+    }
+
+    /// Load completed job IDs for dependency tracking recovery (limited to prevent OOM)
+    pub fn load_completed_job_ids(&self, limit: usize) -> Result<Vec<u64>, rusqlite::Error> {
+        let conn = self.conn.lock();
+        jobs::load_completed_job_ids(&conn, limit)
     }
 
     // ============== Cron Jobs ==============
@@ -413,11 +448,7 @@ impl SqliteStorage {
     /// Discard a job (move to DLQ)
     pub fn discard_job(&self, job_id: u64) -> Result<(), rusqlite::Error> {
         let conn = self.conn.lock();
-        conn.execute(
-            "UPDATE jobs SET state = 'failed' WHERE id = ?1",
-            rusqlite::params![job_id as i64],
-        )?;
-        Ok(())
+        jobs_advanced::discard_job(&conn, job_id)
     }
 
     /// Purge all DLQ entries for a queue
@@ -486,5 +517,24 @@ impl SqliteStorage {
     #[allow(dead_code)]
     pub fn backup_manager(&self) -> Option<&Arc<S3BackupManager>> {
         self.backup_manager.as_ref()
+    }
+
+    // ============== Queue State ==============
+
+    /// Save queue state (pause, rate limit, concurrency)
+    pub fn save_queue_state(
+        &self,
+        state: &jobs_advanced::PersistedQueueState,
+    ) -> Result<(), rusqlite::Error> {
+        let conn = self.conn.lock();
+        jobs_advanced::save_queue_state(&conn, state)
+    }
+
+    /// Load all queue states for recovery
+    pub fn load_queue_states(
+        &self,
+    ) -> Result<Vec<jobs_advanced::PersistedQueueState>, rusqlite::Error> {
+        let conn = self.conn.lock();
+        jobs_advanced::load_queue_states(&conn)
     }
 }

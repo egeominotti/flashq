@@ -125,9 +125,32 @@ impl AsyncWriter {
     }
 
     /// Queue a write operation (non-blocking).
+    /// Returns false if queue is full (backpressure), caller should retry or use sync path.
     #[inline]
-    pub fn queue_op(&self, op: WriteOp) {
+    pub fn queue_op(&self, op: WriteOp) -> bool {
         let mut queue = self.queue.lock();
+
+        // Backpressure: reject if queue is full
+        let capacity = self.config.queue_capacity;
+        if queue.len() >= capacity {
+            drop(queue);
+            warn!(
+                capacity = capacity,
+                "Async writer queue full, backpressure applied"
+            );
+            return false;
+        }
+
+        // Warn at 80% capacity
+        let len = queue.len();
+        if len > 0 && len == capacity * 8 / 10 {
+            warn!(
+                len = len,
+                capacity = capacity,
+                "Async writer queue at 80% capacity"
+            );
+        }
+
         queue.push_back(op);
 
         let len = queue.len() as u64;
@@ -145,6 +168,8 @@ impl AsyncWriter {
         if len >= self.max_batch_size.load(Ordering::Relaxed) as u64 {
             self.notify.notify_one();
         }
+
+        true
     }
 
     /// Queue multiple operations at once.
@@ -219,16 +244,19 @@ impl AsyncWriter {
     }
 
     /// Shutdown the writer gracefully.
+    /// Waits up to 30 seconds for all pending writes to be flushed.
     #[allow(dead_code)]
     pub async fn shutdown(&self) {
         self.running.store(false, Ordering::SeqCst);
         self.notify.notify_one();
 
-        // Wait for shutdown with timeout
+        // Wait for shutdown with generous timeout for large queues
         tokio::select! {
-            _ = self.shutdown_complete.notified() => {}
-            _ = tokio::time::sleep(Duration::from_secs(5)) => {
-                warn!("Async writer shutdown timeout");
+            _ = self.shutdown_complete.notified() => {
+                info!("Async writer shutdown complete");
+            }
+            _ = tokio::time::sleep(Duration::from_secs(30)) => {
+                warn!("Async writer shutdown timeout after 30s");
             }
         }
     }

@@ -440,7 +440,7 @@ async fn start_s3_backup_task(queue_manager: &Arc<QueueManager>) {
     });
 }
 
-/// Graceful shutdown: wait for active jobs to complete
+/// Graceful shutdown: wait for active jobs to complete and flush persistence
 async fn graceful_shutdown(queue_manager: &Arc<QueueManager>) {
     queue_manager.shutdown();
 
@@ -460,6 +460,9 @@ async fn graceful_shutdown(queue_manager: &Arc<QueueManager>) {
 
         tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
     }
+
+    // Flush async writer to ensure all pending writes are persisted
+    queue_manager.flush_persistence().await;
 
     info!("Goodbye");
 }

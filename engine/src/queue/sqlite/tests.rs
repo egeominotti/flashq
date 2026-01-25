@@ -664,3 +664,344 @@ fn test_snapshot_manager_latest_snapshot() {
     assert!(latest.is_some());
     assert!(latest.unwrap().to_string_lossy().contains("20240102"));
 }
+
+// ============== Recovery Tests ==============
+
+#[test]
+fn test_recovery_custom_id_map() {
+    let (storage, _temp) = create_test_storage();
+
+    // Insert jobs with custom_id
+    let mut job1 = create_test_job(1, "test-queue");
+    job1.custom_id = Some("order-123".to_string());
+
+    let mut job2 = create_test_job(2, "test-queue");
+    job2.custom_id = Some("order-456".to_string());
+
+    let mut job3 = create_test_job(3, "test-queue");
+    job3.custom_id = None; // No custom_id
+
+    storage.insert_job(&job1, "waiting").unwrap();
+    storage.insert_job(&job2, "waiting").unwrap();
+    storage.insert_job(&job3, "waiting").unwrap();
+
+    // Recover custom_id map
+    let mappings = storage.load_custom_id_map().unwrap();
+
+    assert_eq!(mappings.len(), 2);
+    assert!(mappings
+        .iter()
+        .any(|(id, cid)| *id == 1 && cid == "order-123"));
+    assert!(mappings
+        .iter()
+        .any(|(id, cid)| *id == 2 && cid == "order-456"));
+}
+
+#[test]
+fn test_recovery_job_results() {
+    let (storage, _temp) = create_test_storage();
+
+    // Insert a job and ack with result
+    let job = create_test_job(1, "test-queue");
+    storage.insert_job(&job, "waiting").unwrap();
+    storage
+        .ack_job(1, Some(json!({"result": "success", "value": 42})))
+        .unwrap();
+
+    // Insert another job and ack with different result
+    let job2 = create_test_job(2, "test-queue");
+    storage.insert_job(&job2, "waiting").unwrap();
+    storage
+        .ack_job(2, Some(json!({"result": "partial", "count": 10})))
+        .unwrap();
+
+    // Recover job results
+    let results = storage.load_job_results(1000).unwrap();
+
+    assert_eq!(results.len(), 2);
+
+    let result1 = results.iter().find(|(id, _)| *id == 1).map(|(_, r)| r);
+    assert!(result1.is_some());
+    assert_eq!(result1.unwrap()["result"], "success");
+    assert_eq!(result1.unwrap()["value"], 42);
+
+    let result2 = results.iter().find(|(id, _)| *id == 2).map(|(_, r)| r);
+    assert!(result2.is_some());
+    assert_eq!(result2.unwrap()["result"], "partial");
+}
+
+#[test]
+fn test_recovery_completed_job_ids() {
+    let (storage, _temp) = create_test_storage();
+
+    // Insert and ack multiple jobs
+    for i in 1..=5 {
+        let job = create_test_job(i, "test-queue");
+        storage.insert_job(&job, "waiting").unwrap();
+        storage.ack_job(i, Some(json!({"id": i}))).unwrap();
+    }
+
+    // Recover completed job IDs
+    let completed_ids = storage.load_completed_job_ids(1000).unwrap();
+
+    assert_eq!(completed_ids.len(), 5);
+    for i in 1..=5 {
+        assert!(completed_ids.contains(&i));
+    }
+}
+
+#[test]
+fn test_recovery_full_scenario() {
+    let (storage, _temp) = create_test_storage();
+
+    // Scenario: Multiple jobs with various states
+    // Job 1: waiting with custom_id
+    let mut job1 = create_test_job(1, "test-queue");
+    job1.custom_id = Some("unique-1".to_string());
+    storage.insert_job(&job1, "waiting").unwrap();
+
+    // Job 2: completed with result
+    let job2 = create_test_job(2, "test-queue");
+    storage.insert_job(&job2, "waiting").unwrap();
+    storage.ack_job(2, Some(json!({"done": true}))).unwrap();
+
+    // Job 3: waiting_children (depends on job 2)
+    let mut job3 = create_test_job(3, "test-queue");
+    job3.depends_on = vec![2];
+    job3.custom_id = Some("unique-3".to_string());
+    storage.insert_job(&job3, "waiting_children").unwrap();
+
+    // Job 4: in DLQ
+    let job4 = create_test_job(4, "test-queue");
+    storage.insert_job(&job4, "waiting").unwrap();
+    storage.move_to_dlq(&job4, Some("test error")).unwrap();
+
+    // Recover everything
+    let pending_jobs = storage.load_pending_jobs().unwrap();
+    let dlq_jobs = storage.load_dlq_jobs().unwrap();
+    let custom_id_map = storage.load_custom_id_map().unwrap();
+    let completed_ids = storage.load_completed_job_ids(1000).unwrap();
+    let job_results = storage.load_job_results(1000).unwrap();
+
+    // Verify pending jobs (job 1 waiting, job 3 waiting_children)
+    assert_eq!(pending_jobs.len(), 2);
+    assert!(pending_jobs
+        .iter()
+        .any(|(j, s)| j.id == 1 && s == "waiting"));
+    assert!(pending_jobs
+        .iter()
+        .any(|(j, s)| j.id == 3 && s == "waiting_children"));
+
+    // Verify DLQ jobs
+    assert_eq!(dlq_jobs.len(), 1);
+    assert_eq!(dlq_jobs[0].id, 4);
+
+    // Verify custom_id map (job 1 and job 3)
+    assert_eq!(custom_id_map.len(), 2);
+    assert!(custom_id_map
+        .iter()
+        .any(|(id, cid)| *id == 1 && cid == "unique-1"));
+    assert!(custom_id_map
+        .iter()
+        .any(|(id, cid)| *id == 3 && cid == "unique-3"));
+
+    // Verify completed IDs (job 2)
+    assert_eq!(completed_ids.len(), 1);
+    assert!(completed_ids.contains(&2));
+
+    // Verify job results (job 2)
+    assert_eq!(job_results.len(), 1);
+    assert!(job_results.iter().any(|(id, _)| *id == 2));
+}
+
+#[test]
+fn test_recovery_simulated_server_restart() {
+    // This test simulates a full server restart scenario:
+    // 1. Create storage and add various jobs
+    // 2. "Restart" by dropping and recreating storage from same DB file
+    // 3. Verify all data is correctly recovered
+
+    let temp_file = NamedTempFile::new().expect("Failed to create temp file");
+    let db_path = temp_file.path().to_path_buf();
+
+    // === PHASE 1: Initial server run ===
+    {
+        let config = SqliteConfig {
+            path: db_path.clone(),
+            wal_mode: true,
+            synchronous: 1, // NORMAL for durability
+            cache_size: -2000,
+        };
+        let storage = SqliteStorage::new(config).expect("Failed to create storage");
+        storage.migrate().expect("Failed to migrate");
+
+        // Create jobs with various states and features
+        // Job 1: Waiting with custom_id (for deduplication test)
+        let mut job1 = create_test_job(100, "orders");
+        job1.custom_id = Some("order-abc-123".to_string());
+        storage.insert_job(&job1, "waiting").unwrap();
+
+        // Job 2: Delayed
+        let mut job2 = create_test_job(200, "emails");
+        job2.run_at = 9999999999999; // Far future
+        storage.insert_job(&job2, "delayed").unwrap();
+
+        // Job 3: Active (being processed when crash occurred)
+        let job3 = create_test_job(300, "notifications");
+        storage.insert_job(&job3, "active").unwrap();
+
+        // Job 4: Completed with result
+        let job4 = create_test_job(400, "reports");
+        storage.insert_job(&job4, "waiting").unwrap();
+        storage
+            .ack_job(
+                400,
+                Some(json!({"report_url": "https://example.com/report.pdf", "pages": 42})),
+            )
+            .unwrap();
+
+        // Job 5: Waiting children (dependency on job 4)
+        let mut job5 = create_test_job(500, "aggregator");
+        job5.depends_on = vec![400];
+        job5.custom_id = Some("aggregate-final".to_string());
+        storage.insert_job(&job5, "waiting_children").unwrap();
+
+        // Job 6: In DLQ (failed permanently)
+        let job6 = create_test_job(600, "payments");
+        storage.insert_job(&job6, "waiting").unwrap();
+        storage
+            .move_to_dlq(&job6, Some("Payment gateway timeout after 3 retries"))
+            .unwrap();
+
+        // Add a cron job
+        let cron = crate::protocol::CronJob {
+            name: "daily-cleanup".to_string(),
+            queue: "maintenance".to_string(),
+            data: json!({"action": "cleanup_old_records"}),
+            schedule: Some("0 0 * * *".to_string()),
+            repeat_every: None,
+            priority: -10,
+            next_run: 1700000000000,
+            executions: 5,
+            limit: Some(100),
+        };
+        storage.save_cron(&cron).unwrap();
+
+        // Add a webhook
+        let webhook = crate::protocol::WebhookConfig {
+            id: "wh-001".to_string(),
+            url: "https://api.example.com/webhook".to_string(),
+            events: vec!["job.completed".to_string(), "job.failed".to_string()],
+            queue: Some("orders".to_string()),
+            secret: Some("super-secret-key".to_string()),
+            created_at: 1699999999999,
+        };
+        storage.save_webhook(&webhook).unwrap();
+
+        // Storage is dropped here, simulating server shutdown
+    }
+
+    // === PHASE 2: Server restart - create new storage from same DB ===
+    {
+        let config = SqliteConfig {
+            path: db_path.clone(),
+            wal_mode: true,
+            synchronous: 1,
+            cache_size: -2000,
+        };
+        let storage = SqliteStorage::new(config).expect("Failed to create storage on restart");
+        storage.migrate().expect("Migration should be idempotent");
+
+        // === VERIFY RECOVERY ===
+
+        // 1. Pending jobs (waiting, delayed, active, waiting_children)
+        let pending_jobs = storage.load_pending_jobs().unwrap();
+        assert_eq!(pending_jobs.len(), 4, "Should recover 4 pending jobs");
+
+        let job1_recovered = pending_jobs.iter().find(|(j, _)| j.id == 100);
+        assert!(job1_recovered.is_some(), "Job 100 should be recovered");
+        let (j1, s1) = job1_recovered.unwrap();
+        assert_eq!(s1, "waiting");
+        assert_eq!(j1.custom_id, Some("order-abc-123".to_string()));
+
+        let job2_recovered = pending_jobs.iter().find(|(j, _)| j.id == 200);
+        assert!(job2_recovered.is_some(), "Job 200 should be recovered");
+        let (_, s2) = job2_recovered.unwrap();
+        assert_eq!(s2, "delayed");
+
+        let job3_recovered = pending_jobs.iter().find(|(j, _)| j.id == 300);
+        assert!(
+            job3_recovered.is_some(),
+            "Job 300 (active) should be recovered"
+        );
+        let (_, s3) = job3_recovered.unwrap();
+        assert_eq!(s3, "active"); // Will be reprocessed as if new
+
+        let job5_recovered = pending_jobs.iter().find(|(j, _)| j.id == 500);
+        assert!(job5_recovered.is_some(), "Job 500 should be recovered");
+        let (j5, s5) = job5_recovered.unwrap();
+        assert_eq!(s5, "waiting_children");
+        assert_eq!(j5.depends_on, vec![400]);
+
+        // 2. DLQ jobs
+        let dlq_jobs = storage.load_dlq_jobs().unwrap();
+        assert_eq!(dlq_jobs.len(), 1, "Should recover 1 DLQ job");
+        assert_eq!(dlq_jobs[0].id, 600);
+
+        // 3. Custom ID map (for deduplication)
+        let custom_id_map = storage.load_custom_id_map().unwrap();
+        assert_eq!(
+            custom_id_map.len(),
+            2,
+            "Should recover 2 custom_id mappings"
+        );
+        assert!(custom_id_map
+            .iter()
+            .any(|(id, cid)| *id == 100 && cid == "order-abc-123"));
+        assert!(custom_id_map
+            .iter()
+            .any(|(id, cid)| *id == 500 && cid == "aggregate-final"));
+
+        // 4. Completed job IDs (for dependency tracking)
+        let completed_ids = storage.load_completed_job_ids(1000).unwrap();
+        assert_eq!(completed_ids.len(), 1, "Should recover 1 completed job ID");
+        assert!(completed_ids.contains(&400));
+
+        // 5. Job results
+        let job_results = storage.load_job_results(1000).unwrap();
+        assert_eq!(job_results.len(), 1, "Should recover 1 job result");
+        let (result_id, result) = &job_results[0];
+        assert_eq!(*result_id, 400);
+        assert_eq!(result["report_url"], "https://example.com/report.pdf");
+        assert_eq!(result["pages"], 42);
+
+        // 6. Cron jobs
+        let crons = storage.load_crons().unwrap();
+        assert_eq!(crons.len(), 1, "Should recover 1 cron job");
+        let cron = &crons[0];
+        assert_eq!(cron.name, "daily-cleanup");
+        assert_eq!(cron.queue, "maintenance");
+        assert_eq!(cron.schedule, Some("0 0 * * *".to_string()));
+        assert_eq!(cron.executions, 5);
+
+        // 7. Webhooks
+        let webhooks = storage.load_webhooks().unwrap();
+        assert_eq!(webhooks.len(), 1, "Should recover 1 webhook");
+        let wh = &webhooks[0];
+        assert_eq!(wh.id, "wh-001");
+        assert_eq!(wh.url, "https://api.example.com/webhook");
+        assert_eq!(wh.events, vec!["job.completed", "job.failed"]);
+        assert_eq!(wh.queue, Some("orders".to_string()));
+        assert_eq!(wh.secret, Some("super-secret-key".to_string()));
+
+        // 8. Max job ID (for ID counter sync)
+        let max_id = storage.get_max_job_id().unwrap();
+        assert_eq!(
+            max_id, 500,
+            "Max job ID should be 500 (highest in pending jobs)"
+        );
+    }
+
+    // Cleanup
+    drop(temp_file);
+}

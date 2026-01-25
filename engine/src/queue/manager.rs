@@ -422,6 +422,16 @@ impl QueueManager {
             .store(true, std::sync::atomic::Ordering::Relaxed);
     }
 
+    /// Flush and shutdown the async writer for graceful shutdown.
+    /// This ensures all pending writes are persisted to SQLite.
+    pub async fn flush_persistence(&self) {
+        if let Some(storage) = &self.storage {
+            if let Some(writer) = storage.async_writer() {
+                writer.shutdown().await;
+            }
+        }
+    }
+
     #[inline]
     pub fn is_shutdown(&self) -> bool {
         self.shutdown_flag
@@ -516,6 +526,28 @@ impl QueueManager {
     #[inline(always)]
     pub fn now_ms() -> u64 {
         now_ms()
+    }
+
+    /// Persist queue state (pause, rate_limit, concurrency) to SQLite.
+    pub(crate) async fn persist_queue_state(&self, queue: &str) {
+        if let Some(ref storage) = self.storage {
+            let idx = Self::shard_index(queue);
+            let queue_arc = intern(queue);
+            let shard = self.shards[idx].read();
+
+            let state = shard.queue_state.get(&queue_arc);
+            let persisted = crate::queue::sqlite::PersistedQueueState {
+                queue: queue.to_string(),
+                paused: state.map(|s| s.paused).unwrap_or(false),
+                rate_limit: state.and_then(|s| s.rate_limiter.as_ref().map(|r| r.limit)),
+                concurrency_limit: state.and_then(|s| s.concurrency.as_ref().map(|c| c.limit)),
+            };
+            drop(shard);
+
+            if let Err(e) = storage.save_queue_state(&persisted) {
+                tracing::error!(queue = queue, error = %e, "Failed to persist queue state");
+            }
+        }
     }
 
     /// Recover state from SQLite on startup.
@@ -617,6 +649,72 @@ impl QueueManager {
             }
             if !wh.is_empty() {
                 info!(count = wh.len(), "Recovered webhooks");
+            }
+        }
+
+        // Load custom_id mappings (for jobId-based deduplication)
+        if let Ok(mappings) = storage.load_custom_id_map() {
+            if !mappings.is_empty() {
+                let mut custom_id_map = self.custom_id_map.write();
+                for (job_id, custom_id) in &mappings {
+                    custom_id_map.insert(custom_id.clone(), *job_id);
+                }
+                info!(count = mappings.len(), "Recovered custom_id mappings");
+            }
+        }
+
+        // Load completed job IDs (for dependency tracking) - limited to prevent OOM
+        let max_completed = self.cleanup_settings.read().max_completed_jobs;
+        if let Ok(completed_ids) = storage.load_completed_job_ids(max_completed) {
+            if !completed_ids.is_empty() {
+                let mut completed = self.completed_jobs.write();
+                for id in &completed_ids {
+                    completed.insert(*id);
+                }
+                info!(
+                    count = completed_ids.len(),
+                    "Recovered completed job IDs for dependency tracking"
+                );
+            }
+        }
+
+        // Load job results (for getResult queries) - limited to prevent OOM
+        let max_results = self.cleanup_settings.read().max_job_results;
+        if let Ok(results) = storage.load_job_results(max_results) {
+            if !results.is_empty() {
+                let mut job_results = self.job_results.write();
+                for (job_id, result) in results {
+                    job_results.insert(job_id, result);
+                }
+                info!(count = job_results.len(), "Recovered job results");
+            }
+        }
+
+        // Load queue states (paused, rate_limit, concurrency)
+        if let Ok(states) = storage.load_queue_states() {
+            let mut recovered_count = 0;
+            for state in states {
+                let idx = Self::shard_index(&state.queue);
+                let queue_name = intern(&state.queue);
+                let mut shard = self.shards[idx].write();
+                let qs = shard.get_state(&queue_name);
+
+                if state.paused {
+                    qs.paused = true;
+                }
+                if let Some(limit) = state.rate_limit {
+                    qs.rate_limiter = Some(crate::queue::types::RateLimiter::new(limit));
+                }
+                if let Some(limit) = state.concurrency_limit {
+                    qs.concurrency = Some(crate::queue::types::ConcurrencyLimiter::new(limit));
+                }
+                recovered_count += 1;
+            }
+            if recovered_count > 0 {
+                info!(
+                    count = recovered_count,
+                    "Recovered queue states (pause/rate_limit/concurrency)"
+                );
             }
         }
 

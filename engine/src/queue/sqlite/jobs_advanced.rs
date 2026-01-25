@@ -151,12 +151,13 @@ pub fn drain_queue(conn: &Connection, queue: &str) -> Result<u64, rusqlite::Erro
     Ok(rows as u64)
 }
 
-/// Obliterate all data for a queue.
+/// Obliterate all data for a queue (jobs, DLQ, cron, queue state).
 pub fn obliterate_queue(conn: &Connection, queue: &str) -> Result<u64, rusqlite::Error> {
     let tx = conn.unchecked_transaction()?;
     let jobs_deleted = tx.execute("DELETE FROM jobs WHERE queue = ?1", params![queue])? as u64;
     tx.execute("DELETE FROM dlq_jobs WHERE queue = ?1", params![queue])?;
     tx.execute("DELETE FROM cron_jobs WHERE queue = ?1", params![queue])?;
+    tx.execute("DELETE FROM queue_state WHERE queue = ?1", params![queue])?;
     tx.commit()?;
     Ok(jobs_deleted)
 }
@@ -218,4 +219,83 @@ pub fn clean_jobs(
         params![queue, state, cutoff as i64],
     )?;
     Ok(rows as u64)
+}
+
+/// Discard a job by moving it to DLQ.
+pub fn discard_job(conn: &Connection, job_id: u64) -> Result<(), rusqlite::Error> {
+    let now = crate::queue::types::now_ms();
+    let tx = conn.unchecked_transaction()?;
+
+    // Get job data before deleting
+    let job_data: Option<(String, String, u32)> = tx
+        .query_row(
+            "SELECT queue, data, attempts FROM jobs WHERE id = ?1",
+            params![job_id as i64],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        )
+        .ok();
+
+    if let Some((queue, data, attempts)) = job_data {
+        // Delete from jobs
+        tx.execute("DELETE FROM jobs WHERE id = ?1", params![job_id as i64])?;
+
+        // Insert into DLQ
+        tx.execute(
+            "INSERT INTO dlq_jobs (job_id, queue, data, error, failed_at, attempts) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![job_id as i64, queue, data, "Discarded by user", now as i64, attempts],
+        )?;
+    }
+
+    tx.commit()
+}
+
+// ============== Queue State Persistence ==============
+
+/// Queue state data for persistence
+#[derive(Debug, Clone)]
+pub struct PersistedQueueState {
+    pub queue: String,
+    pub paused: bool,
+    pub rate_limit: Option<u32>,
+    pub concurrency_limit: Option<u32>,
+}
+
+/// Save queue state (pause, rate limit, concurrency).
+pub fn save_queue_state(
+    conn: &Connection,
+    state: &PersistedQueueState,
+) -> Result<(), rusqlite::Error> {
+    conn.execute(
+        "INSERT OR REPLACE INTO queue_state (queue, paused, rate_limit_max, concurrency_limit)
+         VALUES (?1, ?2, ?3, ?4)",
+        params![
+            state.queue,
+            state.paused as i32,
+            state.rate_limit.map(|v| v as i64),
+            state.concurrency_limit.map(|v| v as i64),
+        ],
+    )?;
+    Ok(())
+}
+
+/// Load all queue states for recovery.
+pub fn load_queue_states(conn: &Connection) -> Result<Vec<PersistedQueueState>, rusqlite::Error> {
+    let mut stmt =
+        conn.prepare("SELECT queue, paused, rate_limit_max, concurrency_limit FROM queue_state")?;
+
+    let rows = stmt.query_map([], |row| {
+        let queue: String = row.get(0)?;
+        let paused: i32 = row.get(1)?;
+        let rate_limit: Option<i64> = row.get(2)?;
+        let concurrency_limit: Option<i64> = row.get(3)?;
+
+        Ok(PersistedQueueState {
+            queue,
+            paused: paused != 0,
+            rate_limit: rate_limit.map(|v| v as u32),
+            concurrency_limit: concurrency_limit.map(|v| v as u32),
+        })
+    })?;
+
+    rows.collect()
 }

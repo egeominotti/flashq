@@ -186,7 +186,11 @@ impl S3BackupManager {
     }
 
     /// Upload database backup to S3
+    /// Uses streaming for non-compressed uploads, temp file for compressed to avoid OOM
     pub async fn backup(&self, db_path: &Path) -> Result<(), String> {
+        use aws_sdk_s3::primitives::ByteStream;
+        use std::io::{BufReader, BufWriter, Read};
+
         if !db_path.exists() {
             return Err("Database file does not exist".to_string());
         }
@@ -195,33 +199,90 @@ impl S3BackupManager {
         let extension = if self.config.compress { "db.gz" } else { "db" };
         let key = format!("{}flashq_{}.{}", self.config.prefix, timestamp, extension);
 
-        // Read database file
-        let data = std::fs::read(db_path).map_err(|e| format!("Failed to read database: {}", e))?;
+        // Track temp file for cleanup after upload (needed for Windows compatibility)
+        let mut temp_file_to_cleanup: Option<std::path::PathBuf> = None;
 
-        // Compress if enabled
-        let body = if self.config.compress {
-            let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
-            encoder
-                .write_all(&data)
-                .map_err(|e| format!("Compression failed: {}", e))?;
-            encoder
-                .finish()
-                .map_err(|e| format!("Compression finish failed: {}", e))?
+        let (body, body_size) = if self.config.compress {
+            // Compress to temp file to avoid loading entire DB into memory
+            let temp_path = db_path.with_extension("db.gz.tmp");
+
+            // Stream compress: read chunks from source, write compressed to temp
+            {
+                let source = std::fs::File::open(db_path)
+                    .map_err(|e| format!("Failed to open database: {}", e))?;
+                let mut reader = BufReader::with_capacity(64 * 1024, source); // 64KB buffer
+
+                let temp_file = std::fs::File::create(&temp_path)
+                    .map_err(|e| format!("Failed to create temp file: {}", e))?;
+                let writer = BufWriter::with_capacity(64 * 1024, temp_file);
+                let mut encoder = GzEncoder::new(writer, Compression::default());
+
+                // Stream copy in chunks
+                let mut buffer = [0u8; 64 * 1024]; // 64KB chunks
+                loop {
+                    let bytes_read = reader
+                        .read(&mut buffer)
+                        .map_err(|e| format!("Failed to read database: {}", e))?;
+                    if bytes_read == 0 {
+                        break;
+                    }
+                    encoder
+                        .write_all(&buffer[..bytes_read])
+                        .map_err(|e| format!("Compression failed: {}", e))?;
+                }
+                encoder
+                    .finish()
+                    .map_err(|e| format!("Compression finish failed: {}", e))?;
+            }
+
+            let size = std::fs::metadata(&temp_path)
+                .map(|m| m.len() as usize)
+                .unwrap_or(0);
+
+            // Stream upload from temp file
+            let stream = match ByteStream::from_path(&temp_path).await {
+                Ok(s) => s,
+                Err(e) => {
+                    // Cleanup temp file on error
+                    let _ = std::fs::remove_file(&temp_path);
+                    return Err(format!("Failed to create stream: {}", e));
+                }
+            };
+
+            // Mark temp file for cleanup AFTER upload completes (Windows compatibility)
+            temp_file_to_cleanup = Some(temp_path);
+
+            (stream, size)
         } else {
-            data
+            // No compression: stream directly from source file (zero memory copy)
+            let size = std::fs::metadata(db_path)
+                .map(|m| m.len() as usize)
+                .unwrap_or(0);
+
+            let stream = ByteStream::from_path(db_path)
+                .await
+                .map_err(|e| format!("Failed to create stream: {}", e))?;
+
+            (stream, size)
         };
 
-        let body_size = body.len();
-
         // Upload to S3
-        self.client
+        let upload_result = self
+            .client
             .put_object()
             .bucket(&self.config.bucket)
             .key(&key)
-            .body(body.into())
+            .body(body)
             .send()
-            .await
-            .map_err(|e| format!("S3 upload failed: {}", e))?;
+            .await;
+
+        // Cleanup temp file AFTER upload (for Windows compatibility - can't delete open files)
+        if let Some(temp_path) = temp_file_to_cleanup {
+            let _ = std::fs::remove_file(&temp_path);
+        }
+
+        // Check upload result after cleanup
+        upload_result.map_err(|e| format!("S3 upload failed: {}", e))?;
 
         self.last_backup
             .store(crate::queue::types::now_ms(), Ordering::Relaxed);
@@ -233,28 +294,55 @@ impl S3BackupManager {
         Ok(())
     }
 
+    /// List all objects with pagination support
+    async fn list_all_objects(&self) -> Result<Vec<aws_sdk_s3::types::Object>, String> {
+        let mut all_objects = Vec::new();
+        let mut continuation_token: Option<String> = None;
+
+        loop {
+            let mut request = self
+                .client
+                .list_objects_v2()
+                .bucket(&self.config.bucket)
+                .prefix(&self.config.prefix);
+
+            if let Some(token) = continuation_token.take() {
+                request = request.continuation_token(token);
+            }
+
+            let response = request
+                .send()
+                .await
+                .map_err(|e| format!("Failed to list objects: {}", e))?;
+
+            // Collect objects from this page
+            all_objects.extend(response.contents().iter().cloned());
+
+            // Check if there are more pages
+            if response.is_truncated() == Some(true) {
+                continuation_token = response.next_continuation_token().map(|s| s.to_string());
+            } else {
+                break;
+            }
+        }
+
+        Ok(all_objects)
+    }
+
     /// Cleanup old backups, keeping only the most recent N
     async fn cleanup_old_backups(&self) -> Result<(), String> {
-        let list = self
-            .client
-            .list_objects_v2()
-            .bucket(&self.config.bucket)
-            .prefix(&self.config.prefix)
-            .send()
-            .await
-            .map_err(|e| format!("Failed to list objects: {}", e))?;
+        let objects = self.list_all_objects().await?;
 
-        let mut objects: Vec<_> = list
-            .contents()
+        let mut keys: Vec<_> = objects
             .iter()
             .filter_map(|obj| obj.key().map(|k| k.to_string()))
             .collect();
 
         // Sort by name (timestamp-based, newest first)
-        objects.sort_by(|a, b| b.cmp(a));
+        keys.sort_by(|a, b| b.cmp(a));
 
         // Delete old backups
-        for key in objects.iter().skip(self.config.keep_count) {
+        for key in keys.iter().skip(self.config.keep_count) {
             if let Err(e) = self
                 .client
                 .delete_object()
@@ -272,40 +360,24 @@ impl S3BackupManager {
 
     /// List available backups in S3
     pub async fn list_backups(&self) -> Result<Vec<String>, String> {
-        let list = self
-            .client
-            .list_objects_v2()
-            .bucket(&self.config.bucket)
-            .prefix(&self.config.prefix)
-            .send()
-            .await
-            .map_err(|e| format!("Failed to list objects: {}", e))?;
+        let objects = self.list_all_objects().await?;
 
-        let mut objects: Vec<_> = list
-            .contents()
+        let mut keys: Vec<_> = objects
             .iter()
             .filter_map(|obj| obj.key().map(|k| k.to_string()))
             .collect();
 
-        objects.sort_by(|a, b| b.cmp(a));
-        Ok(objects)
+        keys.sort_by(|a, b| b.cmp(a));
+        Ok(keys)
     }
 
     /// List available backups in S3 with detailed info (key, size, last_modified)
     pub async fn list_backups_detailed(
         &self,
     ) -> Result<Vec<(String, i64, Option<String>)>, String> {
-        let list = self
-            .client
-            .list_objects_v2()
-            .bucket(&self.config.bucket)
-            .prefix(&self.config.prefix)
-            .send()
-            .await
-            .map_err(|e| format!("Failed to list objects: {}", e))?;
+        let objects = self.list_all_objects().await?;
 
-        let mut objects: Vec<_> = list
-            .contents()
+        let mut detailed: Vec<_> = objects
             .iter()
             .filter_map(|obj| {
                 obj.key().map(|k| {
@@ -317,12 +389,14 @@ impl S3BackupManager {
             .collect();
 
         // Sort by key (timestamp-based, newest first)
-        objects.sort_by(|a, b| b.0.cmp(&a.0));
-        Ok(objects)
+        detailed.sort_by(|a, b| b.0.cmp(&a.0));
+        Ok(detailed)
     }
 
     /// Download and restore from S3 backup
     pub async fn restore(&self, key: &str, target_path: &Path) -> Result<(), String> {
+        use rusqlite::Connection;
+
         let response = self
             .client
             .get_object()
@@ -353,10 +427,52 @@ impl S3BackupManager {
             data.to_vec()
         };
 
-        std::fs::write(target_path, db_data)
-            .map_err(|e| format!("Failed to write database: {}", e))?;
+        // Write to a temporary file first for validation
+        let temp_path = target_path.with_extension("db.tmp");
+        std::fs::write(&temp_path, &db_data)
+            .map_err(|e| format!("Failed to write temp database: {}", e))?;
 
-        info!(key = %key, path = ?target_path, "Restored from S3 backup");
+        // Validate the downloaded file is a valid SQLite database
+        let validation_result = (|| -> Result<(), String> {
+            let conn =
+                Connection::open(&temp_path).map_err(|e| format!("Invalid SQLite file: {}", e))?;
+
+            // Run integrity check
+            let integrity: String = conn
+                .query_row("PRAGMA integrity_check", [], |row| row.get(0))
+                .map_err(|e| format!("Integrity check failed: {}", e))?;
+
+            if integrity != "ok" {
+                return Err(format!("Database integrity check failed: {}", integrity));
+            }
+
+            // Verify it has the expected tables
+            let has_jobs: i32 = conn
+                .query_row(
+                    "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='jobs'",
+                    [],
+                    |row| row.get(0),
+                )
+                .map_err(|e| format!("Table check failed: {}", e))?;
+
+            if has_jobs == 0 {
+                return Err("Invalid flashQ backup: missing 'jobs' table".to_string());
+            }
+
+            Ok(())
+        })();
+
+        // If validation fails, remove temp file and return error
+        if let Err(e) = validation_result {
+            std::fs::remove_file(&temp_path).ok();
+            return Err(e);
+        }
+
+        // Validation passed - move temp file to target
+        std::fs::rename(&temp_path, target_path)
+            .map_err(|e| format!("Failed to replace database: {}", e))?;
+
+        info!(key = %key, path = ?target_path, "Restored from S3 backup (validated)");
         Ok(())
     }
 }
