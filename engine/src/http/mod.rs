@@ -17,7 +17,10 @@ mod websocket;
 mod workers;
 
 use axum::{
-    http::{header, Method},
+    extract::{Request, State},
+    http::{header, Method, StatusCode},
+    middleware::{self, Next},
+    response::{IntoResponse, Response},
     routing::{delete, get, post},
     Router,
 };
@@ -26,6 +29,42 @@ use utoipa::OpenApi;
 use utoipa_scalar::{Scalar, Servable};
 
 pub use types::AppState;
+
+/// Authentication middleware for HTTP API.
+/// Checks Authorization header (Bearer token) and validates against QueueManager.
+/// Skips auth for /health, /docs, and /metrics/prometheus endpoints.
+async fn auth_middleware(State(qm): State<AppState>, request: Request, next: Next) -> Response {
+    let path = request.uri().path();
+
+    // Skip auth for public endpoints
+    if path == "/health"
+        || path.starts_with("/docs")
+        || path == "/metrics/prometheus"
+        || path.starts_with("/webhooks/incoming/")
+    {
+        return next.run(request).await;
+    }
+
+    // Extract token from Authorization header
+    let token = request
+        .headers()
+        .get(header::AUTHORIZATION)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|s| s.strip_prefix("Bearer "))
+        .unwrap_or("");
+
+    // Verify token
+    if !qm.verify_token(token) {
+        return (
+            StatusCode::UNAUTHORIZED,
+            [("WWW-Authenticate", "Bearer")],
+            "Invalid or missing authentication token",
+        )
+            .into_response();
+    }
+
+    next.run(request).await
+}
 
 /// Create CORS layer based on environment configuration.
 /// Set CORS_ALLOW_ORIGIN env var for production (comma-separated list of origins).
@@ -55,8 +94,10 @@ fn create_cors_layer() -> CorsLayer {
 }
 
 /// Create the HTTP router with all API routes.
+/// Authentication is enforced via middleware on all routes except /health, /docs, /metrics/prometheus.
 pub fn create_router(state: AppState) -> Router {
     let cors = create_cors_layer();
+    let auth_state = state.clone(); // Clone for auth middleware
 
     // Initialize start time for uptime tracking
     settings::init_start_time();
@@ -180,6 +221,7 @@ pub fn create_router(state: AppState) -> Router {
     Router::new()
         .merge(api_routes)
         .merge(Scalar::with_url("/docs", openapi::ApiDoc::openapi()))
+        .layer(middleware::from_fn_with_state(auth_state, auth_middleware))
         .layer(cors)
 }
 
