@@ -394,14 +394,28 @@ impl QueueService for QueueServiceImpl {
         tokio::spawn(async move {
             let queue = "default".to_string();
             loop {
-                let job = qm2.pull(&queue).await;
-                if job.id == 0 {
-                    // No job available, wait a bit
-                    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-                    continue;
+                // Check if client disconnected before blocking on pull
+                if tx.is_closed() {
+                    break;
                 }
-                if tx.send(Ok(job.into())).await.is_err() {
-                    break; // Client disconnected
+
+                // Use timeout to periodically check for client disconnect
+                let pull_result =
+                    tokio::time::timeout(tokio::time::Duration::from_secs(30), qm2.pull(&queue))
+                        .await;
+
+                match pull_result {
+                    Ok(job) => {
+                        if tx.send(Ok(job.into())).await.is_err() {
+                            break; // Client disconnected
+                        }
+                    }
+                    Err(_) => {
+                        // Timeout - check if client still connected and retry
+                        if tx.is_closed() {
+                            break;
+                        }
+                    }
                 }
             }
         });
