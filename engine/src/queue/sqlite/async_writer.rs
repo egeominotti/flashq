@@ -90,8 +90,8 @@ impl Default for AsyncWriterConfig {
     fn default() -> Self {
         Self {
             batch_interval_ms: 50,
-            max_batch_size: 1000,
-            queue_capacity: 10_000, // Reduced from 100_000 to limit memory usage
+            max_batch_size: 5_000,
+            queue_capacity: 100_000,
         }
     }
 }
