@@ -59,6 +59,8 @@ function buildRequest(baseUrl: string, cmd: string, params: Record<string, unkno
     }
     case 'GETPROGRESS':
       return { url: `${baseUrl}/jobs/${params.id}/progress`, method: 'GET' };
+    case 'GETLOGS':
+      return { url: `${baseUrl}/jobs/${params.id}/logs`, method: 'GET' };
 
     // Job management
     case 'CANCEL':
@@ -112,6 +114,22 @@ function buildRequest(baseUrl: string, cmd: string, params: Record<string, unkno
     // Admin
     case 'CRONLIST':
       return { url: `${baseUrl}/crons`, method: 'GET' };
+    case 'CRONADD':
+      return {
+        url: `${baseUrl}/crons/${encodeURIComponent(String(params.name))}`,
+        method: 'POST',
+        body: JSON.stringify({
+          queue: params.queue,
+          data: params.data,
+          schedule: params.schedule,
+          priority: params.priority,
+        }),
+      };
+    case 'CRONDELETE':
+      return {
+        url: `${baseUrl}/crons/${encodeURIComponent(String(params.name))}`,
+        method: 'DELETE',
+      };
     case 'CLEAN':
       return {
         url: `${baseUrl}/queues/${encodeQueue(params.queue)}/clean`,

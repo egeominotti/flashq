@@ -227,4 +227,21 @@ export function registerJobTools(server: McpServer, client: FlashQClient): void 
       }
     }
   );
+
+  // get_job_logs
+  server.tool(
+    'get_job_logs',
+    'Get log entries for a job. Logs include timestamps, levels (info, warn, error), and messages added during processing.',
+    {
+      job_id: z.number().describe('Numeric job ID'),
+    },
+    async (args) => {
+      try {
+        const result = await client.send('GETLOGS', { id: args.job_id });
+        return formatSuccess(result);
+      } catch (error) {
+        return formatError(error);
+      }
+    }
+  );
 }

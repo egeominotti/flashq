@@ -23,6 +23,52 @@ export function registerAdminTools(server: McpServer, client: FlashQClient): voi
     }
   );
 
+  // add_cron
+  server.tool(
+    'add_cron',
+    'Create a scheduled cron job that automatically pushes jobs to a queue on a schedule. Uses 6-field cron syntax: "sec min hour day month weekday".',
+    {
+      name: z.string().describe('Unique cron job name'),
+      queue: z.string().describe('Target queue to push jobs to'),
+      data: z.any().describe('Job data payload'),
+      schedule: z
+        .string()
+        .describe('Cron schedule expression (e.g., "0 */5 * * * *" = every 5 minutes)'),
+      priority: z.number().optional().default(0).describe('Job priority'),
+    },
+    async (args) => {
+      try {
+        const result = await client.send('CRONADD', {
+          name: args.name,
+          queue: args.queue,
+          data: args.data,
+          schedule: args.schedule,
+          priority: args.priority,
+        });
+        return formatSuccess(result);
+      } catch (error) {
+        return formatError(error);
+      }
+    }
+  );
+
+  // delete_cron
+  server.tool(
+    'delete_cron',
+    'Delete a scheduled cron job by name. Already-created jobs remain in their queues.',
+    {
+      name: z.string().describe('Cron job name to delete'),
+    },
+    async (args) => {
+      try {
+        const result = await client.send('CRONDELETE', { name: args.name });
+        return formatSuccess(result);
+      } catch (error) {
+        return formatError(error);
+      }
+    }
+  );
+
   // clean_jobs
   server.tool(
     'clean_jobs',

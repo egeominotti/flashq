@@ -6,7 +6,7 @@ use axum::{
 };
 use serde_json::Value;
 
-use crate::protocol::{JobBrowserItem, JobState};
+use crate::protocol::{JobBrowserItem, JobLogEntry, JobState};
 
 use super::types::{
     AckRequest, ApiResponse, AppState, ChangePriorityRequest, FailRequest, JobDetailResponse,
@@ -368,4 +368,27 @@ pub async fn send_partial(
         Ok(()) => ApiResponse::success(()),
         Err(e) => ApiResponse::error(e),
     }
+}
+
+/// Get job logs.
+///
+/// Returns all log entries for a job. Logs are added during processing
+/// via the log() function and include timestamps, levels, and messages.
+#[utoipa::path(
+    get,
+    path = "/jobs/{id}/logs",
+    tag = "Jobs",
+    summary = "Get job log entries",
+    description = "Returns all log entries for a job. Each entry includes: timestamp, level (info, warn, error), and message. Logs are added by workers during processing. Max 100 entries per job. Empty array if no logs.",
+    params(("id" = u64, Path, description = "Job ID to get logs for")),
+    responses(
+        (status = 200, description = "List of job log entries", body = Vec<crate::protocol::JobLogEntry>)
+    )
+)]
+pub async fn get_job_logs(
+    State(qm): State<AppState>,
+    Path(id): Path<u64>,
+) -> Json<ApiResponse<Vec<JobLogEntry>>> {
+    let logs = qm.get_job_logs(id);
+    ApiResponse::success(logs)
 }
