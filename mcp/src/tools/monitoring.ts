@@ -66,4 +66,49 @@ export function registerMonitoringTools(server: McpServer, client: FlashQClient)
       }
     }
   );
+
+  // list_workers
+  server.tool(
+    'list_workers',
+    'List all active workers connected to the server. Shows worker ID, queues, concurrency, jobs processed, and last heartbeat.',
+    {},
+    async () => {
+      try {
+        const result = await client.send('LISTWORKERS');
+        return formatSuccess(result);
+      } catch (error) {
+        return formatError(error);
+      }
+    }
+  );
+
+  // get_prometheus_metrics
+  server.tool(
+    'get_prometheus_metrics',
+    'Get metrics in Prometheus format for monitoring integrations. Returns text/plain format suitable for Prometheus scraping.',
+    {},
+    async () => {
+      try {
+        const result = await client.send('PROMETHEUS');
+        return formatSuccess(result);
+      } catch (error) {
+        return formatError(error);
+      }
+    }
+  );
+
+  // get_system_metrics
+  server.tool(
+    'get_system_metrics',
+    'Get system-level metrics including CPU usage, memory usage, and other OS-level statistics.',
+    {},
+    async () => {
+      try {
+        const result = await client.send('SYSTEMMETRICS');
+        return formatSuccess(result);
+      } catch (error) {
+        return formatError(error);
+      }
+    }
+  );
 }

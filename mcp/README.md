@@ -55,7 +55,7 @@ Environment variables:
 | `FLASHQ_TOKEN` | - | Auth token (optional) |
 | `FLASHQ_TIMEOUT` | 30000 | Request timeout (ms) |
 
-## Available Tools (43)
+## Available Tools (55)
 
 ### Job Operations (15 tools)
 
@@ -112,7 +112,7 @@ Environment variables:
 | `retry_dlq` | Retry DLQ jobs |
 | `purge_dlq` | Remove all DLQ jobs |
 
-### Monitoring (4 tools)
+### Monitoring (7 tools)
 
 | Tool | Description |
 |------|-------------|
@@ -120,6 +120,9 @@ Environment variables:
 | `get_metrics` | Get detailed performance metrics |
 | `get_metrics_history` | Get historical metrics for trends |
 | `health_check` | Check server health and uptime |
+| `list_workers` | List active workers connected to server |
+| `get_prometheus_metrics` | Get metrics in Prometheus format |
+| `get_system_metrics` | Get CPU/memory system metrics |
 
 ### Admin (4 tools)
 
@@ -129,6 +132,25 @@ Environment variables:
 | `add_cron` | Add a new cron job |
 | `delete_cron` | Delete a cron job |
 | `clean_jobs` | Clean old jobs by age/state |
+
+### Webhooks (3 tools)
+
+| Tool | Description |
+|------|-------------|
+| `list_webhooks` | List registered webhooks |
+| `create_webhook` | Create webhook for job events |
+| `delete_webhook` | Delete a webhook |
+
+### Advanced (6 tools)
+
+| Tool | Description |
+|------|-------------|
+| `wait_job` | Wait for job completion (sync workflows) |
+| `update_job` | Update job data while waiting |
+| `push_flow` | Push workflow with parent/children |
+| `get_children` | Get child jobs for a flow |
+| `ack_batch` | Batch acknowledge multiple jobs |
+| `send_partial` | Send partial/streaming result |
 
 ## Example Conversations
 

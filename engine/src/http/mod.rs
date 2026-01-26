@@ -132,6 +132,7 @@ pub fn create_router(state: AppState) -> Router {
             delete(queues::obliterate_queue),
         )
         .route("/queues/{queue}/clean", post(queues::clean_queue))
+        .route("/queues/{queue}/flow", post(queues::push_flow))
         // Job operations
         .route("/jobs", get(jobs::list_jobs))
         .route("/jobs/{id}", get(jobs::get_job))
@@ -152,6 +153,10 @@ pub fn create_router(state: AppState) -> Router {
         .route("/jobs/{id}/move-to-delayed", post(jobs::move_to_delayed))
         .route("/jobs/{id}/promote", post(jobs::promote_job))
         .route("/jobs/{id}/discard", post(jobs::discard_job))
+        .route("/jobs/{id}/wait", get(jobs::wait_job))
+        .route("/jobs/{id}/update", post(jobs::update_job))
+        .route("/jobs/{id}/children", get(jobs::get_children))
+        .route("/jobs/ack-batch", post(jobs::ack_batch))
         // Cron jobs
         .route("/crons", get(cron::list_crons))
         .route("/crons/{name}", post(cron::create_cron))

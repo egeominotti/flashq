@@ -9,8 +9,9 @@ use serde_json::Value;
 use crate::protocol::{JobBrowserItem, JobLogEntry, JobState};
 
 use super::types::{
-    AckRequest, AddLogRequest, ApiResponse, AppState, ChangePriorityRequest, FailRequest,
-    JobDetailResponse, JobsQuery, MoveToDelayedRequest, PartialRequest, ProgressRequest,
+    AckBatchRequest, AckRequest, AddLogRequest, ApiResponse, AppState, ChangePriorityRequest,
+    ChildrenResponse, FailRequest, JobDetailResponse, JobsQuery, MoveToDelayedRequest,
+    PartialRequest, ProgressRequest, UpdateJobRequest, WaitJobQuery,
 };
 
 /// List jobs with filtering and pagination.
@@ -422,4 +423,118 @@ pub async fn add_job_log(
         Ok(()) => ApiResponse::success(()),
         Err(e) => ApiResponse::error(e),
     }
+}
+
+/// Wait for job completion.
+///
+/// Blocks until the job completes or timeout is reached. Returns the job result.
+#[utoipa::path(
+    get,
+    path = "/jobs/{id}/wait",
+    tag = "Jobs",
+    summary = "Wait for job completion",
+    description = "Blocks until the specified job completes (or fails) or the timeout is reached. Returns the job result on completion. Useful for synchronous workflows where you need to wait for a job to finish.",
+    params(
+        ("id" = u64, Path, description = "Job ID to wait for"),
+        WaitJobQuery
+    ),
+    responses(
+        (status = 200, description = "Job completed, returns result"),
+        (status = 408, description = "Timeout waiting for job")
+    )
+)]
+pub async fn wait_job(
+    State(qm): State<AppState>,
+    Path(id): Path<u64>,
+    Query(params): Query<WaitJobQuery>,
+) -> Json<ApiResponse<serde_json::Value>> {
+    match qm.wait_for_job(id, Some(params.timeout)).await {
+        Ok(result) => ApiResponse::success(result.unwrap_or(serde_json::Value::Null)),
+        Err(e) => ApiResponse::error(e),
+    }
+}
+
+/// Update job data.
+///
+/// Updates the data payload of a waiting or delayed job.
+#[utoipa::path(
+    post,
+    path = "/jobs/{id}/update",
+    tag = "Jobs",
+    summary = "Update job data",
+    description = "Updates the data payload of a job that is in waiting or delayed state. Cannot update jobs that are already being processed (active). Useful for modifying job parameters before processing.",
+    params(("id" = u64, Path, description = "Job ID to update")),
+    request_body = UpdateJobRequest,
+    responses(
+        (status = 200, description = "Job data updated"),
+        (status = 400, description = "Job not in updateable state")
+    )
+)]
+pub async fn update_job(
+    State(qm): State<AppState>,
+    Path(id): Path<u64>,
+    Json(req): Json<UpdateJobRequest>,
+) -> Json<ApiResponse<()>> {
+    match qm.update_job_data(id, req.data).await {
+        Ok(()) => ApiResponse::success(()),
+        Err(e) => ApiResponse::error(e),
+    }
+}
+
+/// Get child jobs.
+///
+/// Returns child jobs for a parent job (flow).
+#[utoipa::path(
+    get,
+    path = "/jobs/{id}/children",
+    tag = "Jobs",
+    summary = "Get child jobs",
+    description = "Returns all child jobs of a parent job created via flow. Includes child job IDs and their current states. Useful for tracking workflow progress.",
+    params(("id" = u64, Path, description = "Parent job ID")),
+    responses(
+        (status = 200, description = "List of child jobs with completion status")
+    )
+)]
+pub async fn get_children(
+    State(qm): State<AppState>,
+    Path(id): Path<u64>,
+) -> Json<ApiResponse<ChildrenResponse>> {
+    match qm.get_children(id) {
+        Some((children, completed, total)) => {
+            let child_ids: Vec<u64> = children.iter().map(|j| j.id).collect();
+            ApiResponse::success(ChildrenResponse {
+                children: child_ids,
+                completed,
+                total,
+            })
+        }
+        None => ApiResponse::error("Parent job not found or has no children"),
+    }
+}
+
+/// Batch acknowledge jobs.
+///
+/// Acknowledges multiple jobs at once for high-throughput processing.
+#[utoipa::path(
+    post,
+    path = "/jobs/ack-batch",
+    tag = "Jobs",
+    summary = "Batch acknowledge jobs",
+    description = "Acknowledges multiple jobs at once. All jobs move to completed state. More efficient than individual ack calls for high-throughput scenarios. Returns number of jobs acknowledged.",
+    request_body = AckBatchRequest,
+    responses(
+        (status = 200, description = "Jobs acknowledged", body = usize)
+    )
+)]
+pub async fn ack_batch(
+    State(qm): State<AppState>,
+    Json(req): Json<AckBatchRequest>,
+) -> Json<ApiResponse<usize>> {
+    let mut count = 0;
+    for id in req.ids {
+        if qm.ack(id, None).await.is_ok() {
+            count += 1;
+        }
+    }
+    ApiResponse::success(count)
 }

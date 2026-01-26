@@ -225,3 +225,54 @@ pub struct AddLogRequest {
     #[serde(default)]
     pub level: Option<String>,
 }
+
+/// Update job data request.
+#[derive(Deserialize, ToSchema)]
+pub struct UpdateJobRequest {
+    pub data: Value,
+}
+
+/// Wait job query parameters.
+#[derive(Deserialize, IntoParams)]
+pub struct WaitJobQuery {
+    #[serde(default = "default_wait_timeout")]
+    pub timeout: u64,
+}
+
+fn default_wait_timeout() -> u64 {
+    30000
+}
+
+/// Batch ack request.
+#[derive(Deserialize, ToSchema)]
+pub struct AckBatchRequest {
+    pub ids: Vec<u64>,
+}
+
+/// Push flow request.
+#[derive(Deserialize, ToSchema)]
+pub struct FlowRequest {
+    pub data: Value,
+    pub children: Vec<FlowChild>,
+    #[serde(default)]
+    pub priority: i32,
+}
+
+/// Flow child job definition.
+#[derive(Deserialize, ToSchema)]
+pub struct FlowChild {
+    pub queue: String,
+    pub data: Value,
+    #[serde(default)]
+    pub priority: i32,
+    #[serde(default)]
+    pub delay: Option<u64>,
+}
+
+/// Children response for parent jobs (flows).
+#[derive(Serialize, ToSchema)]
+pub struct ChildrenResponse {
+    pub children: Vec<u64>,
+    pub completed: u32,
+    pub total: u32,
+}

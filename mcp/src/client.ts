@@ -171,6 +171,66 @@ function buildRequest(baseUrl: string, cmd: string, params: Record<string, unkno
       return { url: `${baseUrl}/metrics/history`, method: 'GET' };
     case 'HEALTH':
       return { url: `${baseUrl}/health`, method: 'GET' };
+    case 'LISTWORKERS':
+      return { url: `${baseUrl}/workers`, method: 'GET' };
+    case 'PROMETHEUS':
+      return { url: `${baseUrl}/metrics/prometheus`, method: 'GET' };
+    case 'SYSTEMMETRICS':
+      return { url: `${baseUrl}/system/metrics`, method: 'GET' };
+
+    // Webhooks
+    case 'LISTWEBHOOKS':
+      return { url: `${baseUrl}/webhooks`, method: 'GET' };
+    case 'CREATEWEBHOOK':
+      return {
+        url: `${baseUrl}/webhooks`,
+        method: 'POST',
+        body: JSON.stringify({
+          url: params.url,
+          events: params.events,
+          queue: params.queue,
+          secret: params.secret,
+        }),
+      };
+    case 'DELETEWEBHOOK':
+      return { url: `${baseUrl}/webhooks/${params.id}`, method: 'DELETE' };
+
+    // Advanced operations
+    case 'WAITJOB':
+      return {
+        url: `${baseUrl}/jobs/${params.id}/wait?timeout=${params.timeout ?? 30000}`,
+        method: 'GET',
+      };
+    case 'UPDATEJOB':
+      return {
+        url: `${baseUrl}/jobs/${params.id}/update`,
+        method: 'POST',
+        body: JSON.stringify({ data: params.data }),
+      };
+    case 'FLOW':
+      return {
+        url: `${baseUrl}/queues/${encodeQueue(params.queue)}/flow`,
+        method: 'POST',
+        body: JSON.stringify({
+          data: params.data,
+          children: params.children,
+          priority: params.priority ?? 0,
+        }),
+      };
+    case 'GETCHILDREN':
+      return { url: `${baseUrl}/jobs/${params.id}/children`, method: 'GET' };
+    case 'ACKB':
+      return {
+        url: `${baseUrl}/jobs/ack-batch`,
+        method: 'POST',
+        body: JSON.stringify({ ids: params.ids }),
+      };
+    case 'PARTIAL':
+      return {
+        url: `${baseUrl}/jobs/${params.id}/partial`,
+        method: 'POST',
+        body: JSON.stringify({ data: params.data }),
+      };
 
     // Admin
     case 'CRONLIST':

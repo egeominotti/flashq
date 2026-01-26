@@ -8,8 +8,8 @@ use axum::{
 use crate::protocol::{Job, JobState, QueueInfo};
 
 use super::types::{
-    ApiResponse, AppState, CleanRequest, ConcurrencyRequest, JobCounts, PullQuery, PushRequest,
-    RateLimitRequest, RetryDlqRequest,
+    ApiResponse, AppState, CleanRequest, ConcurrencyRequest, FlowRequest, JobCounts, PullQuery,
+    PushRequest, RateLimitRequest, RetryDlqRequest,
 };
 
 /// List all queues.
@@ -456,4 +456,53 @@ pub async fn count_jobs(
 ) -> Json<ApiResponse<usize>> {
     let count = qm.count(&queue);
     ApiResponse::success(count)
+}
+
+/// Push a flow with parent and children jobs.
+///
+/// Creates a workflow where the parent job waits for all children to complete.
+/// Children are pushed first, then the parent is created with dependencies.
+#[utoipa::path(
+    post,
+    path = "/queues/{queue}/flow",
+    tag = "Queues",
+    summary = "Push a workflow with dependencies",
+    description = "Creates a parent job that waits for all child jobs to complete. Children are processed in parallel. Parent becomes ready when all children finish. Returns parent ID and list of child IDs. Use for complex workflows with dependencies.",
+    params(("queue" = String, Path, description = "Queue name for parent job")),
+    request_body = FlowRequest,
+    responses(
+        (status = 200, description = "Flow created", body = FlowResponse)
+    )
+)]
+pub async fn push_flow(
+    State(qm): State<AppState>,
+    Path(queue): Path<String>,
+    Json(req): Json<FlowRequest>,
+) -> Json<ApiResponse<FlowResponse>> {
+    // Convert HTTP FlowChild to protocol FlowChild
+    let children: Vec<crate::protocol::FlowChild> = req
+        .children
+        .into_iter()
+        .map(|c| crate::protocol::FlowChild {
+            queue: c.queue,
+            data: c.data,
+            priority: c.priority,
+            delay: c.delay,
+        })
+        .collect();
+
+    match qm.push_flow(queue, req.data, children, req.priority).await {
+        Ok((parent_id, children_ids)) => ApiResponse::success(FlowResponse {
+            parent_id,
+            children_ids,
+        }),
+        Err(e) => ApiResponse::error(e),
+    }
+}
+
+/// Flow response with parent and children IDs.
+#[derive(serde::Serialize, utoipa::ToSchema)]
+pub struct FlowResponse {
+    pub parent_id: u64,
+    pub children_ids: Vec<u64>,
 }
