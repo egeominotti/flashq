@@ -187,7 +187,7 @@ Once configured, you can ask Claude:
 - *"Add a cron job that runs every 5 minutes"*
 - *"Show me the health status and throughput"*
 
-### Available Tools (43)
+### Available Tools (55)
 
 | Category | Count | Tools |
 |----------|-------|-------|
@@ -195,8 +195,10 @@ Once configured, you can ask Claude:
 | **Worker** | 6 | `pull_job`, `ack_job`, `fail_job`, `update_progress`, `add_job_log`, `heartbeat` |
 | **Queues** | 11 | `list_queues`, `pause_queue`, `resume_queue`, `is_queue_paused`, `drain_queue`, `count_jobs`, `set_rate_limit`, `clear_rate_limit`, `set_concurrency`, `clear_concurrency`, `obliterate_queue` |
 | **DLQ** | 3 | `get_dlq`, `retry_dlq`, `purge_dlq` |
-| **Monitoring** | 4 | `get_stats`, `get_metrics`, `get_metrics_history`, `health_check` |
+| **Monitoring** | 7 | `get_stats`, `get_metrics`, `get_metrics_history`, `health_check`, `list_workers`, `get_prometheus_metrics`, `get_system_metrics` |
 | **Admin** | 4 | `list_crons`, `add_cron`, `delete_cron`, `clean_jobs` |
+| **Webhooks** | 3 | `list_webhooks`, `create_webhook`, `delete_webhook` |
+| **Advanced** | 6 | `wait_job`, `update_job`, `push_flow`, `get_children`, `ack_batch`, `send_partial` |
 
 See [mcp/README.md](mcp/README.md) for full documentation.
 
