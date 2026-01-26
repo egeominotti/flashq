@@ -8,7 +8,7 @@ use axum::{
 use crate::protocol::{Job, JobState, QueueInfo};
 
 use super::types::{
-    ApiResponse, AppState, CleanRequest, ConcurrencyRequest, PullQuery, PushRequest,
+    ApiResponse, AppState, CleanRequest, ConcurrencyRequest, JobCounts, PullQuery, PushRequest,
     RateLimitRequest, RetryDlqRequest,
 };
 
@@ -357,5 +357,103 @@ pub async fn clean_queue(
         }
     };
     let count = qm.clean(&queue, req.grace, state_enum, req.limit).await;
+    ApiResponse::success(count)
+}
+
+/// Purge dead letter queue.
+///
+/// Removes all jobs from the DLQ permanently. Jobs are not retried, they are deleted.
+/// Use for cleaning up DLQ after investigation or when jobs are no longer needed.
+#[utoipa::path(
+    delete,
+    path = "/queues/{queue}/dlq",
+    tag = "Queues",
+    summary = "Purge all DLQ jobs permanently",
+    description = "Permanently removes all jobs from the Dead Letter Queue. Jobs are deleted, not retried. Use after investigation when failed jobs are no longer needed. Returns the count of jobs purged. IRREVERSIBLE - jobs cannot be recovered after purge.",
+    params(("queue" = String, Path, description = "Queue name")),
+    responses(
+        (status = 200, description = "Number of jobs purged from DLQ", body = usize)
+    )
+)]
+pub async fn purge_dlq(
+    State(qm): State<AppState>,
+    Path(queue): Path<String>,
+) -> Json<ApiResponse<usize>> {
+    let count = qm.purge_dlq(&queue).await;
+    ApiResponse::success(count)
+}
+
+/// Check if queue is paused.
+///
+/// Returns a boolean indicating whether the queue is currently paused.
+/// Paused queues accept new jobs but don't deliver them to workers.
+#[utoipa::path(
+    get,
+    path = "/queues/{queue}/paused",
+    tag = "Queues",
+    summary = "Check if queue is paused",
+    description = "Returns true if the queue is paused, false otherwise. Paused queues accept new pushed jobs but pull() returns empty. Use before critical operations or to check queue status in monitoring.",
+    params(("queue" = String, Path, description = "Queue name to check")),
+    responses(
+        (status = 200, description = "Queue pause status", body = bool)
+    )
+)]
+pub async fn is_queue_paused(
+    State(qm): State<AppState>,
+    Path(queue): Path<String>,
+) -> Json<ApiResponse<bool>> {
+    let paused = qm.is_paused(&queue);
+    ApiResponse::success(paused)
+}
+
+/// Get job counts by state for a queue.
+///
+/// Returns counts of jobs grouped by state: waiting, active, delayed, completed, failed.
+/// Useful for dashboard displays and monitoring queue health.
+#[utoipa::path(
+    get,
+    path = "/queues/{queue}/counts",
+    tag = "Queues",
+    summary = "Get job counts by state",
+    description = "Returns job counts grouped by state for the specified queue. States: waiting (ready to process), active (processing), delayed (scheduled for later), completed, failed (in DLQ). Useful for monitoring and dashboards.",
+    params(("queue" = String, Path, description = "Queue name")),
+    responses(
+        (status = 200, description = "Job counts by state", body = JobCounts)
+    )
+)]
+pub async fn get_job_counts(
+    State(qm): State<AppState>,
+    Path(queue): Path<String>,
+) -> Json<ApiResponse<JobCounts>> {
+    let (waiting, active, delayed, completed, failed) = qm.get_job_counts(&queue);
+    ApiResponse::success(JobCounts {
+        waiting,
+        active,
+        delayed,
+        completed,
+        failed,
+    })
+}
+
+/// Count pending jobs in a queue.
+///
+/// Returns the total count of jobs in waiting + delayed state.
+/// Quick way to check queue backlog size without fetching job details.
+#[utoipa::path(
+    get,
+    path = "/queues/{queue}/count",
+    tag = "Queues",
+    summary = "Count waiting + delayed jobs",
+    description = "Returns the sum of jobs in waiting and delayed states. Quick health check for queue backlog. Does not include active, completed, or failed jobs. Use for throttling, load balancing decisions, or monitoring.",
+    params(("queue" = String, Path, description = "Queue name")),
+    responses(
+        (status = 200, description = "Count of pending jobs", body = usize)
+    )
+)]
+pub async fn count_jobs(
+    State(qm): State<AppState>,
+    Path(queue): Path<String>,
+) -> Json<ApiResponse<usize>> {
+    let count = qm.count(&queue);
     ApiResponse::success(count)
 }

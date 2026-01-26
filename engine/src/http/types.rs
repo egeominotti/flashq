@@ -207,3 +207,13 @@ pub struct StatsResponse {
     pub dlq: usize,
     pub completed: usize,
 }
+
+/// Job counts by state response.
+#[derive(Serialize, ToSchema)]
+pub struct JobCounts {
+    pub waiting: usize,
+    pub active: usize,
+    pub delayed: usize,
+    pub completed: usize,
+    pub failed: usize,
+}

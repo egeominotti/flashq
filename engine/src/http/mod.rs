@@ -110,7 +110,11 @@ pub fn create_router(state: AppState) -> Router {
         .route("/queues/{queue}/pause", post(queues::pause_queue))
         .route("/queues/{queue}/resume", post(queues::resume_queue))
         .route("/queues/{queue}/dlq", get(queues::get_dlq))
+        .route("/queues/{queue}/dlq", delete(queues::purge_dlq))
         .route("/queues/{queue}/dlq/retry", post(queues::retry_dlq))
+        .route("/queues/{queue}/paused", get(queues::is_queue_paused))
+        .route("/queues/{queue}/counts", get(queues::get_job_counts))
+        .route("/queues/{queue}/count", get(queues::count_jobs))
         .route("/queues/{queue}/rate-limit", post(queues::set_rate_limit))
         .route(
             "/queues/{queue}/rate-limit",
@@ -131,6 +135,7 @@ pub fn create_router(state: AppState) -> Router {
         // Job operations
         .route("/jobs", get(jobs::list_jobs))
         .route("/jobs/{id}", get(jobs::get_job))
+        .route("/jobs/{id}/state", get(jobs::get_job_state))
         .route("/jobs/{id}/ack", post(jobs::ack_job))
         .route("/jobs/{id}/fail", post(jobs::fail_job))
         .route("/jobs/{id}/cancel", post(jobs::cancel_job))

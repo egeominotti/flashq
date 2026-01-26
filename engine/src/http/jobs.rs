@@ -68,6 +68,29 @@ pub async fn get_job(
     ApiResponse::success(JobDetailResponse { job, state, result })
 }
 
+/// Get job state only.
+///
+/// Returns just the state of a job without full details. Lightweight endpoint
+/// for status polling when only state is needed.
+#[utoipa::path(
+    get,
+    path = "/jobs/{id}/state",
+    tag = "Jobs",
+    summary = "Get job state only",
+    description = "Returns only the current state of a job (waiting, delayed, active, completed, failed, unknown). Lighter than GET /jobs/{id} when only state is needed. Use for polling job status or building status indicators.",
+    params(("id" = u64, Path, description = "Job ID to check state")),
+    responses(
+        (status = 200, description = "Job state string", body = JobState)
+    )
+)]
+pub async fn get_job_state(
+    State(qm): State<AppState>,
+    Path(id): Path<u64>,
+) -> Json<ApiResponse<JobState>> {
+    let state = qm.get_state(id);
+    ApiResponse::success(state)
+}
+
 /// Acknowledge job completion.
 ///
 /// Marks a job as successfully completed. The job is removed from active processing

@@ -149,6 +149,56 @@ func main() {
 }
 ```
 
+## MCP Server (AI Integration)
+
+Enable Claude and other AI assistants to manage your job queues through the [Model Context Protocol](https://modelcontextprotocol.io/).
+
+```bash
+npm install -g flashq-mcp
+```
+
+### Claude Desktop Setup
+
+Add to `~/.config/claude/claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "flashq": {
+      "command": "npx",
+      "args": ["flashq-mcp"],
+      "env": {
+        "FLASHQ_HOST": "localhost",
+        "FLASHQ_HTTP_PORT": "6790"
+      }
+    }
+  }
+}
+```
+
+### Example Conversations
+
+Once configured, you can ask Claude:
+
+- *"Push a job to the orders queue with priority 10"*
+- *"How many jobs are waiting in the emails queue?"*
+- *"Show me the failed jobs in the payments queue"*
+- *"Retry all DLQ jobs for the notifications queue"*
+- *"Pause the sync queue"*
+- *"What's the current throughput?"*
+
+### Available Tools (25)
+
+| Category | Tools |
+|----------|-------|
+| **Jobs** | `push_job`, `push_batch_jobs`, `get_job`, `get_job_state`, `get_job_result`, `get_job_by_custom_id`, `list_jobs`, `get_job_counts`, `cancel_job`, `get_job_progress` |
+| **Queues** | `list_queues`, `pause_queue`, `resume_queue`, `is_queue_paused`, `drain_queue`, `count_jobs`, `set_rate_limit`, `clear_rate_limit` |
+| **DLQ** | `get_dlq`, `retry_dlq`, `purge_dlq` |
+| **Monitoring** | `get_stats`, `get_metrics` |
+| **Admin** | `list_crons`, `clean_jobs` |
+
+See [mcp/README.md](mcp/README.md) for full documentation.
+
 ## Links
 
 - **Documentation**: [flashq.dev/docs](https://flashq.dev/docs/)

@@ -1,0 +1,66 @@
+{
+  "name": "flashq-mcp",
+  "version": "0.2.0",
+  "description": "MCP (Model Context Protocol) server for flashQ job queue - enables AI assistants like Claude to manage job queues",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "flashq-mcp": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts",
+    "test": "vitest",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src/",
+    "lint:fix": "eslint src/ --fix",
+    "format": "prettier --write src/",
+    "format:check": "prettier --check src/",
+    "prepublishOnly": "npm run lint && npm run typecheck && npm run build"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.0.0",
+    "@types/node": "^22.0.0",
+    "eslint": "^9.0.0",
+    "prettier": "^3.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0",
+    "typescript-eslint": "^8.0.0",
+    "vitest": "^2.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "flashq",
+    "mcp",
+    "model-context-protocol",
+    "job-queue",
+    "claude",
+    "ai",
+    "anthropic",
+    "queue",
+    "worker"
+  ],
+  "author": "flashQ Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/flashq/flashq.git",
+    "directory": "mcp"
+  },
+  "homepage": "https://github.com/flashq/flashq/tree/main/mcp#readme",
+  "bugs": {
+    "url": "https://github.com/flashq/flashq/issues"
+  }
+}
