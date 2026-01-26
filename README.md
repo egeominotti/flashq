@@ -151,7 +151,7 @@ func main() {
 
 ## MCP Server (AI Integration)
 
-Enable Claude and other AI assistants to manage your job queues through the [Model Context Protocol](https://modelcontextprotocol.io/).
+Enable Claude and other AI assistants to manage your job queues through the [Model Context Protocol](https://modelcontextprotocol.io/). Claude can even **act as a worker** to process jobs.
 
 ```bash
 npm install -g flashq-mcp
@@ -181,21 +181,22 @@ Add to `~/.config/claude/claude_desktop_config.json`:
 Once configured, you can ask Claude:
 
 - *"Push a job to the orders queue with priority 10"*
+- *"Pull a job from the tasks queue and process it"*
 - *"How many jobs are waiting in the emails queue?"*
-- *"Show me the failed jobs in the payments queue"*
-- *"Retry all DLQ jobs for the notifications queue"*
-- *"Pause the sync queue"*
-- *"What's the current throughput?"*
+- *"Set rate limit of 10 jobs/sec on the api queue"*
+- *"Add a cron job that runs every 5 minutes"*
+- *"Show me the health status and throughput"*
 
-### Available Tools (25)
+### Available Tools (43)
 
-| Category | Tools |
-|----------|-------|
-| **Jobs** | `push_job`, `push_batch_jobs`, `get_job`, `get_job_state`, `get_job_result`, `get_job_by_custom_id`, `list_jobs`, `get_job_counts`, `cancel_job`, `get_job_progress` |
-| **Queues** | `list_queues`, `pause_queue`, `resume_queue`, `is_queue_paused`, `drain_queue`, `count_jobs`, `set_rate_limit`, `clear_rate_limit` |
-| **DLQ** | `get_dlq`, `retry_dlq`, `purge_dlq` |
-| **Monitoring** | `get_stats`, `get_metrics` |
-| **Admin** | `list_crons`, `clean_jobs` |
+| Category | Count | Tools |
+|----------|-------|-------|
+| **Jobs** | 15 | `push_job`, `push_batch_jobs`, `get_job`, `get_job_state`, `get_job_result`, `get_job_by_custom_id`, `list_jobs`, `get_job_counts`, `cancel_job`, `get_job_progress`, `get_job_logs`, `change_priority`, `move_to_delayed`, `promote_job`, `discard_job` |
+| **Worker** | 6 | `pull_job`, `ack_job`, `fail_job`, `update_progress`, `add_job_log`, `heartbeat` |
+| **Queues** | 11 | `list_queues`, `pause_queue`, `resume_queue`, `is_queue_paused`, `drain_queue`, `count_jobs`, `set_rate_limit`, `clear_rate_limit`, `set_concurrency`, `clear_concurrency`, `obliterate_queue` |
+| **DLQ** | 3 | `get_dlq`, `retry_dlq`, `purge_dlq` |
+| **Monitoring** | 4 | `get_stats`, `get_metrics`, `get_metrics_history`, `health_check` |
+| **Admin** | 4 | `list_crons`, `add_cron`, `delete_cron`, `clean_jobs` |
 
 See [mcp/README.md](mcp/README.md) for full documentation.
 
