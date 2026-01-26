@@ -142,4 +142,59 @@ export function registerQueueTools(server: McpServer, client: FlashQClient): voi
       }
     }
   );
+
+  // set_concurrency
+  server.tool(
+    'set_concurrency',
+    'Set maximum concurrent active jobs for a queue. Limits parallel processing regardless of workers.',
+    {
+      queue: z.string().describe('Queue name'),
+      limit: z.number().positive().describe('Maximum concurrent active jobs'),
+    },
+    async (args) => {
+      try {
+        const result = await client.send('SETCONCURRENCY', {
+          queue: args.queue,
+          limit: args.limit,
+        });
+        return formatSuccess(result);
+      } catch (error) {
+        return formatError(error);
+      }
+    }
+  );
+
+  // clear_concurrency
+  server.tool(
+    'clear_concurrency',
+    'Remove concurrency limit from a queue, allowing unlimited parallel processing.',
+    {
+      queue: z.string().describe('Queue name'),
+    },
+    async (args) => {
+      try {
+        const result = await client.send('CLEARCONCURRENCY', { queue: args.queue });
+        return formatSuccess(result);
+      } catch (error) {
+        return formatError(error);
+      }
+    }
+  );
+
+  // obliterate_queue
+  server.tool(
+    'obliterate_queue',
+    'DESTRUCTIVE: Completely delete a queue and ALL its data (jobs, DLQ, cron, config). Irreversible!',
+    {
+      queue: z.string().describe('Queue name to obliterate'),
+    },
+    async (args) => {
+      try {
+        const result = await client.send('OBLITERATE', { queue: args.queue });
+        return formatSuccess(result);
+      } catch (error) {
+        return formatError(error);
+      }
+    }
+  );
 }

@@ -36,4 +36,34 @@ export function registerMonitoringTools(server: McpServer, client: FlashQClient)
       }
     }
   );
+
+  // get_metrics_history
+  server.tool(
+    'get_metrics_history',
+    'Get historical metrics data for trend analysis and graphing. Returns time-series data.',
+    {},
+    async () => {
+      try {
+        const result = await client.send('METRICSHISTORY');
+        return formatSuccess(result);
+      } catch (error) {
+        return formatError(error);
+      }
+    }
+  );
+
+  // health_check
+  server.tool(
+    'health_check',
+    'Check server health status, uptime, and configuration.',
+    {},
+    async () => {
+      try {
+        const result = await client.send('HEALTH');
+        return formatSuccess(result);
+      } catch (error) {
+        return formatError(error);
+      }
+    }
+  );
 }

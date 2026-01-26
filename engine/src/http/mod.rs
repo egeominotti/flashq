@@ -144,6 +144,7 @@ pub fn create_router(state: AppState) -> Router {
         .route("/jobs/{id}/partial", post(jobs::send_partial))
         .route("/jobs/{id}/result", get(jobs::get_result))
         .route("/jobs/{id}/logs", get(jobs::get_job_logs))
+        .route("/jobs/{id}/logs", post(jobs::add_job_log))
         // BullMQ Advanced job operations
         .route("/jobs/{id}/priority", post(jobs::change_priority))
         .route("/jobs/{id}/move-to-delayed", post(jobs::move_to_delayed))

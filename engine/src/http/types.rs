@@ -217,3 +217,11 @@ pub struct JobCounts {
     pub completed: usize,
     pub failed: usize,
 }
+
+/// Add log entry request.
+#[derive(Deserialize, ToSchema)]
+pub struct AddLogRequest {
+    pub message: String,
+    #[serde(default)]
+    pub level: Option<String>,
+}

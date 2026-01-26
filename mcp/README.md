@@ -55,9 +55,9 @@ Environment variables:
 | `FLASHQ_TOKEN` | - | Auth token (optional) |
 | `FLASHQ_TIMEOUT` | 30000 | Request timeout (ms) |
 
-## Available Tools (25)
+## Available Tools (43)
 
-### Job Operations (10 tools)
+### Job Operations (15 tools)
 
 | Tool | Description |
 |------|-------------|
@@ -71,8 +71,24 @@ Environment variables:
 | `get_job_counts` | Get job counts by state for a queue |
 | `cancel_job` | Cancel a pending job |
 | `get_job_progress` | Get progress for active job |
+| `get_job_logs` | Get log entries for a job |
+| `change_priority` | Change priority of a waiting job |
+| `move_to_delayed` | Move active job back to delayed state |
+| `promote_job` | Promote delayed job to waiting immediately |
+| `discard_job` | Move job directly to DLQ |
 
-### Queue Management (8 tools)
+### Worker Operations (6 tools)
+
+| Tool | Description |
+|------|-------------|
+| `pull_job` | Pull a job from queue for processing |
+| `ack_job` | Acknowledge successful job completion |
+| `fail_job` | Mark job as failed (retry or DLQ) |
+| `update_progress` | Update job progress (0-100%) |
+| `add_job_log` | Add log entry during processing |
+| `heartbeat` | Send heartbeat for long-running jobs |
+
+### Queue Management (11 tools)
 
 | Tool | Description |
 |------|-------------|
@@ -84,6 +100,9 @@ Environment variables:
 | `count_jobs` | Count waiting + delayed jobs |
 | `set_rate_limit` | Set jobs/sec limit |
 | `clear_rate_limit` | Remove rate limit |
+| `set_concurrency` | Set max concurrent jobs |
+| `clear_concurrency` | Remove concurrency limit |
+| `obliterate_queue` | DESTRUCTIVE: Delete queue and all data |
 
 ### Dead Letter Queue (3 tools)
 
@@ -93,30 +112,52 @@ Environment variables:
 | `retry_dlq` | Retry DLQ jobs |
 | `purge_dlq` | Remove all DLQ jobs |
 
-### Monitoring (2 tools)
+### Monitoring (4 tools)
 
 | Tool | Description |
 |------|-------------|
 | `get_stats` | Get overall queue statistics |
 | `get_metrics` | Get detailed performance metrics |
+| `get_metrics_history` | Get historical metrics for trends |
+| `health_check` | Check server health and uptime |
 
-### Admin (2 tools)
+### Admin (4 tools)
 
 | Tool | Description |
 |------|-------------|
 | `list_crons` | List scheduled cron jobs |
+| `add_cron` | Add a new cron job |
+| `delete_cron` | Delete a cron job |
 | `clean_jobs` | Clean old jobs by age/state |
 
 ## Example Conversations
 
 Once configured, you can ask Claude:
 
+**Job Management:**
 - "Push a job to the orders queue with priority 10"
 - "How many jobs are waiting in the emails queue?"
 - "Show me the failed jobs in the payments queue"
-- "Retry all DLQ jobs for the notifications queue"
+- "Change the priority of job 123 to 100"
+
+**Worker Mode (Claude processes jobs!):**
+- "Pull a job from the tasks queue and process it"
+- "Acknowledge job 456 with result success"
+- "Update progress on job 789 to 50%"
+
+**Queue Control:**
 - "Pause the sync queue"
+- "Set rate limit of 10 jobs/sec on the api queue"
+- "Limit concurrency to 5 on the heavy-tasks queue"
+
+**Monitoring:**
 - "What's the current throughput?"
+- "Show me the health status"
+- "Retry all DLQ jobs for the notifications queue"
+
+**Scheduling:**
+- "Add a cron job that runs every 5 minutes on cleanup queue"
+- "List all scheduled cron jobs"
 
 ## Architecture
 

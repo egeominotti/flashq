@@ -66,6 +66,53 @@ function buildRequest(baseUrl: string, cmd: string, params: Record<string, unkno
     case 'CANCEL':
       return { url: `${baseUrl}/jobs/${params.id}/cancel`, method: 'POST' };
 
+    // Worker operations
+    case 'PULL':
+      return {
+        url: `${baseUrl}/queues/${encodeQueue(params.queue)}/jobs?count=${params.count ?? 1}`,
+        method: 'GET',
+      };
+    case 'ACK':
+      return {
+        url: `${baseUrl}/jobs/${params.id}/ack`,
+        method: 'POST',
+        body: JSON.stringify({ result: params.result }),
+      };
+    case 'FAIL':
+      return {
+        url: `${baseUrl}/jobs/${params.id}/fail`,
+        method: 'POST',
+        body: JSON.stringify({ error: params.error }),
+      };
+    case 'PROGRESS':
+      return {
+        url: `${baseUrl}/jobs/${params.id}/progress`,
+        method: 'POST',
+        body: JSON.stringify({ progress: params.progress, message: params.message }),
+      };
+    case 'ADDLOG':
+      return {
+        url: `${baseUrl}/jobs/${params.id}/logs`,
+        method: 'POST',
+        body: JSON.stringify({ message: params.message, level: params.level }),
+      };
+    case 'CHANGEPRIORITY':
+      return {
+        url: `${baseUrl}/jobs/${params.id}/priority`,
+        method: 'POST',
+        body: JSON.stringify({ priority: params.priority }),
+      };
+    case 'MOVETODELAYED':
+      return {
+        url: `${baseUrl}/jobs/${params.id}/move-to-delayed`,
+        method: 'POST',
+        body: JSON.stringify({ delay: params.delay }),
+      };
+    case 'PROMOTE':
+      return { url: `${baseUrl}/jobs/${params.id}/promote`, method: 'POST' };
+    case 'DISCARD':
+      return { url: `${baseUrl}/jobs/${params.id}/discard`, method: 'POST' };
+
     // Queue management
     case 'LISTQUEUES':
       return { url: `${baseUrl}/queues`, method: 'GET' };
@@ -89,6 +136,16 @@ function buildRequest(baseUrl: string, cmd: string, params: Record<string, unkno
       };
     case 'RATELIMITCLEAR':
       return { url: `${baseUrl}/queues/${encodeQueue(params.queue)}/rate-limit`, method: 'DELETE' };
+    case 'SETCONCURRENCY':
+      return {
+        url: `${baseUrl}/queues/${encodeQueue(params.queue)}/concurrency`,
+        method: 'POST',
+        body: JSON.stringify({ limit: params.limit }),
+      };
+    case 'CLEARCONCURRENCY':
+      return { url: `${baseUrl}/queues/${encodeQueue(params.queue)}/concurrency`, method: 'DELETE' };
+    case 'OBLITERATE':
+      return { url: `${baseUrl}/queues/${encodeQueue(params.queue)}/obliterate`, method: 'DELETE' };
 
     // DLQ
     case 'DLQ':
@@ -110,6 +167,10 @@ function buildRequest(baseUrl: string, cmd: string, params: Record<string, unkno
       return { url: `${baseUrl}/stats`, method: 'GET' };
     case 'METRICS':
       return { url: `${baseUrl}/metrics`, method: 'GET' };
+    case 'METRICSHISTORY':
+      return { url: `${baseUrl}/metrics/history`, method: 'GET' };
+    case 'HEALTH':
+      return { url: `${baseUrl}/health`, method: 'GET' };
 
     // Admin
     case 'CRONLIST':

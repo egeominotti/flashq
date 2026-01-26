@@ -9,6 +9,7 @@ import { registerQueueTools } from './queues.js';
 import { registerDlqTools } from './dlq.js';
 import { registerMonitoringTools } from './monitoring.js';
 import { registerAdminTools } from './admin.js';
+import { registerWorkerTools } from './worker.js';
 
 export function registerAllTools(server: McpServer, client: FlashQClient): void {
   registerJobTools(server, client);
@@ -16,4 +17,5 @@ export function registerAllTools(server: McpServer, client: FlashQClient): void 
   registerDlqTools(server, client);
   registerMonitoringTools(server, client);
   registerAdminTools(server, client);
+  registerWorkerTools(server, client);
 }

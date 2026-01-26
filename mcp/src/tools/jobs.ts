@@ -244,4 +244,80 @@ export function registerJobTools(server: McpServer, client: FlashQClient): void 
       }
     }
   );
+
+  // change_priority
+  server.tool(
+    'change_priority',
+    'Change the priority of a waiting job. Higher priority jobs are processed first.',
+    {
+      job_id: z.number().describe('Job ID'),
+      priority: z.number().describe('New priority (higher = processed first)'),
+    },
+    async (args) => {
+      try {
+        const result = await client.send('CHANGEPRIORITY', {
+          id: args.job_id,
+          priority: args.priority,
+        });
+        return formatSuccess(result);
+      } catch (error) {
+        return formatError(error);
+      }
+    }
+  );
+
+  // move_to_delayed
+  server.tool(
+    'move_to_delayed',
+    'Move an active job back to delayed state. Useful when job cannot complete now but should retry later.',
+    {
+      job_id: z.number().describe('Job ID'),
+      delay: z.number().describe('Delay in milliseconds before job becomes available again'),
+    },
+    async (args) => {
+      try {
+        const result = await client.send('MOVETODELAYED', {
+          id: args.job_id,
+          delay: args.delay,
+        });
+        return formatSuccess(result);
+      } catch (error) {
+        return formatError(error);
+      }
+    }
+  );
+
+  // promote
+  server.tool(
+    'promote_job',
+    'Promote a delayed job to waiting state immediately, bypassing its scheduled time.',
+    {
+      job_id: z.number().describe('Job ID'),
+    },
+    async (args) => {
+      try {
+        const result = await client.send('PROMOTE', { id: args.job_id });
+        return formatSuccess(result);
+      } catch (error) {
+        return formatError(error);
+      }
+    }
+  );
+
+  // discard
+  server.tool(
+    'discard_job',
+    'Move a job directly to the Dead Letter Queue, bypassing normal retry logic.',
+    {
+      job_id: z.number().describe('Job ID'),
+    },
+    async (args) => {
+      try {
+        const result = await client.send('DISCARD', { id: args.job_id });
+        return formatSuccess(result);
+      } catch (error) {
+        return formatError(error);
+      }
+    }
+  );
 }

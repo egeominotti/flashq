@@ -9,8 +9,8 @@ use serde_json::Value;
 use crate::protocol::{JobBrowserItem, JobLogEntry, JobState};
 
 use super::types::{
-    AckRequest, ApiResponse, AppState, ChangePriorityRequest, FailRequest, JobDetailResponse,
-    JobsQuery, MoveToDelayedRequest, PartialRequest, ProgressRequest,
+    AckRequest, AddLogRequest, ApiResponse, AppState, ChangePriorityRequest, FailRequest,
+    JobDetailResponse, JobsQuery, MoveToDelayedRequest, PartialRequest, ProgressRequest,
 };
 
 /// List jobs with filtering and pagination.
@@ -391,4 +391,35 @@ pub async fn get_job_logs(
 ) -> Json<ApiResponse<Vec<JobLogEntry>>> {
     let logs = qm.get_job_logs(id);
     ApiResponse::success(logs)
+}
+
+/// Add a log entry to a job.
+///
+/// Workers can add log entries during processing for debugging and audit trails.
+/// Each entry includes a timestamp, level, and message.
+#[utoipa::path(
+    post,
+    path = "/jobs/{id}/logs",
+    tag = "Jobs",
+    summary = "Add log entry to job",
+    description = "Adds a log entry to a job during processing. Useful for debugging, audit trails, and progress tracking. Each job can have up to 100 log entries (oldest removed when exceeded).",
+    params(("id" = u64, Path, description = "Job ID")),
+    request_body = AddLogRequest,
+    responses(
+        (status = 200, description = "Log entry added")
+    )
+)]
+pub async fn add_job_log(
+    State(qm): State<AppState>,
+    Path(id): Path<u64>,
+    Json(req): Json<AddLogRequest>,
+) -> Json<ApiResponse<()>> {
+    match qm.add_job_log(
+        id,
+        req.message,
+        req.level.unwrap_or_else(|| "info".to_string()),
+    ) {
+        Ok(()) => ApiResponse::success(()),
+        Err(e) => ApiResponse::error(e),
+    }
 }
