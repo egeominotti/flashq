@@ -149,6 +149,55 @@ func main() {
 }
 ```
 
+### Rust
+
+```bash
+cargo add flashq
+```
+
+```rust
+use flashq::{FlashQ, Worker, WorkerOptions, WorkerEventData, PushOptions, JobPayload};
+use flashq::types::WorkerEvent;
+
+#[tokio::main]
+async fn main() -> flashq::Result<()> {
+    let client = FlashQ::new();
+    client.connect().await?;
+
+    // Push jobs
+    client.push("emails", serde_json::json!({"to": "user@example.com"}), None).await?;
+    client.push_batch("emails", vec![
+        JobPayload { data: serde_json::json!({"to": "a@test.com"}), options: PushOptions::default() },
+        JobPayload { data: serde_json::json!({"to": "b@test.com"}), options: PushOptions::default() },
+    ]).await?;
+    client.close().await?;
+
+    // Process jobs
+    let worker = Worker::new(
+        vec!["emails".to_string()],
+        |job| async move {
+            // send_email(&job.data).await;
+            Ok(serde_json::json!({"sent": true}))
+        },
+        Some(WorkerOptions { concurrency: 5, ..Default::default() }),
+    );
+
+    worker.on(WorkerEvent::Completed, |event| {
+        if let WorkerEventData::Completed { job_id, .. } = event {
+            println!("Job {job_id} done");
+        }
+    });
+    worker.on(WorkerEvent::Failed, |event| {
+        if let WorkerEventData::Failed { job_id, error, .. } = event {
+            println!("Job {job_id}: {error}");
+        }
+    });
+
+    worker.start().await?;
+    Ok(())
+}
+```
+
 ## MCP Server (AI Integration)
 
 Enable Claude and other AI assistants to manage your job queues through the [Model Context Protocol](https://modelcontextprotocol.io/). Claude can even **act as a worker** to process jobs.
@@ -207,8 +256,9 @@ See [mcp/README.md](mcp/README.md) for full documentation.
 - **Documentation**: [flashq.dev/docs](https://flashq.dev/docs/)
 - **Examples**:
   - TypeScript: [sdk/typescript/examples/](sdk/typescript/examples/) (15 examples)
-  - Python: [sdk/python/examples/](sdk/python/examples/) (10 examples)
-  - Go: [sdk/go/examples/](sdk/go/examples/) (23 examples)
+  - Python: [sdk/python/examples/](sdk/python/examples/) (23 examples)
+  - Go: [sdk/go/examples/](sdk/go/examples/) (24 examples)
+  - Rust: [sdk/rust/examples/](sdk/rust/examples/) (23 examples)
 - **Technical Paper**: [docs/TECHNICAL_PAPER.md](docs/TECHNICAL_PAPER.md)
 - **Releases**: [GitHub Releases](https://github.com/egeominotti/flashq/releases)
 
