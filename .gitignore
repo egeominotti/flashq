@@ -4,6 +4,7 @@
 **/*.rs.bk
 *.rlib
 *.rmeta
+sdk/rust/target
 
 # ============== Node/Bun ==============
 node_modules/
